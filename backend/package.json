@@ -1,0 +1,45 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@fal-ai/client": "^1.7.2",
+    "@fal-ai/serverless-client": "^0.15.0",
+    "@prisma/client": "5.10.2",
+    "@types/sharp": "^0.31.1",
+    "axios": "^1.13.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "google-auth-library": "^10.5.0",
+    "multer": "^2.0.2",
+    "openai": "^6.9.1",
+    "pg": "^8.16.3",
+    "prisma": "5.10.2",
+    "replicate": "^1.4.0",
+    "sharp": "^0.34.5",
+    "uuid": "^13.0.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.5",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^24.10.1",
+    "@types/ws": "^8.18.1",
+    "nodemon": "^3.1.11",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}

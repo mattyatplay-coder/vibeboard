@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  elements    Element[]
+  references  Reference[]
+  styleGuides StyleGuide[]
+  generations Generation[]
+  scenes      Scene[]
+  sessions    Session[]
+  loras       LoRA[]
+  modelParameters ModelParameter[]
+}
+
+model Session {
+  id          String   @id @default(uuid())
+  projectId   String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project      @relation(fields: [projectId], references: [id])
+  generations Generation[]
+  scenes      Scene[]
+  elements    Element[]
+}
+
+model Element {
+  id        String   @id @default(uuid())
+  projectId String
+  name      String   // Unique per project logic handled in app or composite unique constraint
+  type      String   // 'character', 'prop', 'product', 'location', 'other'
+  fileUrl   String
+  isFavorite Boolean @default(false)
+  tags      String[] @default([])
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id])
+  session Session? @relation(fields: [sessionId], references: [id])
+  sessionId String?
+
+  @@unique([projectId, name])
+}
+
+model Reference {
+  id        String   @id @default(uuid())
+  projectId String
+  name      String
+  fileUrl   String
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id])
+}
+
+model StyleGuide {
+  id              String   @id @default(uuid())
+  projectId       String
+  name            String
+  description     String?
+  files           Json?    // List of file URLs
+  derivedMetadata Json?    // Color palettes, etc.
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project     Project      @relation(fields: [projectId], references: [id])
+  generations Generation[]
+}
+
+model Generation {
+  id                 String   @id @default(uuid())
+  projectId          String
+  mode               String   // 'text_to_image', etc.
+  inputPrompt        String
+  resolvedPrompt     String?
+  shotType           String?
+  cameraAngle        String?
+  location           String?
+  lighting           String?
+  outputResolution   String?
+  aspectRatio        String?
+  variations         Int      @default(1)
+  styleGuideId       String?
+  sourceElementIds   Json?
+  sourceReferenceIds Json?
+
+  name               String?
+  tags               String[] @default([])
+  engine             String   @default("fal") // 'fal', 'comfy'
+  usedLoras          Json?    // List of { id, strength, path }
+
+  prevGenerationId   String?
+  sessionId          String?
+  isFavorite         Boolean  @default(false)
+  status             String   @default("queued") // 'queued', 'running', 'succeeded', 'failed'
+  failureReason      String?
+  outputs            Json?    // List of { type, url, thumbnail_url }
+  provider           String?
+  actualCost         Float?
+  inferenceTime      Int?     // milliseconds
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  project        Project      @relation(fields: [projectId], references: [id])
+  session        Session?     @relation(fields: [sessionId], references: [id])
+  styleGuide     StyleGuide?  @relation(fields: [styleGuideId], references: [id])
+  prevGeneration Generation?  @relation("ChainedGenerations", fields: [prevGenerationId], references: [id])
+  nextGenerations Generation[] @relation("ChainedGenerations")
+  sceneShots     SceneShot[]
+}
+
+model Scene {
+  id          String   @id @default(uuid())
+  projectId   String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sessionId   String?
+  project Project     @relation(fields: [projectId], references: [id])
+  session Session?    @relation(fields: [sessionId], references: [id])
+  shots   SceneShot[]
+}
+
+model SceneShot {
+  id           String   @id @default(uuid())
+  sceneId      String
+  generationId String
+  index        Int
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  scene      Scene      @relation(fields: [sceneId], references: [id])
+  generation Generation @relation(fields: [generationId], references: [id])
+}
+
+model LoRA {
+  id          String   @id @default(uuid())
+  projectId   String
+  name        String
+  triggerWord String?
+  fileUrl     String   // Local path or HF URL
+  baseModel   String   // 'SDXL', 'Flux', 'SVD', 'Other'
+  strength    Float    @default(1.0)
+  imageUrl    String?  // Thumbnail
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project  @relation(fields: [projectId], references: [id])
+}
+
+model ModelParameter {
+  id        String   @id @default(uuid())
+  projectId String
+  type      String   // 'sampler', 'scheduler'
+  name      String   // Display name e.g. "DPM++ 2M Karras"
+  value     String   // API value e.g. "dpmpp_2m_karras"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project   Project  @relation(fields: [projectId], references: [id])
+}

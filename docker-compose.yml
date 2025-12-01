@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: vibeboard-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-vibeboard}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - vibeboard-net
+
+  backend:
+    build: ./backend
+    container_name: vibeboard-backend
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-vibeboard}
+      PORT: 3001
+    depends_on:
+      - postgres
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - uploads_data:/app/uploads
+    networks:
+      - vibeboard-net
+    command: sh -c "npx prisma generate && npm run dev"
+
+  frontend:
+    build: ./frontend
+    container_name: vibeboard-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - vibeboard-net
+    command: npm run dev
+
+volumes:
+  postgres_data:
+  uploads_data:
+
+
+networks:
+  vibeboard-net:
+    driver: bridge
