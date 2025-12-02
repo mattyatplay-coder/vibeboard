@@ -1027,6 +1027,7 @@ export default function GeneratePage() {
             <EditElementModal
                 element={selectedGeneration ? {
                     id: selectedGeneration.id,
+                    projectId: projectId,
                     name: selectedGeneration.name || selectedGeneration.inputPrompt,
                     type: selectedGeneration.outputs?.[0]?.type || 'image',
                     url: selectedGeneration.outputs?.[0]?.url || '',
