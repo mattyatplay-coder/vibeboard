@@ -146,6 +146,10 @@ export class FalAIAdapter implements GenerationProvider {
                 input.frames_per_second = 24;
                 input.sample_shift = 5.0;
                 input.num_frames = options.duration === "10" ? 241 : 121;
+                input.num_frames = options.duration === "10" ? 241 : 121;
+            } else if (model.includes("wan-2.5") || model.includes("wan-25")) {
+                input.aspect_ratio = "16:9";
+                // Wan 2.5 defaults, adjust if needed
             } else if (model.includes("kling")) {
                 input.aspect_ratio = "16:9";
                 input.duration = options.duration || "5"; // Kling supports "5" or "10"
@@ -164,7 +168,11 @@ export class FalAIAdapter implements GenerationProvider {
                 // Ensure we are using an I2V model if image is provided
                 if (model === "fal-ai/wan-t2v" || (model.includes("wan") && model.includes("t2v"))) {
                     console.log("Switching to Wan I2V model because image was provided");
+                    console.log("Switching to Wan I2V model because image was provided");
                     model = "fal-ai/wan/v2.2-a14b/image-to-video";
+                } else if (model === "wan-2.5" || (model.includes("wan") && model.includes("2.5"))) {
+                    console.log("Switching to Wan 2.5 I2V model");
+                    model = "fal-ai/wan-25-preview/image-to-video";
                 }
             } else if (options.sourceVideoUrl && options.maskUrl) {
                 // Video Inpainting / Retake Mode
@@ -178,7 +186,9 @@ export class FalAIAdapter implements GenerationProvider {
                 if (model.includes("image-to-video") || model.includes("i2v")) {
                     console.log("Switching to T2V model because no image was provided");
                     // Fallback logic for T2V if available
-                    if (model.includes("wan")) model = "fal-ai/wan-t2v";
+                    // Fallback logic for T2V if available
+                    if (model.includes("wan") && !model.includes("2.5")) model = "fal-ai/wan-t2v";
+                    if (model === "wan-2.5" || (model.includes("wan") && model.includes("2.5"))) model = "fal-ai/wan-25-preview/text-to-video";
                     // Kling and LTX T2V handling could be added here if needed
                 }
             }

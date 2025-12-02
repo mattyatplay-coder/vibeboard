@@ -120,6 +120,29 @@ const processQueue = async () => {
                 mode: generation.mode as any, // Cast to any to avoid type error, validated at runtime
             };
 
+            // Auto-detect video intent if mode is text_to_image but prompt suggests video
+            if (options.mode === 'text_to_video' || options.mode === 'image_to_video' || !options.mode || options.mode === 'text_to_image') {
+                const videoKeywords = ['video', 'animated', 'animation', 'shot', 'film', 'movie', 'cinematic', 'drone', 'camera'];
+                const hasVideoKeywords = videoKeywords.some(k => generation.inputPrompt.toLowerCase().includes(k));
+
+                // If user explicitly asked for video but we are in image mode (or default), switch to video
+                // But only if the provider supports it. For now, we assume if they ask for video, they want video.
+                // However, we must be careful not to override explicit user choice if they selected "Image" mode in UI.
+                // The issue is the UI might default to "text_to_video" in SceneGenerator but "text_to_image" in main GeneratePage.
+
+                // Check if we have multiple mentions which might imply start/end frames
+                if (mentions.length >= 2 && (generation.inputPrompt.includes('start') || generation.inputPrompt.includes('end'))) {
+                    console.log("Inferred Frames-to-Video intent from prompt");
+                    options.mode = 'frames_to_video';
+                    // Map mentions to start/end frames if not explicitly provided
+                    if (!options.startFrame && sourceImages[0]) options.startFrame = sourceImages[0];
+                    if (!options.endFrame && sourceImages[1]) options.endFrame = sourceImages[1];
+                } else if (hasVideoKeywords && (!options.mode || options.mode === 'text_to_image')) {
+                    console.log("Inferred Video intent from prompt keywords");
+                    options.mode = 'text_to_video';
+                }
+            }
+
             console.log(`🔍 DEBUG: options.model = "${options.model}"`);
             console.log(`🔍 DEBUG: options.maskUrl = "${options.maskUrl}"`);
 
@@ -132,9 +155,11 @@ const processQueue = async () => {
 
             // Call Service
             let result;
-            if (generation.mode === 'image_to_video' || generation.mode === 'text_to_video') {
+            if (options.mode === 'image_to_video' || options.mode === 'text_to_video' || options.mode === 'frames_to_video' || options.mode === 'extend_video') {
                 // For text_to_video, sourceImages[0] might be undefined, which is fine if generateVideo handles it
-                result = await service.generateVideo(sourceImages[0], options);
+                // For frames_to_video, we use options.startFrame (which we might have inferred)
+                const videoInput = options.startFrame || sourceImages[0];
+                result = await service.generateVideo(videoInput, options);
             } else {
                 result = await service.generateImage(options);
             }

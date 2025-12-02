@@ -85,7 +85,7 @@ export class GoogleVeoAdapter implements GenerationProvider {
     async generateVideo(image: string | undefined, options: GenerationOptions): Promise<GenerationResult> {
         try {
             // Veo 3.1 model
-            const model = options.model || 'veo-3.1-generate';
+            const model = this.normalizeModelId(options.model || 'veo-3.1');
 
             const payload: any = {
                 instances: [{

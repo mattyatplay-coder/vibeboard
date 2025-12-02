@@ -137,7 +137,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         envVar: 'FAL_KEY',
         models: {
             image: ['flux-schnell', 'flux-dev', 'flux-pro', 'flux-1.1-ultra'],
-            video: ['ltx-video', 'wan-2.1', 'wan-2.2', 'minimax-video']
+            video: ['ltx-video', 'wan-2.1', 'wan-2.2', 'wan-2.5', 'minimax-video']
         },
         category: 'cloud'
     },
@@ -599,6 +599,7 @@ export class GenerationService {
             'ltx-video': 'fal',
             'wan-2.1': 'fal',
             'wan-2.2': 'fal',
+            'wan-2.5': 'fal',
             'minimax-video': 'fal',
             'kling-video': 'fal',
         };
