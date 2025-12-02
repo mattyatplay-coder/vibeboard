@@ -82,3 +82,6 @@ A self-hosted AI video generation platform (LTX.studio clone).
 - **Elements**: Upload characters, props, and locations.
 - **Generate**: Create AI generations (mocked for MVP) with queuing.
 - **Storyboard**: Organize shots into scenes.
+
+## Deployment Status
+Last updated: Mon Dec  1 22:51:09 EST 2025
