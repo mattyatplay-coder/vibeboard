@@ -5,3 +5,6 @@ dist/
 build/
 .DS_Store
 *.log
+*.zip
+vibeboard-improvements/
+temp_analysis/
