@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { fetchAPI } from "@/lib/api";
 import { useParams, useRouter } from "next/navigation";
-import { Plus, Sparkles, Copy, Trash2, X, CheckSquare } from "lucide-react";
+import { Plus, Sparkles, Copy, Trash2, X, CheckSquare, FastForward, Palette, Play, Video } from "lucide-react";
 import { GenerationPickerModal } from "@/components/storyboard/GenerationPickerModal";
 import { SceneGeneratorModal } from "@/components/storyboard/SceneGeneratorModal";
 import { StoryboardHeader } from "@/components/storyboard/StoryboardHeader";
@@ -11,8 +11,11 @@ import { StyleSelectorModal } from "@/components/storyboard/StyleSelectorModal";
 import { CastModal } from "@/components/storyboard/CastModal";
 import { ShotStyleEditorModal } from "@/components/storyboard/ShotStyleEditorModal";
 import { EditElementModal } from "@/components/elements/EditElementModal";
+import { FoundationImagePanel } from "@/components/storyboard/FoundationImagePanel";
+import { ShotActionsPanel } from "@/components/storyboard/ShotActionsPanel";
 import { Generation } from "@/lib/store";
 import { useSession } from "@/context/SessionContext";
+import { clsx } from "clsx";
 
 const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -241,6 +244,142 @@ export default function StoryboardPage() {
     // Batch Selection State
     const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
 
+    // Foundation Image State
+    const [foundationImage, setFoundationImage] = useState<string | File | null>(null);
+    const [styleConfig, setStyleConfig] = useState({
+        aesthetic: "",
+        lighting: "",
+        colorPalette: "",
+        cameraDirection: ""
+    });
+
+    // Active Shot for V2V Actions
+    const [activeShotForActions, setActiveShotForActions] = useState<any>(null);
+
+    // Generate Foundation Image
+    const handleGenerateFoundation = async (prompt: string) => {
+        try {
+            const response = await fetchAPI(`/projects/${projectId}/generations`, {
+                method: "POST",
+                body: JSON.stringify({
+                    mode: "text_to_image",
+                    inputPrompt: prompt,
+                    aspectRatio: aspectRatio,
+                    variations: 1
+                })
+            });
+            // The foundation image will be set when the generation completes
+            // For now, we'll poll or use the first output
+            if (response.outputs?.[0]?.url) {
+                setFoundationImage(response.outputs[0].url);
+            }
+        } catch (err) {
+            console.error("Failed to generate foundation image", err);
+            alert("Failed to generate foundation image");
+        }
+    };
+
+    // Grab Last Frame from a shot's video
+    const handleGrabLastFrame = async (shotId: string) => {
+        const shot = scenes.flatMap(s => s.shots || []).find((s: any) => s.id === shotId);
+        if (!shot?.generation?.outputs?.[0]) return;
+
+        const videoUrl = shot.generation.outputs[0].url;
+        // In a real implementation, this would extract the last frame server-side
+        // For now, we'll create a new generation using the video's last frame
+        alert(`Grab Last Frame from ${videoUrl} - This would extract the last frame and use it as a starting image for the next generation.`);
+    };
+
+    // Grab First Frame from a shot's video
+    const handleGrabFirstFrame = async (shotId: string) => {
+        const shot = scenes.flatMap(s => s.shots || []).find((s: any) => s.id === shotId);
+        if (!shot?.generation?.outputs?.[0]) return;
+
+        const videoUrl = shot.generation.outputs[0].url;
+        alert(`Grab First Frame from ${videoUrl} - This would extract the first frame for use as an end frame.`);
+    };
+
+    // V2V Edit (Kling O1 style)
+    const handleV2VEdit = async (shotId: string, editType: string, prompt: string) => {
+        const shot = scenes.flatMap(s => s.shots || []).find((s: any) => s.id === shotId);
+        if (!shot?.generation?.outputs?.[0]) return;
+
+        try {
+            // Create a new generation using Kling O1 V2V
+            const response = await fetchAPI(`/projects/${projectId}/generations`, {
+                method: "POST",
+                body: JSON.stringify({
+                    mode: "video_to_video",
+                    inputPrompt: prompt,
+                    sourceVideoUrl: shot.generation.outputs[0].url,
+                    aspectRatio: aspectRatio,
+                    model: "fal-ai/kling-video/o1/video-to-video/edit"
+                })
+            });
+            loadScenes();
+            alert(`V2V Edit (${editType}) initiated!`);
+        } catch (err) {
+            console.error("Failed to apply V2V edit", err);
+            alert("Failed to apply V2V edit");
+        }
+    };
+
+    // Predict Next Shot
+    const handlePredictNextShot = async (shotId: string, prompt: string) => {
+        const shot = scenes.flatMap(s => s.shots || []).find((s: any) => s.id === shotId);
+        if (!shot?.generation?.outputs?.[0]) return;
+
+        try {
+            const fullPrompt = prompt
+                ? `Based on @Video1, generate the next shot: ${prompt}`
+                : "Based on @Video1, generate the next shot";
+
+            const response = await fetchAPI(`/projects/${projectId}/generations`, {
+                method: "POST",
+                body: JSON.stringify({
+                    mode: "video_to_video",
+                    inputPrompt: fullPrompt,
+                    sourceVideoUrl: shot.generation.outputs[0].url,
+                    aspectRatio: aspectRatio,
+                    model: "fal-ai/kling-video/o1/image-to-video"
+                })
+            });
+            loadScenes();
+            alert("Next shot prediction initiated!");
+        } catch (err) {
+            console.error("Failed to predict next shot", err);
+            alert("Failed to predict next shot");
+        }
+    };
+
+    // Predict Previous Shot
+    const handlePredictPreviousShot = async (shotId: string, prompt: string) => {
+        const shot = scenes.flatMap(s => s.shots || []).find((s: any) => s.id === shotId);
+        if (!shot?.generation?.outputs?.[0]) return;
+
+        try {
+            const fullPrompt = prompt
+                ? `Based on @Video1, generate the previous shot: ${prompt}`
+                : "Based on @Video1, generate the previous shot";
+
+            const response = await fetchAPI(`/projects/${projectId}/generations`, {
+                method: "POST",
+                body: JSON.stringify({
+                    mode: "video_to_video",
+                    inputPrompt: fullPrompt,
+                    sourceVideoUrl: shot.generation.outputs[0].url,
+                    aspectRatio: aspectRatio,
+                    model: "fal-ai/kling-video/o1/image-to-video"
+                })
+            });
+            loadScenes();
+            alert("Previous shot prediction initiated!");
+        } catch (err) {
+            console.error("Failed to predict previous shot", err);
+            alert("Failed to predict previous shot");
+        }
+    };
+
     const toggleSceneSelection = (id: string) => {
         setSelectedSceneIds(prev =>
             prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id]
@@ -311,26 +450,40 @@ export default function StoryboardPage() {
             />
 
             <div className="p-8">
-                <header className="mb-8 flex justify-between items-center">
+                <header className="mb-6 flex justify-between items-center">
                     <div>
                         <h1 className="text-3xl font-bold">Storyboard</h1>
                         <p className="text-gray-400 mt-2">Organize your shots into scenes.</p>
                     </div>
-                    <button
-                        onClick={handleCreateScene}
-                        className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"
-                    >
-                        + New Scene
-                    </button>
-                    {scenes.length > 0 && (
+                    <div className="flex items-center gap-3">
                         <button
-                            onClick={selectedSceneIds.length === scenes.length ? deselectAllScenes : selectAllScenes}
-                            className="ml-4 text-sm text-blue-400 hover:text-blue-300"
+                            onClick={handleCreateScene}
+                            className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"
                         >
-                            {selectedSceneIds.length === scenes.length ? "Deselect All" : "Select All"}
+                            + New Scene
                         </button>
-                    )}
+                        {scenes.length > 0 && (
+                            <button
+                                onClick={selectedSceneIds.length === scenes.length ? deselectAllScenes : selectAllScenes}
+                                className="text-sm text-blue-400 hover:text-blue-300"
+                            >
+                                {selectedSceneIds.length === scenes.length ? "Deselect All" : "Select All"}
+                            </button>
+                        )}
+                    </div>
                 </header>
+
+                {/* Foundation Image Panel */}
+                <div className="mb-8">
+                    <FoundationImagePanel
+                        projectId={projectId}
+                        foundationImage={foundationImage}
+                        onFoundationImageChange={setFoundationImage}
+                        onGenerateFromPrompt={handleGenerateFoundation}
+                        styleConfig={styleConfig}
+                        onStyleConfigChange={setStyleConfig}
+                    />
+                </div>
 
                 <div className="space-y-8">
                     {scenes.length === 0 ? (
@@ -375,35 +528,109 @@ export default function StoryboardPage() {
                                             No shots yet
                                         </div>
                                     )}
-                                    {scene.shots?.map((shot: any) => (
-                                        <div key={shot.id} className="flex-shrink-0 w-64 aspect-video bg-black/50 rounded-lg overflow-hidden relative group border border-white/5">
-                                            {shot.generation?.outputs?.[0] && (
-                                                <img src={shot.generation.outputs[0].url} className="w-full h-full object-cover" />
-                                            )}
-                                            <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/60 rounded text-xs text-white backdrop-blur-sm">
-                                                Shot {shot.index}
-                                            </div>
+                                    {scene.shots?.map((shot: any) => {
+                                        const isVideo = shot.generation?.outputs?.[0]?.type === 'video';
+                                        const mediaUrl = shot.generation?.outputs?.[0]?.url;
 
-                                            {/* Edit Style Button */}
-                                            <button
-                                                onClick={() => setEditingShot(shot)}
-                                                className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-purple-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm"
-                                                title="Edit Shot Style"
+                                        return (
+                                            <div
+                                                key={shot.id}
+                                                className={clsx(
+                                                    "flex-shrink-0 w-64 bg-black/50 rounded-lg overflow-hidden relative group border transition-all",
+                                                    activeShotForActions?.id === shot.id
+                                                        ? "border-blue-500 ring-2 ring-blue-500/20"
+                                                        : "border-white/5 hover:border-white/20"
+                                                )}
                                             >
-                                                <Sparkles className="w-3 h-3" />
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedGeneration(shot.generation);
-                                                    setIsEditModalOpen(true);
-                                                }}
-                                                className="absolute top-2 right-9 p-1.5 bg-black/60 hover:bg-blue-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm"
-                                                title="Edit Details"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-pencil"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /><path d="m15 5 4 4" /></svg>
-                                            </button>
-                                        </div>
-                                    ))}
+                                                {/* Media Preview */}
+                                                <div className="aspect-video relative">
+                                                    {mediaUrl ? (
+                                                        isVideo ? (
+                                                            <video
+                                                                src={mediaUrl}
+                                                                className="w-full h-full object-cover"
+                                                                muted
+                                                                loop
+                                                                playsInline
+                                                                onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+                                                                onMouseLeave={(e) => {
+                                                                    (e.target as HTMLVideoElement).pause();
+                                                                    (e.target as HTMLVideoElement).currentTime = 0;
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            <img src={mediaUrl} className="w-full h-full object-cover" />
+                                                        )
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center text-gray-600 text-xs">
+                                                            No media
+                                                        </div>
+                                                    )}
+
+                                                    {/* Video Indicator */}
+                                                    {isVideo && (
+                                                        <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-blue-500/80 rounded text-[10px] text-white font-medium flex items-center gap-1">
+                                                            <Video className="w-3 h-3" />
+                                                            Video
+                                                        </div>
+                                                    )}
+
+                                                    {/* Shot Index Badge */}
+                                                    <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/60 rounded text-xs text-white backdrop-blur-sm">
+                                                        Shot {shot.index}
+                                                    </div>
+
+                                                    {/* Action Buttons Overlay */}
+                                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                                        {/* V2V Actions Button */}
+                                                        {isVideo && (
+                                                            <button
+                                                                onClick={() => setActiveShotForActions(
+                                                                    activeShotForActions?.id === shot.id ? null : shot
+                                                                )}
+                                                                className={clsx(
+                                                                    "p-2 rounded-lg backdrop-blur-sm transition-all",
+                                                                    activeShotForActions?.id === shot.id
+                                                                        ? "bg-blue-500 text-white"
+                                                                        : "bg-black/60 hover:bg-blue-500 text-white"
+                                                                )}
+                                                                title="V2V Actions"
+                                                            >
+                                                                <Palette className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+
+                                                        {/* Extend Button */}
+                                                        {isVideo && (
+                                                            <button
+                                                                onClick={() => handleGrabLastFrame(shot.id)}
+                                                                className="p-2 bg-black/60 hover:bg-green-500 text-white rounded-lg backdrop-blur-sm transition-all"
+                                                                title="Grab Last Frame (Extend)"
+                                                            >
+                                                                <FastForward className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+
+                                                        {/* Edit Style Button */}
+                                                        <button
+                                                            onClick={() => setEditingShot(shot)}
+                                                            className="p-2 bg-black/60 hover:bg-purple-600 text-white rounded-lg backdrop-blur-sm transition-all"
+                                                            title="Edit Shot Style"
+                                                        >
+                                                            <Sparkles className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Prompt Preview */}
+                                                <div className="p-2 border-t border-white/5">
+                                                    <p className="text-[10px] text-gray-500 truncate">
+                                                        {shot.generation?.inputPrompt || "No prompt"}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         ))
@@ -460,6 +687,49 @@ export default function StoryboardPage() {
                         >
                             <X className="w-4 h-4" />
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* V2V Actions Slide Panel */}
+            {activeShotForActions && (
+                <div className="fixed right-0 top-16 bottom-0 w-80 bg-[#0a0a0a] border-l border-white/10 z-40 overflow-y-auto shadow-2xl">
+                    <div className="p-4">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-semibold text-white">Shot Actions</h3>
+                            <button
+                                onClick={() => setActiveShotForActions(null)}
+                                className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-white"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Shot Preview */}
+                        <div className="mb-4 aspect-video rounded-lg overflow-hidden border border-white/10">
+                            {activeShotForActions.generation?.outputs?.[0]?.type === 'video' ? (
+                                <video
+                                    src={activeShotForActions.generation.outputs[0].url}
+                                    className="w-full h-full object-cover"
+                                    controls
+                                    muted
+                                />
+                            ) : (
+                                <img
+                                    src={activeShotForActions.generation?.outputs?.[0]?.url}
+                                    className="w-full h-full object-cover"
+                                />
+                            )}
+                        </div>
+
+                        <ShotActionsPanel
+                            shot={activeShotForActions}
+                            onGrabLastFrame={handleGrabLastFrame}
+                            onGrabFirstFrame={handleGrabFirstFrame}
+                            onV2VEdit={handleV2VEdit}
+                            onPredictNextShot={handlePredictNextShot}
+                            onPredictPreviousShot={handlePredictPreviousShot}
+                        />
                     </div>
                 </div>
             )}
