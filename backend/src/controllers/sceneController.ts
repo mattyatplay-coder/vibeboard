@@ -3,6 +3,17 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient({});
 
+// Helper to parse JSON fields from generation records (same as in generationController)
+const parseGenerationJsonFields = (generation: any) => {
+    if (!generation) return generation;
+    return {
+        ...generation,
+        outputs: generation.outputs ? (typeof generation.outputs === 'string' ? JSON.parse(generation.outputs) : generation.outputs) : null,
+        usedLoras: generation.usedLoras ? (typeof generation.usedLoras === 'string' ? JSON.parse(generation.usedLoras) : generation.usedLoras) : null,
+        sourceElementIds: generation.sourceElementIds ? (typeof generation.sourceElementIds === 'string' ? JSON.parse(generation.sourceElementIds) : generation.sourceElementIds) : null,
+    };
+};
+
 export const createScene = async (req: Request, res: Response) => {
     try {
         const { projectId } = req.params;
@@ -50,7 +61,17 @@ export const getScenes = async (req: Request, res: Response) => {
             },
             orderBy: { createdAt: 'asc' },
         });
-        res.json(scenes);
+
+        // Parse JSON fields in nested generations
+        const parsedScenes = scenes.map(scene => ({
+            ...scene,
+            shots: scene.shots.map(shot => ({
+                ...shot,
+                generation: parseGenerationJsonFields(shot.generation),
+            })),
+        }));
+
+        res.json(parsedScenes);
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to fetch scenes' });

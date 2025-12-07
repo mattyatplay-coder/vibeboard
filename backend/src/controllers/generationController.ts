@@ -6,6 +6,17 @@ import { PromptBuilder } from '../services/PromptBuilder';
 
 const prisma = new PrismaClient({});
 
+// Helper to parse JSON fields from generation records
+const parseGenerationJsonFields = (generation: any) => {
+    if (!generation) return generation;
+    return {
+        ...generation,
+        outputs: generation.outputs ? (typeof generation.outputs === 'string' ? JSON.parse(generation.outputs) : generation.outputs) : null,
+        usedLoras: generation.usedLoras ? (typeof generation.usedLoras === 'string' ? JSON.parse(generation.usedLoras) : generation.usedLoras) : null,
+        sourceElementIds: generation.sourceElementIds ? (typeof generation.sourceElementIds === 'string' ? JSON.parse(generation.sourceElementIds) : generation.sourceElementIds) : null,
+    };
+};
+
 // Simple in-memory queue for MVP
 const jobQueue: string[] = [];
 let isProcessing = false;
@@ -42,13 +53,19 @@ const processQueue = async () => {
 
             // Fetch source images if any
             let sourceImages: string[] = [];
-            const sourceIds = generation.sourceElementIds as string[];
+            const sourceIdsRaw = generation.sourceElementIds;
+            const sourceIds = sourceIdsRaw ? (typeof sourceIdsRaw === 'string' ? JSON.parse(sourceIdsRaw) : sourceIdsRaw) : [];
             if (Array.isArray(sourceIds) && sourceIds.length > 0) {
                 const elements = await prisma.element.findMany({
                     where: { id: { in: sourceIds } }
                 });
-                sourceImages = elements.map(e => e.fileUrl).filter(url => !!url);
+                sourceImages = elements.map(e => e.fileUrl).filter((url): url is string => !!url);
             }
+
+            // Parse usedLoras from JSON string
+            const usedLorasParsed = generation.usedLoras
+                ? (typeof generation.usedLoras === 'string' ? JSON.parse(generation.usedLoras) : generation.usedLoras)
+                : {};
 
             // Parse @ mentions from the prompt
             const mentionRegex = /@([a-zA-Z0-9_.-]+)/g;
@@ -56,15 +73,19 @@ const processQueue = async () => {
 
             if (mentions.length > 0) {
                 console.log(`Found mentions in prompt: ${mentions.join(', ')}`);
+                // Note: Prisma doesn't support case-insensitive 'in' filter directly
+                // We filter in-memory for case-insensitivity
                 const mentionedElements = await prisma.element.findMany({
                     where: {
-                        name: { in: mentions, mode: 'insensitive' },
                         projectId: generation.projectId // Scope to project
                     }
                 });
+                const filteredElements = mentionedElements.filter(e =>
+                    mentions.some(m => e.name.toLowerCase() === m.toLowerCase())
+                );
 
                 // Add mentioned images to sourceImages (if not already present)
-                mentionedElements.forEach(e => {
+                filteredElements.forEach(e => {
                     if (e.fileUrl && !sourceImages.includes(e.fileUrl)) {
                         sourceImages.push(e.fileUrl);
                     }
@@ -72,7 +93,7 @@ const processQueue = async () => {
             }
 
             // Check for direct sourceImageUrl (from image-to-video)
-            const directSourceUrl = (generation.usedLoras as any)?.sourceImageUrl;
+            const directSourceUrl = usedLorasParsed?.sourceImageUrl;
             if (directSourceUrl) {
                 sourceImages.push(directSourceUrl);
             }
@@ -80,7 +101,7 @@ const processQueue = async () => {
             // Prepare options
             // Resolve LoRAs
             let resolvedLoras: { path: string; strength: number }[] = [];
-            const usedLorasData = (generation.usedLoras as any)?.loras;
+            const usedLorasData = usedLorasParsed?.loras;
             if (Array.isArray(usedLorasData) && usedLorasData.length > 0) {
                 const loraIds = usedLorasData.map((l: any) => l.id);
                 const loraRecords = await prisma.loRA.findMany({
@@ -103,20 +124,19 @@ const processQueue = async () => {
                 negativePrompt: PromptBuilder.buildNegative(),
                 aspectRatio: generation.aspectRatio || "16:9",
                 loras: resolvedLoras,
-                model: (generation.usedLoras as any)?.model,
+                model: usedLorasParsed?.model,
                 sourceImages,
-                strength: (generation.usedLoras as any)?.strength, // Pass strength to options
-                sampler: (generation.usedLoras as any)?.sampler,
-                scheduler: (generation.usedLoras as any)?.scheduler,
+                strength: usedLorasParsed?.strength, // Pass strength to options
+                sampler: usedLorasParsed?.sampler,
+                scheduler: usedLorasParsed?.scheduler,
                 count: generation.variations || 1,
-                duration: (generation.usedLoras as any)?.duration, // Pass duration
-                maskUrl: (generation.usedLoras as any)?.maskUrl, // Pass maskUrl for inpainting
-                width: (generation.usedLoras as any)?.width, // Pass explicit dimensions
-
-                height: (generation.usedLoras as any)?.height,
-                startFrame: (generation.usedLoras as any)?.startFrame,
-                endFrame: (generation.usedLoras as any)?.endFrame,
-                inputVideo: (generation.usedLoras as any)?.inputVideo,
+                duration: usedLorasParsed?.duration, // Pass duration
+                maskUrl: usedLorasParsed?.maskUrl, // Pass maskUrl for inpainting
+                width: usedLorasParsed?.width, // Pass explicit dimensions
+                height: usedLorasParsed?.height,
+                startFrame: usedLorasParsed?.startFrame,
+                endFrame: usedLorasParsed?.endFrame,
+                inputVideo: usedLorasParsed?.inputVideo,
                 mode: generation.mode as any, // Cast to any to avoid type error, validated at runtime
             };
 
@@ -165,17 +185,19 @@ const processQueue = async () => {
             }
 
             if (result.status === 'succeeded') {
+                const outputsData = result.outputs?.map((url: string) => ({
+                    type: (generation.mode === 'image_to_video' || generation.mode === 'text_to_video' || (typeof url === 'string' && (url.endsWith('.mp4') || url.endsWith('.webm')))) ? 'video' : 'image',
+                    url,
+                    thumbnail_url: url
+                }));
+
                 await prisma.generation.update({
                     where: { id: generationId },
                     data: {
                         status: 'succeeded',
-                        outputs: result.outputs?.map((url: string) => ({
-                            type: (generation.mode === 'image_to_video' || generation.mode === 'text_to_video' || (typeof url === 'string' && (url.endsWith('.mp4') || url.endsWith('.webm')))) ? 'video' : 'image',
-                            url,
-                            thumbnail_url: url
-                        })),
+                        outputs: JSON.stringify(outputsData),
                         // Store provider info if available
-                        usedLoras: { ...(generation.usedLoras as object), provider: result.provider, seed: result.seed }
+                        usedLoras: JSON.stringify({ ...usedLorasParsed, provider: result.provider, seed: result.seed })
                     },
                 });
             } else if (result.status === 'failed') {
@@ -242,13 +264,13 @@ export const createGeneration = async (req: Request, res: Response) => {
                 outputResolution,
                 aspectRatio,
                 variations: variations || 1,
-                sourceElementIds,
+                sourceElementIds: sourceElementIds ? JSON.stringify(sourceElementIds) : null,
                 prevGenerationId,
                 sessionId,
                 status: 'queued',
                 engine: engine || 'fal',
                 // Store model info in metadata or similar if needed, for now we just use it for generation
-                usedLoras: { loras, model: falModel, sourceImageUrl, strength, sampler, scheduler, maskUrl, width, height, startFrame, endFrame, inputVideo } // Store dimensions in metadata
+                usedLoras: JSON.stringify({ loras, model: falModel, sourceImageUrl, strength, sampler, scheduler, maskUrl, width, height, startFrame, endFrame, inputVideo })
             },
         });
 
@@ -256,7 +278,7 @@ export const createGeneration = async (req: Request, res: Response) => {
         jobQueue.push(generation.id);
         processQueue(); // Trigger processing
 
-        res.status(201).json(generation);
+        res.status(201).json(parseGenerationJsonFields(generation));
     } catch (error: any) {
         console.error(error);
         if (error.code === 'P2003') {
@@ -289,7 +311,8 @@ export const getGenerations = async (req: Request, res: Response) => {
             orderBy: { createdAt: 'desc' },
         });
         console.log(`[getGenerations] found ${generations.length} generations`);
-        res.json(generations);
+        // Parse JSON fields before returning
+        res.json(generations.map(parseGenerationJsonFields));
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to fetch generations' });
@@ -306,7 +329,7 @@ export const updateGeneration = async (req: Request, res: Response) => {
             data: updates,
         });
 
-        res.json(generation);
+        res.json(parseGenerationJsonFields(generation));
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to update generation' });
