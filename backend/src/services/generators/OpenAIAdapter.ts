@@ -94,53 +94,123 @@ export class OpenAIAdapter implements GenerationProvider {
     }
 
     async generateVideo(image: string | undefined, options: GenerationOptions): Promise<GenerationResult> {
-        // Sora integration - currently limited access
         try {
-            // Check if Sora is available (it's in limited release)
-            const model = options.model || 'sora-1.0';
+            const model = options.model || 'sora-2';
+            const prompt = options.prompt;
+            const size = options.aspectRatio === '9:16' ? '720x1280' : '1280x720'; // Simplified mapping
+            // OpenAI video API expects 'seconds' as a string enum ('4', '8', '12') NOT an integer
+            const seconds = options.duration ? options.duration : '4';
 
-            // Note: Sora API structure is hypothetical as it's not publicly available yet
-            // This is based on expected API patterns
-            const payload: any = {
+            console.log(`[OpenAIAdapter] Generating video with model ${model}, size ${size}, duration ${seconds}s`);
+
+            // Cast client to any because 'videos' might not be in the type definition yet
+            const response = await (this.client as any).videos.create({
                 model,
-                prompt: options.prompt,
-                duration: parseInt(options.duration || '5'),
-                aspect_ratio: options.aspectRatio || '16:9',
-            };
+                prompt,
+                size,
+                seconds, // '4', '8', '12'
+            });
 
-            if (image) {
-                payload.image = image;
-            }
+            console.log("[OpenAIAdapter] Job created:", response);
 
-            if (options.negativePrompt) {
-                payload.negative_prompt = options.negativePrompt;
-            }
-
-            console.log("OpenAI Sora generation (experimental):", model);
-
-            // When Sora becomes available, the API call would look something like:
-            // const response = await this.client.videos.generate(payload);
-
-            // For now, return not available
             return {
-                id: Date.now().toString(),
-                status: 'failed',
-                error: 'Sora video generation is not yet publicly available. Check OpenAI for access.'
+                id: response.id,
+                status: 'queued', // OpenAI returns status in response, usually 'queued' or 'processing'
+                provider: 'openai'
             };
 
         } catch (error: any) {
-            console.error("OpenAI Sora generation failed:", error.message);
+            console.error("OpenAI Sora generation failed:", error);
             return {
                 id: Date.now().toString(),
+                status: 'failed',
+                error: error.message || "Failed to create video job"
+            };
+        }
+    }
+
+    async checkStatus(id: string): Promise<GenerationResult> {
+        try {
+            // Cast client to any
+            const job = await (this.client as any).videos.retrieve(id);
+
+            console.log(`[OpenAIAdapter] Polling job ${id}: ${job.status}`);
+
+            if (job.status === 'completed') {
+                // Download the video and save it locally
+                try {
+                    const videoUrl = await this.downloadAndSaveVideo(id);
+                    console.log(`[OpenAIAdapter] Video saved to: ${videoUrl}`);
+                    return {
+                        id,
+                        status: 'succeeded',
+                        outputs: [videoUrl]
+                    };
+                } catch (downloadError: any) {
+                    console.error(`[OpenAIAdapter] Failed to download video:`, downloadError);
+                    return {
+                        id,
+                        status: 'failed',
+                        error: `Video completed but download failed: ${downloadError.message}`
+                    };
+                }
+            } else if (job.status === 'failed') {
+                return {
+                    id,
+                    status: 'failed',
+                    error: job.error?.message || "Video generation failed"
+                };
+            }
+
+            return {
+                id,
+                status: 'running' // Map 'queued'/'in_progress' to 'running'
+            };
+
+        } catch (error: any) {
+            console.error(`[OpenAIAdapter] Check status failed for ${id}:`, error);
+            return {
+                id,
                 status: 'failed',
                 error: error.message
             };
         }
     }
 
-    async checkStatus(id: string): Promise<GenerationResult> {
-        // OpenAI generations are synchronous
-        return { id, status: 'succeeded' };
+    /**
+     * Download video from OpenAI and save to local uploads folder
+     */
+    private async downloadAndSaveVideo(id: string): Promise<string> {
+        const fs = await import('fs');
+        const path = await import('path');
+
+        console.log(`[OpenAIAdapter] Downloading video ${id}...`);
+
+        // Download the video content using the SDK method
+        const response: Response = await (this.client as any).videos.downloadContent(id, { variant: 'video' });
+
+        if (!response.ok) {
+            throw new Error(`Download failed with status ${response.status}`);
+        }
+
+        const buffer = await response.arrayBuffer();
+        console.log(`[OpenAIAdapter] Downloaded ${buffer.byteLength} bytes`);
+
+        // Create uploads directory if it doesn't exist
+        const uploadsDir = path.join(process.cwd(), 'uploads', 'videos');
+        if (!fs.existsSync(uploadsDir)) {
+            fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+
+        // Save to file
+        const filename = `sora-${id}-${Date.now()}.mp4`;
+        const filepath = path.join(uploadsDir, filename);
+        fs.writeFileSync(filepath, Buffer.from(buffer));
+
+        console.log(`[OpenAIAdapter] Video saved to: ${filepath}`);
+
+        // Return the URL path that can be served statically
+        return `/uploads/videos/${filename}`;
     }
 
     /**
