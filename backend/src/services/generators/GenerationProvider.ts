@@ -25,6 +25,14 @@ export interface GenerationOptions {
     startFrame?: string; // base64 or URL
     endFrame?: string; // base64 or URL
     inputVideo?: string; // base64 or URL for extension
+    // Kling 2.6 specific
+    generateAudio?: boolean; // Enable native audio generation (Kling 2.6)
+    // Kling O1 specific
+    keyframes?: {
+        startFrame?: string; // URL or base64 for start keyframe
+        endFrame?: string; // URL or base64 for end keyframe
+    };
+    elementReferences?: string[]; // URLs for character/element consistency (up to 4)
 }
 
 export interface GenerationResult {

@@ -153,6 +153,30 @@ export class FalAIAdapter implements GenerationProvider {
             } else if (model.includes("kling")) {
                 input.aspect_ratio = "16:9";
                 input.duration = options.duration || "5"; // Kling supports "5" or "10"
+
+                // Kling 2.6 - Native Audio Generation
+                if (model.includes("v2.6")) {
+                    // Default to generating audio (Kling 2.6's key feature)
+                    input.generate_audio = options.generateAudio !== false;
+                }
+
+                // Kling O1 - Advanced keyframe and element reference support
+                if (model.includes("/o1/")) {
+                    // End frame support for O1 image-to-video (start frame is handled via main image_url)
+                    // Use @Image1 for start frame, @Image2 for end frame in prompts
+                    if (options.keyframes?.endFrame) {
+                        input.end_image_url = await this.uploadToFal(options.keyframes.endFrame);
+                    }
+
+                    // Reference images for style/appearance (up to 4 total with elements)
+                    // Reference in prompt as @Image1, @Image2, etc.
+                    if (options.elementReferences && options.elementReferences.length > 0) {
+                        const uploadedRefs = await Promise.all(
+                            options.elementReferences.slice(0, 4).map(ref => this.uploadToFal(ref))
+                        );
+                        input.image_urls = uploadedRefs;
+                    }
+                }
             } else if (model.includes("ltx")) {
                 input.aspect_ratio = "16:9";
                 // LTX supports duration: 6, 8, 10 (for standard)
@@ -168,11 +192,14 @@ export class FalAIAdapter implements GenerationProvider {
                 // Ensure we are using an I2V model if image is provided
                 if (model === "fal-ai/wan-t2v" || (model.includes("wan") && model.includes("t2v"))) {
                     console.log("Switching to Wan I2V model because image was provided");
-                    console.log("Switching to Wan I2V model because image was provided");
                     model = "fal-ai/wan/v2.2-a14b/image-to-video";
                 } else if (model === "wan-2.5" || (model.includes("wan") && model.includes("2.5"))) {
                     console.log("Switching to Wan 2.5 I2V model");
                     model = "fal-ai/wan-25-preview/image-to-video";
+                } else if (model.includes("kling") && model.includes("text-to-video")) {
+                    // Switch Kling T2V to I2V when image is provided
+                    console.log("Switching Kling T2V to I2V because image was provided");
+                    model = model.replace("text-to-video", "image-to-video");
                 }
             } else if (options.sourceVideoUrl && options.maskUrl) {
                 // Video Inpainting / Retake Mode
@@ -181,15 +208,29 @@ export class FalAIAdapter implements GenerationProvider {
                 input.video_url = await this.uploadToFal(options.sourceVideoUrl);
                 input.mask_url = await this.uploadToFal(options.maskUrl);
                 // VACE specific params if needed
+            } else if (options.sourceVideoUrl && model.includes("kling") && model.includes("/o1/")) {
+                // Kling O1 Video-to-Video edit mode
+                // Supports: replace subjects, change backgrounds, restyle, change weather, etc.
+                // Reference video in prompt as @Video1, images as @Image1, @Image2, etc.
+                console.log("Kling O1 Video-to-Video Edit Mode Detected");
+                input.video_url = await this.uploadToFal(options.sourceVideoUrl);
+
+                // Route to the edit endpoint for video-to-video transformations
+                if (!model.includes("video-to-video")) {
+                    model = "fal-ai/kling-video/o1/video-to-video/edit";
+                }
             } else {
                 // Ensure we are using a T2V model if no image
                 if (model.includes("image-to-video") || model.includes("i2v")) {
                     console.log("Switching to T2V model because no image was provided");
                     // Fallback logic for T2V if available
-                    // Fallback logic for T2V if available
                     if (model.includes("wan") && !model.includes("2.5")) model = "fal-ai/wan-t2v";
                     if (model === "wan-2.5" || (model.includes("wan") && model.includes("2.5"))) model = "fal-ai/wan-25-preview/text-to-video";
-                    // Kling and LTX T2V handling could be added here if needed
+                    // Kling T2V fallback
+                    if (model.includes("kling") && model.includes("image-to-video")) {
+                        console.log("Switching Kling I2V to T2V because no image was provided");
+                        model = model.replace("image-to-video", "text-to-video");
+                    }
                 }
             }
 
