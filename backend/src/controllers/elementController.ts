@@ -4,6 +4,16 @@ import path from 'path';
 
 const prisma = new PrismaClient({});
 
+// Helper to parse JSON fields from element records
+const parseElementJsonFields = (element: any) => {
+    if (!element) return element;
+    return {
+        ...element,
+        metadata: element.metadata ? (typeof element.metadata === 'string' ? JSON.parse(element.metadata) : element.metadata) : null,
+        tags: element.tags ? (typeof element.tags === 'string' ? JSON.parse(element.tags) : element.tags) : [],
+    };
+};
+
 export const uploadElement = async (req: Request, res: Response) => {
     try {
         const { projectId } = req.params;
@@ -53,13 +63,13 @@ export const uploadElement = async (req: Request, res: Response) => {
                 name: finalName,
                 type,
                 fileUrl,
-                metadata: parsedMetadata,
-                tags: parsedTags,
+                metadata: JSON.stringify(parsedMetadata),
+                tags: JSON.stringify(parsedTags),
                 sessionId: sessionId || null,
             },
         });
 
-        res.status(201).json(element);
+        res.status(201).json(parseElementJsonFields(element));
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to upload element' });
@@ -74,7 +84,7 @@ export const getElements = async (req: Request, res: Response) => {
             include: { session: true },
             orderBy: { createdAt: 'desc' },
         });
-        res.json(elements);
+        res.json(elements.map(parseElementJsonFields));
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to fetch elements' });
@@ -87,7 +97,7 @@ export const getAllElements = async (req: Request, res: Response) => {
             include: { session: true },
             orderBy: { createdAt: 'desc' },
         });
-        res.json(elements);
+        res.json(elements.map(parseElementJsonFields));
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to fetch all elements' });
@@ -108,7 +118,8 @@ export const updateElement = async (req: Request, res: Response) => {
         }
         if (tags) {
             try {
-                data.tags = typeof tags === 'string' ? JSON.parse(tags) : tags;
+                const parsedTags = typeof tags === 'string' ? JSON.parse(tags) : tags;
+                data.tags = JSON.stringify(parsedTags);
             } catch (e) {
                 console.error("Failed to parse tags", e);
             }
@@ -134,7 +145,7 @@ export const updateElement = async (req: Request, res: Response) => {
             data,
         });
 
-        res.json(element);
+        res.json(parseElementJsonFields(element));
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to update element' });

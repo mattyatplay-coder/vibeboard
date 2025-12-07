@@ -134,7 +134,16 @@ function ShotThumbnail({ shot, index, activeDragId, displayIndex, onRemove }: { 
     });
 
     // Find the video or image output
-    const output = shot.generation?.outputs?.find((o: any) => o.type === 'video' || o.type === 'image');
+    // Handle both array and stringified JSON from backend
+    let outputs = shot.generation?.outputs;
+    if (typeof outputs === 'string') {
+        try {
+            outputs = JSON.parse(outputs);
+        } catch (e) {
+            outputs = null;
+        }
+    }
+    const output = Array.isArray(outputs) ? outputs.find((o: any) => o.type === 'video' || o.type === 'image') : null;
     const rawUrl = output?.url;
     const url = rawUrl
         ? (rawUrl.startsWith('http') ? rawUrl : `http://localhost:3001${rawUrl}`)
