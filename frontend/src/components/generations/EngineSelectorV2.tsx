@@ -121,6 +121,10 @@ const PROVIDERS: Record<string, ProviderInfo> = {
             { id: 'fal-ai/wan/v2.2-a14b/image-to-video', name: 'Wan 2.2 I2V', type: 'video' },
             { id: 'fal-ai/ltx-video/image-to-video', name: 'LTX-Video', type: 'video' },
             { id: 'fal-ai/kling-video/v2.1/standard/image-to-video', name: 'Kling 2.1', type: 'video' },
+            { id: 'fal-ai/kling-video/v2.6/pro/text-to-video', name: 'Kling 2.6 T2V', type: 'video' },
+            { id: 'fal-ai/kling-video/v2.6/pro/image-to-video', name: 'Kling 2.6 I2V', type: 'video' },
+            { id: 'fal-ai/kling-video/o1/image-to-video', name: 'Kling O1 I2V', type: 'video' },
+            { id: 'fal-ai/kling-video/o1/video-to-video/edit', name: 'Kling O1 V2V Edit', type: 'video' },
             { id: 'fal-ai/minimax-video', name: 'MiniMax Video', type: 'video' },
         ]
     },
