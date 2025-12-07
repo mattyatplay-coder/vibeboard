@@ -587,28 +587,37 @@ function ElementCard({ element, onEdit, onUpdate, onDelete, isSelected, onToggle
                 }
             }}
         >
-            {/* Selection Checkbox */}
-            {onToggleSelection && (
-                <div
-                    className={clsx(
-                        "absolute top-2 left-2 z-20 transition-opacity duration-200",
-                        (isSelected) ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                    )}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleSelection();
-                    }}
-                >
-                    <div className={clsx(
-                        "w-5 h-5 rounded border flex items-center justify-center transition-colors",
-                        isSelected
-                            ? "bg-blue-500 border-blue-500"
-                            : "bg-black/50 border-white/50 hover:border-white hover:bg-black/70"
-                    )}>
-                        {isSelected && <CheckSquare className="w-3 h-3 text-white" />}
+            {/* Selection Checkbox and Favorite - top-left */}
+            <div
+                className={clsx(
+                    "absolute top-2 left-2 z-20 flex items-center gap-2 transition-opacity duration-200",
+                    (isSelected || element.isFavorite) ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                )}
+            >
+                {onToggleSelection && (
+                    <div
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleSelection();
+                        }}
+                    >
+                        <div className={clsx(
+                            "w-5 h-5 rounded border flex items-center justify-center transition-colors",
+                            isSelected
+                                ? "bg-blue-500 border-blue-500"
+                                : "bg-black/50 border-white/50 hover:border-white hover:bg-black/70"
+                        )}>
+                            {isSelected && <CheckSquare className="w-3 h-3 text-white" />}
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
+                <button
+                    onClick={handleFavorite}
+                    className="p-1.5 bg-black/50 hover:bg-red-500/20 rounded-lg text-white backdrop-blur-md transition-colors"
+                >
+                    <Heart className={clsx("w-4 h-4", element.isFavorite ? "fill-red-500 text-red-500" : "text-white")} />
+                </button>
+            </div>
             {element.type === "video" ? (
                 <video
                     ref={videoRef}
@@ -623,18 +632,7 @@ function ElementCard({ element, onEdit, onUpdate, onDelete, isSelected, onToggle
             )}
 
             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-3">
-                <div className="flex justify-between items-start">
-                    <div className="flex gap-1">
-                        <button
-                            onClick={handleFavorite}
-                            className={clsx(
-                                "p-1.5 rounded-lg transition-colors",
-                                element.isFavorite ? "bg-red-500/20 text-red-400" : "bg-black/50 hover:bg-white/20 text-white"
-                            )}
-                        >
-                            <Heart className={clsx("w-4 h-4", element.isFavorite && "fill-current")} />
-                        </button>
-                    </div>
+                <div className="flex justify-end items-start">
                     <div className="flex gap-1">
                         <button
                             onClick={handleDownload}

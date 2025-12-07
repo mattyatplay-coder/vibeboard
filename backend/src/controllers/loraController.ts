@@ -96,6 +96,32 @@ export const createLoRA = async (req: Request, res: Response) => {
     }
 };
 
+export const updateLoRA = async (req: Request, res: Response) => {
+    try {
+        const { projectId, loraId } = req.params;
+        const { name, triggerWord, baseModel, strength } = req.body;
+
+        console.log(`[updateLoRA] Updating LoRA ${loraId} for project ${projectId}`);
+        console.log(`[updateLoRA] Data:`, { name, triggerWord, baseModel, strength });
+
+        const lora = await prisma.loRA.update({
+            where: { id: loraId, projectId },
+            data: {
+                name,
+                triggerWord,
+                baseModel,
+                strength: strength || 1.0
+            }
+        });
+
+        console.log(`[updateLoRA] Updated LoRA: ${lora.id}`);
+        res.json(lora);
+    } catch (error: any) {
+        console.error(`[updateLoRA] Error:`, error);
+        res.status(500).json({ error: 'Failed to update LoRA', details: error.message });
+    }
+};
+
 export const deleteLoRA = async (req: Request, res: Response) => {
     try {
         const { projectId, loraId } = req.params;
