@@ -114,18 +114,46 @@ const PROVIDERS: Record<string, ProviderInfo> = {
         description: 'Fast & reliable cloud generation',
         category: 'cloud',
         models: [
+            // Image Models
             { id: 'fal-ai/flux/dev', name: 'Flux Dev', type: 'image' },
+            { id: 'fal-ai/flux/schnell', name: 'Flux Schnell', type: 'image' },
             { id: 'fal-ai/flux-pro', name: 'Flux Pro', type: 'image' },
-            { id: 'fal-ai/flux-2-flex', name: 'Flux 2', type: 'image' },
+            { id: 'fal-ai/flux-2-flex', name: 'Flux 2 Flex', type: 'image' },
+            { id: 'fal-ai/flux-2-flex/edit', name: 'Flux 2 Flex Edit', type: 'image' },
+            { id: 'fal-ai/flux/dev/image-to-image', name: 'Flux Dev I2I', type: 'image' },
+            { id: 'fal-ai/flux/dev/inpainting', name: 'Flux Dev Inpaint', type: 'image' },
+            { id: 'fal-ai/recraft-v3', name: 'Recraft V3', type: 'image' },
+            { id: 'fal-ai/ideogram/v2', name: 'Ideogram V2', type: 'image' },
+            { id: 'fal-ai/stable-diffusion-v35-large', name: 'SD 3.5 Large', type: 'image' },
+            // Wan Video Models
             { id: 'fal-ai/wan-t2v', name: 'Wan 2.2 T2V', type: 'video' },
             { id: 'fal-ai/wan/v2.2-a14b/image-to-video', name: 'Wan 2.2 I2V', type: 'video' },
-            { id: 'fal-ai/ltx-video/image-to-video', name: 'LTX-Video', type: 'video' },
-            { id: 'fal-ai/kling-video/v2.1/standard/image-to-video', name: 'Kling 2.1', type: 'video' },
+            { id: 'fal-ai/wan-25-preview/text-to-video', name: 'Wan 2.5 T2V', type: 'video' },
+            { id: 'fal-ai/wan-25-preview/image-to-video', name: 'Wan 2.5 I2V', type: 'video' },
+            { id: 'fal-ai/wan-vace-14b/inpainting', name: 'Wan VACE Inpaint', type: 'video' },
+            // LTX Video
+            { id: 'fal-ai/ltx-video', name: 'LTX-Video T2V', type: 'video' },
+            { id: 'fal-ai/ltx-video/image-to-video', name: 'LTX-Video I2V', type: 'video' },
+            // Kling Video (2.1, 2.6, O1)
+            { id: 'fal-ai/kling-video/v2.1/standard/image-to-video', name: 'Kling 2.1 I2V', type: 'video' },
             { id: 'fal-ai/kling-video/v2.6/pro/text-to-video', name: 'Kling 2.6 T2V', type: 'video' },
             { id: 'fal-ai/kling-video/v2.6/pro/image-to-video', name: 'Kling 2.6 I2V', type: 'video' },
+            { id: 'fal-ai/kling-video/o1/text-to-video', name: 'Kling O1 T2V', type: 'video' },
             { id: 'fal-ai/kling-video/o1/image-to-video', name: 'Kling O1 I2V', type: 'video' },
             { id: 'fal-ai/kling-video/o1/video-to-video/edit', name: 'Kling O1 V2V Edit', type: 'video' },
+            // Hunyuan
+            { id: 'fal-ai/hunyuan-video', name: 'Hunyuan Video', type: 'video' },
+            // MiniMax
             { id: 'fal-ai/minimax-video', name: 'MiniMax Video', type: 'video' },
+            { id: 'fal-ai/minimax-video/image-to-video', name: 'MiniMax I2V', type: 'video' },
+            // Runway (if available)
+            { id: 'fal-ai/runway-gen3/turbo/image-to-video', name: 'Runway Gen3 Turbo', type: 'video' },
+            // Luma
+            { id: 'fal-ai/luma-dream-machine', name: 'Luma Dream Machine', type: 'video' },
+            { id: 'fal-ai/luma-dream-machine/image-to-video', name: 'Luma I2V', type: 'video' },
+            // Upscale
+            { id: 'fal-ai/creative-upscaler', name: 'Creative Upscaler (4x)', type: 'image' },
+            { id: 'fal-ai/clarity-upscaler', name: 'Clarity Upscaler', type: 'image' },
         ]
     },
 
@@ -315,7 +343,7 @@ export function EngineSelectorV2({ config, onChange, mode }: EngineSelectorProps
                                 )}
                             >
                                 <Cloud className="w-3.5 h-3.5" />
-                                Cloud ({mode === 'video' ? '7' : '8'} providers)
+                                Cloud (7 providers)
                             </button>
                         </div>
 
