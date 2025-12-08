@@ -1,6 +1,6 @@
 # VibeBoard
 
-A self-hosted AI video generation platform (LTX.studio clone).
+A self-hosted AI video generation platform.
 
 ## Architecture
 - **Frontend**: Next.js 14 (React, TypeScript, Tailwind CSS)
