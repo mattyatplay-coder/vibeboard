@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, Upload, Check, ChevronRight, Search, Ratio, Plus, ChevronDown, Settings2, Sliders, Dice5 } from "lucide-react";
+import { X, Upload, Check, ChevronRight, Search, Ratio, Plus, ChevronDown, Settings2, Sliders, Dice5, FileJson, FolderOpen } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { clsx } from "clsx";
 import { useDropzone } from "react-dropzone";
@@ -32,6 +32,7 @@ export interface StyleConfig {
     steps?: number;
     seed?: number;
     negativePrompt?: string;
+    workflow?: { name: string; file: File | null };
 }
 
 interface StyleSelectorModalProps {
@@ -127,18 +128,84 @@ const STYLE_PRESETS = [
         video: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
         promptSuffix: ", low key lighting, dark background, rim light, silhouette, moody, mystery, noir"
     },
+    {
+        id: "indie",
+        name: "Indie",
+        image: "https://picsum.photos/seed/indie/200",
+        video: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
+        promptSuffix: ", indie movie aesthetic, a24 style, natural lighting, raw, emotional, handheld camera, mumblecore"
+    },
+    {
+        id: "y2k",
+        name: "Y2K",
+        image: "https://picsum.photos/seed/y2k/200",
+        video: "https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
+        promptSuffix: ", y2k aesthetic, year 2000, futuristic, chrome, glossy, matrix style, cyber, techno"
+    },
+    {
+        id: "pop",
+        name: "Pop Art",
+        image: "https://picsum.photos/seed/pop/200",
+        video: "https://storage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
+        promptSuffix: ", pop art, comic book style, halftones, bold outlines, roy lichtenstein, vibrant, retro"
+    },
+    {
+        id: "grunge",
+        name: "Grunge",
+        image: "https://picsum.photos/seed/grunge/200",
+        video: "https://storage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
+        promptSuffix: ", grunge aesthetic, dirty, distressed, texture, 90s rock, dark, edgy, urban"
+    },
+    {
+        id: "boost",
+        name: "Boost",
+        image: "https://picsum.photos/seed/boost/200",
+        video: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+        promptSuffix: ", high quality, 4k, detailed, sharp focus, masterpiece, trending on artstation, award winning"
+    },
+    {
+        id: "cyberpunk",
+        name: "Cyberpunk",
+        image: "https://picsum.photos/seed/cyberpunk/200",
+        video: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+        promptSuffix: ", cyberpunk, neon lights, futuristic city, rain, holographic, blade runner inspired, dystopian"
+    },
+    {
+        id: "vaporwave",
+        name: "Vaporwave",
+        image: "https://picsum.photos/seed/vaporwave/200",
+        video: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+        promptSuffix: ", vaporwave aesthetic, pink and blue, 80s retro, glitch art, greek statues, palm trees, sunset grid"
+    },
+    {
+        id: "documentary",
+        name: "Documentary",
+        image: "https://picsum.photos/seed/documentary/200",
+        video: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+        promptSuffix: ", documentary style, realistic, natural lighting, handheld footage, intimate, observational"
+    },
+    {
+        id: "horror",
+        name: "Horror",
+        image: "https://picsum.photos/seed/horror/200",
+        video: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
+        promptSuffix: ", horror atmosphere, dark shadows, unsettling, tension, desaturated, grainy, creepy"
+    },
+    {
+        id: "western",
+        name: "Western",
+        image: "https://picsum.photos/seed/western/200",
+        video: "https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
+        promptSuffix: ", western movie, desert landscape, dusty, sepia tones, wide shots, cowboy aesthetic"
+    },
+    {
+        id: "noir_color",
+        name: "Neo-Noir",
+        image: "https://picsum.photos/seed/neonoir/200",
+        video: "https://storage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
+        promptSuffix: ", neo-noir, color noir, neon lights in darkness, rain-slicked streets, mysterious, stylized shadows"
+    },
 ];
-
-// Quick Add Tag Categories
-const QUICK_ADD_CATEGORIES = {
-    cameras: ["ARRI Alexa", "RED Komodo", "Sony Venice", "Blackmagic", "Canon C70", "Panavision"],
-    lenses: ["Anamorphic", "35mm", "50mm", "85mm", "Wide Angle", "Telephoto", "Vintage"],
-    films: ["Kodak 5219", "Kodak 5207", "Fuji 8543", "CineStill 800T", "Portra 400"],
-    colors: ["Teal & Orange", "Desaturated", "High Contrast", "Pastel", "Muted", "Neon"],
-    lighting: ["Golden Hour", "Blue Hour", "High Key", "Low Key", "Rembrandt", "Split", "Rim Light"],
-    cameraMotions: ["Dolly", "Pan", "Tilt", "Crane", "Handheld", "Steadicam", "Zoom"],
-    moods: ["Dramatic", "Romantic", "Tense", "Melancholic", "Euphoric", "Mysterious", "Nostalgic"]
-};
 
 function PresetCard({ preset, isSelected, onClick }: { preset: any, isSelected: boolean, onClick: () => void }) {
     const [isHovered, setIsHovered] = useState(false);
@@ -520,6 +587,42 @@ export function StyleSelectorModal({ isOpen, onClose, onApply, initialAspectRati
 
                                                 {expandedSections.includes("workflow") && (
                                                     <div className="p-3 border-t border-white/5 space-y-3">
+                                                        {/* Workflow Upload */}
+                                                        <div>
+                                                            <span className="text-[10px] font-bold text-gray-500 uppercase block mb-2">Custom Workflow (JSON)</span>
+                                                            {config.workflow?.name ? (
+                                                                <div className="flex items-center gap-2 p-2 bg-green-500/10 border border-green-500/30 rounded-lg">
+                                                                    <FileJson className="w-4 h-4 text-green-400" />
+                                                                    <span className="text-xs text-green-300 flex-1 truncate">{config.workflow.name}</span>
+                                                                    <button
+                                                                        onClick={() => setConfig(prev => ({ ...prev, workflow: undefined }))}
+                                                                        className="text-gray-400 hover:text-red-400"
+                                                                    >
+                                                                        <X className="w-3 h-3" />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <label className="flex items-center justify-center gap-2 p-3 border border-dashed border-white/20 hover:border-purple-500/50 hover:bg-purple-500/10 rounded-lg cursor-pointer transition-colors">
+                                                                    <FolderOpen className="w-4 h-4 text-gray-400" />
+                                                                    <span className="text-xs text-gray-400">Upload ComfyUI/Workflow JSON</span>
+                                                                    <input
+                                                                        type="file"
+                                                                        accept=".json"
+                                                                        className="hidden"
+                                                                        onChange={(e) => {
+                                                                            const file = e.target.files?.[0];
+                                                                            if (file) {
+                                                                                setConfig(prev => ({
+                                                                                    ...prev,
+                                                                                    workflow: { name: file.name, file }
+                                                                                }));
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                </label>
+                                                            )}
+                                                        </div>
+
                                                         <div className="grid grid-cols-2 gap-2">
                                                             {/* Sampler */}
                                                             <div>
@@ -590,8 +693,8 @@ export function StyleSelectorModal({ isOpen, onClose, onApply, initialAspectRati
                                                             </button>
 
                                                             {activePopover === cat.id && (
-                                                                <div className="absolute top-full mt-1 left-0 right-0 bg-[#1a1a1a] border border-white/20 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto">
-                                                                    {(QUICK_ADD_CATEGORIES as any)[cat.id]?.map((opt: string) => (
+                                                                <div className="absolute top-full mt-1 left-0 right-0 bg-[#1a1a1a] border border-white/20 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
+                                                                    {(ADVANCED_OPTIONS as any)[cat.id]?.map((opt: string) => (
                                                                         <button
                                                                             key={opt}
                                                                             onClick={() => handleAddTag(opt, cat.id)}
