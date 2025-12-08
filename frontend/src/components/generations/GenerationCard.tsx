@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Generation } from "@/lib/store";
-import { Heart, Download, Trash2, X, Play, Loader2, Sparkles, Check, Maximize2, ArrowUpCircle } from "lucide-react";
+import { Heart, Download, Trash2, X, Play, Loader2, Sparkles, Check, Maximize2, ZoomIn } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { clsx } from "clsx";
 import { useDraggable } from "@dnd-kit/core";
@@ -16,12 +16,18 @@ interface GenerationCardProps {
     onEdit?: () => void;
     onAnimate?: (imageUrl: string) => void;
     onRetake?: (videoUrl: string) => void;
-
     onInpaint?: (imageUrl: string, aspectRatio?: string) => void;
-    onUpscale?: (imageUrl: string) => void;
+    onUpscale?: (imageUrl: string, model: string) => void;
     isSelected?: boolean;
     onToggleSelection?: () => void;
 }
+
+// Upscale options
+const UPSCALE_OPTIONS = [
+    { id: 'fal-ai/clarity-upscaler', name: 'Clarity 2x', description: 'Sharp, detailed upscale' },
+    { id: 'fal-ai/creative-upscaler', name: 'Clarity 4x', description: 'Maximum quality upscale' },
+    { id: 'fal-ai/aura-sr', name: 'Aura SR', description: 'Fast AI upscaling' },
+];
 
 export function GenerationCard({ generation, onUpdate, onDelete, onIterate, onEdit, onAnimate, onRetake, onInpaint, onUpscale, isSelected, onToggleSelection }: GenerationCardProps) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -45,6 +51,7 @@ export function GenerationCard({ generation, onUpdate, onDelete, onIterate, onEd
     const [editedPrompt, setEditedPrompt] = useState(generation.inputPrompt);
     const [isEditing, setIsEditing] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [showUpscaleMenu, setShowUpscaleMenu] = useState(false);
 
     // Reset edited prompt when popup opens/closes or generation changes
     useEffect(() => {
@@ -94,15 +101,31 @@ export function GenerationCard({ generation, onUpdate, onDelete, onIterate, onEd
         }
     }, [isHovered, isVideo]);
 
-    const handleDownload = (e: React.MouseEvent) => {
+    const handleDownload = async (e: React.MouseEvent) => {
         e.stopPropagation();
         if (mediaUrl) {
-            const a = document.createElement('a');
-            a.href = mediaUrl;
-            a.download = `generation-${generation.id}.${isVideo ? 'mp4' : 'png'}`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+            try {
+                // Fetch the file and download it properly
+                const response = await fetch(mediaUrl);
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `generation-${generation.id}.${isVideo ? 'mp4' : 'png'}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Download failed:', error);
+                // Fallback to direct link
+                const a = document.createElement('a');
+                a.href = mediaUrl;
+                a.download = `generation-${generation.id}.${isVideo ? 'mp4' : 'png'}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
         }
     };
 
@@ -132,6 +155,14 @@ export function GenerationCard({ generation, onUpdate, onDelete, onIterate, onEd
         setIsEditing(false);
     };
 
+    const handleUpscale = (e: React.MouseEvent, model: string) => {
+        e.stopPropagation();
+        if (mediaUrl && onUpscale) {
+            onUpscale(mediaUrl, model);
+        }
+        setShowUpscaleMenu(false);
+    };
+
     return (
         <>
             <div
@@ -144,10 +175,8 @@ export function GenerationCard({ generation, onUpdate, onDelete, onIterate, onEd
                     isSelected ? "border-blue-500 ring-1 ring-blue-500" : "border-white/10 hover:border-blue-500/50"
                 )}
                 onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
+                onMouseLeave={() => { setIsHovered(false); setShowUpscaleMenu(false); }}
                 onClick={(e) => {
-                    // If selection mode is active (onToggleSelection provided), clicking card toggles selection
-                    // Otherwise, it opens popup
                     if (onToggleSelection && (e.ctrlKey || e.metaKey || isSelected)) {
                         e.stopPropagation();
                         onToggleSelection();
@@ -156,7 +185,7 @@ export function GenerationCard({ generation, onUpdate, onDelete, onIterate, onEd
                     }
                 }}
             >
-                {/* Selection Checkbox + Favorite Heart (top-left, grouped together) */}
+                {/* TOP LEFT: Selection Checkbox + Favorite Heart */}
                 <div
                     className={clsx(
                         "absolute top-2 left-2 z-20 flex items-center gap-1.5 transition-opacity duration-200",
@@ -170,24 +199,123 @@ export function GenerationCard({ generation, onUpdate, onDelete, onIterate, onEd
                                 onToggleSelection();
                             }}
                             className={clsx(
-                                "w-5 h-5 rounded border flex items-center justify-center transition-colors cursor-pointer",
+                                "w-6 h-6 rounded border-2 flex items-center justify-center transition-colors cursor-pointer backdrop-blur-sm",
                                 isSelected
                                     ? "bg-blue-500 border-blue-500"
-                                    : "bg-black/50 border-white/50 hover:border-white hover:bg-black/70"
+                                    : "bg-black/40 border-white/60 hover:border-white hover:bg-black/60"
                             )}
                         >
-                            {isSelected && <Check className="w-3 h-3 text-white" />}
+                            {isSelected && <Check className="w-4 h-4 text-white" />}
                         </div>
                     )}
                     {generation.status === 'succeeded' && (
                         <button
                             onClick={toggleFavorite}
-                            className="w-5 h-5 rounded bg-black/50 hover:bg-red-500/30 flex items-center justify-center transition-colors"
+                            className={clsx(
+                                "w-6 h-6 rounded flex items-center justify-center transition-colors backdrop-blur-sm",
+                                generation.isFavorite ? "bg-red-500/80" : "bg-black/40 hover:bg-red-500/50"
+                            )}
                         >
-                            <Heart className={clsx("w-3 h-3", generation.isFavorite ? "fill-red-500 text-red-500" : "text-white")} />
+                            <Heart className={clsx("w-4 h-4", generation.isFavorite ? "fill-white text-white" : "text-white")} />
                         </button>
                     )}
                 </div>
+
+                {/* TOP RIGHT: Action Buttons */}
+                {generation.status === 'succeeded' && (
+                    <div
+                        className={clsx(
+                            "absolute top-2 right-2 z-20 flex items-center gap-1 transition-opacity duration-200",
+                            isHovered ? "opacity-100" : "opacity-0"
+                        )}
+                    >
+                        {/* Fullscreen */}
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowPopup(true);
+                                setIsFullscreen(true);
+                            }}
+                            className="w-7 h-7 rounded bg-black/50 hover:bg-white/20 flex items-center justify-center transition-colors backdrop-blur-sm"
+                            title="Fullscreen"
+                        >
+                            <Maximize2 className="w-4 h-4 text-white" />
+                        </button>
+
+                        {/* Upscale (for images only) */}
+                        {!isVideo && onUpscale && (
+                            <div className="relative">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowUpscaleMenu(!showUpscaleMenu);
+                                    }}
+                                    className="w-7 h-7 rounded bg-green-600/80 hover:bg-green-500 flex items-center justify-center transition-colors backdrop-blur-sm"
+                                    title="Upscale"
+                                >
+                                    <ZoomIn className="w-4 h-4 text-white" />
+                                </button>
+
+                                {/* Upscale Dropdown */}
+                                <AnimatePresence>
+                                    {showUpscaleMenu && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -5 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -5 }}
+                                            className="absolute top-full right-0 mt-1 w-44 bg-[#1a1a1a] border border-white/20 rounded-lg shadow-xl z-50 overflow-hidden"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            {UPSCALE_OPTIONS.map((option) => (
+                                                <button
+                                                    key={option.id}
+                                                    onClick={(e) => handleUpscale(e, option.id)}
+                                                    className="w-full text-left px-3 py-2 hover:bg-green-500/20 transition-colors border-b border-white/5 last:border-0"
+                                                >
+                                                    <div className="text-sm text-white font-medium">{option.name}</div>
+                                                    <div className="text-[10px] text-gray-500">{option.description}</div>
+                                                </button>
+                                            ))}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        )}
+
+                        {/* Animate (for images only) */}
+                        {!isVideo && onAnimate && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (mediaUrl) onAnimate(mediaUrl);
+                                }}
+                                className="w-7 h-7 rounded bg-purple-600/80 hover:bg-purple-500 flex items-center justify-center transition-colors backdrop-blur-sm"
+                                title="Animate"
+                            >
+                                <Play className="w-4 h-4 text-white fill-current" />
+                            </button>
+                        )}
+
+                        {/* Download */}
+                        <button
+                            onClick={handleDownload}
+                            className="w-7 h-7 rounded bg-black/50 hover:bg-white/20 flex items-center justify-center transition-colors backdrop-blur-sm"
+                            title="Download"
+                        >
+                            <Download className="w-4 h-4 text-white" />
+                        </button>
+
+                        {/* Delete */}
+                        <button
+                            onClick={handleDelete}
+                            className="w-7 h-7 rounded bg-black/50 hover:bg-red-500/50 flex items-center justify-center transition-colors backdrop-blur-sm"
+                            title="Delete"
+                        >
+                            <Trash2 className="w-4 h-4 text-red-400" />
+                        </button>
+                    </div>
+                )}
+
                 <div
                     className="bg-black/50 relative overflow-hidden"
                     style={{ aspectRatio: generation.aspectRatio?.replace(':', '/') || '16/9' }}
@@ -224,92 +352,17 @@ export function GenerationCard({ generation, onUpdate, onDelete, onIterate, onEd
 
                     {/* Status Badge */}
                     <AnimatePresence>
-                        {showStatus && generation.status !== 'failed' && (
+                        {showStatus && generation.status !== 'failed' && generation.status !== 'succeeded' && (
                             <motion.div
                                 initial={{ opacity: 0, y: -10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }}
-                                className="absolute top-2 right-2 px-2 py-1 bg-black/60 rounded text-xs text-white capitalize backdrop-blur-md z-10 pointer-events-none"
+                                className="absolute bottom-2 left-2 px-2 py-1 bg-black/60 rounded text-xs text-white capitalize backdrop-blur-md z-10 pointer-events-none"
                             >
                                 {generation.status}
                             </motion.div>
                         )}
                     </AnimatePresence>
-
-                    {/* Action Buttons Overlay */}
-                    {(generation.status === 'succeeded' || generation.status === 'failed') && (
-                        <div className={clsx(
-                            "absolute inset-0 bg-black/40 flex items-end justify-end p-2 transition-opacity duration-200",
-                            isHovered ? "opacity-100" : "opacity-0"
-                        )}>
-                            <div className="flex gap-1.5">
-                                {generation.status === 'succeeded' && (
-                                    <button
-                                        onClick={handleDownload}
-                                        className="p-1.5 bg-black/50 hover:bg-white/20 rounded-lg text-white backdrop-blur-md transition-colors"
-                                        title="Download"
-                                    >
-                                        <Download className="w-4 h-4" />
-                                    </button>
-                                )}
-                                {generation.status === 'succeeded' && onUpscale && !isVideo && (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (mediaUrl) onUpscale(mediaUrl);
-                                        }}
-                                        className="p-1.5 bg-green-600/80 hover:bg-green-500 rounded-lg text-white backdrop-blur-md transition-colors"
-                                        title="Upscale (2x)"
-                                    >
-                                        <ArrowUpCircle className="w-4 h-4" />
-                                    </button>
-                                )}
-                                {generation.status === 'succeeded' && onAnimate && !isVideo && (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (mediaUrl) onAnimate(mediaUrl);
-                                        }}
-                                        className="p-1.5 bg-purple-600/80 hover:bg-purple-500 rounded-lg text-white backdrop-blur-md transition-colors"
-                                        title="Animate"
-                                    >
-                                        <Play className="w-4 h-4 fill-current" />
-                                    </button>
-                                )}
-                                {generation.status === 'succeeded' && onInpaint && !isVideo && (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (mediaUrl) onInpaint(mediaUrl, generation.aspectRatio);
-                                        }}
-                                        className="p-1.5 bg-blue-600/80 hover:bg-blue-500 rounded-lg text-white backdrop-blur-md transition-colors"
-                                        title="Inpaint / Edit"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-brush"><path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08" /><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2.5 2.24 0 .46.62.8 1 .8 2.48 0 4.5-2.01 4.5-4.5 0-.72-1.66-.72-1.66-2.24 0-1.67 1.35-3.02 3.02-3.02 1.67 0 3.02 1.35 3.02 3.02 0 .72-1.66.72-1.66 2.24 0 2.49 2.02 4.5 4.5 4.5.38 0 1-.34 1-.8 0-.72-2.5-.91-2.5-2.24 0-1.67-1.34-3.02-3-3.02-1.67 0-3.02 1.35-3.02 3.02" /></svg>
-                                    </button>
-                                )}
-                                {generation.status === 'succeeded' && onRetake && isVideo && (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (mediaUrl) onRetake(mediaUrl);
-                                        }}
-                                        className="p-1.5 bg-blue-600/80 hover:bg-blue-500 rounded-lg text-white backdrop-blur-md transition-colors"
-                                        title="Retake"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-wand-2"><path d="m19 2 2 2-2 2-2-2 2-2Z" /><path d="m5 7 2 2-2 2-2-2 2-2Z" /><path d="m15 11 2 2-2 2-2-2 2-2Z" /><path d="M14.5 18.5 10 14l-4 4 4 4 4.5-4.5Z" /><path d="m21 22-5.5-5.5" /></svg>
-                                    </button>
-                                )}
-                                <button
-                                    onClick={handleDelete}
-                                    className="p-1.5 bg-black/50 hover:bg-red-500/20 rounded-lg text-white backdrop-blur-md transition-colors"
-                                    title="Delete"
-                                >
-                                    <Trash2 className="w-4 h-4 text-red-400" />
-                                </button>
-                            </div>
-                        </div>
-                    )}
                 </div>
 
                 <div className="p-3">
@@ -321,7 +374,7 @@ export function GenerationCard({ generation, onUpdate, onDelete, onIterate, onEd
 
                 {/* Delete Confirmation */}
                 {showDeleteConfirm && (
-                    <div className="absolute inset-0 bg-black/90 z-20 flex flex-col items-center justify-center p-4 text-center" onClick={(e) => e.stopPropagation()}>
+                    <div className="absolute inset-0 bg-black/90 z-30 flex flex-col items-center justify-center p-4 text-center" onClick={(e) => e.stopPropagation()}>
                         <p className="text-sm font-medium text-white mb-3">Delete this generation?</p>
                         <div className="flex gap-2">
                             <button
@@ -344,7 +397,7 @@ export function GenerationCard({ generation, onUpdate, onDelete, onIterate, onEd
             {/* Popup Modal */}
             <AnimatePresence>
                 {showPopup && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md" onClick={() => setShowPopup(false)}>
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md" onClick={() => { setShowPopup(false); setIsFullscreen(false); }}>
                         {(() => {
                             // Determine if vertical layout is needed
                             const isVertical = generation.aspectRatio ?
@@ -399,127 +452,124 @@ export function GenerationCard({ generation, onUpdate, onDelete, onIterate, onEd
                                                 )}
                                             </div>
 
-                                    <div className={`bg-[#1a1a1a] border-white/10 ${isVertical ? 'w-1/3 h-full overflow-y-auto border-l p-6' : 'w-full border-t p-6'
-                                        }`}>
-                                        <div className="flex items-center justify-between mb-4">
-                                            <h3 className="text-lg font-bold text-white">Generation Details</h3>
-                                            <button
-                                                onClick={() => setIsEditing(!isEditing)}
-                                                className="text-sm text-blue-400 hover:text-blue-300 font-medium"
-                                            >
-                                                {isEditing ? "Cancel Edit" : "Iterate Prompt"}
-                                            </button>
-                                        </div>
-
-                                        {isEditing ? (
-                                            <div className="space-y-4">
-                                                <textarea
-                                                    value={editedPrompt}
-                                                    onChange={(e) => setEditedPrompt(e.target.value)}
-                                                    className="w-full h-32 bg-black/50 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                                                    placeholder="Edit your prompt..."
-                                                />
-                                                <div className="flex gap-3 justify-end">
+                                            <div className={`bg-[#1a1a1a] border-white/10 ${isVertical ? 'w-1/3 h-full overflow-y-auto border-l p-6' : 'w-full border-t p-6'
+                                                }`}>
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <h3 className="text-lg font-bold text-white">Generation Details</h3>
                                                     <button
-                                                        onClick={handleUpdatePrompt}
-                                                        className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm font-medium transition-colors"
+                                                        onClick={() => setIsEditing(!isEditing)}
+                                                        className="text-sm text-blue-400 hover:text-blue-300 font-medium"
                                                     >
-                                                        Update Current
-                                                    </button>
-                                                    <button
-                                                        onClick={handleIterate}
-                                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-blue-600/20"
-                                                    >
-                                                        Generate New
+                                                        {isEditing ? "Cancel Edit" : "Iterate Prompt"}
                                                     </button>
                                                 </div>
-                                            </div>
-                                        ) : (
-                                            <div>
-                                                <p className="text-gray-400 mb-4">{generation.inputPrompt}</p>
-                                                <button
-                                                    onClick={() => {
-                                                        // TODO: Trigger Smart Refine
-                                                        // For now, we'll just log it as a placeholder
-                                                        console.log("Triggering Smart Refine for", generation.id);
-                                                        setIsEditing(true);
-                                                        // Ideally, this would call an API endpoint that uses the new refinePrompt service
-                                                    }}
-                                                    className="w-full py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 rounded-lg text-sm font-medium transition-colors border border-purple-500/30 flex items-center justify-center gap-2"
-                                                >
-                                                    <Sparkles className="w-4 h-4" />
-                                                    Smart Refine (Vision)
-                                                </button>
-                                            </div>
-                                        )}
 
-                                        {/* Generation Metadata */}
-                                        <div className="mt-6 pt-4 border-t border-white/10">
-                                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Generation Details</h4>
-                                            <div className={`grid gap-4 text-xs ${isVertical ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-4'}`}>
-                                                <div>
-                                                    <span className="text-gray-500 block mb-1">Provider</span>
-                                                    <span className="text-white capitalize">{generation.usedLoras?.provider || 'Unknown'}</span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-gray-500 block mb-1">Model</span>
-                                                    <span className="text-white break-all">{generation.usedLoras?.model || 'Unknown'}</span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-gray-500 block mb-1">Resolution</span>
-                                                    <span className="text-white">{generation.aspectRatio || 'Unknown'}</span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-gray-500 block mb-1">Seed</span>
-                                                    <span className="text-white font-mono">{generation.usedLoras?.seed || 'Random'}</span>
-                                                </div>
-
-                                                {generation.usedLoras?.sampler && (
+                                                {isEditing ? (
+                                                    <div className="space-y-4">
+                                                        <textarea
+                                                            value={editedPrompt}
+                                                            onChange={(e) => setEditedPrompt(e.target.value)}
+                                                            className="w-full h-32 bg-black/50 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                                            placeholder="Edit your prompt..."
+                                                        />
+                                                        <div className="flex gap-3 justify-end">
+                                                            <button
+                                                                onClick={handleUpdatePrompt}
+                                                                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm font-medium transition-colors"
+                                                            >
+                                                                Update Current
+                                                            </button>
+                                                            <button
+                                                                onClick={handleIterate}
+                                                                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-blue-600/20"
+                                                            >
+                                                                Generate New
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
                                                     <div>
-                                                        <span className="text-gray-500 block mb-1">Sampler</span>
-                                                        <span className="text-white">
-                                                            {typeof generation.usedLoras.sampler === 'object'
-                                                                ? (generation.usedLoras.sampler as any).name || (generation.usedLoras.sampler as any).value
-                                                                : generation.usedLoras.sampler}
-                                                        </span>
+                                                        <p className="text-gray-400 mb-4">{generation.inputPrompt}</p>
+                                                        <button
+                                                            onClick={() => {
+                                                                console.log("Triggering Smart Refine for", generation.id);
+                                                                setIsEditing(true);
+                                                            }}
+                                                            className="w-full py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 rounded-lg text-sm font-medium transition-colors border border-purple-500/30 flex items-center justify-center gap-2"
+                                                        >
+                                                            <Sparkles className="w-4 h-4" />
+                                                            Smart Refine (Vision)
+                                                        </button>
                                                     </div>
                                                 )}
 
-                                                {generation.usedLoras?.scheduler && (
-                                                    <div>
-                                                        <span className="text-gray-500 block mb-1">Scheduler</span>
-                                                        <span className="text-white">
-                                                            {typeof generation.usedLoras.scheduler === 'object'
-                                                                ? (generation.usedLoras.scheduler as any).name || (generation.usedLoras.scheduler as any).value
-                                                                : generation.usedLoras.scheduler}
-                                                        </span>
-                                                    </div>
-                                                )}
+                                                {/* Generation Metadata */}
+                                                <div className="mt-6 pt-4 border-t border-white/10">
+                                                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Generation Details</h4>
+                                                    <div className={`grid gap-4 text-xs ${isVertical ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-4'}`}>
+                                                        <div>
+                                                            <span className="text-gray-500 block mb-1">Provider</span>
+                                                            <span className="text-white capitalize">{generation.usedLoras?.provider || 'Unknown'}</span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-500 block mb-1">Model</span>
+                                                            <span className="text-white break-all">{generation.usedLoras?.model || 'Unknown'}</span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-500 block mb-1">Resolution</span>
+                                                            <span className="text-white">{generation.aspectRatio || 'Unknown'}</span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-500 block mb-1">Seed</span>
+                                                            <span className="text-white font-mono">{generation.usedLoras?.seed || 'Random'}</span>
+                                                        </div>
 
-                                                {generation.usedLoras?.strength !== undefined && (
-                                                    <div>
-                                                        <span className="text-gray-500 block mb-1">Strength</span>
-                                                        <span className="text-white">{generation.usedLoras.strength}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* LoRAs Section */}
-                                            {generation.usedLoras?.loras && generation.usedLoras.loras.length > 0 && (
-                                                <div className="mt-4 pt-3 border-t border-white/5">
-                                                    <span className="text-gray-500 block mb-2 text-xs">Active LoRAs</span>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {generation.usedLoras.loras.map((lora: any, idx: number) => (
-                                                            <div key={idx} className="px-2 py-1 bg-white/5 rounded text-xs text-gray-300 border border-white/10">
-                                                                {lora.path?.split('/').pop() || lora.id}
-                                                                <span className="text-gray-500 ml-1">({lora.strength})</span>
+                                                        {generation.usedLoras?.sampler && (
+                                                            <div>
+                                                                <span className="text-gray-500 block mb-1">Sampler</span>
+                                                                <span className="text-white">
+                                                                    {typeof generation.usedLoras.sampler === 'object'
+                                                                        ? (generation.usedLoras.sampler as any).name || (generation.usedLoras.sampler as any).value
+                                                                        : generation.usedLoras.sampler}
+                                                                </span>
                                                             </div>
-                                                        ))}
+                                                        )}
+
+                                                        {generation.usedLoras?.scheduler && (
+                                                            <div>
+                                                                <span className="text-gray-500 block mb-1">Scheduler</span>
+                                                                <span className="text-white">
+                                                                    {typeof generation.usedLoras.scheduler === 'object'
+                                                                        ? (generation.usedLoras.scheduler as any).name || (generation.usedLoras.scheduler as any).value
+                                                                        : generation.usedLoras.scheduler}
+                                                                </span>
+                                                            </div>
+                                                        )}
+
+                                                        {generation.usedLoras?.strength !== undefined && (
+                                                            <div>
+                                                                <span className="text-gray-500 block mb-1">Strength</span>
+                                                                <span className="text-white">{generation.usedLoras.strength}</span>
+                                                            </div>
+                                                        )}
                                                     </div>
+
+                                                    {/* LoRAs Section */}
+                                                    {generation.usedLoras?.loras && generation.usedLoras.loras.length > 0 && (
+                                                        <div className="mt-4 pt-3 border-t border-white/5">
+                                                            <span className="text-gray-500 block mb-2 text-xs">Active LoRAs</span>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {generation.usedLoras.loras.map((lora: any, idx: number) => (
+                                                                    <div key={idx} className="px-2 py-1 bg-white/5 rounded text-xs text-gray-300 border border-white/10">
+                                                                        {lora.path?.split('/').pop() || lora.id}
+                                                                        <span className="text-gray-500 ml-1">({lora.strength})</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            )}
-                                        </div>
-                                    </div>
+                                            </div>
                                         </>
                                     )}
                                 </motion.div>
