@@ -2,7 +2,6 @@ import { GenerationProvider, GenerationOptions, GenerationResult } from './Gener
 import * as fal from "@fal-ai/serverless-client";
 
 // Configure fal client
-// Configure fal client
 if (!process.env.FAL_KEY) {
     console.warn("WARNING: FAL_KEY environment variable is not set. Fal.ai generations will fail.");
 }
@@ -15,6 +14,34 @@ export class FalAIAdapter implements GenerationProvider {
 
     async generateImage(options: GenerationOptions): Promise<GenerationResult> {
         try {
+            const {
+                prompt,
+                negativePrompt,
+                sourceImages,
+                strength,
+                referenceStrengths,
+                referenceCreativity,
+                loras,
+                width,
+                height,
+                seed,
+                guidanceScale,
+                steps,
+                aspectRatio
+            } = options;
+
+            // Determine generation mode
+            const hasStructureImage = sourceImages && sourceImages.length > 0;
+            const hasElementReferences = options.elementReferences && options.elementReferences.length > 0;
+            const useSmartMode = hasStructureImage && hasElementReferences;
+
+            if (useSmartMode) {
+                return this.generateSmartMode(options);
+            } else if (hasElementReferences) {
+                return this.generateWithIPAdapter(options);
+            }
+
+            // Standard Generation Logic (Txt2Img / Img2Img)
             // Map options to Fal.ai Flux endpoint parameters
             const isFlux2 = options.model?.includes('flux-2');
 
@@ -26,7 +53,7 @@ export class FalAIAdapter implements GenerationProvider {
                 num_images: options.count || 1, // Support multiple images
                 enable_safety_checker: false, // Disable safety filter to allow "undressing" etc.
                 negative_prompt: options.negativePrompt, // Pass negative prompt
-                ...(isFlux2 ? { safety_tolerance: "5" } : {}), // Ensure Flux 2 is maximally permissive
+                safety_tolerance: "6", // Ensure maximally permissive for all Flux models
             };
 
             if (options.sampler) {
@@ -35,18 +62,37 @@ export class FalAIAdapter implements GenerationProvider {
             if (options.scheduler) {
                 input.scheduler = options.scheduler.value;
             }
-
-            // Flux 2 might handle guidance differently or not at all, but usually it's safe to omit if default
-            // Flux 2 might handle guidance differently or not at all, but usually it's safe to omit if default
             if (options.guidanceScale) {
                 input.guidance_scale = options.guidanceScale;
             }
 
+            // Handle LoRAs - Upload local files if needed
             if (options.loras && options.loras.length > 0) {
-                input.loras = options.loras.map(l => ({
-                    path: l.path,
-                    scale: l.strength
+                const processedLoRAs = await Promise.all(options.loras.map(async (l) => {
+                    let path = l.path.replace(/^['"]|['"]$/g, '').trim();
+                    // Check if path is local (not http/https and not a fal/huggingface ID)
+                    // Fal/HF IDs usually look like "fal-ai/..." or "user/repo"
+                    // Local paths start with / or have extensions like .safetensors
+                    const isLocal = path.startsWith('/') || path.match(/\.(safetensors|ckpt|pt|bin)$/i);
+                    const isUrl = path.startsWith('http');
+
+                    if (isLocal && !isUrl) {
+                        console.log(`Uploading local LoRA: ${path}`);
+                        try {
+                            path = await this.uploadToFal(path);
+                        } catch (e) {
+                            console.error(`Failed to upload LoRA ${path}:`, e);
+                            // Keep original path, might fail but better than crashing
+                        }
+                    }
+
+                    return {
+                        path: path,
+                        scale: l.strength
+                    };
                 }));
+
+                input.loras = processedLoRAs;
             }
 
             // Handle Image-to-Image
@@ -55,16 +101,11 @@ export class FalAIAdapter implements GenerationProvider {
             if (options.maskUrl && (options.model?.includes('inpainting') || options.model === 'fal-ai/flux/dev/inpainting' || options.model === 'fal-ai/flux/dev')) {
                 // Image Inpainting
                 console.log("Image Inpainting Mode Detected");
-                // Use standard Flux Dev model which supports inpainting via arguments
                 model = "fal-ai/flux/dev";
-                delete input.image_size; // Remove image_size to preserve original dimensions
-                input.image_url = await this.uploadToFal(options.sourceImages?.[0] || options.sourceVideoUrl || ""); // sourceVideoUrl is misnamed in GenerationOptions for image source, but let's check GenerationProvider
-                // Actually GenerationOptions has sourceImages[] and sourceVideoUrl.
-                // For image inpainting, we passed sourceImageUrl in frontend, which maps to... wait, let's check GenerationProvider.ts
-                // It seems GenerationOptions needs sourceImageUrl or we use sourceImages[0].
-                // Let's check GenerationProvider.ts content again.
+                delete input.image_size;
+                input.image_url = await this.uploadToFal(options.sourceImages?.[0] || options.sourceVideoUrl || "");
                 input.mask_url = await this.uploadToFal(options.maskUrl);
-                input.strength = options.strength !== undefined ? options.strength : 0.85; // Lower strength preserves more of original for consistency
+                input.strength = options.strength !== undefined ? options.strength : 0.85;
                 if (options.negativePrompt) {
                     input.negative_prompt = options.negativePrompt;
                 }
@@ -72,39 +113,25 @@ export class FalAIAdapter implements GenerationProvider {
                 const uploadedUrl = await this.uploadToFal(options.sourceImages[0]);
 
                 if (model.includes("flux-2")) {
-                    // Flux 2 Flex uses the /edit endpoint for image-to-image/editing
                     model = "fal-ai/flux-2-flex/edit";
                     input.image_urls = [uploadedUrl];
-                    // The edit endpoint is instruction-based, so we omit 'strength' (denoising)
-                    // and rely on the prompt to describe the changes.
-                    // We also ensure safety tolerance is permissive.
                     input.safety_tolerance = "5";
                 } else {
-                    // Standard Flux Dev/Schnell
                     input.image_url = uploadedUrl;
                     input.strength = options.strength !== undefined ? options.strength : 0.85;
-
-                    if (model === "fal-ai/flux/dev" || model === "fal-ai/flux/schnell") {
-                        model = `${model}/image-to-image`;
-                    }
+                    model = `${model}/image-to-image`;
                 }
             }
 
             console.log("Sending to Fal:", model);
-            console.log("Input payload:", JSON.stringify(input, null, 2));
 
             const result: any = await fal.subscribe(model, {
                 input,
                 logs: true,
-                onQueueUpdate: (update) => {
-                    if (update.status === "IN_PROGRESS") {
-                        // console.log(update.logs);
-                    }
-                },
             });
 
             return {
-                id: Date.now().toString(), // Fal returns ID in a different way usually, but for subscribe it returns result directly
+                id: Date.now().toString(),
                 status: 'succeeded',
                 outputs: result.images.map((img: any) => img.url),
                 seed: result.seed
@@ -112,14 +139,123 @@ export class FalAIAdapter implements GenerationProvider {
 
         } catch (error: any) {
             console.error("Fal.ai generation failed:", error);
-            console.error("FAL_KEY length:", process.env.FAL_KEY?.length);
-            console.error("Error details:", JSON.stringify(error, null, 2));
             return {
                 id: Date.now().toString(),
                 status: 'failed',
                 error: error.message || "Unknown error"
             };
         }
+    }
+
+    private async generateSmartMode(options: GenerationOptions): Promise<GenerationResult> {
+        const {
+            prompt,
+            negativePrompt,
+            sourceImages,
+            elementReferences,
+            strength = 0.5,
+            referenceStrengths = {},
+            referenceCreativity = 0.85,
+            loras,
+            width,
+            height,
+            seed,
+            guidanceScale = 7,
+            steps = 30,
+            aspectRatio
+        } = options;
+
+        const uploadedRefs = await Promise.all(
+            (elementReferences || []).map(ref => this.uploadToFal(ref))
+        );
+
+        const falRequest: any = {
+            prompt: prompt,
+            negative_prompt: negativePrompt,
+            image_size: aspectRatio ? this.mapAspectRatioToSize(aspectRatio) : "square_hd",
+            seed: seed ?? Math.floor(Math.random() * 2147483647),
+            guidance_scale: guidanceScale,
+            num_inference_steps: steps,
+            enable_safety_checker: false, // Disable safety filter
+            safety_tolerance: "6", // Ensure maximally permissive
+        };
+
+        // Handle LoRAs for Smart Mode
+        if (loras && loras.length > 0) {
+            const processedLoRAs = await Promise.all(loras.map(async (l) => {
+                let path = l.path.replace(/^['"]|['"]$/g, '').trim();
+                const isLocal = path.startsWith('/') || path.match(/\.(safetensors|ckpt|pt|bin)$/i);
+                const isUrl = path.startsWith('http');
+
+                if (isLocal && !isUrl) {
+                    console.log(`[SmartMode] Uploading local LoRA: ${path}`);
+                    try {
+                        path = await this.uploadToFal(path);
+                    } catch (e) {
+                        console.error(`[SmartMode] Failed to upload LoRA ${path}:`, e);
+                    }
+                }
+
+                return {
+                    path: path,
+                    scale: l.strength
+                };
+            }));
+            falRequest.loras = processedLoRAs;
+        }
+
+        // If sourceImages are provided, use them for ControlNet
+        if (sourceImages && sourceImages.length > 0) {
+            const sourceImageUrl = await this.uploadToFal(sourceImages[0]);
+            const structureStrength = 1 - strength;
+            const controlNetDepthScale = 0.15 + (structureStrength * 0.6);
+
+            console.log(`[SmartMode] Structure: UI strength=${(1 - strength) * 100}% -> ControlNet scale=${controlNetDepthScale.toFixed(2)}`);
+
+            falRequest.control_nets = [{
+                path: "https://huggingface.co/XLabs-AI/flux-controlnet-depth-v3/resolve/main/flux-depth-controlnet-v3.safetensors",
+                image_url: sourceImageUrl,
+                conditioning_scale: controlNetDepthScale,
+            }];
+        }
+
+        // Always apply IP-Adapter if elementReferences are present
+        if (uploadedRefs.length > 0) {
+            const ipAdapterImages = uploadedRefs.map((url, index) => {
+                // Find original ref URL to look up strength
+                const originalUrl = elementReferences![index];
+
+                // Look up strength. If not found, fall back to referenceCreativity.
+                // referenceStrengths is now Record<string, number> where keys are original URLs.
+                const elementStrength = referenceStrengths?.[originalUrl] ?? referenceCreativity ?? 0.85;
+
+                const ipWeight = 0.4 + (elementStrength * 0.6);
+
+                return {
+                    image_url: url,
+                    weight: ipWeight,
+                };
+            });
+            falRequest.ip_adapter = ipAdapterImages;
+        }
+
+        const model = options.model || 'fal-ai/flux/dev';
+        console.log(`[SmartMode] Using model: ${model}`);
+        const result: any = await fal.subscribe(model, {
+            input: falRequest,
+            logs: true,
+        });
+
+        return {
+            id: Date.now().toString(),
+            status: 'succeeded',
+            outputs: result.images.map((img: any) => img.url),
+            seed: result.seed,
+        };
+    }
+
+    private async generateWithIPAdapter(options: GenerationOptions): Promise<GenerationResult> {
+        return this.generateSmartMode({ ...options, sourceImages: [] });
     }
 
     async generateVideo(image: string | undefined, options: GenerationOptions): Promise<GenerationResult> {
@@ -138,18 +274,29 @@ export class FalAIAdapter implements GenerationProvider {
             };
 
             // Model-specific parameters
-            if (model.includes("wan")) {
-                input.aspect_ratio = "16:9";
+            if (model.includes("wan-2.5") || model.includes("wan-25")) {
+                // Aspect ratio is only for T2V
+                if (!model.includes("image-to-video") && !model.includes("i2v")) {
+                    input.aspect_ratio = "16:9";
+                }
+                // Wan 2.5 defaults
+            } else if (model.includes("wan")) {
+                // Map legacy/alias IDs
+                if (model === "fal-ai/wan-i2v") {
+                    model = "fal-ai/wan/v2.2-a14b/image-to-video";
+                }
+
                 // Wan 2.1/2.2:
                 // If FPS is 24, then 5s = 120 frames, 10s = 240 frames.
                 // We use n+1 usually.
                 input.frames_per_second = 24;
                 input.sample_shift = 5.0;
                 input.num_frames = options.duration === "10" ? 241 : 121;
-                input.num_frames = options.duration === "10" ? 241 : 121;
-            } else if (model.includes("wan-2.5") || model.includes("wan-25")) {
-                input.aspect_ratio = "16:9";
-                // Wan 2.5 defaults, adjust if needed
+
+                // Aspect ratio is only for T2V
+                if (!model.includes("image-to-video") && !model.includes("i2v")) {
+                    input.aspect_ratio = "16:9";
+                }
             } else if (model.includes("kling")) {
                 input.aspect_ratio = "16:9";
                 input.duration = options.duration || "5"; // Kling supports "5" or "10"
@@ -186,8 +333,16 @@ export class FalAIAdapter implements GenerationProvider {
                 // input.fps = 25; // Optional, default is 25
             }
 
+            // Handle Image-to-Video
             if (image) {
-                input.image_url = await this.uploadToFal(image);
+                const uploadedUrl = await this.uploadToFal(image);
+                input.image_url = uploadedUrl;
+                // Some video models support strength/creativity for i2v
+                // For now, we just pass the image.
+                // If the model supports it, we can map referenceCreativity here.
+                if (options.referenceCreativity !== undefined) {
+                    input.strength = options.referenceCreativity;
+                }
 
                 // Ensure we are using an I2V model if image is provided
                 if (model === "fal-ai/wan-t2v" || (model.includes("wan") && model.includes("t2v"))) {
@@ -200,6 +355,23 @@ export class FalAIAdapter implements GenerationProvider {
                     // Switch Kling T2V to I2V when image is provided
                     console.log("Switching Kling T2V to I2V because image was provided");
                     model = model.replace("text-to-video", "image-to-video");
+                    model = model.replace("text-to-video", "image-to-video");
+                } else if (model.includes("ai-avatar")) {
+                    // Avatar models use image_url and audio_url
+                    // Source: https://fal.ai/models/fal-ai/kling-video/ai-avatar/v2/pro
+                    input.image_url = uploadedUrl;
+                    delete input.face_image_url; // Remove incorrect param if present
+
+                    // Handle driving audio
+                    if (options.audioUrl) {
+                        input.audio_url = await this.uploadToFal(options.audioUrl);
+                    }
+
+                    // Avatar models typically don't support aspect_ratio or duration (driven by audio)
+                    delete input.aspect_ratio;
+                    delete input.duration;
+                    delete input.negative_prompt; // Not supported
+                    delete input.enable_safety_checker; // Not supported
                 }
             } else if (options.sourceVideoUrl && options.maskUrl) {
                 // Video Inpainting / Retake Mode
@@ -219,8 +391,25 @@ export class FalAIAdapter implements GenerationProvider {
                 if (!model.includes("video-to-video")) {
                     model = "fal-ai/kling-video/o1/video-to-video/edit";
                 }
+            } else if (model === "fal-ai/video-upscaler" || model === "topaz/upscale/video") {
+                // Video Upscaling
+                console.log("Video Upscaling Mode Detected");
+                if (image) {
+                    input.video_url = await this.uploadToFal(image);
+                } else if (options.sourceVideoUrl) {
+                    input.video_url = await this.uploadToFal(options.sourceVideoUrl);
+                }
+
+                // Remove unsupported params
+                delete input.prompt;
+                delete input.negative_prompt;
+                delete input.enable_safety_checker;
             } else {
                 // Ensure we are using a T2V model if no image
+                if (model.includes("ai-avatar")) {
+                    throw new Error("Kling AI Avatar models require a source image (face). Please select an image or reference one in the prompt (e.g. @MyImage).");
+                }
+
                 if (model.includes("image-to-video") || model.includes("i2v")) {
                     console.log("Switching to T2V model because no image was provided");
                     // Fallback logic for T2V if available
@@ -313,17 +502,21 @@ export class FalAIAdapter implements GenerationProvider {
             // 3 levels up from generators -> services -> src/dist -> backend
             const backendRoot = path.join(__dirname, '../../..');
 
-            // Remove leading slash
-            const relativePath = urlOrPath.startsWith('/') ? urlOrPath.slice(1) : urlOrPath;
+            // Remove leading/trailing quotes and leading slash
+            const cleanPath = urlOrPath.replace(/^['"]|['"]$/g, '').trim();
+            const relativePath = cleanPath.startsWith('/') ? cleanPath.slice(1) : cleanPath;
             const fileName = path.basename(relativePath);
 
             // Potential paths to check
             const candidates = [
+                path.isAbsolute(cleanPath) ? cleanPath : null,
                 path.join(backendRoot, relativePath), // e.g. backend/uploads/foo.png
                 path.join(backendRoot, 'uploads', fileName), // e.g. backend/uploads/foo.png (flattened)
                 path.join(backendRoot, 'public', fileName), // e.g. backend/public/foo.png
                 // Try removing 'uploads/' prefix if present and joining with uploads dir
                 relativePath.startsWith('uploads/') ? path.join(backendRoot, relativePath) : null,
+                // Handle case where relativePath starts with /uploads/
+                path.join(backendRoot, relativePath.startsWith('/') ? relativePath.slice(1) : relativePath)
             ].filter(Boolean) as string[];
 
             let absolutePath = candidates.find(p => fs.existsSync(p));
@@ -331,18 +524,35 @@ export class FalAIAdapter implements GenerationProvider {
             if (absolutePath) {
                 console.log("Found local file at:", absolutePath);
                 const fileData = fs.readFileSync(absolutePath);
-                const url = await fal.storage.upload(fileData);
+                let url;
+
+                if (typeof File !== 'undefined') {
+                    // Use File object to preserve filename/extension
+                    // Explicitly set type to application/octet-stream for safetensors
+                    const mimeType = fileName.endsWith('.safetensors') ? 'application/octet-stream' : 'application/octet-stream';
+                    const file = new File([fileData], fileName, { type: mimeType });
+                    url = await fal.storage.upload(file);
+                    console.log(`[FalAIAdapter] Uploaded ${fileName} to ${url}`);
+
+                    // STRICT VALIDATION: Ensure the URL has the correct extension
+                    if (!url.endsWith('.safetensors')) {
+                        console.error(`[FalAIAdapter] CRITICAL: Uploaded LoRA URL missing extension! URL: ${url}`);
+                        throw new Error(`LoRA upload failed to preserve extension. Fal returned: ${url}. Expected it to end with .safetensors`);
+                    }
+                } else {
+                    url = await fal.storage.upload(fileData);
+                }
+
                 console.log("Uploaded to Fal:", url);
                 return url;
             } else {
-                console.warn("Local file not found. Checked:", candidates);
-                // If not found locally, maybe it's accessible via public URL if we had one, but we don't.
-                // Returning the path will likely fail in Fal, but we have no choice.
-                return urlOrPath;
+                console.error("Local file not found. Checked:", candidates);
+                console.error("Current __dirname:", __dirname);
+                throw new Error(`Failed to resolve local file path: ${urlOrPath}`);
             }
         } catch (err) {
             console.error("Failed to upload local file to Fal:", err);
-            return urlOrPath;
+            throw err;
         }
     }
 

@@ -14,6 +14,7 @@ const parseGenerationJsonFields = (generation: any) => {
         outputs: generation.outputs ? (typeof generation.outputs === 'string' ? JSON.parse(generation.outputs) : generation.outputs) : null,
         usedLoras: generation.usedLoras ? (typeof generation.usedLoras === 'string' ? JSON.parse(generation.usedLoras) : generation.usedLoras) : null,
         sourceElementIds: generation.sourceElementIds ? (typeof generation.sourceElementIds === 'string' ? JSON.parse(generation.sourceElementIds) : generation.sourceElementIds) : null,
+        tags: generation.tags ? (typeof generation.tags === 'string' ? (generation.tags.startsWith('[') ? JSON.parse(generation.tags) : [generation.tags]) : generation.tags) : [],
     };
 };
 
@@ -51,21 +52,71 @@ const processQueue = async () => {
                 // TODO: Add style from LoRA or separate field if we add it
             });
 
-            // Fetch source images if any
-            let sourceImages: string[] = [];
-            const sourceIdsRaw = generation.sourceElementIds;
-            const sourceIds = sourceIdsRaw ? (typeof sourceIdsRaw === 'string' ? JSON.parse(sourceIdsRaw) : sourceIdsRaw) : [];
-            if (Array.isArray(sourceIds) && sourceIds.length > 0) {
-                const elements = await prisma.element.findMany({
-                    where: { id: { in: sourceIds } }
-                });
-                sourceImages = elements.map(e => e.fileUrl).filter((url): url is string => !!url);
-            }
-
             // Parse usedLoras from JSON string
             const usedLorasParsed = generation.usedLoras
                 ? (typeof generation.usedLoras === 'string' ? JSON.parse(generation.usedLoras) : generation.usedLoras)
                 : {};
+
+            // Fetch Element References (for IP-Adapter / Character Consistency)
+            let elementReferences: string[] = [];
+            const sourceIdsRaw = generation.sourceElementIds;
+            console.log(`[DEBUG] sourceIdsRaw: ${JSON.stringify(sourceIdsRaw)}`);
+            const sourceIds = sourceIdsRaw ? (typeof sourceIdsRaw === 'string' ? JSON.parse(sourceIdsRaw) : sourceIdsRaw) : [];
+            console.log(`[DEBUG] sourceIds parsed: ${JSON.stringify(sourceIds)}`);
+
+            // Map to store URL -> Strength for the adapter
+            const referenceStrengthsByUrl: Record<string, number> = {};
+
+            if (Array.isArray(sourceIds) && sourceIds.length > 0) {
+                const elements = await prisma.element.findMany({
+                    where: { id: { in: sourceIds } }
+                });
+                console.log(`[DEBUG] Found ${elements.length} elements for IP-Adapter`);
+
+                // Map to file URLs and build strength map
+                elementReferences = elements.map(e => {
+                    if (e.fileUrl) {
+                        // Map ID-based strength to URL-based strength
+                        if (usedLorasParsed?.referenceStrengths && usedLorasParsed.referenceStrengths[e.id]) {
+                            referenceStrengthsByUrl[e.fileUrl] = usedLorasParsed.referenceStrengths[e.id];
+                        }
+                        return e.fileUrl;
+                    }
+                    return null;
+                }).filter((url): url is string => !!url);
+
+                console.log(`[DEBUG] Resolved elementReferences: ${JSON.stringify(elementReferences)}`);
+                console.log(`[DEBUG] Mapped referenceStrengthsByUrl: ${JSON.stringify(referenceStrengthsByUrl)}`);
+            } else {
+                console.log(`[DEBUG] No sourceIds found for IP-Adapter`);
+            }
+
+            // Fetch Source Images (for Image-to-Image / Structure)
+            let sourceImages: string[] = [];
+            if (usedLorasParsed && usedLorasParsed.sourceImages) {
+                sourceImages = usedLorasParsed.sourceImages;
+            }
+            // else if (usedLorasParsed && usedLorasParsed.sourceImageUrl) {
+            //    sourceImages = [usedLorasParsed.sourceImageUrl];
+            // }
+            console.log(`[DEBUG] Resolved sourceImages: ${JSON.stringify(sourceImages)}`);
+
+            // FALLBACK: If no Element References (Face) are provided, but a Source Image (Structure) is,
+            // use the Source Image for the Face Reference as well.
+            // This ensures "Reference Image" is used for both I2I and IP-Adapter if not specified otherwise.
+            if (elementReferences.length === 0 && sourceImages.length > 0) {
+                console.log(`[DEBUG] No elementReferences found. Using sourceImages as fallback for IP-Adapter.`);
+                elementReferences = [...sourceImages];
+            }
+
+            // Check for sourceImages array (from image-to-image)
+            if (usedLorasParsed?.sourceImages && Array.isArray(usedLorasParsed.sourceImages)) {
+                usedLorasParsed.sourceImages.forEach((img: string) => {
+                    if (!sourceImages.includes(img)) {
+                        sourceImages.push(img);
+                    }
+                });
+            }
 
             // Parse @ mentions from the prompt
             const mentionRegex = /@([a-zA-Z0-9_.-]+)/g;
@@ -83,6 +134,8 @@ const processQueue = async () => {
                 const filteredElements = mentionedElements.filter(e =>
                     mentions.some(m => e.name.toLowerCase() === m.toLowerCase())
                 );
+                console.log(`Found ${filteredElements.length} matching elements for mentions:`, filteredElements.map(e => e.name));
+
 
                 // Add mentioned images to sourceImages (if not already present)
                 filteredElements.forEach(e => {
@@ -92,43 +145,45 @@ const processQueue = async () => {
                 });
             }
 
-            // Check for direct sourceImageUrl (from image-to-video)
-            const directSourceUrl = usedLorasParsed?.sourceImageUrl;
-            if (directSourceUrl) {
-                sourceImages.push(directSourceUrl);
-            }
-
-            // Prepare options
             // Resolve LoRAs
             let resolvedLoras: { path: string; strength: number }[] = [];
             const usedLorasData = usedLorasParsed?.loras;
+            let loraRecords: any[] = []; // Initialize loraRecords outside the if block
             if (Array.isArray(usedLorasData) && usedLorasData.length > 0) {
-                const loraIds = usedLorasData.map((l: any) => l.id);
-                const loraRecords = await prisma.loRA.findMany({
-                    where: { id: { in: loraIds } }
-                });
+                const loraIds = usedLorasData.map((l: any) => l.id).filter((id: any) => id !== undefined && id !== null);
+                if (loraIds.length > 0) {
+                    loraRecords = await prisma.loRA.findMany({
+                        where: { id: { in: loraIds } }
+                    });
+                }
 
                 resolvedLoras = usedLorasData.map((l: any) => {
                     const record = loraRecords.find((r) => r.id === l.id);
                     if (record) {
                         return { path: record.fileUrl, strength: l.strength || record.strength || 1.0 };
                     }
+                    // Fallback: If no record but path is provided, use it (Ad-hoc LoRA)
+                    if (l.path) {
+                        return { path: l.path, strength: l.strength || 1.0 };
+                    }
                     return null;
                 }).filter((l): l is { path: string; strength: number } => l !== null);
             }
 
-            // Prepare options
-            console.log("Processing generation request:", generation.id);
             const options = {
                 prompt: resolvedPrompt,
                 negativePrompt: PromptBuilder.buildNegative(),
                 aspectRatio: generation.aspectRatio || "16:9",
                 loras: resolvedLoras,
                 model: usedLorasParsed?.model,
-                sourceImages,
+                sourceImages, // Only contains structure images
+                elementReferences, // Contains character/style references
+                sourceVideoUrl: usedLorasParsed?.inputVideo, // Pass inputVideo as sourceVideoUrl
                 strength: usedLorasParsed?.strength, // Pass strength to options
-                sampler: usedLorasParsed?.sampler,
-                scheduler: usedLorasParsed?.scheduler,
+                referenceCreativity: usedLorasParsed?.referenceCreativity, // Pass to service
+                referenceStrengths: referenceStrengthsByUrl, // Pass URL-keyed map
+                sampler: usedLorasParsed?.sampler ? { value: usedLorasParsed.sampler, label: usedLorasParsed.sampler, id: usedLorasParsed.sampler, name: usedLorasParsed.sampler } : undefined,
+                scheduler: usedLorasParsed?.scheduler ? { value: usedLorasParsed.scheduler, label: usedLorasParsed.scheduler, id: usedLorasParsed.scheduler, name: usedLorasParsed.scheduler } : undefined,
                 count: generation.variations || 1,
                 duration: usedLorasParsed?.duration, // Pass duration
                 maskUrl: usedLorasParsed?.maskUrl, // Pass maskUrl for inpainting
@@ -137,6 +192,7 @@ const processQueue = async () => {
                 startFrame: usedLorasParsed?.startFrame,
                 endFrame: usedLorasParsed?.endFrame,
                 inputVideo: usedLorasParsed?.inputVideo,
+                audioUrl: usedLorasParsed?.audioUrl, // Pass audioUrl
                 mode: generation.mode as any, // Cast to any to avoid type error, validated at runtime
             };
 
@@ -179,6 +235,7 @@ const processQueue = async () => {
                 // For text_to_video, sourceImages[0] might be undefined, which is fine if generateVideo handles it
                 // For frames_to_video, we use options.startFrame (which we might have inferred)
                 const videoInput = options.startFrame || sourceImages[0];
+                console.log(`Calling generateVideo with videoInput: ${videoInput ? 'PRESENT' : 'UNDEFINED'}, sourceImages length: ${sourceImages.length}`);
                 result = await service.generateVideo(videoInput, options);
             } else {
                 result = await service.generateImage(options);
@@ -249,8 +306,15 @@ export const createGeneration = async (req: Request, res: Response) => {
             height,
             startFrame, // New video fields
             endFrame,
-            inputVideo
+            inputVideo,
+            duration, // Extract duration from body
+            referenceCreativity, // Extract reference creativity
+            referenceStrengths, // Extract per-element strengths
+            audioUrl // Extract audioUrl
         } = req.body;
+
+        console.log("[createGeneration] Starting creation...");
+        console.log("[createGeneration] Request body:", JSON.stringify(req.body, null, 2));
 
         const generation = await prisma.generation.create({
             data: {
@@ -269,18 +333,21 @@ export const createGeneration = async (req: Request, res: Response) => {
                 sessionId,
                 status: 'queued',
                 engine: engine || 'fal',
+                tags: req.body.tags ? JSON.stringify(req.body.tags) : "[]",
                 // Store model info in metadata or similar if needed, for now we just use it for generation
-                usedLoras: JSON.stringify({ loras, model: falModel, sourceImageUrl, strength, sampler, scheduler, maskUrl, width, height, startFrame, endFrame, inputVideo })
+                usedLoras: JSON.stringify({ loras, model: falModel, sourceImages: req.body.sourceImages, sourceImageUrl, strength, sampler, scheduler, maskUrl, width, height, startFrame, endFrame, inputVideo, duration, referenceCreativity, referenceStrengths, audioUrl })
             },
         });
+        console.log("[createGeneration] Generation created in DB:", generation.id);
 
         // Add to queue
         jobQueue.push(generation.id);
+        console.log("[createGeneration] Added to jobQueue");
         processQueue(); // Trigger processing
 
         res.status(201).json(parseGenerationJsonFields(generation));
     } catch (error: any) {
-        console.error(error);
+        console.error("[createGeneration] Error:", error);
         if (error.code === 'P2003') {
             if (error.meta?.field_name?.includes('sessionId')) {
                 return res.status(400).json({ error: 'Invalid Session ID. The selected session may have been deleted.' });

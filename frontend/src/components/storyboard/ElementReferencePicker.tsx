@@ -13,6 +13,12 @@ interface ElementReferencePickerProps {
     selectedElements: string[];
     onSelectionChange: (elements: string[]) => void;
     maxElements?: number;
+    // Global fallback (optional if we fully switch to per-element)
+    creativity?: number;
+    onCreativityChange?: (value: number) => void;
+    // Per-element strength
+    elementStrengths: Record<string, number>;
+    onStrengthChange: (id: string, value: number) => void;
 }
 
 export function ElementReferencePicker({
@@ -21,12 +27,24 @@ export function ElementReferencePicker({
     onClose,
     selectedElements,
     onSelectionChange,
-    maxElements = 4
+    maxElements = 4,
+    creativity = 0.6,
+    onCreativityChange,
+    elementStrengths,
+    onStrengthChange
 }: ElementReferencePickerProps) {
     const [elements, setElements] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [filterType, setFilterType] = useState<"all" | "character" | "style" | "prop">("all");
+    const [activeElementId, setActiveElementId] = useState<string | null>(null);
+
+    // Set first selected element as active on open if none active
+    useEffect(() => {
+        if (isOpen && selectedElements.length > 0 && !activeElementId) {
+            setActiveElementId(selectedElements[0]);
+        }
+    }, [isOpen, selectedElements]);
 
     useEffect(() => {
         if (isOpen) {
@@ -46,11 +64,30 @@ export function ElementReferencePicker({
         }
     };
 
-    const toggleElement = (elementUrl: string) => {
-        if (selectedElements.includes(elementUrl)) {
-            onSelectionChange(selectedElements.filter(e => e !== elementUrl));
+    const toggleElement = (elementId: string) => {
+        if (selectedElements.includes(elementId)) {
+            // Deselecting
+            const newSelection = selectedElements.filter(e => e !== elementId);
+            onSelectionChange(newSelection);
+            if (activeElementId === elementId) {
+                setActiveElementId(newSelection.length > 0 ? newSelection[0] : null);
+            }
         } else if (selectedElements.length < maxElements) {
-            onSelectionChange([...selectedElements, elementUrl]);
+            // Selecting
+            onSelectionChange([...selectedElements, elementId]);
+            setActiveElementId(elementId); // Auto-activate newly selected
+            // Initialize strength if not present
+            if (!elementStrengths[elementId]) {
+                onStrengthChange(elementId, 0.6);
+            }
+        }
+    };
+
+    const handleElementClick = (id: string) => {
+        if (selectedElements.includes(id)) {
+            setActiveElementId(id);
+        } else {
+            toggleElement(id);
         }
     };
 
@@ -127,32 +164,90 @@ export function ElementReferencePicker({
                 {selectedElements.length > 0 && (
                     <div className="p-4 bg-purple-500/5 border-b border-purple-500/20">
                         <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-medium text-purple-300">
-                                Selected ({selectedElements.length}/{maxElements})
-                            </span>
+                            <div className="flex items-center gap-4">
+                                <span className="text-xs font-medium text-purple-300">
+                                    Selected ({selectedElements.length}/{maxElements})
+                                </span>
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-purple-300 font-medium uppercase tracking-wider">Creative</span>
+                                        <input
+                                            type="range"
+                                            min="0.1"
+                                            max="1.0"
+                                            step="0.01"
+                                            value={activeElementId ? (elementStrengths[activeElementId] || 0.6) : creativity}
+                                            onChange={(e) => {
+                                                const val = parseFloat(e.target.value);
+                                                if (activeElementId) {
+                                                    onStrengthChange(activeElementId, val);
+                                                } else if (onCreativityChange) {
+                                                    onCreativityChange(val);
+                                                }
+                                            }}
+                                            disabled={!activeElementId && !onCreativityChange}
+                                            className={clsx(
+                                                "w-32 h-1.5 rounded-lg appearance-none cursor-pointer transition-all",
+                                                activeElementId ? "bg-gray-700 accent-purple-500 hover:accent-purple-400" : "bg-gray-800 accent-gray-600"
+                                            )}
+                                        />
+                                        <span className="text-[10px] text-purple-300 font-medium uppercase tracking-wider">Strict</span>
+                                    </div>
+                                    <div className="flex justify-between px-1">
+                                        <span className="text-[8px] text-gray-500">Picasso</span>
+                                        <span className="text-[8px] text-gray-500">Da Vinci</span>
+                                    </div>
+                                </div>
+                                <span className="text-xs font-mono text-purple-400 w-8 text-right font-bold">
+                                    {((activeElementId ? (elementStrengths[activeElementId] || 0.6) : creativity) * 100).toFixed(0)}%
+                                </span>
+                            </div>
                             <span className="text-xs text-gray-500 font-mono">
                                 Prompt ref: {buildReferencePrompt()}
                             </span>
                         </div>
                         <div className="flex gap-2 overflow-x-auto pb-2">
-                            {selectedElements.map((url, idx) => (
-                                <div key={url} className="relative flex-shrink-0">
-                                    <img
-                                        src={url}
-                                        alt={`Element ${idx + 1}`}
-                                        className="w-16 h-16 rounded-lg object-cover border-2 border-purple-500"
-                                    />
-                                    <div className="absolute -top-1 -left-1 w-5 h-5 bg-purple-500 rounded-full flex items-center justify-center text-[10px] text-white font-bold">
-                                        {idx + 1}
-                                    </div>
-                                    <button
-                                        onClick={() => toggleElement(url)}
-                                        className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-400"
+                            {selectedElements.map((id, idx) => {
+                                const el = elements.find(e => e.id === id);
+                                const url = el ? `http://localhost:3001${el.fileUrl}` : '';
+                                return (
+                                    <div
+                                        key={id}
+                                        className={clsx(
+                                            "relative flex-shrink-0 cursor-pointer transition-all",
+                                            activeElementId === id ? "scale-105 z-10" : "opacity-80 hover:opacity-100"
+                                        )}
+                                        onClick={() => setActiveElementId(id)}
                                     >
-                                        <X className="w-3 h-3" />
-                                    </button>
-                                </div>
-                            ))}
+                                        <img
+                                            src={url}
+                                            alt={`Element ${idx + 1}`}
+                                            className={clsx(
+                                                "w-16 h-16 rounded-lg object-cover border-2",
+                                                activeElementId === id ? "border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" : "border-purple-500"
+                                            )}
+                                        />
+                                        <div className="absolute -top-1 -left-1 w-5 h-5 bg-purple-500 rounded-full flex items-center justify-center text-[10px] text-white font-bold z-10 shadow-sm border border-white/20">
+                                            {idx + 1}
+                                        </div>
+                                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-[2px] py-0.5 px-1 text-center flex justify-between items-center">
+                                            <span className="text-[8px] text-white font-mono font-medium">@Image{idx + 1}</span>
+                                            <span className="text-[8px] text-blue-300 font-bold ml-1">
+                                                {((elementStrengths[id] || 0.6) * 100).toFixed(0)}%
+                                            </span>
+                                        </div>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleElement(id);
+                                            }}
+                                            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-400 z-10 shadow-sm border border-white/20"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                )
+                            })}
                         </div>
                     </div>
                 )}
@@ -168,35 +263,41 @@ export function ElementReferencePicker({
                     ) : (
                         <div className="grid grid-cols-4 gap-3">
                             {filteredElements.map((element) => {
-                                const isSelected = selectedElements.includes(element.url);
-                                const selectionIndex = selectedElements.indexOf(element.url);
+                                const isSelected = selectedElements.includes(element.id);
+                                const selectionIndex = selectedElements.indexOf(element.id);
                                 const canSelect = selectedElements.length < maxElements || isSelected;
+                                const url = `http://localhost:3001${element.fileUrl}`;
 
                                 return (
                                     <button
                                         key={element.id}
-                                        onClick={() => canSelect && toggleElement(element.url)}
+                                        onClick={() => handleElementClick(element.id)}
                                         disabled={!canSelect}
                                         className={clsx(
                                             "relative aspect-square rounded-lg overflow-hidden border-2 transition-all",
                                             isSelected
-                                                ? "border-purple-500 ring-2 ring-purple-500/30"
+                                                ? (activeElementId === element.id ? "border-blue-500 ring-2 ring-blue-500/30" : "border-purple-500 ring-2 ring-purple-500/30")
                                                 : canSelect
                                                     ? "border-white/10 hover:border-white/30"
                                                     : "border-white/5 opacity-50 cursor-not-allowed"
                                         )}
                                     >
                                         <img
-                                            src={element.url}
+                                            src={url}
                                             alt={element.name}
                                             className="w-full h-full object-cover"
                                         />
 
                                         {/* Selection Indicator */}
                                         {isSelected && (
-                                            <div className="absolute inset-0 bg-purple-500/20 flex items-center justify-center">
-                                                <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold">
-                                                    {selectionIndex + 1}
+                                            <div className="absolute inset-0 bg-purple-500/20 flex items-center justify-center backdrop-blur-[1px]">
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold shadow-lg border border-white/20">
+                                                        {selectionIndex + 1}
+                                                    </div>
+                                                    <span className="px-1.5 py-0.5 bg-black/60 rounded text-[9px] text-white font-mono font-medium border border-white/10">
+                                                        @Image{selectionIndex + 1}
+                                                    </span>
                                                 </div>
                                             </div>
                                         )}

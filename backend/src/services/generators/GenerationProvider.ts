@@ -19,7 +19,9 @@ export interface GenerationOptions {
     }[];
     sourceImages?: string[];
     maskUrl?: string; // Added for Inpainting/Retake
-    sourceVideoUrl?: string; // Added for Video Inpainting
+    sourceVideoUrl?: string; // URL of source video for video-to-video
+    referenceCreativity?: number; // Strength of reference elements (0.1 - 1.0)
+    referenceStrengths?: Record<string, number>; // Per-element strength map
     // Advanced Video Generation
     mode?: 'text_to_video' | 'image_to_video' | 'frames_to_video' | 'extend_video';
     startFrame?: string; // base64 or URL
@@ -33,6 +35,7 @@ export interface GenerationOptions {
         endFrame?: string; // URL or base64 for end keyframe
     };
     elementReferences?: string[]; // URLs for character/element consistency (up to 4)
+    audioUrl?: string; // URL for driving audio (Avatar models)
 }
 
 export interface GenerationResult {

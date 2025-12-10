@@ -9,7 +9,8 @@ import {
     Loader2, Send, Image as ImageIcon, Video,
     Wand2, Settings, History, ChevronRight,
     Sparkles, Zap, Layers, AlertCircle, Check, X,
-    Play, Ratio, ChevronDown, SlidersHorizontal, Users, Trash2, Copy, CheckSquare
+    Play, Ratio, ChevronDown, SlidersHorizontal, Users, Trash2, Copy, CheckSquare,
+    Database, Music
 } from 'lucide-react';
 import { ADVANCED_OPTIONS } from "@/components/storyboard/CreateStyleModal";
 import { Element, Generation, Scene } from "@/lib/store";
@@ -17,6 +18,7 @@ import { clsx } from "clsx";
 import { GenerationCard } from "@/components/generations/GenerationCard";
 import { ShotNavigator } from "@/components/generations/ShotNavigator";
 import { ElementPicker } from "@/components/generations/ElementPicker";
+import { ElementReferencePicker } from "@/components/storyboard/ElementReferencePicker";
 import { MagicPromptButton } from "@/components/generations/MagicPromptButton";
 import { StyleSelectorModal, StyleConfig } from "@/components/storyboard/StyleSelectorModal";
 import { useSession } from "@/context/SessionContext";
@@ -27,12 +29,18 @@ import {
     useSensors,
     PointerSensor,
     DragStartEvent,
-    DragEndEvent
+    DragEndEvent,
+    DragOverEvent,
+    pointerWithin,
+    Modifier
 } from "@dnd-kit/core";
 
+import { SaveElementModal } from "@/components/generations/SaveElementModal";
 import { EditElementModal } from "@/components/elements/EditElementModal";
 import { VideoMaskEditor } from "@/components/generations/VideoMaskEditor";
 import { ImageMaskEditor } from "@/components/generations/ImageMaskEditor";
+import { AudioInputModal } from "@/components/generations/AudioInputModal";
+import { DataBackupModal } from "@/components/settings/DataBackupModal";
 
 export default function GeneratePage() {
     const params = useParams();
@@ -54,11 +62,23 @@ export default function GeneratePage() {
     const [guidanceScale, setGuidanceScale] = useState(7.5);
     const [seed, setSeed] = useState<number | undefined>(undefined); // Seed for reproducible results
     const [selectedElementIds, setSelectedElementIds] = useState<string[]>([]);
+    const [selectedGenerationIds, setSelectedGenerationIds] = useState<string[]>([]); // Added missing state
+    const [referenceCreativity, setReferenceCreativity] = useState(0.6); // Default reference strength
+    const [elementStrengths, setElementStrengths] = useState<Record<string, number>>({}); // Per-element strength
     const { selectedSessionId, sessions } = useSession();
+
+    // Audio State for Avatar Models
+    const [audioFile, setAudioFile] = useState<File | null>(null);
+    const [audioUrl, setAudioUrl] = useState<string | null>(null);
+    const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
+    const [isSaveElementModalOpen, setIsSaveElementModalOpen] = useState(false);
+    const [saveElementData, setSaveElementData] = useState<{ url: string, type: 'image' | 'video' } | null>(null);
+    const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
 
     // Drag and Drop state
     const [activeDragId, setActiveDragId] = useState<string | null>(null);
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+    const [isOverShotNavigator, setIsOverShotNavigator] = useState(false);
 
     // Autocomplete state
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -198,10 +218,41 @@ export default function GeneratePage() {
         if (!prompt.trim()) return;
         setIsGenerating(true);
         try {
+            // Handle Source Image Upload from Style Config
+            let sourceImageUrl = null;
+            if (styleConfig?.referenceImage) {
+                if (styleConfig.referenceImage instanceof File) {
+                    const formData = new FormData();
+                    formData.append('file', styleConfig.referenceImage);
+                    formData.append('name', 'Source Image');
+                    formData.append('type', 'image');
+
+                    try {
+                        const res = await fetch(`http://localhost:3001/api/projects/${projectId}/elements`, {
+                            method: 'POST',
+                            body: formData
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            sourceImageUrl = data.url;
+                        }
+                    } catch (e) {
+                        console.error("Failed to upload source image", e);
+                    }
+                } else if (typeof styleConfig.referenceImage === 'string') {
+                    sourceImageUrl = styleConfig.referenceImage;
+                }
+            }
+
             const isVideo = engineConfig.model?.includes('video') || engineConfig.model?.includes('t2v') || engineConfig.model?.includes('i2v');
+
+            // Determine mode:
+            // If sourceImageUrl exists -> image_to_image (or image_to_video)
+            // If only selectedElementIds (Reference Elements) -> text_to_image (Flux handles refs via IP-Adapter)
+            // Video models usually treat input images as start frames (image_to_video)
             const mode = isVideo
-                ? (selectedElementIds.length > 0 ? 'image_to_video' : 'text_to_video')
-                : 'text_to_image';
+                ? (sourceImageUrl || selectedElementIds.length > 0 ? 'image_to_video' : 'text_to_video')
+                : (sourceImageUrl ? 'image_to_image' : 'text_to_image');
 
             await fetchAPI(`/projects/${projectId}/generations`, {
                 method: "POST",
@@ -210,6 +261,7 @@ export default function GeneratePage() {
                     inputPrompt: prompt,
                     aspectRatio,
                     sourceElementIds: selectedElementIds,
+                    sourceImages: sourceImageUrl ? [sourceImageUrl] : undefined, // Pass source image
                     variations: 1,
                     sessionId: selectedSessionId,
                     engine: engineConfig.provider,
@@ -227,6 +279,9 @@ export default function GeneratePage() {
                     steps: styleConfig?.steps, // Pass selected Steps
                     duration: duration, // Pass selected Duration
                     negativePrompt: styleConfig?.negativePrompt, // Pass Negative Prompt
+                    audioUrl: audioUrl, // Pass audio URL for avatar models
+                    referenceStrengths: elementStrengths, // Pass per-element strengths
+                    referenceCreativity: referenceCreativity, // Pass global creativity fallback
                 })
             });
             setPrompt("");
@@ -308,6 +363,29 @@ export default function GeneratePage() {
             loadGenerations();
         } catch (err: any) {
             console.error("Animation failed:", err);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleUpscale = async (imageUrl: string, model: string) => {
+        setIsGenerating(true);
+        try {
+            await fetchAPI(`/projects/${projectId}/generations`, {
+                method: "POST",
+                body: JSON.stringify({
+                    mode: "upscale",
+                    inputPrompt: `Upscaled: ${prompt || 'upscale'}`,
+                    sourceImageUrl: imageUrl,
+                    variations: 1,
+                    sessionId: selectedSessionId,
+                    engine: 'fal',
+                    falModel: model, // Use the selected upscale model
+                })
+            });
+            loadGenerations();
+        } catch (err: any) {
+            console.error("Upscale failed:", err);
         } finally {
             setIsGenerating(false);
         }
@@ -468,6 +546,8 @@ export default function GeneratePage() {
         }
     };
 
+
+
     const filteredElements = elements.filter(el =>
         el.name.toLowerCase().includes(suggestionQuery.toLowerCase())
     );
@@ -484,10 +564,29 @@ export default function GeneratePage() {
         setActiveDragId(event.active.id as string);
     };
 
+    const handleDragOver = (event: DragOverEvent) => {
+        const { over } = event;
+        // Check if we're over any Shot Navigator droppable
+        if (over) {
+            const overId = String(over.id);
+            const isInShotNavigator = overId.startsWith('shot-') ||
+                overId === 'drop-end' ||
+                overId === 'drop-empty' ||
+                overId === 'shot-navigator-container';
+
+            // Debug log to trace drag over events
+
+            setIsOverShotNavigator(isInShotNavigator);
+        } else {
+            setIsOverShotNavigator(false);
+        }
+    };
+
     const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
         setActiveDragId(null);
         setDragOverIndex(null);
+        setIsOverShotNavigator(false);
 
         console.log("Drag End:", { active, over });
 
@@ -571,8 +670,7 @@ export default function GeneratePage() {
         }
     };
 
-    // Batch Selection State
-    const [selectedGenerationIds, setSelectedGenerationIds] = useState<string[]>([]);
+
 
     const toggleGenerationSelection = (id: string) => {
         setSelectedGenerationIds(prev =>
@@ -638,7 +736,13 @@ export default function GeneratePage() {
     };
 
     return (
-        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <DndContext
+            sensors={sensors}
+            collisionDetection={pointerWithin}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+        >
             <div className="flex-1 flex flex-col h-screen overflow-hidden">
                 <div className="flex-1 flex overflow-hidden">
                     {/* Main Content Area */}
@@ -648,12 +752,13 @@ export default function GeneratePage() {
                             <ShotNavigator
                                 scenes={scenes}
                                 activeDragId={activeDragId}
+                                isOverNavigator={isOverShotNavigator}
                                 onDropIndexChange={setDragOverIndex}
                                 onRemove={handleRemoveShot}
                             />
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-8 pb-32 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                        <div className="flex-1 overflow-y-auto p-8 pb-32">
                             <header className="mb-8 flex items-center justify-between">
                                 <div>
                                     <h1 className="text-3xl font-bold tracking-tight mb-2">Generate</h1>
@@ -682,6 +787,7 @@ export default function GeneratePage() {
                                                 onDelete={handleDeleteGeneration}
                                                 onIterate={handleIterateGeneration}
                                                 onAnimate={handleAnimate}
+                                                onUpscale={handleUpscale}
                                                 onEdit={() => {
                                                     setSelectedGeneration(gen);
                                                     setIsEditModalOpen(true);
@@ -690,6 +796,10 @@ export default function GeneratePage() {
                                                 onInpaint={handleInpaint}
                                                 isSelected={selectedGenerationIds.includes(gen.id)}
                                                 onToggleSelection={() => toggleGenerationSelection(gen.id)}
+                                                onSaveAsElement={(url, type) => {
+                                                    setSaveElementData({ url, type });
+                                                    setIsSaveElementModalOpen(true);
+                                                }}
                                             />
                                         ))}
                                     </div>
@@ -699,57 +809,59 @@ export default function GeneratePage() {
                         </div>
 
                         {/* Batch Action Toolbar */}
-                        {selectedGenerationIds.length > 0 && (
-                            <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-50 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl px-6 py-3 flex items-center gap-6 animate-in slide-in-from-bottom-4 fade-in duration-200">
-                                <span className="text-sm font-medium text-white">
-                                    {selectedGenerationIds.length} selected
-                                </span>
-                                <div className="h-4 w-px bg-white/10" />
-                                <div className="flex items-center gap-2">
-                                    <select
-                                        onChange={(e) => {
-                                            if (e.target.value) handleBatchMove(e.target.value);
-                                        }}
-                                        className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                        defaultValue=""
-                                    >
-                                        <option value="" disabled>Move to Session...</option>
-                                        {sessions.map(s => (
-                                            <option key={s.id} value={s.id}>{s.name}</option>
-                                        ))}
-                                    </select>
-                                    <button
-                                        onClick={handleBatchCopyLinks}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-sm font-medium transition-colors border border-blue-500/20"
-                                        title="Copy Links for JDownloader"
-                                    >
-                                        <Copy className="w-4 h-4" />
-                                        Copy Links
-                                    </button>
-                                    <button
-                                        onClick={handleBatchDelete}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-medium transition-colors border border-red-500/20"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                        Delete
-                                    </button>
-                                    <div className="h-4 w-px bg-white/10 mx-1" />
-                                    <button
-                                        onClick={selectedGenerationIds.length === generations.length ? deselectAllGenerations : selectAllGenerations}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg text-sm font-medium transition-colors border border-white/10"
-                                    >
-                                        <CheckSquare className="w-4 h-4" />
-                                        {selectedGenerationIds.length === generations.length ? "Deselect All" : "Select All"}
-                                    </button>
-                                    <button
-                                        onClick={deselectAllGenerations}
-                                        className="p-1.5 text-gray-400 hover:text-white transition-colors ml-1"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </button>
+                        {
+                            selectedGenerationIds.length > 0 && (
+                                <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-50 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl px-6 py-3 flex items-center gap-6 animate-in slide-in-from-bottom-4 fade-in duration-200">
+                                    <span className="text-sm font-medium text-white">
+                                        {selectedGenerationIds.length} selected
+                                    </span>
+                                    <div className="h-4 w-px bg-white/10" />
+                                    <div className="flex items-center gap-2">
+                                        <select
+                                            onChange={(e) => {
+                                                if (e.target.value) handleBatchMove(e.target.value);
+                                            }}
+                                            className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            defaultValue=""
+                                        >
+                                            <option value="" disabled>Move to Session...</option>
+                                            {sessions.map(s => (
+                                                <option key={s.id} value={s.id}>{s.name}</option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            onClick={handleBatchCopyLinks}
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-sm font-medium transition-colors border border-blue-500/20"
+                                            title="Copy Links for JDownloader"
+                                        >
+                                            <Copy className="w-4 h-4" />
+                                            Copy Links
+                                        </button>
+                                        <button
+                                            onClick={handleBatchDelete}
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-medium transition-colors border border-red-500/20"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                            Delete
+                                        </button>
+                                        <div className="h-4 w-px bg-white/10 mx-1" />
+                                        <button
+                                            onClick={selectedGenerationIds.length === generations.length ? deselectAllGenerations : selectAllGenerations}
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg text-sm font-medium transition-colors border border-white/10"
+                                        >
+                                            <CheckSquare className="w-4 h-4" />
+                                            {selectedGenerationIds.length === generations.length ? "Deselect All" : "Select All"}
+                                        </button>
+                                        <button
+                                            onClick={deselectAllGenerations}
+                                            className="p-1.5 text-gray-400 hover:text-white transition-colors ml-1"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )
+                        }
                         {/* Fixed Bottom Bar */}
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/95 to-transparent pt-12 pb-8 px-8 z-50 pointer-events-none">
                             <div className="w-full mx-auto pointer-events-auto">
@@ -766,7 +878,7 @@ export default function GeneratePage() {
                                             {elements.length === 0 ? (
                                                 <p className="text-xs text-gray-500 italic py-2">No elements uploaded yet.</p>
                                             ) : (
-                                                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                                                <div className="flex gap-2 overflow-x-auto pb-2">
                                                     {elements.filter(el => el.projectId === projectId).map((el, index) => {
                                                         const isSelected = selectedElementIds.includes(el.id);
                                                         return (
@@ -934,12 +1046,41 @@ export default function GeneratePage() {
                                                 </select>
                                             </div>
 
+                                            {/* Audio Button (Avatar Only) */}
+                                            {engineConfig.model.includes('ai-avatar') && (
+                                                <button
+                                                    onClick={() => setIsAudioModalOpen(true)}
+                                                    className={clsx(
+                                                        "flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all h-10",
+                                                        audioFile
+                                                            ? "bg-blue-500/20 border-blue-500 text-blue-400"
+                                                            : "bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10"
+                                                    )}
+                                                    title="Audio Source"
+                                                >
+                                                    <Music className="w-4 h-4" />
+                                                    <span className="text-xs font-medium hidden sm:inline">
+                                                        {audioFile ? "Audio Set" : "Audio"}
+                                                    </span>
+                                                </button>
+                                            )}
+
+                                            {/* Data Button */}
+                                            <button
+                                                onClick={() => setIsBackupModalOpen(true)}
+                                                className="p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-gray-400 hover:text-white transition-colors"
+                                                title="Data Management"
+                                            >
+                                                <Database className="w-5 h-5" />
+                                            </button>
+
                                             {/* Engine Selector */}
                                             <EngineSelectorV2
                                                 config={engineConfig}
                                                 onChange={setEngineConfig}
-                                                mode="image"
+                                                mode={mode}
                                             />
+
 
                                             {/* Generate Button */}
                                             <button
@@ -987,6 +1128,15 @@ export default function GeneratePage() {
                                                             imageUrl: e.url,
                                                             consistencyWeight: 0.8
                                                         }))}
+                                                    initialLoRAs={styleConfig?.loras?.map(l => ({
+                                                        id: l.id,
+                                                        name: l.name,
+                                                        triggerWords: l.triggerWord ? [l.triggerWord] : [],
+                                                        type: (l.type as any) || 'style',
+                                                        baseModel: 'SDXL', // Default fallback
+                                                        recommendedStrength: l.strength,
+                                                        useCount: 0
+                                                    }))}
                                                     onPromptChange={(newPrompt, negativePrompt) => {
                                                         setPrompt(newPrompt);
                                                         // Negative prompt handling can be added here
@@ -1003,18 +1153,66 @@ export default function GeneratePage() {
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </div>
+                    </div >
+                </div >
+            </div >
 
             {/* Modals and Overlays - Moved outside pointer-events-none container */}
-            <DragOverlay>
-                {activeDragId ? (
-                    <div className="px-4 py-2 bg-transparent border border-blue-400/30 rounded-full shadow-xl backdrop-blur-sm flex items-center justify-center">
-                        <p className="text-white text-xs font-medium">Adding Shot...</p>
-                    </div>
-                ) : null}
-            </DragOverlay>
+            <DragOverlay
+                dropAnimation={{
+                    duration: 250,
+                    easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+                }}
+                modifiers={[
+                    ({ transform, activatorEvent, activeNodeRect }) => {
+                        if (!activatorEvent || !activeNodeRect) {
+                            return transform;
+                        }
+
+                        const activator = activatorEvent as any;
+                        const clientX = activator.clientX !== undefined ? activator.clientX : (activator.touches ? activator.touches[0].clientX : 0);
+                        const clientY = activator.clientY !== undefined ? activator.clientY : (activator.touches ? activator.touches[0].clientY : 0);
+
+                        const offsetX = clientX - activeNodeRect.left;
+                        const offsetY = clientY - activeNodeRect.top;
+
+                        // Center the 32rem (128px) x 72px thumbnail
+                        // We subtract the "pickup" offset to reset to top-left, then subtract half the thumbnail size
+                        return {
+                            ...transform,
+                            x: transform.x + offsetX - 64, // 128px / 2
+                            y: transform.y + offsetY - 36, // 72px / 2
+                        };
+                    }
+                ]}
+            >
+                {activeDragId ? (() => {
+                    const generation = generations.find(g => g.id === activeDragId);
+                    const output = generation?.outputs?.[0];
+                    const rawUrl = output?.url;
+                    const mediaUrl = rawUrl
+                        ? (rawUrl.startsWith('http') || rawUrl.startsWith('data:') ? rawUrl : `http://localhost:3001${rawUrl}`)
+                        : undefined;
+                    const isVideo = output?.type === 'video';
+
+                    return (
+                        <div className="w-32 aspect-video rounded-lg overflow-hidden border-2 border-blue-500 shadow-2xl relative bg-black">
+                            {mediaUrl ? (
+                                isVideo ? (
+                                    <video src={mediaUrl} className="w-full h-full object-cover" muted />
+                                ) : (
+                                    <img src={mediaUrl} className="w-full h-full object-cover" />
+                                )
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-white/10">
+                                    <Loader2 className="w-4 h-4 animate-spin text-white/50" />
+                                </div>
+                            )}
+                            <div className="absolute inset-0 bg-blue-500/10" />
+                        </div>
+                    );
+                })() : null}
+            </DragOverlay >
 
             <StyleSelectorModal
                 isOpen={isStyleModalOpen}
@@ -1050,6 +1248,17 @@ export default function GeneratePage() {
                 }}
                 sessions={sessions}
             />
+            <ElementReferencePicker
+                projectId={projectId}
+                isOpen={isElementPickerOpen}
+                onClose={() => setIsElementPickerOpen(false)}
+                selectedElements={selectedElementIds}
+                onSelectionChange={setSelectedElementIds}
+                creativity={referenceCreativity}
+                onCreativityChange={setReferenceCreativity}
+                elementStrengths={elementStrengths}
+                onStrengthChange={(id, val) => setElementStrengths(prev => ({ ...prev, [id]: val }))}
+            />
 
             <VideoMaskEditor
                 isOpen={isRetakeModalOpen}
@@ -1065,6 +1274,67 @@ export default function GeneratePage() {
                 onSave={handleSaveInpaint}
                 initialPrompt={prompt}
             />
-        </DndContext>
+
+            <AudioInputModal
+                isOpen={isAudioModalOpen}
+                onClose={() => setIsAudioModalOpen(false)}
+                currentFile={audioFile}
+                onAudioChange={async (file) => {
+                    setAudioFile(file);
+                    if (file) {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        formData.append('name', file.name);
+                        formData.append('type', 'audio');
+
+                        try {
+                            const res = await fetch(`http://localhost:3001/api/projects/${projectId}/elements`, {
+                                method: 'POST',
+                                body: formData
+                            });
+                            if (!res.ok) throw new Error('Upload failed');
+                            const data = await res.json();
+                            // elementController returns { url: ... } which is the full URL or relative path
+                            // If it returns relative path, we prepend localhost.
+                            // But elementController.ts:86 calls parseElementJsonFields which handles full URL.
+                            // Let's assume data.url is correct.
+                            setAudioUrl(data.url);
+                            console.log("Audio uploaded, url:", data.url);
+                        } catch (e) {
+                            console.error("Audio upload failed", e);
+                        }
+                    } else {
+                        setAudioUrl(null);
+                    }
+                }}
+            />
+
+
+            <SaveElementModal
+                isOpen={isSaveElementModalOpen}
+                onClose={() => setIsSaveElementModalOpen(false)}
+                onSave={async (name) => {
+                    if (!saveElementData) return;
+                    try {
+                        const res = await fetch(`http://localhost:3001/api/projects/${projectId}/elements/from-generation`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                url: saveElementData.url,
+                                type: saveElementData.type,
+                                name
+                            })
+                        });
+                        if (!res.ok) throw new Error('Failed to save element');
+
+                        // Refresh elements
+                        loadElements();
+                        setIsSaveElementModalOpen(false);
+                    } catch (e) {
+                        console.error("Failed to save element", e);
+                    }
+                }}
+            />
+        </DndContext >
     );
 }
