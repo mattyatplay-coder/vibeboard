@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 import * as fal from "@fal-ai/serverless-client";
 import axios from 'axios';
@@ -20,7 +20,18 @@ export const getLoRAs = async (req: Request, res: Response) => {
             where: { projectId },
             orderBy: { createdAt: 'desc' }
         });
-        res.json(loras);
+
+        // Parse recommendedSettings JSON for each LoRA
+        const lorasWithParsedSettings = loras.map(lora => ({
+            ...lora,
+            settings: lora.recommendedSettings ?
+                (typeof lora.recommendedSettings === 'string'
+                    ? JSON.parse(lora.recommendedSettings)
+                    : lora.recommendedSettings)
+                : null
+        }));
+
+        res.json(lorasWithParsedSettings);
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to fetch LoRAs' });
@@ -30,10 +41,10 @@ export const getLoRAs = async (req: Request, res: Response) => {
 export const createLoRA = async (req: Request, res: Response) => {
     try {
         const { projectId } = req.params;
-        const { name, triggerWord, fileUrl, baseModel, strength, imageUrl } = req.body;
+        const { name, triggerWord, fileUrl, baseModel, strength, imageUrl, type, settings, addToGlobalLibrary, civitaiModelId, civitaiVersionId, description } = req.body;
 
         console.log(`[createLoRA] Creating LoRA for project ${projectId}`);
-        console.log(`[createLoRA] Data:`, { name, triggerWord, fileUrl, baseModel, strength, imageUrl });
+        console.log(`[createLoRA] Data:`, { name, triggerWord, fileUrl, baseModel, strength, imageUrl, type, addToGlobalLibrary });
 
         let finalUrl = fileUrl;
 
@@ -77,19 +88,61 @@ export const createLoRA = async (req: Request, res: Response) => {
             }
         }
 
+        let globalLoRAId: string | null = null;
+
+        // Optionally add to global library
+        if (addToGlobalLibrary) {
+            // Check if already exists in global library
+            const existingGlobal = await prisma.globalLoRA.findFirst({
+                where: {
+                    OR: [
+                        { fileUrl: finalUrl },
+                        ...(civitaiVersionId ? [{ civitaiVersionId }] : [])
+                    ]
+                }
+            });
+
+            if (existingGlobal) {
+                globalLoRAId = existingGlobal.id;
+                console.log(`[createLoRA] Found existing global library item: ${globalLoRAId}`);
+            } else {
+                // Create new global entry
+                const globalItem = await prisma.globalLoRA.create({
+                    data: {
+                        name,
+                        triggerWord,
+                        fileUrl: finalUrl,
+                        baseModel,
+                        strength: strength || 1.0,
+                        imageUrl,
+                        type: type || 'lora',
+                        recommendedSettings: settings ? JSON.stringify(settings) : Prisma.JsonNull,
+                        civitaiModelId,
+                        civitaiVersionId,
+                        description
+                    }
+                });
+                globalLoRAId = globalItem.id;
+                console.log(`[createLoRA] Added to global library: ${globalLoRAId}`);
+            }
+        }
+
         const lora = await prisma.loRA.create({
             data: {
                 projectId,
                 name,
                 triggerWord,
-                fileUrl: finalUrl, // Use the Fal Storage URL
+                fileUrl: finalUrl,
                 baseModel,
                 strength: strength || 1.0,
-                imageUrl
+                imageUrl,
+                type,
+                recommendedSettings: settings ? JSON.stringify(settings) : Prisma.JsonNull,
+                globalLoRAId
             }
         });
         console.log(`[createLoRA] Created LoRA: ${lora.id}`);
-        res.json(lora);
+        res.json({ ...lora, addedToGlobalLibrary: !!globalLoRAId });
     } catch (error: any) {
         console.error(`[createLoRA] Error:`, error);
         res.status(500).json({ error: 'Failed to create LoRA', details: error.message });

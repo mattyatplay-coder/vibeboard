@@ -172,7 +172,7 @@ const processQueue = async () => {
 
             const options = {
                 prompt: resolvedPrompt,
-                negativePrompt: PromptBuilder.buildNegative(),
+                negativePrompt: PromptBuilder.buildNegative(usedLorasParsed?.negativePrompt),
                 aspectRatio: generation.aspectRatio || "16:9",
                 loras: resolvedLoras,
                 model: usedLorasParsed?.model,
@@ -310,7 +310,8 @@ export const createGeneration = async (req: Request, res: Response) => {
             duration, // Extract duration from body
             referenceCreativity, // Extract reference creativity
             referenceStrengths, // Extract per-element strengths
-            audioUrl // Extract audioUrl
+            audioUrl, // Extract audioUrl
+            negativePrompt // Extract negativePrompt
         } = req.body;
 
         console.log("[createGeneration] Starting creation...");
@@ -335,7 +336,7 @@ export const createGeneration = async (req: Request, res: Response) => {
                 engine: engine || 'fal',
                 tags: req.body.tags ? JSON.stringify(req.body.tags) : "[]",
                 // Store model info in metadata or similar if needed, for now we just use it for generation
-                usedLoras: JSON.stringify({ loras, model: falModel, sourceImages: req.body.sourceImages, sourceImageUrl, strength, sampler, scheduler, maskUrl, width, height, startFrame, endFrame, inputVideo, duration, referenceCreativity, referenceStrengths, audioUrl })
+                usedLoras: JSON.stringify({ loras, model: falModel, sourceImages: req.body.sourceImages, sourceImageUrl, strength, sampler, scheduler, maskUrl, width, height, startFrame, endFrame, inputVideo, duration, referenceCreativity, referenceStrengths, audioUrl, negativePrompt })
             },
         });
         console.log("[createGeneration] Generation created in DB:", generation.id);
@@ -415,5 +416,64 @@ export const deleteGeneration = async (req: Request, res: Response) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to delete generation' });
+    }
+};
+
+// Get favorited generations, optionally filtered by character/element name in prompt
+export const getFavoritedGenerations = async (req: Request, res: Response) => {
+    try {
+        const { projectId } = req.params;
+        const { character, limit } = req.query;
+
+        console.log(`[getFavoritedGenerations] projectId=${projectId}, character=${character}, limit=${limit}`);
+
+        const where: any = {
+            projectId,
+            isFavorite: true,
+            status: 'succeeded',
+            outputs: { not: null }
+        };
+
+        // Optionally filter by character name in prompt (via @ mention)
+        if (character && typeof character === 'string') {
+            // Look for @characterName in the prompt (case-insensitive)
+            where.inputPrompt = {
+                contains: `@${character}`,
+                mode: 'insensitive'
+            };
+        }
+
+        const generations = await prisma.generation.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            take: limit ? parseInt(limit as string, 10) : 20,
+            select: {
+                id: true,
+                inputPrompt: true,
+                outputs: true,
+                aspectRatio: true,
+                createdAt: true
+            }
+        });
+
+        // Parse JSON fields and extract first output URL
+        const results = generations.map(gen => {
+            const outputs = gen.outputs ? (typeof gen.outputs === 'string' ? JSON.parse(gen.outputs) : gen.outputs) : [];
+            const firstOutput = outputs[0];
+            return {
+                id: gen.id,
+                prompt: gen.inputPrompt,
+                imageUrl: firstOutput?.url || null,
+                thumbnailUrl: firstOutput?.thumbnail_url || firstOutput?.url || null,
+                aspectRatio: gen.aspectRatio,
+                createdAt: gen.createdAt
+            };
+        }).filter(r => r.imageUrl); // Only return generations with valid images
+
+        console.log(`[getFavoritedGenerations] found ${results.length} favorited generations`);
+        res.json(results);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch favorited generations' });
     }
 };

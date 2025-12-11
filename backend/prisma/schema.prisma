@@ -161,10 +161,37 @@ model LoRA {
   baseModel   String   // 'SDXL', 'Flux', 'SVD', 'Other'
   strength    Float    @default(1.0)
   imageUrl    String?  // Thumbnail
+  type        String?  // 'checkpoint', 'lora', 'embedding'
+  recommendedSettings Json? // CFG, steps, sampler settings from Civitai
+  globalLoRAId String? // Reference to global library item
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   project     Project  @relation(fields: [projectId], references: [id])
+  globalLoRA  GlobalLoRA? @relation(fields: [globalLoRAId], references: [id])
+}
+
+// Global LoRA Library - shared across all projects
+model GlobalLoRA {
+  id          String   @id @default(uuid())
+  name        String
+  triggerWord String?
+  fileUrl     String   // Local path or HF URL
+  baseModel   String   // 'SDXL', 'Flux', 'SD1.5', 'Other'
+  strength    Float    @default(1.0)
+  imageUrl    String?  // Thumbnail
+  type        String   @default("lora") // 'checkpoint', 'lora', 'embedding'
+  recommendedSettings Json? // CFG, steps, sampler, scheduler settings
+  civitaiModelId String? // For linking back to Civitai
+  civitaiVersionId String?
+  description String?
+  tags        String[] @default([])
+  usageCount  Int      @default(0) // Track popularity
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Project installations
+  projectInstalls LoRA[]
 }
 
 model ModelParameter {

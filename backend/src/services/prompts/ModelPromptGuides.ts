@@ -381,6 +381,214 @@ export const MODEL_PROMPTING_GUIDES: Record<string, ModelPromptGuide> = {
         ]
     },
 
+    // ==================== JUGGERNAUT MODELS ====================
+    // Based on RunDiffusion prompt guides: https://learn.rundiffusion.com/
+
+    'juggernaut-xi': {
+        id: 'juggernaut-xi',
+        name: 'Juggernaut XI',
+        provider: 'civitai',
+        type: 'image',
+        syntax: {
+            style: 'weighted',
+            separator: ', ',
+            weightSyntax: '(term:weight)', // Use sparingly, 1.1-1.3 range
+            negativePrefix: 'Negative prompt: ',
+            maxLength: 300, // Try not to exceed 75 tokens
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start', // Lead with the subject
+            triggerWordPlacement: 'start',
+            consistencyKeywords: ['same person', 'consistent features', '1woman', '1man', 'photograph'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'High Resolution', 'Cinematic', 'sharp focus', 'detailed texture',
+            'cinematic lighting', 'photograph'
+        ],
+        stylePrefixes: ['photograph of', 'cinematic shot of', 'portrait of'],
+        avoidTerms: [
+            'cgi', '3D', 'digital', 'airbrushed', 'cartoon', 'anime'
+        ],
+        recommendedSettings: {
+            cfgScale: [4, 6], // CFG 4-6 recommended
+            steps: [25, 40],
+            sampler: ['DPM++ 2M Karras']
+        },
+        template: `{trigger_words}, {subject_description}, {action_pose}, {environment_setting}, {color_scheme}, {lighting}, {mood_atmosphere}, {style}, {texture_material}, High Resolution`,
+        examples: [
+            {
+                input: 'portrait of a woman',
+                output: 'ohwx_woman, beautiful woman with auburn hair and green eyes, confident expression, wearing elegant cream blouse, modern office setting, warm natural lighting, professional atmosphere, cinematic, (detailed skin texture:1.1), High Resolution, sharp focus',
+                notes: 'Juggernaut XI: Lead with subject, keep under 75 tokens, use weights sparingly (1.1-1.3)'
+            },
+            {
+                input: 'knight in battle',
+                output: 'ohwx_knight, armored medieval knight, (battle-worn steel armor:1.2), standing on misty battlefield, low angle shot, dramatic fog, metallic texture, cinematic lighting, High Resolution, photograph',
+                notes: 'Use texture descriptions for enhanced detail'
+            }
+        ]
+    },
+
+    'juggernaut-xii': {
+        id: 'juggernaut-xii',
+        name: 'Juggernaut XII',
+        provider: 'civitai',
+        type: 'image',
+        syntax: {
+            style: 'weighted',
+            separator: ', ',
+            weightSyntax: '(term:weight)', // Use sparingly, 1.1-1.3 range
+            negativePrefix: 'Negative prompt: ',
+            maxLength: 300, // Try not to exceed 75 tokens
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start', // Lead with the subject
+            triggerWordPlacement: 'start',
+            consistencyKeywords: ['same person', 'consistent features', '1woman', '1man', 'photograph'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'High Resolution', 'Cinematic', 'sharp focus', 'detailed texture',
+            'cinematic lighting', 'photograph'
+        ],
+        stylePrefixes: ['photograph of', 'cinematic shot of', 'portrait of'],
+        avoidTerms: [
+            'cgi', '3D', 'digital', 'airbrushed', 'cartoon', 'anime'
+        ],
+        recommendedSettings: {
+            cfgScale: [4, 6], // CFG 4-6 recommended
+            steps: [25, 40],
+            sampler: ['DPM++ 2M Karras', '3M SDE Exponential', 'Euler'] // Euler produces softer results
+        },
+        template: `{trigger_words}, {subject_description}, {action_pose}, {environment_setting}, {color_scheme}, {lighting}, {mood_atmosphere}, {style}, {texture_material}, High Resolution`,
+        examples: [
+            {
+                input: 'emotional portrait',
+                output: 'ohwx_woman, young woman with expressive eyes, (melancholic emotion:1.2), tears welling up, soft window light, intimate close-up, detailed texture, cinematic, High Resolution, photograph',
+                notes: 'Juggernaut XII excels in emotion rendering and hand quality. Add "bad hands" to negative for improved hands.'
+            },
+            {
+                input: 'watercolor landscape',
+                output: 'peaceful village scene, rolling hills with cottages, cherry blossom trees, soft pastel colors, watercolor medium, artistic interpretation, beautiful lighting, High Resolution',
+                notes: 'XII handles artistic mediums well - specify the medium for style variation'
+            }
+        ]
+    },
+
+    'juggernaut-xiii': {
+        id: 'juggernaut-xiii',
+        name: 'Juggernaut XIII Ragnarok',
+        provider: 'civitai',
+        type: 'image',
+        syntax: {
+            style: 'weighted',
+            separator: ', ',
+            weightSyntax: '(term:weight)', // Use sparingly on primary subjects
+            negativePrefix: 'Negative prompt: ',
+            maxLength: 300, // Try not to exceed 75 tokens - exceeding reduces prompt adherence
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start', // Lead with the subject - first sentence sets the foundation
+            triggerWordPlacement: 'start',
+            consistencyKeywords: ['same person', 'consistent features', '1woman', '1man', 'photograph', 'Skin Textures'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'High Resolution', 'Cinematic', 'sharp focus', 'Skin Textures',
+            'photograph', 'detailed texture', 'natural', 'realistic texture'
+        ],
+        stylePrefixes: [
+            'photograph of', 'cinematic shot of', 'portrait of',
+            'surrealism', 'watercolor', 'photorealism'
+        ],
+        avoidTerms: [
+            'cartoon', 'anime', 'cgi', '3D render'
+        ],
+        recommendedSettings: {
+            cfgScale: [3, 6], // Lower CFG (3-6) enhances realism
+            steps: [30, 40],
+            sampler: ['DPM++ 2M SDE', 'DPM++ 2M Karras']
+        },
+        template: `{trigger_words}, {subject_description}, {action_pose}, {environment_setting}, {color_scheme}, {style}, {mood_atmosphere}, {lighting}, {perspective_viewpoint}, {texture_material}, {time_period}, {cultural_elements}, {emotion}, {medium}, {clothing}, High Resolution`,
+        examples: [
+            {
+                input: 'ballerina portrait',
+                output: 'ohwx_woman, graceful ballerina in white tutu, elegant pose en pointe, ornate theater stage, soft golden spotlight, ethereal mood, (detailed skin texture:1.1), cinematic, High Resolution, photograph',
+                notes: 'Ragnarok: Lead with subject, be specific for control, vague for flexibility. Lower CFG (3-6) enhances realism.'
+            },
+            {
+                input: 'cyborg cat',
+                output: 'ohwx_cat, cybernetic feline with glowing blue eyes, (metallic chrome fur:1.2), leaping through neon-lit alley, motion blur on limbs, cyberpunk environment, dramatic backlighting, High Resolution, Cinematic',
+                notes: 'Dynamic action with motion descriptors works well'
+            },
+            {
+                input: 'ancient forest',
+                output: 'mystical ancient forest clearing, towering moss-covered trees, ethereal light beams through canopy, magical particles floating, rich green color palette, fantasy atmosphere, detailed bark texture, bird\'s eye view, High Resolution, photograph',
+                notes: 'Environmental focus with atmospheric tokens'
+            },
+            {
+                input: 'grandmother portrait',
+                output: 'ohwx_woman, elderly grandmother with warm smile, (soft wrinkles:1.1), silver hair in gentle bun, golden hour window light streaming across face, cozy living room, intimate mood, detailed skin texture, eye level portrait, High Resolution, Cinematic',
+                notes: 'Lighting-focused portraits - golden hour and backlit work exceptionally well'
+            },
+            {
+                input: 'embroidered fabric',
+                output: 'intricate embroidered silk fabric, delicate floral patterns, (golden thread details:1.2), rich burgundy base, soft studio lighting, extreme close-up, detailed texture emphasis, High Resolution, photograph',
+                notes: 'Texture descriptions significantly enhance output quality'
+            },
+            {
+                input: 'WWII soldier',
+                output: 'ohwx_man, weary WWII soldier in olive drab uniform, 1940s military gear, standing in bombed European village, overcast dramatic lighting, sepia undertones, time period accurate details, documentary photograph style, High Resolution, Cinematic',
+                notes: 'Time period grounding helps with historical accuracy'
+            }
+        ]
+    },
+
+    // Generic Juggernaut fallback (maps to latest XIII)
+    'juggernaut': {
+        id: 'juggernaut',
+        name: 'Juggernaut XL',
+        provider: 'civitai',
+        type: 'image',
+        syntax: {
+            style: 'weighted',
+            separator: ', ',
+            weightSyntax: '(term:weight)',
+            negativePrefix: 'Negative prompt: ',
+            maxLength: 300,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'start',
+            consistencyKeywords: ['same person', 'consistent features', '1woman', '1man', 'photograph', 'Skin Textures'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'High Resolution', 'Cinematic', 'sharp focus', 'Skin Textures',
+            'photograph', 'detailed texture'
+        ],
+        stylePrefixes: ['photograph of', 'cinematic shot of', 'portrait of'],
+        avoidTerms: ['cartoon', 'anime', 'cgi', '3D render'],
+        recommendedSettings: {
+            cfgScale: [3, 6],
+            steps: [30, 40],
+            sampler: ['DPM++ 2M SDE', 'DPM++ 2M Karras']
+        },
+        template: `{trigger_words}, {subject_description}, {action_pose}, {environment_setting}, {lighting}, {mood_atmosphere}, {style}, {texture_material}, High Resolution`,
+        examples: [
+            {
+                input: 'portrait of a warrior',
+                output: 'ohwx_warrior, fierce warrior with battle scars, (detailed armor:1.2), standing on misty battlefield, dramatic low angle, fog and embers, metallic texture, cinematic lighting, High Resolution, photograph',
+                notes: 'Juggernaut: Lead with subject, keep under 75 tokens, CFG 3-6 for realism'
+            }
+        ]
+    },
+
     // ==================== VIDEO MODELS ====================
 
     'wan-video': {
@@ -717,6 +925,22 @@ export function getModelGuide(modelId: string): ModelPromptGuide | null {
 
     // Fuzzy match for common variations
     const normalizedId = modelId.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const lowerModelId = modelId.toLowerCase();
+
+    // Special handling for Juggernaut versions
+    if (lowerModelId.includes('juggernaut')) {
+        if (lowerModelId.includes('xiii') || lowerModelId.includes('13') || lowerModelId.includes('ragnarok')) {
+            return MODEL_PROMPTING_GUIDES['juggernaut-xiii'];
+        }
+        if (lowerModelId.includes('xii') || lowerModelId.includes('12')) {
+            return MODEL_PROMPTING_GUIDES['juggernaut-xii'];
+        }
+        if (lowerModelId.includes('xi') || lowerModelId.includes('11')) {
+            return MODEL_PROMPTING_GUIDES['juggernaut-xi'];
+        }
+        // Default to latest Juggernaut
+        return MODEL_PROMPTING_GUIDES['juggernaut'];
+    }
 
     for (const [key, guide] of Object.entries(MODEL_PROMPTING_GUIDES)) {
         const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -742,4 +966,8 @@ export const NEGATIVE_PROMPT_TEMPLATES: Record<string, string> = {
     'sd15': 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, bad feet, poorly drawn hands, poorly drawn face, mutation, deformed, extra limbs',
     'realistic-vision': '(deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime:1.4), text, close up, cropped, out of frame, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck',
     'pony-diffusion': 'score_4, score_3, score_2, score_1, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry',
+    'juggernaut-xi': 'fake eyes, deformed eyes, bad eyes, cgi, 3D, digital, airbrushed, bad hands, blurry, missing limbs, bad anatomy, cartoon',
+    'juggernaut-xii': 'fake eyes, deformed eyes, bad eyes, cgi, 3D, digital, airbrushed, bad hands, blurry, missing limbs, bad anatomy, cartoon',
+    'juggernaut-xiii': 'bad eyes, blurry, missing limbs, bad anatomy, cartoon, deformed, disfigured, extra limbs, mutated hands, poorly drawn hands, poorly drawn face',
+    'juggernaut': 'bad eyes, blurry, missing limbs, bad anatomy, cartoon, deformed, disfigured, extra limbs, mutated hands, poorly drawn hands, poorly drawn face',
 };

@@ -1,15 +1,26 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
     Sparkles, Settings, Wand2, Eye, EyeOff, Copy, Check,
     ChevronDown, ChevronUp, AlertCircle, Info, Zap, User,
     Palette, Camera, Layers, RefreshCw, Search, Plus, X,
-    Lightbulb, Target, Sliders
+    Lightbulb, Target, Sliders, Heart, Image as ImageIcon
 } from "lucide-react";
 import { clsx } from "clsx";
 import { fetchAPI } from "@/lib/api";
 import { useDebouncedCallback } from "use-debounce";
+
+// ==================== FAVORITE REFERENCE TYPES ====================
+
+interface FavoritedGeneration {
+    id: string;
+    prompt: string;
+    imageUrl: string;
+    thumbnailUrl: string;
+    aspectRatio?: string;
+    createdAt: string;
+}
 
 // ==================== TYPES ====================
 
@@ -81,8 +92,11 @@ interface PromptBuilderProps {
     modelId: string;
     generationType: 'image' | 'video';
     elements?: ElementItem[];
+    initialLoRAs?: LoRAItem[];
+    projectId?: string; // For fetching favorites
     onPromptChange: (prompt: string, negativePrompt?: string) => void;
     onRecommendationsChange?: (recommendations: EnhancedResult['recommendations']) => void;
+    onAddReference?: (imageUrl: string) => void; // Callback to add image as reference
     onClose?: () => void;
 }
 
@@ -93,8 +107,11 @@ export function PromptBuilder({
     modelId,
     generationType,
     elements = [],
+    initialLoRAs = [],
+    projectId,
     onPromptChange,
     onRecommendationsChange,
+    onAddReference,
     onClose
 }: PromptBuilderProps) {
     // State
@@ -115,7 +132,7 @@ export function PromptBuilder({
     const [modelGuide, setModelGuide] = useState<ModelGuide | null>(null);
 
     // LoRAs
-    const [selectedLoRAs, setSelectedLoRAs] = useState<LoRAItem[]>([]);
+    const [selectedLoRAs, setSelectedLoRAs] = useState<LoRAItem[]>(initialLoRAs);
     const [showLoRASearch, setShowLoRASearch] = useState(false);
     const [loraSearchQuery, setLoraSearchQuery] = useState("");
     const [loraSearchResults, setLoraSearchResults] = useState<LoRAItem[]>([]);
@@ -130,6 +147,13 @@ export function PromptBuilder({
     const [cameraAngle, setCameraAngle] = useState("");
     const [style, setStyle] = useState("");
     const [mood, setMood] = useState("");
+
+    // Favorite References
+    const [showFavoritesSuggestion, setShowFavoritesSuggestion] = useState(false);
+    const [suggestedFavorites, setSuggestedFavorites] = useState<FavoritedGeneration[]>([]);
+    const [detectedCharacter, setDetectedCharacter] = useState<string | null>(null);
+    const [isFetchingFavorites, setIsFetchingFavorites] = useState(false);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     // ==================== EFFECTS ====================
 
@@ -149,6 +173,81 @@ export function PromptBuilder({
             setPrimaryCharacterId(characterElements[0].id);
         }
     }, [elements, primaryCharacterId]);
+
+    // Detect character names in prompt and fetch favorites
+    const checkForCharacterMentions = useCallback(async (promptText: string) => {
+        if (!projectId || !promptText) {
+            setShowFavoritesSuggestion(false);
+            return;
+        }
+
+        // Look for @mentions in the prompt
+        const mentionRegex = /@([a-zA-Z0-9_.-]+)/g;
+        const mentions = [...promptText.matchAll(mentionRegex)].map(match => match[1]);
+
+        // Also check for character element names (without @ prefix)
+        const characterElements = elements.filter(e => e.type === 'character');
+        const characterMatches = characterElements.filter(el =>
+            promptText.toLowerCase().includes(el.name.toLowerCase())
+        );
+
+        const detectedNames = [...new Set([...mentions, ...characterMatches.map(c => c.name)])];
+
+        if (detectedNames.length > 0) {
+            const firstMatch = detectedNames[0];
+            setDetectedCharacter(firstMatch);
+
+            // Fetch favorited generations for this character
+            setIsFetchingFavorites(true);
+            try {
+                const favorites = await fetchAPI(
+                    `/projects/${projectId}/generations/favorites?character=${encodeURIComponent(firstMatch)}&limit=6`
+                );
+                if (favorites && favorites.length > 0) {
+                    setSuggestedFavorites(favorites);
+                    setShowFavoritesSuggestion(true);
+                } else {
+                    // Try fetching all favorites if no character-specific ones
+                    const allFavorites = await fetchAPI(
+                        `/projects/${projectId}/generations/favorites?limit=6`
+                    );
+                    if (allFavorites && allFavorites.length > 0) {
+                        setSuggestedFavorites(allFavorites);
+                        setShowFavoritesSuggestion(true);
+                    } else {
+                        setShowFavoritesSuggestion(false);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to fetch favorites:', error);
+                setShowFavoritesSuggestion(false);
+            } finally {
+                setIsFetchingFavorites(false);
+            }
+        } else {
+            setShowFavoritesSuggestion(false);
+            setDetectedCharacter(null);
+        }
+    }, [projectId, elements]);
+
+    const debouncedCheckCharacters = useDebouncedCallback(checkForCharacterMentions, 500);
+
+    // Trigger character detection when prompt changes
+    useEffect(() => {
+        debouncedCheckCharacters(prompt);
+    }, [prompt, debouncedCheckCharacters]);
+
+    // Handler for using a favorite as reference
+    const handleUseFavoriteAsReference = useCallback((favorite: FavoritedGeneration) => {
+        if (onAddReference) {
+            // Ensure the URL is properly formatted
+            const imageUrl = favorite.imageUrl.startsWith('http')
+                ? favorite.imageUrl
+                : `http://localhost:3001${favorite.imageUrl}`;
+            onAddReference(imageUrl);
+        }
+        setShowFavoritesSuggestion(false);
+    }, [onAddReference]);
 
     // ==================== HANDLERS ====================
 
@@ -171,6 +270,7 @@ export function PromptBuilder({
                     elements: selectedElementObjects,
                     primaryCharacterId,
                     loraIds: selectedLoRAs.map(l => l.id),
+                    loras: selectedLoRAs, // Send full LoRA objects with triggerWords
                     style,
                     mood,
                     cameraMovement: generationType === 'video' ? cameraMovement : undefined,
@@ -617,15 +717,68 @@ export function PromptBuilder({
                 </div>
 
                 <textarea
+                    ref={textareaRef}
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="Describe what you want to generate..."
+                    placeholder="Describe what you want to generate... (Use @ to reference characters)"
                     rows={4}
                     className={clsx(
                         "w-full px-3 py-2 bg-white/5 border rounded-lg text-sm text-white placeholder-gray-500 resize-none",
                         isOverLimit ? "border-red-500" : "border-white/10 focus:border-purple-500"
                     )}
                 />
+
+                {/* Favorite References Suggestion */}
+                {showFavoritesSuggestion && suggestedFavorites.length > 0 && (
+                    <div className="mt-2 p-3 bg-gradient-to-r from-pink-500/10 to-purple-500/10 border border-pink-500/30 rounded-lg animate-in slide-in-from-top-2 duration-200">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                                <Heart className="w-3.5 h-3.5 text-pink-400" />
+                                <span className="text-xs font-medium text-pink-300">
+                                    {detectedCharacter
+                                        ? `Use a favorite with "${detectedCharacter}" as reference?`
+                                        : 'Use a favorited image as reference?'}
+                                </span>
+                            </div>
+                            <button
+                                onClick={() => setShowFavoritesSuggestion(false)}
+                                className="p-1 text-gray-400 hover:text-white transition-colors"
+                            >
+                                <X className="w-3 h-3" />
+                            </button>
+                        </div>
+                        <div className="flex gap-2 overflow-x-auto pb-1">
+                            {isFetchingFavorites ? (
+                                <div className="flex items-center justify-center w-full py-4">
+                                    <RefreshCw className="w-4 h-4 text-pink-400 animate-spin" />
+                                </div>
+                            ) : (
+                                suggestedFavorites.map((fav) => (
+                                    <button
+                                        key={fav.id}
+                                        onClick={() => handleUseFavoriteAsReference(fav)}
+                                        className="relative flex-shrink-0 group"
+                                        title={fav.prompt}
+                                    >
+                                        <div className="w-16 h-16 rounded-lg overflow-hidden border-2 border-transparent hover:border-pink-500 transition-all">
+                                            <img
+                                                src={fav.thumbnailUrl.startsWith('http') ? fav.thumbnailUrl : `http://localhost:3001${fav.thumbnailUrl}`}
+                                                alt=""
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+                                            <ImageIcon className="w-4 h-4 text-white" />
+                                        </div>
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-1.5">
+                            Click an image to use it as a reference for character consistency (IP-Adapter)
+                        </p>
+                    </div>
+                )}
 
                 {/* Model-specific hints */}
                 {modelGuide && (

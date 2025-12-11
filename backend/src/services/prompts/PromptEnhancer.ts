@@ -61,6 +61,7 @@ export interface PromptEnhancementRequest {
     preserveOriginalIntent: boolean;
     addQualityBoosters: boolean;
     addNegativePrompt: boolean;
+    customNegativePrompt?: string;  // Custom negative prompt from Style & Parameters
 
     // Consistency Priority (0-1, higher = more emphasis on consistency)
     consistencyPriority: number;
@@ -188,9 +189,20 @@ export class PromptEnhancer {
 
         // Build recommendations (merge LLM and rules, preferring LLM)
         const ruleRecommendations = this.buildRecommendations(guide);
+        const llmRecommendations = llmResult?.recommendations || {};
+
+        // Filter out invalid "lora" recommendations (e.g. ip_adapter is not a LoRA)
+        if (llmRecommendations.loras && Array.isArray(llmRecommendations.loras)) {
+            llmRecommendations.loras = llmRecommendations.loras.filter((lora: string) => {
+                // Filter out ip_adapter and similar technical terms that are not actual LoRAs
+                const invalidPatterns = ['ip_adapter', 'ipadapter', 'controlnet', 'control_net'];
+                return !invalidPatterns.some(pattern => lora.toLowerCase().includes(pattern));
+            });
+        }
+
         const recommendations = {
             ...ruleRecommendations,
-            ...(llmResult?.recommendations || {})
+            ...llmRecommendations
         };
 
         // Calculate consistency score
@@ -616,7 +628,7 @@ CONSISTENCY PRIORITY: ${(request.consistencyPriority * 100).toFixed(0)}% (${requ
 Please analyze the request and model capabilities to provide:
 1. The enhanced prompt
 2. Recommended settings (CFG, Steps, Sampler, Scheduler)
-3. Recommended LoRA styles (if applicable, e.g. "cinematic", "detail_slider", "anime_outline")
+3. Recommended LoRA styles (if applicable, e.g. "cinematic_lora", "detail_slider", "anime_style"). Note: Only suggest actual LoRA names, NOT technical adapters like ip_adapter or controlnet.
 
 Output ONLY valid JSON in this format:
 {

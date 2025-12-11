@@ -14,6 +14,7 @@ import modelParameterRoutes from './routes/modelParameterRoutes';
 import llmRoutes from './routes/llmRoutes';
 import providerRoutes from './routes/providerRoutes';
 import promptRoutes from './routes/promptRoutes';
+import globalLoraRoutes from './routes/globalLoraRoutes';
 import path from 'path';
 
 const app = express();
@@ -41,6 +42,7 @@ app.use('/api/projects/:projectId/parameters', modelParameterRoutes);
 app.use('/api/llm', llmRoutes);
 app.use('/api/providers', providerRoutes);
 app.use('/api/prompts', promptRoutes);
+app.use('/api/library', globalLoraRoutes); // Global LoRA library (not project-specific)
 app.get('/api/elements', require('./controllers/elementController').getAllElements);
 
 app.get('/api/health', (req, res) => {

@@ -1118,8 +1118,9 @@ export default function GeneratePage() {
                                                     initialPrompt={prompt}
                                                     modelId={engineConfig.model}
                                                     generationType={mode}
+                                                    projectId={projectId}
                                                     elements={elements
-                                                        .filter(e => selectedElementIds.includes(e.id))
+                                                        .filter(e => e.projectId === projectId)
                                                         .map(e => ({
                                                             id: e.id,
                                                             name: e.name,
@@ -1144,6 +1145,14 @@ export default function GeneratePage() {
                                                     onRecommendationsChange={(recs) => {
                                                         if (recs?.steps) setSteps(recs.steps);
                                                         if (recs?.cfgScale) setGuidanceScale(recs.cfgScale);
+                                                    }}
+                                                    onAddReference={(imageUrl) => {
+                                                        // Add image as a reference by setting it as a source image in style config
+                                                        setStyleConfig(prev => ({
+                                                            ...(prev || {}),
+                                                            referenceImage: imageUrl,
+                                                            aspectRatio: prev?.aspectRatio || aspectRatio
+                                                        }));
                                                     }}
                                                     onClose={() => setIsPromptBuilderOpen(false)}
                                                 />

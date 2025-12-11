@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { fetchAPI } from "@/lib/api";
-import { Plus, Trash2, Link as LinkIcon, Upload, Check, Box, Layers, ChevronDown, ChevronRight, Pencil } from "lucide-react";
+import { Plus, Trash2, Link as LinkIcon, Upload, Check, Box, Layers, ChevronDown, ChevronRight, Pencil, Library } from "lucide-react";
 import { clsx } from "clsx";
+import { GlobalLibraryPanel } from "./GlobalLibraryPanel";
 
 // Helper to extract base name and version from LoRA name
 function parseLoRAName(name: string): { baseName: string; version: string | null } {
@@ -77,6 +78,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
     const [editingLora, setEditingLora] = useState<LoRA | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+    const [showGlobalLibrary, setShowGlobalLibrary] = useState(false);
 
     // Group LoRAs by base name for version grouping
     const groupedLoras = useMemo(() => groupLoRAs(loras), [loras]);
@@ -103,6 +105,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
     const [newImageUrl, setNewImageUrl] = useState("");
     const [newSettings, setNewSettings] = useState<any>(null);
     const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
+    const [addToGlobalLibrary, setAddToGlobalLibrary] = useState(true);
 
     // Edit Form State
     const [editName, setEditName] = useState("");
@@ -144,7 +147,8 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                     type: newType,
                     strength: newStrength,
                     imageUrl: newImageUrl,
-                    settings: newSettings
+                    settings: newSettings,
+                    addToGlobalLibrary
                 })
             });
             setIsAdding(false);
@@ -178,6 +182,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
         setNewStrength(1.0);
         setNewImageUrl("");
         setNewSettings(null);
+        setAddToGlobalLibrary(true);
     };
 
     const startEditing = (lora: LoRA, e: React.MouseEvent) => {
@@ -467,6 +472,23 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                             </div>
                         </div>
 
+                        {/* Add to Global Library Option */}
+                        <label className="flex items-center gap-2 cursor-pointer group">
+                            <input
+                                type="checkbox"
+                                checked={addToGlobalLibrary}
+                                onChange={(e) => setAddToGlobalLibrary(e.target.checked)}
+                                className="w-4 h-4 rounded border-white/20 bg-black/50 text-purple-500 focus:ring-purple-500 focus:ring-offset-0"
+                            />
+                            <div className="flex items-center gap-1.5">
+                                <Library className="w-3 h-3 text-purple-400" />
+                                <span className="text-xs text-gray-400 group-hover:text-white transition-colors">
+                                    Add to Global Library
+                                </span>
+                            </div>
+                            <span className="text-[10px] text-gray-600">(share across projects)</span>
+                        </label>
+
                         {error && (
                             <div className="text-red-400 text-xs px-1">{error}</div>
                         )}
@@ -489,13 +511,27 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                     </div>
                 ) : (
                     <div className="space-y-3">
-                        <button
-                            onClick={() => setIsAdding(true)}
-                            className="w-full py-2 border border-dashed border-white/20 rounded-lg text-gray-400 hover:text-white hover:border-white/40 hover:bg-white/5 transition-all flex items-center justify-center gap-2 text-sm"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Add Model or LoRA
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setIsAdding(true)}
+                                className="flex-1 py-2 border border-dashed border-white/20 rounded-lg text-gray-400 hover:text-white hover:border-white/40 hover:bg-white/5 transition-all flex items-center justify-center gap-2 text-sm"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Add New
+                            </button>
+                            <button
+                                onClick={() => setShowGlobalLibrary(!showGlobalLibrary)}
+                                className={clsx(
+                                    "px-4 py-2 border rounded-lg flex items-center justify-center gap-2 text-sm transition-all",
+                                    showGlobalLibrary
+                                        ? "border-purple-500/50 bg-purple-500/10 text-purple-300"
+                                        : "border-dashed border-white/20 text-gray-400 hover:text-white hover:border-white/40 hover:bg-white/5"
+                                )}
+                            >
+                                <Library className="w-4 h-4" />
+                                Library
+                            </button>
+                        </div>
 
                         <div className="space-y-2">
                             {groupedLoras.map((group) => {
@@ -694,6 +730,15 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                     </div>
                 )}
             </div>
+
+            {/* Global Library Panel */}
+            <GlobalLibraryPanel
+                projectId={projectId}
+                isOpen={showGlobalLibrary}
+                onClose={() => setShowGlobalLibrary(false)}
+                onInstalled={() => loadLoRAs()}
+                filterBaseModel={filterBaseModel}
+            />
         </div>
     );
 

@@ -229,7 +229,13 @@ export class FalAIAdapter implements GenerationProvider {
                 // referenceStrengths is now Record<string, number> where keys are original URLs.
                 const elementStrength = referenceStrengths?.[originalUrl] ?? referenceCreativity ?? 0.85;
 
-                const ipWeight = 0.4 + (elementStrength * 0.6);
+                // Lower minimum weight (0.2) to allow better scene override when slider is low
+                // 0% slider = 0.2 weight (character hints only)
+                // 50% slider = 0.5 weight (balanced)
+                // 100% slider = 0.8 weight (strong character consistency)
+                const ipWeight = 0.2 + (elementStrength * 0.6);
+
+                console.log(`[SmartMode] IP-Adapter: slider=${(elementStrength * 100).toFixed(0)}% -> weight=${ipWeight.toFixed(2)}`);
 
                 return {
                     image_url: url,
