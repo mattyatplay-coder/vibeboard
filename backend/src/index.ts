@@ -8,6 +8,7 @@ import projectRoutes from './routes/projectRoutes';
 import elementRoutes from './routes/elementRoutes';
 import generationRoutes from './routes/generationRoutes';
 import sceneRoutes from './routes/sceneRoutes';
+import storyboardRoutes from './routes/storyboardRoutes';
 import sessionRoutes from './routes/sessionRoutes';
 import loraRoutes from './routes/loraRoutes';
 import modelParameterRoutes from './routes/modelParameterRoutes';
@@ -32,6 +33,8 @@ app.use('/api/projects/:projectId/elements', elementRoutes);
 app.use('/api/projects/:projectId/generations', generationRoutes);
 // Nested route for scenes: /api/projects/:projectId/scenes
 app.use('/api/projects/:projectId/scenes', sceneRoutes);
+// Nested route for storyboard: /api/projects/:projectId/storyboard
+app.use('/api/projects/:projectId/storyboard', storyboardRoutes);
 // Nested route for sessions: /api/projects/:projectId/sessions
 app.use('/api/projects/:projectId/sessions', sessionRoutes);
 // Nested route for loras: /api/projects/:projectId/loras
