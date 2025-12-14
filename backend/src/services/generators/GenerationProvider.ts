@@ -22,6 +22,12 @@ export interface GenerationOptions {
     sourceVideoUrl?: string; // URL of source video for video-to-video
     referenceCreativity?: number; // Strength of reference elements (0.1 - 1.0)
     referenceStrengths?: Record<string, number>; // Per-element strength map
+    // ControlNet configuration
+    controlNet?: {
+        type: 'depth' | 'canny' | 'pose' | 'segmentation' | 'softedge' | 'lineart' | 'scribble';
+        strength?: number; // 0.0 - 1.0, default based on type
+        imageUrl?: string; // Override source image for ControlNet (optional)
+    };
     // Advanced Video Generation
     mode?: 'text_to_video' | 'image_to_video' | 'frames_to_video' | 'extend_video';
     startFrame?: string; // base64 or URL
@@ -36,6 +42,9 @@ export interface GenerationOptions {
     };
     elementReferences?: string[]; // URLs for character/element consistency (up to 4)
     audioUrl?: string; // URL for driving audio (Avatar models)
+
+    // Engine Stacking / Workflows
+    nextStage?: GenerationOptions; // Defines the next generation stage in a pipeline
 }
 
 export interface GenerationResult {

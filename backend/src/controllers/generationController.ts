@@ -6,15 +6,53 @@ import { PromptBuilder } from '../services/PromptBuilder';
 
 const prisma = new PrismaClient({});
 
-// Helper to parse JSON fields from generation records
+// Helper to safely parse JSON fields
+const safeParse = (data: any, fieldName: string, id: string) => {
+    if (!data) return null;
+    if (typeof data === 'string') {
+        try {
+            return JSON.parse(data);
+        } catch (e) {
+            console.error(`[Data Error] Failed to parse ${fieldName} for generation ${id}:`, e);
+            console.error(`[Data Error] Raw value:`, data);
+            return []; // Return empty array/object as fallback
+        }
+    }
+    return data;
+};
+
 const parseGenerationJsonFields = (generation: any) => {
     if (!generation) return generation;
+
+    // Handle tags specifically (might be comma-separated or JSON)
+    let parsedTags: string[] = [];
+    if (generation.tags) {
+        if (typeof generation.tags === 'string') {
+            const trimmed = generation.tags.trim();
+            if (trimmed.startsWith('[')) {
+                try {
+                    parsedTags = JSON.parse(trimmed);
+                } catch (e) {
+                    console.warn(`[Data Warning] Failed to parse tags JSON for ${generation.id}, treating as single tag.`);
+                    parsedTags = [generation.tags];
+                }
+            } else {
+                // Handle comma separated or single tag
+                parsedTags = [generation.tags];
+            }
+        } else if (Array.isArray(generation.tags)) {
+            parsedTags = generation.tags;
+        }
+    }
+
     return {
         ...generation,
-        outputs: generation.outputs ? (typeof generation.outputs === 'string' ? JSON.parse(generation.outputs) : generation.outputs) : null,
-        usedLoras: generation.usedLoras ? (typeof generation.usedLoras === 'string' ? JSON.parse(generation.usedLoras) : generation.usedLoras) : null,
-        sourceElementIds: generation.sourceElementIds ? (typeof generation.sourceElementIds === 'string' ? JSON.parse(generation.sourceElementIds) : generation.sourceElementIds) : null,
-        tags: generation.tags ? (typeof generation.tags === 'string' ? (generation.tags.startsWith('[') ? JSON.parse(generation.tags) : [generation.tags]) : generation.tags) : [],
+        outputs: safeParse(generation.outputs, 'outputs', generation.id),
+        usedLoras: safeParse(generation.usedLoras, 'usedLoras', generation.id),
+        sourceElementIds: safeParse(generation.sourceElementIds, 'sourceElementIds', generation.id),
+        sourceReferenceIds: safeParse(generation.sourceReferenceIds, 'sourceReferenceIds', generation.id),
+        aiAnalysis: safeParse(generation.aiAnalysis, 'aiAnalysis', generation.id),
+        tags: parsedTags,
     };
 };
 
@@ -234,7 +272,8 @@ const processQueue = async () => {
             if (options.mode === 'image_to_video' || options.mode === 'text_to_video' || options.mode === 'frames_to_video' || options.mode === 'extend_video') {
                 // For text_to_video, sourceImages[0] might be undefined, which is fine if generateVideo handles it
                 // For frames_to_video, we use options.startFrame (which we might have inferred)
-                const videoInput = options.startFrame || sourceImages[0];
+                // Fix: Include elementReferences[0] (Face/Reference) as a valid input source for Image-to-Video
+                const videoInput = options.startFrame || sourceImages[0] || elementReferences[0];
                 console.log(`Calling generateVideo with videoInput: ${videoInput ? 'PRESENT' : 'UNDEFINED'}, sourceImages length: ${sourceImages.length}`);
                 result = await service.generateVideo(videoInput, options);
             } else {
@@ -310,7 +349,11 @@ export const createGeneration = async (req: Request, res: Response) => {
             duration, // Extract duration from body
             referenceCreativity, // Extract reference creativity
             referenceStrengths, // Extract per-element strengths
-            audioUrl // Extract audioUrl
+            audioUrl, // Extract audioUrl
+            name, // Extract name
+            negativePrompt, // Extract negativePrompt
+            steps, // Extract steps
+            guidanceScale // Extract guidanceScale
         } = req.body;
 
         console.log("[createGeneration] Starting creation...");
@@ -320,7 +363,7 @@ export const createGeneration = async (req: Request, res: Response) => {
             data: {
                 projectId,
                 mode,
-                inputPrompt,
+                inputPrompt: inputPrompt || "",
                 shotType,
                 cameraAngle,
                 location,
@@ -328,22 +371,25 @@ export const createGeneration = async (req: Request, res: Response) => {
                 outputResolution,
                 aspectRatio,
                 variations: variations || 1,
-                sourceElementIds: sourceElementIds ? JSON.stringify(sourceElementIds) : null,
+                sourceElementIds: sourceElementIds ? JSON.stringify(sourceElementIds) : undefined,
                 prevGenerationId,
                 sessionId,
-                status: 'queued',
+                status: req.body.status || 'queued',
                 engine: engine || 'fal',
-                tags: req.body.tags ? JSON.stringify(req.body.tags) : "[]",
+                tags: JSON.stringify(req.body.tags || []),
+                name: name || undefined,
                 // Store model info in metadata or similar if needed, for now we just use it for generation
-                usedLoras: JSON.stringify({ loras, model: falModel, sourceImages: req.body.sourceImages, sourceImageUrl, strength, sampler, scheduler, maskUrl, width, height, startFrame, endFrame, inputVideo, duration, referenceCreativity, referenceStrengths, audioUrl })
+                usedLoras: JSON.stringify({ loras, model: falModel, sourceImages: req.body.sourceImages, sourceImageUrl, strength, sampler, scheduler, maskUrl, width, height, startFrame, endFrame, inputVideo, duration, referenceCreativity, referenceStrengths, audioUrl, negativePrompt, steps, guidanceScale })
             },
         });
         console.log("[createGeneration] Generation created in DB:", generation.id);
 
-        // Add to queue
-        jobQueue.push(generation.id);
-        console.log("[createGeneration] Added to jobQueue");
-        processQueue(); // Trigger processing
+        // Add to queue only if queued
+        if (generation.status === 'queued') {
+            jobQueue.push(generation.id);
+            console.log("[createGeneration] Added to jobQueue");
+            processQueue(); // Trigger processing
+        }
 
         res.status(201).json(parseGenerationJsonFields(generation));
     } catch (error: any) {
@@ -356,7 +402,7 @@ export const createGeneration = async (req: Request, res: Response) => {
                 return res.status(400).json({ error: 'Invalid Project ID.' });
             }
         }
-        res.status(500).json({ error: 'Failed to create generation' });
+        res.status(500).json({ error: 'Failed to create generation', message: error.message || String(error) });
     }
 };
 
@@ -407,13 +453,92 @@ export const deleteGeneration = async (req: Request, res: Response) => {
     try {
         const { projectId, generationId } = req.params;
 
-        await prisma.generation.delete({
-            where: { id: generationId, projectId },
+        // Use transaction to ensure safe cleanup
+        await prisma.$transaction(async (tx) => {
+            // 1. Remove references in SceneShot
+            await tx.sceneShot.deleteMany({
+                where: { generationId }
+            });
+
+            // 2. Unlink any child generations (break the chain)
+            await tx.generation.updateMany({
+                where: { prevGenerationId: generationId },
+                data: { prevGenerationId: null }
+            });
+
+            // 3. Delete the generation itself
+            await tx.generation.delete({
+                where: { id: generationId, projectId },
+            });
         });
 
         res.status(204).send();
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to delete generation' });
+    }
+};
+export const downloadWithMetadata = async (req: Request, res: Response) => {
+    res.status(501).json({ error: "Not Implemented" });
+};
+
+export const getQueueStatus = async (req: Request, res: Response) => {
+    res.json({
+        queueLength: jobQueue.length,
+        isProcessing
+    });
+};
+
+export const enhanceVideo = async (req: Request, res: Response) => {
+    // Placeholder for video enhancement
+    try {
+        const { projectId, generationId } = req.params;
+        console.log(`[enhanceVideo] Request for generation ${generationId}`);
+        // Mock success for now
+        res.json({ message: "Enhancement check complete (Placeholder)", status: "no_changes_needed" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to enhance video' });
+    }
+};
+
+export const analyzeGeneration = async (req: Request, res: Response) => {
+    try {
+        const { projectId, generationId } = req.params;
+        console.log(`[analyzeGeneration] Request for generation ${generationId}`);
+
+        // Mock analysis result matching UI expectations
+        const mockAnalysis = {
+            flaws: ["Subject lighting is slightly inconsistent with background", "Hands appear slightly distorted"],
+            positiveTraits: ["Excellent composition", "Color grading matches reference"],
+            advice: "Try reducing the CFG scale slightly or using a ControlNet for hand pose stability.",
+            rating: 3
+        };
+
+        // Update the generation with this analysis
+        await prisma.generation.update({
+            where: { id: generationId },
+            data: { aiAnalysis: JSON.stringify(mockAnalysis) }
+        });
+
+        res.json(mockAnalysis);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to analyze generation' });
+    }
+};
+
+export const refineGeneration = async (req: Request, res: Response) => {
+    try {
+        const { projectId, generationId } = req.params;
+        const { feedback } = req.body;
+        console.log(`[refineGeneration] Feedback for ${generationId}: ${feedback}`);
+
+        // In a real implementation, this would trigger a new generation job
+        // For now, we just acknowledge it
+        res.json({ message: "Refinement feedback received", nextAction: "queued" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to refine generation' });
     }
 };

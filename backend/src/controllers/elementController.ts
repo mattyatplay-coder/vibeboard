@@ -166,3 +166,57 @@ export const deleteElement = async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Failed to delete element' });
     }
 };
+
+export const createElementFromGeneration = async (req: Request, res: Response) => {
+    try {
+        const { projectId } = req.params;
+        const { name, type, url, metadata, tags, sessionId } = req.body;
+
+        if (!url || !name || !type) {
+            return res.status(400).json({ error: 'URL, Name, and Type are required' });
+        }
+
+        // Handle duplicate names
+        let finalName = name;
+        let counter = 1;
+        while (await prisma.element.findFirst({ where: { projectId, name: finalName } })) {
+            finalName = `${name} (${counter})`;
+            counter++;
+        }
+
+        let parsedMetadata = {};
+        if (metadata) {
+            try {
+                parsedMetadata = typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
+            } catch (e) {
+                console.error("Failed to parse metadata", e);
+            }
+        }
+
+        let parsedTags: string[] = [];
+        if (tags) {
+            try {
+                parsedTags = typeof tags === 'string' ? JSON.parse(tags) : tags;
+            } catch (e) {
+                console.error("Failed to parse tags", e);
+            }
+        }
+
+        const element = await prisma.element.create({
+            data: {
+                projectId,
+                name: finalName,
+                type,
+                fileUrl: url, // Use provided URL directly
+                metadata: JSON.stringify(parsedMetadata),
+                tags: JSON.stringify(parsedTags),
+                sessionId: sessionId || null,
+            },
+        });
+
+        res.status(201).json(parseElementJsonFields(element));
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to create element from generation' });
+    }
+};

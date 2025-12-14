@@ -46,20 +46,29 @@ export interface Generation {
     createdAt: string;
     isFavorite: boolean;
     name?: string;
+    engine?: string; // Engine provider (e.g. 'fal')
+    falModel?: string; // Specific model ID
     tags?: string[];
     session?: { id: string; name: string };
     failureReason?: string;
     aspectRatio?: string;
+    sourceElementIds?: string[] | string;
     usedLoras?: {
         provider?: string;
         model?: string;
-        loras?: { id: string; strength: number }[];
+        loras?: { id: string; name?: string; strength: number }[];
         strength?: number;
         sampler?: string;
         scheduler?: string;
         seed?: number;
+        steps?: number;
+        guidanceScale?: number;
+        referenceStrengths?: Record<string, number>;
+        negativePrompt?: string;
         [key: string]: any;
     };
+    aiAnalysis?: string; // JSON string of validation results
+    rating?: number; // 0-5 stars
 }
 
 interface AppState {

@@ -99,7 +99,17 @@ export class OpenAIAdapter implements GenerationProvider {
             const prompt = options.prompt;
             const size = options.aspectRatio === '9:16' ? '720x1280' : '1280x720'; // Simplified mapping
             // OpenAI video API expects 'seconds' as a string enum ('4', '8', '12') NOT an integer
-            const seconds = options.duration ? options.duration : '4';
+            // Clamp to valid values - OpenAI Sora only supports 4, 8, or 12 seconds
+            const validDurations = ['4', '8', '12'];
+            let seconds = options.duration ? String(options.duration) : '4';
+            if (!validDurations.includes(seconds)) {
+                // Find closest valid duration
+                const numSeconds = parseInt(seconds, 10);
+                if (numSeconds <= 4) seconds = '4';
+                else if (numSeconds <= 8) seconds = '8';
+                else seconds = '12';
+                console.log(`[OpenAIAdapter] Duration ${options.duration} not supported, using ${seconds}s`);
+            }
 
             console.log(`[OpenAIAdapter] Generating video with model ${model}, size ${size}, duration ${seconds}s`);
 

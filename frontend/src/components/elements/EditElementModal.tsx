@@ -39,7 +39,7 @@ export function EditElementModal({ element, isOpen, onClose, onSave, sessions }:
             setType(element.type);
             setFile(null);
             setPreviewUrl(null);
-            setTags(element.tags || []);
+            setTags(Array.isArray(element.tags) ? element.tags : []);
             setSelectedSessionId(element.session?.id || null);
             setError(null);
         }

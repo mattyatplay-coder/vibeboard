@@ -1,4 +1,11 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+export const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || `${BACKEND_URL}/api`;
+
+export function resolveFileUrl(path: string | undefined | null): string {
+    if (!path) return '';
+    if (path.startsWith('http') || path.startsWith('data:')) return path;
+    return `${BACKEND_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+}
 
 export async function fetchAPI(endpoint: string, options: RequestInit = {}) {
     const res = await fetch(`${API_URL}${endpoint}`, {
@@ -11,7 +18,7 @@ export async function fetchAPI(endpoint: string, options: RequestInit = {}) {
 
     if (!res.ok) {
         const error = await res.json().catch(() => ({}));
-        throw new Error(error.error || 'API request failed');
+        throw new Error(error.error ? `${error.error}: ${error.message || ''}` : 'API request failed');
     }
 
     const text = await res.text();
@@ -55,4 +62,23 @@ export async function updateElement(endpoint: string, data: any) {
     }
 
     return res.json();
+}
+
+export async function analyzeGeneration(projectId: string, generationId: string) {
+    return fetchAPI(`/projects/${projectId}/generations/${generationId}/analyze`, {
+        method: 'POST'
+    });
+}
+
+export async function refineGeneration(projectId: string, generationId: string, feedback: string) {
+    return fetchAPI(`/projects/${projectId}/generations/${generationId}/refine`, {
+        method: 'POST',
+        body: JSON.stringify({ feedback })
+    });
+}
+
+export async function enhanceVideo(projectId: string, generationId: string) {
+    return fetchAPI(`/projects/${projectId}/generations/${generationId}/enhance`, {
+        method: 'POST'
+    });
 }

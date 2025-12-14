@@ -25,6 +25,7 @@ export interface SceneGenerationConfig {
     startFrame?: File | null;
     endFrame?: File | null;
     inputVideo?: File | null;
+    cameraMovement?: { type: string; direction?: string; intensity?: number };
 }
 
 const GENERATION_MODES = [

@@ -25,9 +25,9 @@ export const getProjects = async (req: Request, res: Response) => {
             orderBy: { updatedAt: 'desc' },
         });
         res.json(projects);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to fetch projects' });
+    } catch (error: any) {
+        console.error("Failed to fetch projects:", error);
+        res.status(500).json({ error: 'Failed to fetch projects', details: error.message });
     }
 };
 

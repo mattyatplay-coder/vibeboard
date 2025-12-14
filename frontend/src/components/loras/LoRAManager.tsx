@@ -48,6 +48,39 @@ function groupLoRAs(loras: LoRA[]): LoRAGroup[] {
     }));
 }
 
+// Categories for filtering
+const CATEGORY_ICONS: Record<string, string> = {
+    all: "🌎",
+    character: "👤",
+    style: "🎨",
+    concept: "💡",
+    clothing: "👕",
+    pose: "🧘",
+    background: "🌄",
+    effect: "✨",
+    checkpoint: "📦",
+    embedding: "📝",
+    other: "📁",
+    vehicle: "🚗",
+    object: "📦",
+    animal: "🐾",
+    building: "🏢",
+};
+
+const CATEGORIES = [
+    { id: 'all', label: 'All' },
+    { id: 'character', label: 'Characters' },
+    { id: 'style', label: 'Styles' },
+    { id: 'concept', label: 'Concepts' },
+    { id: 'clothing', label: 'Clothing' },
+    { id: 'pose', label: 'Poses' },
+    { id: 'background', label: 'Backgrounds' },
+    { id: 'effect', label: 'Effects' },
+    { id: 'checkpoint', label: 'Checkpoints' },
+    { id: 'embedding', label: 'Embeddings' },
+    { id: 'other', label: 'Other' }
+];
+
 export interface LoRA {
     id: string;
     name: string;
@@ -55,6 +88,7 @@ export interface LoRA {
     fileUrl: string;
     baseModel: string;
     type: 'lora' | 'checkpoint' | 'embedding';
+    category?: string;
     strength: number;
     imageUrl?: string;
     settings?: any;
@@ -73,13 +107,30 @@ interface LoRAManagerProps {
 export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onToggle, embedded = false, filterBaseModel }: LoRAManagerProps) {
     const [loras, setLoras] = useState<LoRA[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [activeCategory, setActiveCategory] = useState('all');
     const [isAdding, setIsAdding] = useState(false);
     const [editingLora, setEditingLora] = useState<LoRA | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-    // Group LoRAs by base name for version grouping
-    const groupedLoras = useMemo(() => groupLoRAs(loras), [loras]);
+    // Filter LoRAs based on category AND baseModel
+    const filteredLoras = useMemo(() => {
+        return loras.filter(lora => {
+            // Base Model Filter
+            if (filterBaseModel && lora.baseModel !== filterBaseModel && lora.baseModel !== 'Other') return false;
+
+            // Category Filter
+            if (activeCategory === 'all') return true;
+            if (activeCategory === 'checkpoint') return lora.type === 'checkpoint';
+            if (activeCategory === 'embedding') return lora.type === 'embedding';
+
+            // For standard categories, check the category field
+            return (lora.category || 'other').toLowerCase() === activeCategory;
+        });
+    }, [loras, filterBaseModel, activeCategory]);
+
+    // Group filtered LoRAs by base name for version grouping
+    const groupedLoras = useMemo(() => groupLoRAs(filteredLoras), [filteredLoras]);
 
     const toggleGroupExpanded = (baseName: string) => {
         setExpandedGroups(prev => {
@@ -101,15 +152,14 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
     const [newType, setNewType] = useState<'lora' | 'checkpoint' | 'embedding'>('lora');
     const [newStrength, setNewStrength] = useState(1.0);
     const [newImageUrl, setNewImageUrl] = useState("");
-    const [newSettings, setNewSettings] = useState<any>(null);
-    const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
-
-    // Edit Form State
+    const [newCategory, setNewCategory] = useState("other");
+    const [editCategory, setEditCategory] = useState("other");
     const [editName, setEditName] = useState("");
     const [editTrigger, setEditTrigger] = useState("");
-    const [editBaseModel, setEditBaseModel] = useState("");
+    const [editBaseModel, setEditBaseModel] = useState("SDXL");
     const [editStrength, setEditStrength] = useState(1.0);
-
+    const [newSettings, setNewSettings] = useState<any>(null);
+    const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
     useEffect(() => {
         if (isOpen) {
             loadLoRAs();
@@ -142,6 +192,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                     fileUrl: newUrl,
                     baseModel: newBaseModel,
                     type: newType,
+                    category: newCategory,
                     strength: newStrength,
                     imageUrl: newImageUrl,
                     settings: newSettings
@@ -177,6 +228,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
         setNewType("lora");
         setNewStrength(1.0);
         setNewImageUrl("");
+        setNewCategory("other");
         setNewSettings(null);
     };
 
@@ -186,6 +238,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
         setEditName(lora.name);
         setEditTrigger(lora.triggerWord || "");
         setEditBaseModel(lora.baseModel);
+        setEditCategory(lora.category || "other");
         setEditStrength(lora.strength);
         setError(null);
     };
@@ -195,6 +248,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
         setEditName("");
         setEditTrigger("");
         setEditBaseModel("");
+        setEditCategory("other");
         setEditStrength(1.0);
         setError(null);
     };
@@ -210,6 +264,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                     name: editName,
                     triggerWord: editTrigger,
                     baseModel: editBaseModel,
+                    category: editCategory,
                     strength: editStrength
                 })
             });
@@ -250,7 +305,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                 }
 
                 if (metadata.description) {
-                    const settings = extractRecommendedSettings(metadata.description);
+                    const settings = extractRecommendedSettings(metadata.description, metadata.trainedWords);
                     setNewSettings(settings);
                     // Auto-set trigger word if found in description? 
                     // Civitai API usually provides trainedWords in version metadata
@@ -273,7 +328,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
     const content = (
         <div className={clsx(
             "bg-[#1a1a1a] border border-white/10 rounded-xl flex flex-col shadow-2xl overflow-hidden",
-            embedded ? "w-80 h-[600px]" : "w-full max-w-2xl max-h-[80vh]"
+            embedded ? "w-[700px] h-[90vh]" : "w-full max-w-2xl max-h-[80vh]"
         )}>
             <div className="flex justify-between items-center p-4 border-b border-white/10">
                 <h2 className="text-lg font-bold text-white">Models & LoRAs</h2>
@@ -328,16 +383,16 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs text-gray-400 mb-1">Strength</label>
-                                    <input
-                                        type="number"
-                                        step="0.1"
-                                        min="0"
-                                        max="2"
-                                        value={editStrength}
-                                        onChange={(e) => setEditStrength(parseFloat(e.target.value))}
+                                    <label className="block text-xs text-gray-400 mb-1">Category</label>
+                                    <select
+                                        value={editCategory}
+                                        onChange={(e) => setEditCategory(e.target.value)}
                                         className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 outline-none"
-                                    />
+                                    >
+                                        {CATEGORIES.filter(c => c.id !== 'all').map(cat => (
+                                            <option key={cat.id} value={cat.id}>{cat.label}</option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -454,18 +509,31 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-xs text-gray-400 mb-1">Default Strength</label>
-                                <input
-                                    type="number"
-                                    step="0.1"
-                                    min="0"
-                                    max="2"
-                                    value={newStrength}
-                                    onChange={(e) => setNewStrength(parseFloat(e.target.value))}
+                                <label className="block text-xs text-gray-400 mb-1">Category</label>
+                                <select
+                                    value={newCategory}
+                                    onChange={(e) => setNewCategory(e.target.value)}
                                     className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 outline-none"
-                                />
+                                >
+                                    {CATEGORIES.filter(c => c.id !== 'all').map(cat => (
+                                        <option key={cat.id} value={cat.id}>{cat.label}</option>
+                                    ))}
+                                </select>
                             </div>
                         </div>
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Default Strength</label>
+                            <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                max="2"
+                                value={newStrength}
+                                onChange={(e) => setNewStrength(parseFloat(e.target.value))}
+                                className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 outline-none"
+                            />
+                        </div>
+
 
                         {error && (
                             <div className="text-red-400 text-xs px-1">{error}</div>
@@ -489,6 +557,55 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                     </div>
                 ) : (
                     <div className="space-y-3">
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                            {/* All Button */}
+                            <button
+                                onClick={() => setActiveCategory('all')}
+                                className={clsx(
+                                    "px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border transition-colors flex items-center gap-1.5",
+                                    activeCategory === 'all'
+                                        ? "bg-blue-600 border-blue-500 text-white"
+                                        : "bg-[#2a2a2a] border-white/5 text-gray-400 hover:text-white hover:border-white/20"
+                                )}
+                            >
+                                <span>{CATEGORY_ICONS['all']}</span>
+                                All <span className="opacity-50">({loras.length})</span>
+                            </button>
+
+                            {/* Dynamic Categories */}
+                            {Array.from(new Set(loras.map(l => {
+                                if (l.type === 'checkpoint') return 'checkpoint';
+                                if (l.type === 'embedding') return 'embedding';
+                                return (l.category || 'other').toLowerCase();
+                            }))).sort().map(catId => {
+                                if (catId === 'all') return null; // Already handled
+                                const count = loras.filter(l => {
+                                    if (catId === 'checkpoint') return l.type === 'checkpoint';
+                                    if (catId === 'embedding') return l.type === 'embedding';
+                                    return (l.category || 'other').toLowerCase() === catId;
+                                }).length;
+
+                                const label = CATEGORIES.find(c => c.id === catId)?.label || catId.charAt(0).toUpperCase() + catId.slice(1);
+                                const icon = CATEGORY_ICONS[catId] || "🏷️";
+
+                                return (
+                                    <button
+                                        key={catId}
+                                        onClick={() => setActiveCategory(catId)}
+                                        className={clsx(
+                                            "px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border transition-colors flex items-center gap-1.5",
+                                            activeCategory === catId
+                                                ? "bg-[#d4b067] border-[#d4b067] text-black"
+                                                : "bg-[#2a2a2a] border-white/5 text-gray-400 hover:text-white hover:border-white/20"
+                                        )}
+                                    >
+                                        <span>{icon}</span>
+                                        {label} <span className={clsx("opacity-50", activeCategory === catId ? "text-black/60" : "")}>({count})</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
                         <button
                             onClick={() => setIsAdding(true)}
                             className="w-full py-2 border border-dashed border-white/20 rounded-lg text-gray-400 hover:text-white hover:border-white/40 hover:bg-white/5 transition-all flex items-center justify-center gap-2 text-sm"
@@ -694,7 +811,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 
     if (embedded) {

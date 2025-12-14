@@ -18,10 +18,14 @@ import {
     Wand2,
     Copy,
     Check,
-    X
+    X,
+    Film
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { clsx } from "clsx";
+import { CameraPresetSelector } from "./CameraPresetSelector";
+import { CameraPreset, getPresetById } from "@/data/CameraPresets";
+import { Genre } from "@/data/GenreTemplates";
 
 interface ShotActionsPanelProps {
     shot: any;
@@ -31,6 +35,8 @@ interface ShotActionsPanelProps {
     onPredictNextShot: (shotId: string, prompt: string) => void;
     onPredictPreviousShot: (shotId: string, prompt: string) => void;
     isProcessing?: boolean;
+    genre?: Genre | null; // Current project/scene genre for camera recommendations
+    onCameraPresetSelect?: (preset: CameraPreset) => void;
 }
 
 const WEATHER_PRESETS = [
@@ -42,15 +48,6 @@ const WEATHER_PRESETS = [
     { id: "storm", label: "Stormy", icon: Wind, prompt: "thunderstorm, dark clouds, lightning" }
 ];
 
-const CAMERA_ANGLE_CHANGES = [
-    { id: "overhead", label: "Overhead", prompt: "overhead bird's eye view shot" },
-    { id: "low", label: "Low Angle", prompt: "low angle shot looking up" },
-    { id: "close", label: "Close-up", prompt: "extreme close-up shot" },
-    { id: "wide", label: "Wide Shot", prompt: "wide establishing shot" },
-    { id: "dutch", label: "Dutch Angle", prompt: "tilted dutch angle shot" },
-    { id: "pov", label: "POV", prompt: "first person point of view shot" }
-];
-
 export function ShotActionsPanel({
     shot,
     onGrabLastFrame,
@@ -58,12 +55,15 @@ export function ShotActionsPanel({
     onV2VEdit,
     onPredictNextShot,
     onPredictPreviousShot,
-    isProcessing = false
+    isProcessing = false,
+    genre = null,
+    onCameraPresetSelect
 }: ShotActionsPanelProps) {
-    const [activeTab, setActiveTab] = useState<"extend" | "edit" | "predict">("extend");
+    const [activeTab, setActiveTab] = useState<"extend" | "edit" | "camera" | "predict">("extend");
     const [customPrompt, setCustomPrompt] = useState("");
     const [selectedWeather, setSelectedWeather] = useState<string | null>(null);
-    const [selectedAngle, setSelectedAngle] = useState<string | null>(null);
+    const [selectedCameraPreset, setSelectedCameraPreset] = useState<string | null>(null);
+    const [selectedMixPresets, setSelectedMixPresets] = useState<string[]>([]);
     const [backgroundPrompt, setBackgroundPrompt] = useState("");
 
     const handleWeatherChange = (weather: typeof WEATHER_PRESETS[0]) => {
@@ -71,9 +71,26 @@ export function ShotActionsPanel({
         onV2VEdit(shot.id, "weather", `Change the weather to ${weather.prompt}`);
     };
 
-    const handleAngleChange = (angle: typeof CAMERA_ANGLE_CHANGES[0]) => {
-        setSelectedAngle(angle.id);
-        onV2VEdit(shot.id, "camera", `Change the camera angle to ${angle.prompt}`);
+    const handleCameraPresetSelect = (preset: CameraPreset) => {
+        if (!preset.id) {
+            // Clear selection
+            setSelectedCameraPreset(null);
+            return;
+        }
+        setSelectedCameraPreset(preset.id);
+        onV2VEdit(shot.id, "camera", `Change the camera to ${preset.prompt}`);
+        onCameraPresetSelect?.(preset);
+    };
+
+    const handleMixedCameraSelect = (presetIds: string[]) => {
+        setSelectedMixPresets(presetIds);
+        if (presetIds.length > 0) {
+            const combinedPrompt = presetIds
+                .map(id => getPresetById(id)?.prompt)
+                .filter(Boolean)
+                .join(", ");
+            onV2VEdit(shot.id, "camera", `Camera movement: ${combinedPrompt}`);
+        }
     };
 
     const handleBackgroundChange = () => {
@@ -88,6 +105,7 @@ export function ShotActionsPanel({
             <div className="flex border-b border-white/10">
                 {[
                     { id: "extend", label: "Extend", icon: FastForward },
+                    { id: "camera", label: "Camera", icon: Film },
                     { id: "edit", label: "V2V Edit", icon: Palette },
                     { id: "predict", label: "Next/Prev", icon: Camera }
                 ].map((tab) => (
@@ -159,6 +177,39 @@ export function ShotActionsPanel({
                         </motion.div>
                     )}
 
+                    {/* Camera Tab - 50+ Presets */}
+                    {activeTab === "camera" && (
+                        <motion.div
+                            key="camera"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className="space-y-4"
+                        >
+                            <CameraPresetSelector
+                                selectedPreset={selectedCameraPreset}
+                                onSelect={handleCameraPresetSelect}
+                                genre={genre}
+                                showGenreRecommendations={!!genre}
+                                allowMixing={true}
+                                selectedMixPresets={selectedMixPresets}
+                                onMixSelect={handleMixedCameraSelect}
+                            />
+
+                            <div className="bg-blue-500/5 rounded-lg p-3 border border-blue-500/10">
+                                <p className="text-[10px] text-blue-300/80 leading-relaxed">
+                                    <strong>Pro Tip:</strong> Use "Mix" mode to combine up to 3 camera movements
+                                    for complex shots (e.g., Dolly In + Arc Left + Crane Up).
+                                    {genre && (
+                                        <span className="block mt-1">
+                                            Green dots indicate moves recommended for your {genre.replace('_', ' ')} project.
+                                        </span>
+                                    )}
+                                </p>
+                            </div>
+                        </motion.div>
+                    )}
+
                     {/* V2V Edit Tab */}
                     {activeTab === "edit" && (
                         <motion.div
@@ -191,33 +242,6 @@ export function ShotActionsPanel({
                                         >
                                             <weather.icon className="w-4 h-4" />
                                             <span className="text-[10px]">{weather.label}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Camera Angle Changes */}
-                            <div>
-                                <div className="flex items-center gap-2 mb-2">
-                                    <Camera className="w-3 h-3 text-gray-400" />
-                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                        Camera Angle
-                                    </span>
-                                </div>
-                                <div className="grid grid-cols-3 gap-2">
-                                    {CAMERA_ANGLE_CHANGES.map((angle) => (
-                                        <button
-                                            key={angle.id}
-                                            onClick={() => handleAngleChange(angle)}
-                                            disabled={isProcessing}
-                                            className={clsx(
-                                                "p-2 rounded-lg border text-[10px] transition-colors disabled:opacity-50",
-                                                selectedAngle === angle.id
-                                                    ? "bg-purple-500/20 border-purple-500/50 text-purple-300"
-                                                    : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
-                                            )}
-                                        >
-                                            {angle.label}
                                         </button>
                                     ))}
                                 </div>

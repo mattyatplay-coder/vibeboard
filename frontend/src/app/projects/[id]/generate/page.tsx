@@ -10,7 +10,7 @@ import {
     Wand2, Settings, History, ChevronRight,
     Sparkles, Zap, Layers, AlertCircle, Check, X,
     Play, Ratio, ChevronDown, SlidersHorizontal, Users, Trash2, Copy, CheckSquare,
-    Database, Music
+    Database, Music, FilePlus
 } from 'lucide-react';
 import { ADVANCED_OPTIONS } from "@/components/storyboard/CreateStyleModal";
 import { Element, Generation, Scene } from "@/lib/store";
@@ -42,6 +42,17 @@ import { ImageMaskEditor } from "@/components/generations/ImageMaskEditor";
 import { AudioInputModal } from "@/components/generations/AudioInputModal";
 import { DataBackupModal } from "@/components/settings/DataBackupModal";
 
+interface PipelineStage {
+    id: string;
+    type: 'motion' | 'lipsync';
+    videoFile?: File | null;
+    videoUrl?: string | null;
+    audioFile?: File | null;
+    audioUrl?: string | null;
+    model?: string; // Added for script parsing
+    prompt?: string; // Added for script parsing
+}
+
 export default function GeneratePage() {
     const params = useParams();
 
@@ -71,9 +82,21 @@ export default function GeneratePage() {
     const [audioFile, setAudioFile] = useState<File | null>(null);
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
     const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
+    const [isStyleModalOpen, setIsStyleModalOpen] = useState(false);
+    const [isElementPickerOpen, setIsElementPickerOpen] = useState(false);
     const [isSaveElementModalOpen, setIsSaveElementModalOpen] = useState(false);
-    const [saveElementData, setSaveElementData] = useState<{ url: string, type: 'image' | 'video' } | null>(null);
+    const [isBatchSaveMode, setIsBatchSaveMode] = useState(false);
+    const [saveElementData, setSaveElementData] = useState<{ url: string, type: string } | null>(null);
     const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+
+
+
+    // Pipeline / Node Workflow State
+    const [pipelineStages, setPipelineStages] = useState<PipelineStage[]>([]);
+
+    // Legacy Wan Animation State (replaced by pipeline, but keeping if needed for standalone Animate mode)
+    // const [motionVideo, setMotionVideo] = useState<File | null>(null);
+    // const [motionVideoUrl, setMotionVideoUrl] = useState<string | null>(null);
 
     // Drag and Drop state
     const [activeDragId, setActiveDragId] = useState<string | null>(null);
@@ -85,9 +108,7 @@ export default function GeneratePage() {
     const [suggestionQuery, setSuggestionQuery] = useState("");
     const [cursorPosition, setCursorPosition] = useState(0);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const [isStyleModalOpen, setIsStyleModalOpen] = useState(false);
     const [styleConfig, setStyleConfig] = useState<StyleConfig | null>(null);
-    const [isElementPickerOpen, setIsElementPickerOpen] = useState(false);
 
     // Edit Modal State
     const [selectedGeneration, setSelectedGeneration] = useState<Generation | null>(null);
@@ -99,6 +120,9 @@ export default function GeneratePage() {
         provider: 'fal',
         model: 'fal-ai/flux/dev'
     });
+
+    // Engine Stacking
+    const [enableMotionStacking, setEnableMotionStacking] = useState(false);
 
     const handleAddTag = (tag: string, category: string) => {
         const prefix = prompt ? `${prompt}, ` : "";
@@ -120,6 +144,8 @@ export default function GeneratePage() {
     const handleStyleApply = (config: StyleConfig) => {
         setStyleConfig(config);
         setAspectRatio(config.aspectRatio);
+
+
 
         // Append inspiration to prompt if present
         if (config.inspiration) {
@@ -244,6 +270,81 @@ export default function GeneratePage() {
                 }
             }
 
+            // Handle Pipeline Assets Upload
+            // Iterate stages, upload files if needed, update stage URLs
+            const updatedStages = await Promise.all(pipelineStages.map(async (stage) => {
+                const updatedStage = { ...stage };
+
+                // Upload Video (Motion Stage)
+                if (stage.type === 'motion' && stage.videoFile) {
+                    const formData = new FormData();
+                    formData.append('file', stage.videoFile);
+                    formData.append('name', 'Pipeline Motion Video');
+                    formData.append('type', 'video');
+                    try {
+                        const res = await fetch(`http://localhost:3001/api/projects/${projectId}/elements`, {
+                            method: 'POST', body: formData
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            updatedStage.videoUrl = data.url;
+                        }
+                    } catch (e) { console.error("Pipeline video upload failed", e); }
+                }
+
+                // Upload Audio (Lip Sync Stage) - Handles Video as Audio Source too
+                if (stage.type === 'lipsync' && stage.audioFile) {
+                    const formData = new FormData();
+                    formData.append('file', stage.audioFile);
+                    formData.append('name', 'Pipeline AudioSource');
+                    // Determine type based on file (audio or video)
+                    const isVideo = stage.audioFile.type.startsWith('video');
+                    formData.append('type', isVideo ? 'video' : 'audio');
+
+                    try {
+                        const res = await fetch(`http://localhost:3001/api/projects/${projectId}/elements`, {
+                            method: 'POST', body: formData
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            updatedStage.audioUrl = data.url;
+                        }
+                    } catch (e) { console.error("Pipeline audio upload failed", e); }
+                }
+                return updatedStage;
+            }));
+
+            // Construct NextStage Chain (Recursive)
+            // Chain: Base -> Stage 1 -> Stage 2 ...
+            let pipelineConfig: any = undefined;
+
+            // Build from last stage backwards
+            for (let i = updatedStages.length - 1; i >= 0; i--) {
+                const stage = updatedStages[i];
+                let stageOptions: any = {};
+
+                if (stage.type === 'motion') {
+                    // One-To-All Animation
+                    stageOptions = {
+                        model: 'fal-ai/one-to-all-animation/14b',
+                        inputVideo: stage.videoUrl, // Driving video
+                        prompt: prompt, // Use same prompt or allow override? Using base prompt for now.
+                    };
+                } else if (stage.type === 'lipsync') {
+                    // Sync Lips
+                    stageOptions = {
+                        model: 'fal-ai/sync-lips', // or fal-ai/video-lipsync
+                        audioUrl: stage.audioUrl,
+                        prompt: prompt,
+                    };
+                }
+
+                if (pipelineConfig) {
+                    stageOptions.nextStage = pipelineConfig;
+                }
+                pipelineConfig = stageOptions;
+            }
+
             const isVideo = engineConfig.model?.includes('video') || engineConfig.model?.includes('t2v') || engineConfig.model?.includes('i2v');
 
             // Determine mode:
@@ -275,13 +376,19 @@ export default function GeneratePage() {
                     loras: styleConfig?.loras, // Pass selected LoRAs
                     sampler: styleConfig?.sampler, // Pass selected Sampler
                     scheduler: styleConfig?.scheduler, // Pass selected Scheduler
-                    guidanceScale: styleConfig?.guidanceScale, // Pass selected CFG Scale
-                    steps: styleConfig?.steps, // Pass selected Steps
+                    guidanceScale: styleConfig?.guidanceScale || guidanceScale, // Pass selected CFG Scale
+                    steps: styleConfig?.steps || steps, // Pass selected Steps
                     duration: duration, // Pass selected Duration
                     negativePrompt: styleConfig?.negativePrompt, // Pass Negative Prompt
                     audioUrl: audioUrl, // Pass audio URL for avatar models
                     referenceStrengths: elementStrengths, // Pass per-element strengths
                     referenceCreativity: referenceCreativity, // Pass global creativity fallback
+                    // inputVideo: inputVideoUrl, // Only needed for standalone motion mode, if supported handling existed.
+
+                    // Engine Stacking (Pipeline)
+                    nextStage: (engineConfig.model === 'fal-ai/vidu/q2/reference-to-video' && pipelineConfig)
+                        ? pipelineConfig
+                        : undefined
                 })
             });
             setPrompt("");
@@ -331,18 +438,96 @@ export default function GeneratePage() {
                     sessionId: selectedSessionId,
                     engine: engineConfig.provider,
                     falModel: engineConfig.model,
-                    shotType: styleConfig?.camera?.type,
-                    cameraAngle: styleConfig?.camera?.angle,
-                    lighting: styleConfig?.lighting?.type,
-                    location: styleConfig?.location?.type,
+                    styleGuideId: styleConfig?.preset?.id, // Link to preset if active
+                    // Using current settings for iteration
+                    ...styleConfig
                 })
             });
             loadGenerations();
-        } catch (err: any) {
-            console.error("Iteration failed:", err);
+        } catch (error) {
+            console.error("Failed to iterate generation:", error);
         } finally {
             setIsGenerating(false);
         }
+    };
+
+    const handleUseSettings = (generation: Generation) => {
+        // Restore Engine Model
+        // Fallback to usedLoras if top-level fields are missing/undefined
+        const engine = generation.engine || generation.usedLoras?.provider || 'fal';
+        const model = generation.falModel || generation.usedLoras?.model || generation.usedLoras?.falModel;
+
+        if (engine && model) {
+            setEngineConfig({
+                provider: engine,
+                model: model,
+            });
+        }
+
+        // Restore Mode (Image/Video)
+        const isVideo = generation.outputs?.[0]?.type === 'video';
+        setMode(isVideo ? 'video' : 'image');
+
+        // Restore Duration if Video
+        if (isVideo && generation.usedLoras?.duration) {
+            setDuration(String(generation.usedLoras.duration));
+        }
+
+        // Restore Prompt & Aspect Ratio
+        if (generation.inputPrompt) setPrompt(generation.inputPrompt);
+        if (generation.aspectRatio) setAspectRatio(generation.aspectRatio);
+
+        // Restore Elements Selection
+        if (generation.sourceElementIds) {
+            if (Array.isArray(generation.sourceElementIds)) {
+                setSelectedElementIds(generation.sourceElementIds);
+            } else if (typeof generation.sourceElementIds === 'string') {
+                try {
+                    const parsed = JSON.parse(generation.sourceElementIds);
+                    if (Array.isArray(parsed)) setSelectedElementIds(parsed);
+                } catch (e) {
+                    console.error("Failed to parse sourceElementIds", e);
+                }
+            }
+        }
+
+        // Restore Reference Strengths
+        if (generation.usedLoras?.referenceStrengths) {
+            setElementStrengths(generation.usedLoras.referenceStrengths);
+        }
+
+        // Restore Main Strength (Denoising Strength for API)
+        // Note: generation.usedLoras.strength is 0-1 (Denoising)
+        if (generation.usedLoras?.strength !== undefined) {
+            setStrength(generation.usedLoras.strength);
+        }
+
+        // Restore StyleConfig structure
+        // Helper to map string/object to object for dropdowns
+        const mapToObj = (val?: string | any) => {
+            if (!val) return undefined;
+            if (typeof val === 'object' && val.id) return val;
+            return { id: val, name: val, value: val };
+        };
+
+        const restoredConfig: StyleConfig = {
+            loras: generation.usedLoras?.loras?.map((l: any) => ({ ...l, name: l.name || '' })) || [],
+            steps: generation.usedLoras?.steps || 30,
+            guidanceScale: generation.usedLoras?.guidanceScale || 7.5,
+            negativePrompt: generation.usedLoras?.negativePrompt || "",
+            // Restore Sampler/Scheduler if present
+            sampler: mapToObj(generation.usedLoras?.sampler),
+            scheduler: mapToObj(generation.usedLoras?.scheduler),
+
+            // Preserve other fields empty or default since we can't fully restore them without more data
+            inspiration: "",
+            preset: null,
+            referenceImage: null,
+            aspectRatio: generation.aspectRatio || "16:9",
+            strength: generation.usedLoras?.strength !== undefined ? (1 - generation.usedLoras.strength) * 100 : undefined,
+            seed: generation.usedLoras?.seed
+        };
+        setStyleConfig(restoredConfig);
     };
 
     const handleAnimate = async (imageUrl: string) => {
@@ -386,6 +571,28 @@ export default function GeneratePage() {
             loadGenerations();
         } catch (err: any) {
             console.error("Upscale failed:", err);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    // Enhance Video (RIFE interpolation + MMAudio)
+    const handleEnhanceVideo = async (generationId: string, mode: 'full' | 'audio-only' | 'smooth-only' = 'full') => {
+        setIsGenerating(true);
+        try {
+            const result = await fetchAPI(`/projects/${projectId}/generations/${generationId}/enhance`, {
+                method: "POST",
+                body: JSON.stringify({
+                    skipInterpolation: mode === 'audio-only',
+                    skipAudio: mode === 'smooth-only',
+                    targetFps: 24,
+                    audioPrompt: prompt || "natural ambient sound matching the video content",
+                })
+            });
+            console.log("Enhancement result:", result);
+            loadGenerations();
+        } catch (err: any) {
+            console.error("Video enhancement failed:", err);
         } finally {
             setIsGenerating(false);
         }
@@ -716,23 +923,68 @@ export default function GeneratePage() {
     };
 
     const handleBatchCopyLinks = () => {
-        const links = generations
-            .filter(g => selectedGenerationIds.includes(g.id))
-            .map(g => {
-                const output = g.outputs?.[0];
-                const rawUrl = output?.url;
-                return rawUrl
-                    ? (rawUrl.startsWith('http') ? rawUrl : `http://localhost:3001${rawUrl}`)
-                    : null;
-            })
-            .filter(Boolean)
-            .join('\n');
+        const selectedGens = generations.filter(g => selectedGenerationIds.includes(g.id));
+        const links = selectedGens.map(g => {
+            const url = g.outputs?.[0]?.url;
+            if (!url) return null;
+            return url.startsWith('http') ? url : `http://localhost:3001${url}`;
+        }).filter(Boolean).join('\n');
 
         if (links) {
             navigator.clipboard.writeText(links);
-            // Optional: Show a toast or visual feedback
+            // TODO: toast.success(`Copied ${selectedGens.length} links`);
             alert(`Copied ${selectedGenerationIds.length} links to clipboard!`);
         }
+    };
+
+    const handleBatchSave = () => {
+        if (!selectedGenerationIds.length) return;
+        setIsBatchSaveMode(true);
+        setIsSaveElementModalOpen(true);
+    };
+
+    const processBatchSave = async (commonType: string) => {
+        console.log(`Saving ${selectedGenerationIds.length} generations as elements of type: ${commonType}`);
+
+        const promises = selectedGenerationIds.map(async (id) => {
+            const gen = generations.find(g => g.id === id);
+            if (!gen || !gen.outputs?.[0]) return;
+
+            const output = gen.outputs[0];
+            const isVideo = output.type === 'video';
+            const url = output.url.startsWith('http') || output.url.startsWith('data:')
+                ? output.url
+                : `http://localhost:3001${output.url}`;
+
+            try {
+                // Use from-generation endpoint if valid URL, OR download/upload if needed.
+                // Since these are local URLs (usually), from-generation relies on backend downloading.
+                // But backend expects external URL or local path.
+                // Let's stick to the FormData upload which was working for batch, but UPDATE THE TYPE.
+
+                const res = await fetch(url);
+                const blob = await res.blob();
+                const file = new File([blob], `batch-save-${id}.${isVideo ? 'mp4' : 'png'}`, { type: blob.type });
+
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('name', gen.inputPrompt?.slice(0, 50) || 'Saved Generation');
+                // Use the CUSTOM TYPE selected by user
+                formData.append('type', commonType);
+
+                await fetch(`http://localhost:3001/api/projects/${projectId}/elements`, {
+                    method: 'POST',
+                    body: formData
+                });
+            } catch (err) {
+                console.error(`Failed to save generation ${id}`, err);
+            }
+        });
+
+        await Promise.all(promises);
+        loadElements();
+        deselectAllGenerations();
+        setIsBatchSaveMode(false);
     };
 
     return (
@@ -783,9 +1035,11 @@ export default function GeneratePage() {
                                             <GenerationCard
                                                 key={gen.id || `gen-${index}`}
                                                 generation={gen}
+                                                elements={elements} // Pass elements map
                                                 onUpdate={handleUpdateGeneration}
                                                 onDelete={handleDeleteGeneration}
                                                 onIterate={handleIterateGeneration}
+                                                onUseSettings={handleUseSettings}
                                                 onAnimate={handleAnimate}
                                                 onUpscale={handleUpscale}
                                                 onEdit={() => {
@@ -794,10 +1048,12 @@ export default function GeneratePage() {
                                                 }}
                                                 onRetake={handleRetake}
                                                 onInpaint={handleInpaint}
+                                                onEnhanceVideo={handleEnhanceVideo}
                                                 isSelected={selectedGenerationIds.includes(gen.id)}
                                                 onToggleSelection={() => toggleGenerationSelection(gen.id)}
                                                 onSaveAsElement={(url, type) => {
                                                     setSaveElementData({ url, type });
+                                                    setIsBatchSaveMode(false);
                                                     setIsSaveElementModalOpen(true);
                                                 }}
                                             />
@@ -836,6 +1092,14 @@ export default function GeneratePage() {
                                         >
                                             <Copy className="w-4 h-4" />
                                             Copy Links
+                                        </button>
+                                        <button
+                                            onClick={handleBatchSave}
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded-lg text-sm font-medium transition-colors border border-green-500/20"
+                                            title="Save selected as elements"
+                                        >
+                                            <FilePlus className="w-4 h-4" />
+                                            Save Elements
                                         </button>
                                         <button
                                             onClick={handleBatchDelete}
@@ -1047,7 +1311,7 @@ export default function GeneratePage() {
                                             </div>
 
                                             {/* Audio Button (Avatar Only) */}
-                                            {engineConfig.model.includes('ai-avatar') && (
+                                            {(engineConfig.model.includes('ai-avatar') || engineConfig.model.includes('aurora')) && (
                                                 <button
                                                     onClick={() => setIsAudioModalOpen(true)}
                                                     className={clsx(
@@ -1076,10 +1340,132 @@ export default function GeneratePage() {
 
                                             {/* Engine Selector */}
                                             <EngineSelectorV2
-                                                config={engineConfig}
-                                                onChange={setEngineConfig}
+                                                selectedProvider={engineConfig.provider}
+                                                selectedModel={engineConfig.model}
+                                                onSelect={(provider, model) => setEngineConfig({ provider, model })}
                                                 mode={mode}
                                             />
+
+                                            {/* Pipeline Node Workflow (Vidu Q2 Only) */}
+                                            {engineConfig.model === 'fal-ai/vidu/q2/reference-to-video' && (
+                                                <div className="flex flex-col gap-3 p-3 bg-white/5 rounded-xl border border-white/10 mt-2">
+                                                    <div className="flex items-center justify-between text-xs font-semibold text-gray-300">
+                                                        <div className="flex items-center gap-2">
+                                                            <Layers className="w-4 h-4 text-blue-400" />
+                                                            <span>Generation Pipeline</span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Base Stage (Implicit Vidu) */}
+                                                    <div className="p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-xs text-blue-200 flex items-center gap-2">
+                                                        <span className="font-bold">1. Base:</span> Vidu Q2 (Reference-to-Video)
+                                                    </div>
+
+                                                    {/* Dynamic Stages */}
+                                                    {pipelineStages.map((stage, idx) => (
+                                                        <div key={stage.id} className="relative p-3 bg-white/5 border border-white/10 rounded-lg animate-in slide-in-from-left-2 fade-in">
+                                                            <div className="absolute top-2 right-2">
+                                                                <button
+                                                                    onClick={() => setPipelineStages(prev => prev.filter(s => s.id !== stage.id))}
+                                                                    className="text-gray-500 hover:text-red-400"
+                                                                >
+                                                                    <Trash2 className="w-3 h-3" />
+                                                                </button>
+                                                            </div>
+                                                            <div className="text-xs font-bold text-gray-300 mb-2">
+                                                                {idx + 2}. {stage.type === 'motion' ? "Motion (One-To-All)" : "Lip Sync (SyncLabs)"}
+                                                            </div>
+
+                                                            {stage.type === 'motion' && (
+                                                                <div className="flex flex-col gap-2">
+                                                                    <label className="text-[10px] text-gray-400 uppercase">Driving Video</label>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <button
+                                                                            onClick={() => document.getElementById(`stage-video-${stage.id}`)?.click()}
+                                                                            className={clsx(
+                                                                                "w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-dashed transition-all",
+                                                                                stage.videoFile
+                                                                                    ? "bg-green-500/10 border-green-500/50 text-green-400"
+                                                                                    : "bg-white/5 border-white/20 text-gray-400 hover:border-white/40"
+                                                                            )}
+                                                                        >
+                                                                            <Video className="w-3 h-3" />
+                                                                            <span className="text-xs truncate max-w-[150px]">
+                                                                                {stage.videoFile ? stage.videoFile.name : "Upload Video"}
+                                                                            </span>
+                                                                        </button>
+                                                                        <input
+                                                                            id={`stage-video-${stage.id}`}
+                                                                            type="file"
+                                                                            accept="video/mp4,video/quicktime,video/webm"
+                                                                            className="hidden"
+                                                                            onChange={(e) => {
+                                                                                if (e.target.files?.[0]) {
+                                                                                    const file = e.target.files[0];
+                                                                                    setPipelineStages(prev => prev.map(s => s.id === stage.id ? { ...s, videoFile: file } : s));
+                                                                                }
+                                                                            }}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            {stage.type === 'lipsync' && (
+                                                                <div className="flex flex-col gap-2">
+                                                                    <label className="text-[10px] text-gray-400 uppercase">Driving Audio or Video</label>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <button
+                                                                            onClick={() => document.getElementById(`stage-audio-${stage.id}`)?.click()}
+                                                                            className={clsx(
+                                                                                "w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-dashed transition-all",
+                                                                                stage.audioFile
+                                                                                    ? "bg-purple-500/10 border-purple-500/50 text-purple-400"
+                                                                                    : "bg-white/5 border-white/20 text-gray-400 hover:border-white/40"
+                                                                            )}
+                                                                        >
+                                                                            <Music className="w-3 h-3" />
+                                                                            <span className="text-xs truncate max-w-[150px]">
+                                                                                {stage.audioFile ? stage.audioFile.name : "Upload Audio/Video"}
+                                                                            </span>
+                                                                        </button>
+                                                                        <input
+                                                                            id={`stage-audio-${stage.id}`}
+                                                                            type="file"
+                                                                            accept="audio/*,video/*"
+                                                                            className="hidden"
+                                                                            onChange={(e) => {
+                                                                                if (e.target.files?.[0]) {
+                                                                                    const file = e.target.files[0];
+                                                                                    setPipelineStages(prev => prev.map(s => s.id === stage.id ? { ...s, audioFile: file } : s));
+                                                                                }
+                                                                            }}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            <div className="absolute -left-1.5 top-1/2 -mt-1 w-3 h-px bg-white/20" />
+                                                        </div>
+                                                    ))}
+
+                                                    <div className="flex gap-2 mt-2">
+                                                        <button
+                                                            onClick={() => setPipelineStages(prev => [...prev, { id: Date.now().toString(), type: 'motion' }])}
+                                                            className="flex-1 py-1.5 text-xs bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white border border-white/10 transition-colors flex items-center justify-center gap-1"
+                                                            title="Add One-To-All Motion Stage"
+                                                        >
+                                                            <Video className="w-3 h-3" /> + Motion
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setPipelineStages(prev => [...prev, { id: Date.now().toString(), type: 'lipsync' }])}
+                                                            className="flex-1 py-1.5 text-xs bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white border border-white/10 transition-colors flex items-center justify-center gap-1"
+                                                            title="Add SyncLabs Lip Sync Stage"
+                                                        >
+                                                            <Music className="w-3 h-3" /> + Lip Sync
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
 
 
                                             {/* Generate Button */}
@@ -1128,15 +1514,18 @@ export default function GeneratePage() {
                                                             imageUrl: e.url,
                                                             consistencyWeight: 0.8
                                                         }))}
-                                                    initialLoRAs={styleConfig?.loras?.map(l => ({
+                                                    initialLoRAs={styleConfig?.loras?.map((l: any) => ({
                                                         id: l.id,
                                                         name: l.name,
                                                         triggerWords: l.triggerWord ? [l.triggerWord] : [],
-                                                        type: (l.type as any) || 'style',
+                                                        type: l.type || 'style',
                                                         baseModel: 'SDXL', // Default fallback
                                                         recommendedStrength: l.strength,
                                                         useCount: 0
                                                     }))}
+                                                    initialImages={styleConfig?.referenceImage && typeof styleConfig.referenceImage === 'string'
+                                                        ? [styleConfig.referenceImage]
+                                                        : []}
                                                     onPromptChange={(newPrompt, negativePrompt) => {
                                                         setPrompt(newPrompt);
                                                         // Negative prompt handling can be added here
@@ -1144,6 +1533,41 @@ export default function GeneratePage() {
                                                     onRecommendationsChange={(recs) => {
                                                         if (recs?.steps) setSteps(recs.steps);
                                                         if (recs?.cfgScale) setGuidanceScale(recs.cfgScale);
+                                                    }}
+                                                    onScriptParsed={(parsed: any) => {
+                                                        // 1. Set Visual Prompt
+                                                        setPrompt(parsed.visual);
+
+                                                        // 2. Configure Pipeline Stages
+                                                        const newStages: PipelineStage[] = [];
+
+                                                        // Motion Stage
+                                                        if (parsed.motion) {
+                                                            newStages.push({
+                                                                id: crypto.randomUUID(),
+                                                                type: 'motion',
+                                                                model: 'fal-ai/one-to-all-animation/14b',
+                                                                prompt: parsed.motion,
+                                                                videoUrl: undefined
+                                                            });
+                                                        }
+
+                                                        // Lip Sync Stage (Dialogue)
+                                                        if (parsed.audio) {
+                                                            newStages.push({
+                                                                id: crypto.randomUUID(),
+                                                                type: 'lipsync',
+                                                                model: 'fal-ai/sync-lips',
+                                                                prompt: parsed.audio, // Storing dialogue as prompt reference
+                                                                audioUrl: undefined // User must provide audio
+                                                            });
+                                                        }
+
+                                                        setPipelineStages(newStages);
+                                                        setIsPromptBuilderOpen(false);
+
+                                                        // Optional: Auto-switch engine if needed, but respecting user choice is safer.
+                                                        // Notify user? (Toast not available, relying on UI update)
                                                     }}
                                                     onClose={() => setIsPromptBuilderOpen(false)}
                                                 />
@@ -1220,6 +1644,7 @@ export default function GeneratePage() {
                 onApply={handleStyleApply}
                 initialAspectRatio={aspectRatio}
                 projectId={projectId}
+                config={styleConfig || undefined} // Pass current config to sync modal state
             />
 
             <EditElementModal
@@ -1312,26 +1737,32 @@ export default function GeneratePage() {
 
             <SaveElementModal
                 isOpen={isSaveElementModalOpen}
-                onClose={() => setIsSaveElementModalOpen(false)}
-                onSave={async (name) => {
-                    if (!saveElementData) return;
-                    try {
-                        const res = await fetch(`http://localhost:3001/api/projects/${projectId}/elements/from-generation`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                url: saveElementData.url,
-                                type: saveElementData.type,
-                                name
-                            })
-                        });
-                        if (!res.ok) throw new Error('Failed to save element');
-
-                        // Refresh elements
-                        loadElements();
-                        setIsSaveElementModalOpen(false);
-                    } catch (e) {
-                        console.error("Failed to save element", e);
+                isBatch={isBatchSaveMode}
+                onClose={() => {
+                    setIsSaveElementModalOpen(false);
+                    setIsBatchSaveMode(false);
+                }}
+                onSave={async (name, type) => {
+                    if (isBatchSaveMode) {
+                        await processBatchSave(type);
+                    } else {
+                        // Single Save
+                        if (!saveElementData) return;
+                        try {
+                            const res = await fetch(`http://localhost:3001/api/projects/${projectId}/elements/from-generation`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    url: saveElementData.url,
+                                    type: type, // Use Selected/Custom Type
+                                    name
+                                })
+                            });
+                            if (!res.ok) throw new Error('Failed to save element');
+                            loadElements();
+                        } catch (e) {
+                            console.error("Failed to save element", e);
+                        }
                     }
                 }}
             />

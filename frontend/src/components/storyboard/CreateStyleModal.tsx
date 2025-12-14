@@ -32,7 +32,26 @@ export const ADVANCED_OPTIONS = {
     films: ["Kodak Vision3 500T", "Kodak Portra 400", "Fujifilm Eterna 500T", "Ilford HP5 Plus (B&W)", "Kodachrome 64 (Emulation)", "LomoChrome Purple"],
     colors: ["Teal & Orange", "Bleach Bypass", "Technicolor 2-Strip", "Cross Processed", "Faded Vintage", "High Contrast B&W", "Cyberpunk Neon"],
     lighting: ["Cinematic", "Natural", "Studio", "Neon", "Golden Hour", "Dark", "Volumetric", "Rembrandt", "Split Lighting", "Butterfly Lighting"],
-    cameraMotions: ["Handheld", "Dolly Zoom", "Pan", "Tilt", "Tracking Shot", "Static", "Crane Shot", "Steadicam"],
+    cameraMotions: [
+        // Basic movements
+        "Static", "Handheld", "Steadicam", "Gimbal",
+        // Zoom family
+        "Zoom In", "Zoom Out", "Crash Zoom", "Dolly Zoom (Vertigo)",
+        // Dolly family
+        "Dolly In", "Dolly Out", "Dolly Left", "Dolly Right", "Super Dolly",
+        // Crane family
+        "Crane Up", "Crane Down", "Crane Over", "Jib Up", "Jib Down",
+        // Pan & Tilt
+        "Pan Left", "Pan Right", "Tilt Up", "Tilt Down", "Whip Pan",
+        // Orbital
+        "360 Orbit", "Arc Left", "Arc Right", "Lazy Susan", "3D Rotation",
+        // Specialty
+        "Bullet Time", "Snorricam", "Dutch Angle", "Fisheye", "FPV Drone", "Through Object", "Rack Focus",
+        // Character
+        "Eyes In", "Hero Shot", "Over Shoulder", "Glam Shot",
+        // Timelapse
+        "Hyperlapse", "Timelapse"
+    ],
     moods: ["Happy", "Sad", "Tense", "Peaceful", "Energetic", "Mysterious", "Romantic", "Melancholic", "Euphoric", "Ominous"]
 };
 

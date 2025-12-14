@@ -1,5 +1,13 @@
 import { GenerationProvider, GenerationOptions, GenerationResult } from './GenerationProvider';
 import * as fal from "@fal-ai/serverless-client";
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import fetch from 'node-fetch';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+
+const execAsync = promisify(exec);
 
 // Configure fal client
 if (!process.env.FAL_KEY) {
@@ -11,6 +19,28 @@ fal.config({
 });
 
 export class FalAIAdapter implements GenerationProvider {
+
+    async analyzeImage(imageUrl: string, prompt: string): Promise<string> {
+        try {
+            console.log(`[FalAIAdapter] Analyzing image with fal-ai/llava-next...`);
+            const result: any = await fal.subscribe("fal-ai/llava-next", {
+                input: {
+                    image_url: imageUrl,
+                    prompt: prompt,
+                    max_tokens: 1000, // Ensure enough output
+                    top_p: 1.0,
+                    temperature: 0.2
+                },
+                logs: true,
+            });
+
+            console.log("[FalAIAdapter] Analysis complete.");
+            return result.output;
+        } catch (error: any) {
+            console.error("[FalAIAdapter] Analysis failed:", error);
+            throw error;
+        }
+    }
 
     async generateImage(options: GenerationOptions): Promise<GenerationResult> {
         try {
@@ -229,7 +259,13 @@ export class FalAIAdapter implements GenerationProvider {
                 // referenceStrengths is now Record<string, number> where keys are original URLs.
                 const elementStrength = referenceStrengths?.[originalUrl] ?? referenceCreativity ?? 0.85;
 
-                const ipWeight = 0.4 + (elementStrength * 0.6);
+                // Lower minimum weight (0.2) to allow better scene override when slider is low
+                // 0% slider = 0.2 weight (character hints only)
+                // 50% slider = 0.5 weight (balanced)
+                // 100% slider = 0.8 weight (strong character consistency)
+                const ipWeight = 0.2 + (elementStrength * 0.6);
+
+                console.log(`[SmartMode] IP-Adapter: slider=${(elementStrength * 100).toFixed(0)}% -> weight=${ipWeight.toFixed(2)}`);
 
                 return {
                     image_url: url,
@@ -275,11 +311,16 @@ export class FalAIAdapter implements GenerationProvider {
 
             // Model-specific parameters
             if (model.includes("wan-2.5") || model.includes("wan-25")) {
+                // Wan 2.5 uses duration parameter directly
+                // According to Fal.ai docs, duration accepts "5" or "10" as strings
+                const durationSec = parseInt(String(options.duration || "5"), 10);
+                input.duration = durationSec >= 8 ? "10" : "5";
+                console.log(`[FalAI] Wan 2.5 duration set to: ${input.duration} (requested: ${options.duration})`);
+
                 // Aspect ratio is only for T2V
                 if (!model.includes("image-to-video") && !model.includes("i2v")) {
-                    input.aspect_ratio = "16:9";
+                    input.aspect_ratio = options.aspectRatio || "16:9";
                 }
-                // Wan 2.5 defaults
             } else if (model.includes("wan")) {
                 // Map legacy/alias IDs
                 if (model === "fal-ai/wan-i2v") {
@@ -291,15 +332,15 @@ export class FalAIAdapter implements GenerationProvider {
                 // We use n+1 usually.
                 input.frames_per_second = 24;
                 input.sample_shift = 5.0;
-                input.num_frames = options.duration === "10" ? 241 : 121;
+                input.num_frames = String(options.duration) === "10" ? 241 : 121;
 
                 // Aspect ratio is only for T2V
                 if (!model.includes("image-to-video") && !model.includes("i2v")) {
-                    input.aspect_ratio = "16:9";
+                    input.aspect_ratio = options.aspectRatio || "16:9";
                 }
             } else if (model.includes("kling")) {
-                input.aspect_ratio = "16:9";
-                input.duration = options.duration || "5"; // Kling supports "5" or "10"
+                input.aspect_ratio = options.aspectRatio || "16:9";
+                input.duration = String(options.duration || "5"); // Kling supports "5" or "10"
 
                 // Kling 2.6 - Native Audio Generation
                 if (model.includes("v2.6")) {
@@ -325,12 +366,99 @@ export class FalAIAdapter implements GenerationProvider {
                     }
                 }
             } else if (model.includes("ltx")) {
-                input.aspect_ratio = "16:9";
+                input.aspect_ratio = options.aspectRatio || "16:9";
                 // LTX supports duration: 6, 8, 10 (for standard)
                 // We map "5" -> 6, "10" -> 10
-                input.duration = options.duration === "10" ? "10" : "6";
+                input.duration = String(options.duration) === "10" ? "10" : "6";
                 // LTX default FPS is 25.
                 // input.fps = 25; // Optional, default is 25
+            } else if (model === 'fal-ai/one-to-all-animation/14b') {
+                // One-To-All Animation (Pose Driven)
+                // Requires image_url (Character) and video_url (Motion)
+                if (!options.inputVideo) {
+                    throw new Error("Motion/Pose video is required for One-To-All animation. Please upload a video in the Style/Reference settings.");
+                }
+                input.video_url = await this.uploadToFal(options.inputVideo);
+
+                // Optional: Pose estimation guidance strength
+                if (options.guidanceScale) {
+                    input.pose_guidance_scale = options.guidanceScale; // Repurpose guidance scale? Or use separate?
+                    // Standard guidacne scale usually maps to text cfg. 
+                    // But for this model, maybe we keep text guidance default and use something else?
+                    // Let's just set image_guidance_scale if we have strength.
+                }
+
+                if (options.strength) {
+                    input.image_guidance_scale = options.strength;
+                }
+                if (options.strength) {
+                    input.image_guidance_scale = options.strength;
+                }
+            } else if (model === 'fal-ai/creatify/aurora') {
+                // Creatify Aurora (Avatar)
+                // Requires image_url and audio_url
+                if (!options.audioUrl) {
+                    throw new Error("Audio is required for Aurora avatar generation.");
+                }
+                input.audio_url = await this.uploadToFal(options.audioUrl);
+
+                // Aurora doesn't use prompt usually, just image + audio
+                // input.text = options.prompt; // Optional if supported
+            } else if (model === 'fal-ai/sync-lips') {
+                // Sync Lips (Video Lip Sync)
+                // Requires video_url and audio_url
+                // In a pipeline, video_url usually comes from previous stage (passed as 'image' arg to generateVideo)
+                // Or from options.inputVideo if starting fresh.
+
+                // If we are in a pipeline, 'image' arg is the output of previous stage (video url)
+                const sourceVideo = image || options.inputVideo;
+
+                if (!sourceVideo) {
+                    throw new Error("Video source is required for Sync Lips.");
+                }
+                input.video_url = await this.uploadToFal(sourceVideo);
+
+                if (!options.audioUrl) {
+                    throw new Error("Audio is required for Sync Lips.");
+                }
+                input.audio_url = await this.uploadToFal(options.audioUrl);
+
+                // Sync Lips 2.0 might have sync_mode or other params
+                input.sync_mode = "bounce"; // Default or options?
+            } else if (model === 'fal-ai/vidu/q2/reference-to-video') {
+                // Vidu Q2 (Reference-to-Video)
+                // Supports up to 7 reference images for character consistency.
+                // Input format: references: [{ type: "image", url: "..." }, ...]
+
+                if (options.elementReferences && options.elementReferences.length > 0) {
+                    const uploadedRefs = await Promise.all(
+                        options.elementReferences.slice(0, 7).map(ref => this.uploadToFal(ref))
+                    );
+
+                    input.references = uploadedRefs.map(url => ({
+                        type: "image",
+                        url: url
+                    }));
+                    console.log(`[FalAI] Vidu Q2 references prepared: ${input.references.length} images`);
+                } else {
+                    console.warn("[FalAI] Vidu Q2 selected but no element references provided. Generating without references.");
+                }
+
+                // Vidu Q2 supports duration (int 2-8)
+                if (options.duration) {
+                    let d = parseInt(String(options.duration), 10);
+                    if (d > 8) d = 8; // Max 8s
+                    if (d < 2) d = 2; // Min 2s
+                    input.duration = d;
+                }
+
+                // Map aspect ratio
+                if (options.aspectRatio) {
+                    input.aspect_ratio = options.aspectRatio;
+                } else {
+                    input.aspect_ratio = "16:9";
+                }
+
             }
 
             // Handle Image-to-Video
@@ -413,8 +541,11 @@ export class FalAIAdapter implements GenerationProvider {
                 if (model.includes("image-to-video") || model.includes("i2v")) {
                     console.log("Switching to T2V model because no image was provided");
                     // Fallback logic for T2V if available
-                    if (model.includes("wan") && !model.includes("2.5")) model = "fal-ai/wan-t2v";
-                    if (model === "wan-2.5" || (model.includes("wan") && model.includes("2.5"))) model = "fal-ai/wan-25-preview/text-to-video";
+                    if ((model.includes("wan-2.5") || model.includes("wan-25")) && model.includes("image-to-video")) {
+                        model = "fal-ai/wan-25-preview/text-to-video";
+                    } else if (model.includes("wan") && !model.includes("2.5") && !model.includes("25")) {
+                        model = "fal-ai/wan-t2v";
+                    }
                     // Kling T2V fallback
                     if (model.includes("kling") && model.includes("image-to-video")) {
                         console.log("Switching Kling I2V to T2V because no image was provided");
@@ -431,11 +562,48 @@ export class FalAIAdapter implements GenerationProvider {
                 logs: true,
             });
 
-            return {
+            const outputUrl = result.video?.url || result.url; // Handle various Fal responses
+
+            // Initial Result
+            let finalResult: GenerationResult = {
                 id: Date.now().toString(),
                 status: 'succeeded',
-                outputs: [result.video.url] // Wan returns { video: { url: ... } } usually
+                outputs: [outputUrl]
             };
+
+            // Pipeline / Engine Stacking Logic
+            if (options.nextStage) {
+                console.log(`[FalAI] Pipeline detected. Proceeding to next stage: ${options.nextStage.model}`);
+
+                if (!outputUrl) {
+                    throw new Error("Pipeline Error: Previous stage produced no output, cannot continue pipeline.");
+                }
+
+                // Prepare next stage options
+                // For One-To-All, we want the previous output (Character Video) to be the 'image' source (Character)
+                // And we preserve other options like inputVideo (Driving Motion) which should be in nextStage settings
+                const nextOptions = {
+                    ...options.nextStage,
+                    // If next stage is One-To-All, ensure we have the driving video from the original request or nextStage config
+                    // Ideally nextStage config has it.
+                };
+
+                // Recursive call: pass current output as the 'image' input for the next stage
+                // This works for I2V (image=source) and One-To-All (image=character).
+                // If we are passing Video-to-Video (Vidu->Vidu), it also works if next stage treats 'image' arg as input.
+                try {
+                    console.log(`[FalAI] Starting stage 2 with input source: ${outputUrl}`);
+                    finalResult = await this.generateVideo(outputUrl, nextOptions);
+
+                    // Append metadata to trace the pipeline?
+                    // finalResult.pipelineHistory = [...];
+                } catch (pipelineError) {
+                    console.error("[FalAI] Pipeline stage failed:", pipelineError);
+                    throw new Error(`Pipeline stage (${options.nextStage.model}) failed: ${pipelineError}`);
+                }
+            }
+
+            return finalResult;
         } catch (error: any) {
             console.error("Video generation failed:", error);
             return {
@@ -534,8 +702,8 @@ export class FalAIAdapter implements GenerationProvider {
                     url = await fal.storage.upload(file);
                     console.log(`[FalAIAdapter] Uploaded ${fileName} to ${url}`);
 
-                    // STRICT VALIDATION: Ensure the URL has the correct extension
-                    if (!url.endsWith('.safetensors')) {
+                    // STRICT VALIDATION: Only for LoRA files (.safetensors), ensure extension is preserved
+                    if (fileName.endsWith('.safetensors') && !url.endsWith('.safetensors')) {
                         console.error(`[FalAIAdapter] CRITICAL: Uploaded LoRA URL missing extension! URL: ${url}`);
                         throw new Error(`LoRA upload failed to preserve extension. Fal returned: ${url}. Expected it to end with .safetensors`);
                     }
@@ -574,4 +742,391 @@ export class FalAIAdapter implements GenerationProvider {
                 return "landscape_4_3";
         }
     }
+
+    /**
+     * Detect video FPS using ffprobe
+     * Downloads a portion of the video to analyze frame rate
+     */
+    async detectVideoFps(videoUrl: string): Promise<{ fps: number; duration: number } | null> {
+        let tempFile: string | null = null;
+        try {
+            console.log(`[FalAI FPS] Detecting FPS for: ${videoUrl}`);
+
+            // Create temp file for the video
+            const tempDir = os.tmpdir();
+            tempFile = path.join(tempDir, `fps_detect_${Date.now()}.mp4`);
+
+            // Download the video
+            const response = await fetch(videoUrl);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch video: ${response.status}`);
+            }
+            const buffer = await response.buffer();
+            fs.writeFileSync(tempFile, buffer);
+
+            // Use ffprobe to get video info
+            const { stdout } = await execAsync(
+                `ffprobe -v quiet -select_streams v:0 -show_entries stream=r_frame_rate,duration -of json "${tempFile}"`
+            );
+
+            const probeResult = JSON.parse(stdout);
+            const stream = probeResult.streams?.[0];
+
+            if (!stream) {
+                console.warn('[FalAI FPS] No video stream found');
+                return null;
+            }
+
+            // Parse frame rate (usually in format "24/1" or "30000/1001")
+            const frameRateParts = stream.r_frame_rate?.split('/');
+            let fps = 24; // Default
+            if (frameRateParts && frameRateParts.length === 2) {
+                fps = parseFloat(frameRateParts[0]) / parseFloat(frameRateParts[1]);
+            }
+
+            const duration = parseFloat(stream.duration) || 0;
+
+            console.log(`[FalAI FPS] Detected: ${fps.toFixed(2)} fps, ${duration.toFixed(2)}s duration`);
+
+            return { fps: Math.round(fps * 100) / 100, duration };
+        } catch (error: any) {
+            console.error('[FalAI FPS] Detection failed:', error.message);
+            // Return null to indicate detection failed, caller should use defaults
+            return null;
+        } finally {
+            // Clean up temp file
+            if (tempFile && fs.existsSync(tempFile)) {
+                try {
+                    fs.unlinkSync(tempFile);
+                } catch (e) {
+                    // Ignore cleanup errors
+                }
+            }
+        }
+    }
+
+    /**
+     * RIFE Frame Interpolation - Smooth video by interpolating frames
+     * Converts 16fps Wan output to 24fps for smoother playback
+     */
+    async interpolateVideo(videoUrl: string, options?: {
+        targetFps?: number;
+        numFrames?: number;
+        useSceneDetection?: boolean;
+    }): Promise<{ url: string }> {
+        try {
+            console.log(`[FalAI RIFE] Interpolating video: ${videoUrl}`);
+
+            const input: any = {
+                video_url: videoUrl,
+                num_frames: options?.numFrames || 2, // 2 = double the frame rate (16fps -> 32fps, then target to 24fps)
+                use_scene_detection: options?.useSceneDetection ?? true,
+            };
+
+            // If target FPS specified, use manual FPS mode
+            if (options?.targetFps) {
+                input.use_calculated_fps = false;
+                input.fps = options.targetFps;
+            } else {
+                // Default: use calculated FPS (input * num_frames)
+                input.use_calculated_fps = true;
+            }
+
+            console.log(`[FalAI RIFE] Input:`, JSON.stringify(input, null, 2));
+
+            const result: any = await fal.subscribe("fal-ai/rife/video", {
+                input,
+                logs: true,
+            });
+
+            console.log(`[FalAI RIFE] Interpolation complete: ${result.video.url}`);
+            return { url: result.video.url };
+        } catch (error: any) {
+            console.error("[FalAI RIFE] Interpolation failed:", error);
+            throw new Error(`RIFE interpolation failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * MMAudio V2 - Generate synchronized audio for video
+     * Uses AI to create matching sound effects and ambient audio
+     */
+    async generateAudio(videoUrl: string, options?: {
+        prompt?: string;
+        negativePrompt?: string;
+        duration?: number;
+        numSteps?: number;
+        cfgStrength?: number;
+        seed?: number;
+        useLocalNsfw?: boolean;
+    }): Promise<{ url: string; usedLocalService?: boolean }> {
+        // Check for local NSFW MMAudio service
+        const localServiceUrl = process.env.MMAUDIO_LOCAL_URL;
+        const preferLocal = options?.useLocalNsfw !== false && localServiceUrl;
+
+        if (preferLocal) {
+            try {
+                console.log(`[MMAudio Local] Attempting local NSFW service at ${localServiceUrl}`);
+                const localResult = await this.generateAudioLocal(videoUrl, options);
+                if (localResult) {
+                    console.log(`[MMAudio Local] Success: ${localResult.url}`);
+                    return { url: localResult.url, usedLocalService: true };
+                }
+            } catch (error: any) {
+                console.warn(`[MMAudio Local] Local service failed, falling back to Fal.ai: ${error.message}`);
+            }
+        }
+
+        // Fall back to Fal.ai MMAudio
+        try {
+            console.log(`[FalAI MMAudio] Generating audio for video: ${videoUrl}`);
+
+            const input: any = {
+                video_url: videoUrl,
+                prompt: options?.prompt || "natural ambient sound, realistic audio",
+                negative_prompt: options?.negativePrompt || "music, speech, voice, talking, singing",
+                num_steps: options?.numSteps || 25,
+                cfg_strength: options?.cfgStrength || 4.5,
+            };
+
+            if (options?.duration) {
+                input.duration = options.duration;
+            }
+
+            if (options?.seed !== undefined) {
+                input.seed = options.seed;
+            }
+
+            console.log(`[FalAI MMAudio] Input:`, JSON.stringify(input, null, 2));
+
+            const result: any = await fal.subscribe("fal-ai/mmaudio-v2", {
+                input,
+                logs: true,
+            });
+
+            // MMAudio returns video with audio embedded
+            const outputUrl = result.video?.url || result.output?.url || result.url;
+            console.log(`[FalAI MMAudio] Audio generation complete: ${outputUrl}`);
+            return { url: outputUrl, usedLocalService: false };
+        } catch (error: any) {
+            console.error("[FalAI MMAudio] Audio generation failed:", error);
+            throw new Error(`MMAudio generation failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * Generate audio using local MMAudio NSFW service
+     * This calls the local Python service running on the user's machine
+     */
+    private async generateAudioLocal(videoUrl: string, options?: {
+        prompt?: string;
+        negativePrompt?: string;
+        duration?: number;
+        numSteps?: number;
+        cfgStrength?: number;
+        seed?: number;
+    }): Promise<{ url: string } | null> {
+        const localServiceUrl = process.env.MMAUDIO_LOCAL_URL;
+        if (!localServiceUrl) return null;
+
+        try {
+            // Check health first
+            const healthResponse = await fetch(`${localServiceUrl}/health`);
+            if (!healthResponse.ok) {
+                console.warn(`[MMAudio Local] Service unhealthy: ${healthResponse.status}`);
+                return null;
+            }
+
+            // Build form data
+            const formData = new URLSearchParams();
+            formData.append('video_url', videoUrl);
+            if (options?.prompt) formData.append('prompt', options.prompt);
+            if (options?.negativePrompt) formData.append('negative_prompt', options.negativePrompt);
+            if (options?.duration) formData.append('duration', options.duration.toString());
+            if (options?.numSteps) formData.append('num_steps', options.numSteps.toString());
+            if (options?.cfgStrength) formData.append('cfg_strength', options.cfgStrength.toString());
+            if (options?.seed !== undefined) formData.append('seed', options.seed.toString());
+
+            console.log(`[MMAudio Local] Sending request to ${localServiceUrl}/generate`);
+
+            const response = await fetch(`${localServiceUrl}/generate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: formData.toString(),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Local service error: ${response.status} - ${errorText}`);
+            }
+
+            const result = await response.json() as { success: boolean; video_url?: string; audio_url?: string; error?: string };
+
+            // Local service now returns video_url (video with embedded audio) to match Fal.ai API
+            const outputUrl = result.video_url || result.audio_url;
+            if (!result.success || !outputUrl) {
+                throw new Error(result.error || 'No video URL returned');
+            }
+
+            // The local service returns a relative path, convert to full URL
+            const finalUrl = outputUrl.startsWith('http')
+                ? outputUrl
+                : `${localServiceUrl}${outputUrl}`;
+
+            return { url: finalUrl };
+        } catch (error: any) {
+            console.error(`[MMAudio Local] Error: ${error.message}`);
+            return null;
+        }
+    }
+
+    /**
+     * Enhance Video Pipeline - RIFE interpolation + MMAudio
+     * 1. Detect source FPS to determine if interpolation is needed
+     * 2. Interpolate only if source FPS is below target (e.g., 16fps -> 24fps)
+     * 3. Generate synchronized audio using MMAudio
+     * Returns enhanced video with smooth playback and audio
+     */
+    async enhanceVideo(videoUrl: string, options?: {
+        targetFps?: number;
+        audioPrompt?: string;
+        skipInterpolation?: boolean;
+        skipAudio?: boolean;
+    }): Promise<{ url: string; interpolatedUrl?: string; audioUrl?: string; sourceFps?: number; skippedInterpolation?: boolean }> {
+        try {
+            console.log(`[FalAI Enhance] Starting video enhancement pipeline`);
+            console.log(`[FalAI Enhance] Input video: ${videoUrl}`);
+            console.log(`[FalAI Enhance] Options:`, options);
+
+            let currentUrl = videoUrl;
+            let interpolatedUrl: string | undefined;
+            let audioUrl: string | undefined;
+            let sourceFps: number | undefined;
+            let skippedInterpolation = false;
+
+            const targetFps = options?.targetFps || 24;
+
+            // Step 0: Detect source video FPS
+            if (!options?.skipInterpolation) {
+                console.log(`[FalAI Enhance] Step 0: Detecting source video FPS...`);
+                const fpsInfo = await this.detectVideoFps(videoUrl);
+
+                if (fpsInfo) {
+                    sourceFps = fpsInfo.fps;
+                    console.log(`[FalAI Enhance] Source FPS: ${sourceFps}, Target FPS: ${targetFps}`);
+
+                    // Skip interpolation if source FPS is already >= target
+                    // Using >= 20 as threshold since videos at 20+ fps are generally smooth
+                    if (sourceFps >= targetFps - 4) {
+                        console.log(`[FalAI Enhance] Source FPS (${sourceFps}) is already close to target (${targetFps}), skipping interpolation`);
+                        skippedInterpolation = true;
+                    }
+                } else {
+                    console.log(`[FalAI Enhance] Could not detect FPS, assuming low FPS video`);
+                }
+            }
+
+            // Step 1: RIFE Frame Interpolation (only if needed)
+            if (!options?.skipInterpolation && !skippedInterpolation) {
+                console.log(`[FalAI Enhance] Step 1: RIFE interpolation...`);
+                const rifeResult = await this.interpolateVideo(currentUrl, {
+                    targetFps: targetFps,
+                    numFrames: 2,
+                    useSceneDetection: true,
+                });
+                interpolatedUrl = rifeResult.url;
+                currentUrl = rifeResult.url;
+                console.log(`[FalAI Enhance] RIFE complete: ${interpolatedUrl}`);
+            } else if (options?.skipInterpolation) {
+                console.log(`[FalAI Enhance] Step 1: Skipping RIFE (user requested)`);
+            }
+
+            // Step 2: MMAudio - Generate synchronized audio
+            if (!options?.skipAudio) {
+                console.log(`[FalAI Enhance] Step 2: MMAudio audio generation...`);
+                const audioResult = await this.generateAudio(currentUrl, {
+                    prompt: options?.audioPrompt || "natural ambient sound, realistic audio matching the video content",
+                    numSteps: 25,
+                    cfgStrength: 4.5,
+                });
+                audioUrl = audioResult.url;
+                currentUrl = audioResult.url;
+                console.log(`[FalAI Enhance] MMAudio complete: ${audioUrl}`);
+            }
+
+            console.log(`[FalAI Enhance] Pipeline complete. Final URL: ${currentUrl}`);
+            return {
+                url: currentUrl,
+                interpolatedUrl,
+                audioUrl,
+                sourceFps,
+                skippedInterpolation,
+            };
+        } catch (error: any) {
+            console.error("[FalAI Enhance] Enhancement pipeline failed:", error);
+            throw new Error(`Video enhancement failed: ${error.message}`);
+        }
+    }
+    /**
+     * Generates a caption for an image using Fal.ai (Joy Caption)
+     */
+    async generateCaption(imageUrl: string): Promise<string> {
+        try {
+            console.log(`[FalAI] Generating caption for: ${imageUrl}`);
+
+            // Using Joy Caption for detailed descriptive tags
+            const result: any = await fal.subscribe("fal-ai/joy-caption", {
+                input: {
+                    image_url: imageUrl
+                },
+                logs: true,
+            });
+
+            if (result && result.text) {
+                return result.text;
+            }
+            // Fallback
+            if (result && result.caption) return result.caption;
+
+            throw new Error("No caption returned from API");
+        } catch (error: any) {
+            console.error("[FalAI] Caption generation failed:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Removes background from an image using Fal.ai (BiRefNet)
+     * Returns the URL of the processed image (PNG with transparency)
+     */
+    async removeBackground(imageUrl: string): Promise<string> {
+        try {
+            console.log(`[FalAI] Removing background for: ${imageUrl}`);
+
+            // Handle local file uploads if needed
+            let processedUrl = imageUrl;
+            if (!imageUrl.startsWith('http')) {
+                processedUrl = await this.uploadToFal(imageUrl);
+            }
+
+            const result: any = await fal.subscribe("fal-ai/birefnet", {
+                input: {
+                    image_url: processedUrl
+                },
+                logs: true,
+            });
+
+            if (result && result.image && result.image.url) {
+                return result.image.url;
+            }
+
+            throw new Error("No image returned from background removal API");
+        } catch (error: any) {
+            console.error("[FalAI] Background removal failed:", error);
+            throw error;
+        }
+    }
+
 }

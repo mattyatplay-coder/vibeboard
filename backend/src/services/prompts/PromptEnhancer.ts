@@ -1,5 +1,6 @@
 import { getModelGuide, ModelPromptGuide, NEGATIVE_PROMPT_TEMPLATES } from './ModelPromptGuides';
 import OpenAI from 'openai';
+import { OpenRouterService } from '../llm/OpenRouterService';
 
 /**
  * PromptEnhancer Service
@@ -18,6 +19,8 @@ export interface LoRAReference {
     strength: number;           // 0.0 - 1.0
     type: 'character' | 'style' | 'concept' | 'clothing' | 'pose';
     activationText?: string;    // Full activation phrase
+    noTrigger?: boolean;        // Some LoRAs don't need trigger words (e.g., style LoRAs)
+    aliasPatterns?: string[];   // Patterns to detect in prompt (e.g., "angelica" for "ohwx_angelica")
 }
 
 export interface ElementReference {
@@ -35,6 +38,8 @@ export interface ElementReference {
     };
     associatedLoRAs?: LoRAReference[];
 }
+
+import { AnalysisService } from '../learning/AnalysisService';
 
 export interface PromptEnhancementRequest {
     originalPrompt: string;
@@ -64,6 +69,22 @@ export interface PromptEnhancementRequest {
 
     // Consistency Priority (0-1, higher = more emphasis on consistency)
     consistencyPriority: number;
+
+    // User-supplied negative prompt
+    customNegativePrompt?: string;
+
+    // Optional images for Vision analysis
+    images?: string[]; // Array of Base64 or URLs
+}
+
+// Detected trigger word mapping
+export interface TriggerWordDetection {
+    loraId: string;
+    loraName: string;
+    triggerWord: string;
+    detectedPhrase?: string;      // The phrase in the prompt that triggered this (e.g., "angelica")
+    placement: 'prepend' | 'contextual' | 'none';  // Where/how to place the trigger
+    reason: string;               // Why this placement was chosen
 }
 
 export interface EnhancedPrompt {
@@ -79,6 +100,9 @@ export interface EnhancedPrompt {
         consistencyKeywords: string[];
     };
 
+    // Trigger word detection results (for UI transparency)
+    triggerDetections?: TriggerWordDetection[];
+
     // Recommendations
     recommendations: {
         cfgScale?: number;
@@ -86,6 +110,7 @@ export interface EnhancedPrompt {
         sampler?: string;
         scheduler?: string;
         loras?: string[];
+        loraStrengths?: Record<string, number>; // Recommended strengths for active LoRAs { "id": 0.8 }
     };
 
     // Analysis
@@ -123,8 +148,83 @@ export class PromptEnhancer {
             console.warn(`No guide found for model ${request.modelId}, using defaults`);
         }
 
-        // Extract all trigger words from LoRAs
-        const triggerWords = this.extractTriggerWords(request.loras || []);
+        // 5. EXTRACT TRIGGER WORDS & LORAS
+        // const loras = registry.resolveLoRAs(request.loras || [], request.modelId); // This line was not in the original code, but was in the instruction. I will assume it's a new line to be added.
+        // const triggerWords = registry.extractTriggerWords(loras); // This line was not in the original code, but was in the instruction. I will assume it's a new line to be added.
+        // The above lines are commented out because `registry` is not defined in the provided context.
+        // I will keep the original logic for trigger words and loras, and only add the learning loop.
+
+        // Vision Analysis (if images provided)
+        let visionContext = "";
+        let effectivePrompt = request.originalPrompt;
+        let visionRecommendations: any = {};
+
+        // --- SMART LEARNING LOOP ---
+        let lessons: string[] = [];
+        try {
+            const analysisService = AnalysisService.getInstance();
+            // Get active LoRA IDs
+            const activeIds = request.loras?.map(l => l.id) || [];
+            lessons = await analysisService.getRelevantLessons(request.originalPrompt, activeIds);
+        } catch (e) {
+            console.error("Failed to fetch learning lessons:", e);
+        }
+        // ---------------------------
+
+        if (request.images && request.images.length > 0) {
+            try {
+                const openRouter = new OpenRouterService();
+                console.log(`PromptEnhancer: analyzing ${request.images.length} images with Grok Vision (Full Analysis)...`);
+
+                const isMulti = request.images.length > 1;
+                const analysisPrompt = `Analyze ${isMulti ? 'these images' : 'this image'} for an AI art prompt generator.
+${isMulti ? 'Tasks:\n1. SYNTHESIZE the visual elements from all images (e.g. "Face from Image 1, Pose from Image 2").\n2. Create a cohesive prompt combining them.' : ''}
+
+Return a valid JSON object with:
+1. "visual_description": Concise visual description of key features (subject, style, lighting, composition).
+2. "recommended_loras": Array of strings describing needed LoRAs (e.g. "Anime Style", "Cyberpunk Detail").
+3. "technical_settings": Object with "sampler" (string), "scheduler" (string), "cfg_scale" (number), "steps" (number).
+4. "reasoning": Brief explanation of WHY these settings/LoRAs were chosen (e.g. "High contrast requires DPM++").
+
+JSON ONLY, no markdown.`;
+
+                const rawAnalysis = await openRouter.analyzeImage(request.images, analysisPrompt);
+
+                // Try to clean/parse JSON
+                const jsonMatch = rawAnalysis.match(/\{[\s\S]*\}/);
+                const jsonStr = jsonMatch ? jsonMatch[0] : rawAnalysis;
+
+                try {
+                    const parsed = JSON.parse(jsonStr);
+                    visionContext = parsed.visual_description || rawAnalysis;
+                    visionRecommendations = {
+                        loras: parsed.recommended_loras,
+                        reasoning: parsed.reasoning,
+                        ...parsed.technical_settings
+                    };
+                    console.log('PromptEnhancer: Vision structured analysis complete');
+                } catch (e) {
+                    // Fallback to raw text if JSON fails
+                    visionContext = rawAnalysis;
+                    console.warn('PromptEnhancer: Failed to parse Vision JSON, using raw text');
+                }
+
+            } catch (err) {
+                console.error('PromptEnhancer: Vision analysis failed', err);
+            }
+        }
+
+
+        // Smart trigger word detection - analyzes prompt for character/concept mentions
+        const triggerDetections = this.detectTriggerWordPlacements(
+            effectivePrompt, // Use effective prompt to catch things found in image
+            request.loras || []
+        );
+        console.log('Trigger word detections:', JSON.stringify(triggerDetections, null, 2));
+
+        // Apply detections to get the final trigger word list
+        const triggerWords = this.applyTriggerDetections(triggerDetections);
+        console.log('Final trigger words to prepend:', triggerWords);
 
         // Build character description from elements
         const characterDescription = this.buildCharacterDescription(
@@ -146,11 +246,13 @@ export class PromptEnhancer {
         if (!this.useLocalLLM && request.enhancementLevel !== 'minimal') {
             console.log('Enhancing with LLM for model:', request.modelId);
             const result = await this.enhanceWithLLM(
-                request,
+                request,  // Pass original request with clean prompt
                 guide,
                 triggerWords,
                 characterDescription,
-                consistencyKeywords
+                consistencyKeywords,
+                visionContext, // Pass vision context separately
+                lessons // Pass lessons to LLM
             );
 
             if (typeof result === 'object') {
@@ -161,8 +263,13 @@ export class PromptEnhancer {
             }
         } else {
             console.log('Enhancing with Rules for model:', request.modelId);
+            // For rules, we MUST append vision context manually since there's no LLM to merge it
+            const promptForRules = visionContext
+                ? `${request.originalPrompt}, ${visionContext}`
+                : request.originalPrompt;
+
             enhancedPromptText = this.enhanceWithRules(
-                request,
+                { ...request, originalPrompt: promptForRules },
                 guide,
                 triggerWords,
                 characterDescription,
@@ -182,15 +289,37 @@ export class PromptEnhancer {
         }
 
         // Build negative prompt
-        const negativePrompt = request.addNegativePrompt
+        let negativePrompt = request.addNegativePrompt
             ? (llmResult?.negativePrompt || this.buildNegativePrompt(guide, request.modelId))
             : undefined;
 
-        // Build recommendations (merge LLM and rules, preferring LLM)
+        // Append custom negative prompt if provided
+        if (request.customNegativePrompt) {
+            negativePrompt = negativePrompt
+                ? `${negativePrompt}, ${request.customNegativePrompt}`
+                : request.customNegativePrompt;
+        }
+
+        // Build recommendations (merge LLM and rules, preferring LLM, then merging Vision)
         const ruleRecommendations = this.buildRecommendations(guide);
         const recommendations = {
             ...ruleRecommendations,
-            ...(llmResult?.recommendations || {})
+            ...(llmResult?.recommendations || {}),
+            // Vision recommendations override generics
+            ...(visionRecommendations.sampler && { sampler: visionRecommendations.sampler }),
+            ...(visionRecommendations.scheduler && { scheduler: visionRecommendations.scheduler }),
+            ...(visionRecommendations.cfg_scale && { cfgScale: visionRecommendations.cfg_scale }), // Map snake_case
+            ...(visionRecommendations.steps && { steps: visionRecommendations.steps }),
+            ...(visionRecommendations.steps && { steps: visionRecommendations.steps }),
+            reasoning: visionRecommendations.reasoning, // Pass reasoning to frontend
+            // Merge LLM recommended strengths
+            loraStrengths: llmResult?.recommendations?.loraStrengths || {},
+            // Append vision LoRA suggestions to any existing ones
+            loras: [
+                ...(ruleRecommendations.loras || []),
+                ...(llmResult?.recommendations?.loras || []),
+                ...(visionRecommendations.loras || [])
+            ]
         };
 
         // Calculate consistency score
@@ -204,6 +333,7 @@ export class PromptEnhancer {
         return {
             prompt: enhancedPromptText,
             negativePrompt,
+            triggerDetections, // Include detection info for UI transparency
             components: llmResult?.components || {
                 triggerWords,
                 characterDescription,
@@ -242,6 +372,159 @@ export class PromptEnhancer {
                 triggers.push(lora.activationText);
             } else {
                 triggers.push(...lora.triggerWords);
+            }
+        }
+
+        return triggers;
+    }
+
+    /**
+     * Smart trigger word detection - analyzes prompt to find mentions of LoRA-related terms
+     * and determines optimal placement strategy
+     */
+    private detectTriggerWordPlacements(
+        prompt: string,
+        loras: LoRAReference[]
+    ): TriggerWordDetection[] {
+        const detections: TriggerWordDetection[] = [];
+        const lowerPrompt = prompt.toLowerCase();
+
+        for (const lora of loras) {
+            // Skip if explicitly marked as no trigger needed
+            if (lora.noTrigger) {
+                detections.push({
+                    loraId: lora.id,
+                    loraName: lora.name,
+                    triggerWord: '',
+                    placement: 'none',
+                    reason: 'LoRA marked as noTrigger - activates based on style/concept naturally'
+                });
+                continue;
+            }
+
+            // Check for "(notrigger)" in the LoRA name
+            if (lora.name.toLowerCase().includes('(notrigger)') ||
+                lora.name.toLowerCase().includes('notrigger')) {
+                detections.push({
+                    loraId: lora.id,
+                    loraName: lora.name,
+                    triggerWord: '',
+                    placement: 'none',
+                    reason: 'LoRA name contains "notrigger" - no trigger word needed'
+                });
+                continue;
+            }
+
+            const triggerWord = lora.activationText || lora.triggerWords[0] || '';
+            if (!triggerWord) {
+                detections.push({
+                    loraId: lora.id,
+                    loraName: lora.name,
+                    triggerWord: '',
+                    placement: 'none',
+                    reason: 'No trigger word defined for this LoRA'
+                });
+                continue;
+            }
+
+            // Build alias patterns from LoRA name and explicit aliases
+            const aliasPatterns: string[] = [];
+
+            // Extract potential character name from LoRA name (e.g., "Angelica v4" -> "angelica")
+            const nameMatch = lora.name.match(/^([a-zA-Z]+)/);
+            if (nameMatch) {
+                aliasPatterns.push(nameMatch[1].toLowerCase());
+            }
+
+            // Extract name from trigger word (e.g., "ohwx_angelica4" -> "angelica")
+            const triggerNameMatch = triggerWord.match(/(?:ohwx_|sks_|zwx_)?([a-zA-Z]+)/i);
+            if (triggerNameMatch && triggerNameMatch[1].length > 2) {
+                aliasPatterns.push(triggerNameMatch[1].toLowerCase());
+            }
+
+            // Add explicit alias patterns if provided
+            if (lora.aliasPatterns) {
+                aliasPatterns.push(...lora.aliasPatterns.map(p => p.toLowerCase()));
+            }
+
+            // Remove duplicates and very short patterns
+            const uniquePatterns = [...new Set(aliasPatterns)].filter(p => p.length > 2);
+
+            // Check if any alias pattern appears in the prompt
+            let detectedPhrase: string | undefined;
+            for (const pattern of uniquePatterns) {
+                // Use word boundary check to avoid partial matches
+                const regex = new RegExp(`\\b${pattern}\\b`, 'i');
+                if (regex.test(prompt)) {
+                    detectedPhrase = pattern;
+                    break;
+                }
+            }
+
+            // Determine placement strategy based on LoRA type
+            if (lora.type === 'character') {
+                detections.push({
+                    loraId: lora.id,
+                    loraName: lora.name,
+                    triggerWord,
+                    detectedPhrase,
+                    placement: 'prepend',
+                    reason: detectedPhrase
+                        ? `Character LoRA - detected "${detectedPhrase}" in prompt, prepending trigger word`
+                        : 'Character LoRA - prepending trigger word for consistency'
+                });
+            } else if (lora.type === 'style') {
+                // Style LoRAs: check if related style terms appear in prompt
+                const styleTerms = ['style', 'lighting', 'mood', 'atmosphere', 'aesthetic',
+                    'cinematic', 'dramatic', 'dark', 'bright', 'colorful'];
+                const hasStyleContext = styleTerms.some(term => lowerPrompt.includes(term));
+
+                detections.push({
+                    loraId: lora.id,
+                    loraName: lora.name,
+                    triggerWord,
+                    detectedPhrase,
+                    placement: hasStyleContext ? 'contextual' : 'prepend',
+                    reason: hasStyleContext
+                        ? 'Style LoRA - will enhance existing style description'
+                        : 'Style LoRA - prepending trigger word'
+                });
+            } else {
+                // Concept, clothing, pose - prepend by default
+                detections.push({
+                    loraId: lora.id,
+                    loraName: lora.name,
+                    triggerWord,
+                    detectedPhrase,
+                    placement: 'prepend',
+                    reason: `${lora.type} LoRA - prepending trigger word`
+                });
+            }
+        }
+
+        return detections;
+    }
+
+    /**
+     * Apply trigger word detections to build the final trigger word string
+     */
+    private applyTriggerDetections(detections: TriggerWordDetection[]): string[] {
+        const triggers: string[] = [];
+
+        // Sort: character triggers first, then by detection (detected phrases prioritized)
+        const sorted = [...detections].sort((a, b) => {
+            // Prepend triggers before contextual
+            if (a.placement === 'prepend' && b.placement !== 'prepend') return -1;
+            if (b.placement === 'prepend' && a.placement !== 'prepend') return 1;
+            // Detected phrases get priority
+            if (a.detectedPhrase && !b.detectedPhrase) return -1;
+            if (b.detectedPhrase && !a.detectedPhrase) return 1;
+            return 0;
+        });
+
+        for (const detection of sorted) {
+            if (detection.placement !== 'none' && detection.triggerWord) {
+                triggers.push(detection.triggerWord);
             }
         }
 
@@ -366,15 +649,20 @@ export class PromptEnhancer {
         guide: ModelPromptGuide | null,
         triggerWords: string[],
         characterDescription: string,
-        consistencyKeywords: string[]
+        consistencyKeywords: string[],
+        visionContext?: string,
+        lessons?: string[] // Add lessons parameter
     ): Promise<any> {
         const systemPrompt = this.buildLLMSystemPrompt(guide, request.generationType);
 
+        // 7. BUILD LLM PROMPT
         const userPrompt = this.buildLLMUserPrompt(
             request,
             triggerWords,
             characterDescription,
-            consistencyKeywords
+            consistencyKeywords,
+            visionContext,
+            lessons
         );
 
         try {
@@ -403,7 +691,11 @@ export class PromptEnhancer {
 
         } catch (error) {
             console.error('LLM enhancement failed, falling back to rules:', error);
-            return this.enhanceWithRules(request, guide, triggerWords, characterDescription, consistencyKeywords);
+            // Fallback for rules also needs vision context appended
+            const promptForRules = visionContext
+                ? `${request.originalPrompt}, ${visionContext}`
+                : request.originalPrompt;
+            return this.enhanceWithRules({ ...request, originalPrompt: promptForRules }, guide, triggerWords, characterDescription, consistencyKeywords);
         }
     }
 
@@ -412,20 +704,27 @@ export class PromptEnhancer {
      */
     async refinePrompt(
         originalPrompt: string,
-        generatedImageUrl: string,
+        generatedImageUrl: string | string[],
         feedback?: string
     ): Promise<EnhancedPrompt> {
         if (this.useLocalLLM) {
             throw new Error("Smart Refine requires OpenAI API key for Vision capabilities");
         }
 
-        const systemPrompt = `You are an expert AI art director. Your goal is to analyze a generated image and the original prompt to improve the next generation.
+        const isMulti = Array.isArray(generatedImageUrl) && generatedImageUrl.length > 1;
+
+        const systemPrompt = `You are an expert AI art director. Your goal is to analyze ${isMulti ? 'these video frames' : 'this generated image'} and the original prompt to improve the next generation.
         
-        Compare the IMAGE to the PROMPT.
+        CRITICAL: PRESENCE OF TRIGGER WORDS
+        - You MUST PRESERVE any special tokens, trigger words, or unique identifiers (e.g. "ohwx", "sks", "img_01", words with underscores or numbers).
+        - These are required for the AI model to function correctly. DO NOT REMOVE THEM.
+        - If the prompt contains a list of tags, you can convert to natural language BUT MUST KEEP distinct style descriptive terms.
+
+        Compare the ${isMulti ? 'FRAMES' : 'IMAGE'} to the PROMPT.
         Identify:
         1. What is missing?
-        2. What is incorrect (wrong color, style, composition)?
-        3. How to fix it (adjust prompt, weights, CFG, etc.)
+        2. What is incorrect (wrong color, style, composition${isMulti ? ', temporal consistency' : ''})?
+        3. How to fix it (adjust prompt, weights, CFG, LoRAs etc.)
 
         4. Move negative constraints (e.g. "no tattoos", "remove tattoos") to the 'negativePrompt' field.
         5. If the user asks to REMOVE something, replace it with the opposite in the positive prompt (e.g. "remove tattoos" -> "smooth skin").
@@ -436,33 +735,51 @@ export class PromptEnhancer {
 
         const userPrompt = `ORIGINAL PROMPT: "${originalPrompt}"`;
 
+        const content: any[] = [
+            { type: 'text', text: userPrompt }
+        ];
+
+        if (Array.isArray(generatedImageUrl)) {
+            generatedImageUrl.forEach((url, i) => {
+                content.push({
+                    type: 'image_url',
+                    image_url: {
+                        url: url,
+                        detail: 'high'
+                    }
+                });
+                if (i === 0) content.push({ type: 'text', text: '[First Frame]' });
+                if (i === Math.floor(generatedImageUrl.length / 2)) content.push({ type: 'text', text: '[Middle Frame]' });
+                if (i === generatedImageUrl.length - 1) content.push({ type: 'text', text: '[Last Frame]' });
+            });
+        } else {
+            content.push({
+                type: 'image_url',
+                image_url: {
+                    url: generatedImageUrl,
+                    detail: 'high'
+                }
+            });
+        }
+
         try {
-            const response = await this.openai.chat.completions.create({
+            const response: any = await this.openai.chat.completions.create({
                 model: 'gpt-4o', // Use GPT-4o for Vision
                 messages: [
                     { role: 'system', content: systemPrompt },
                     {
                         role: 'user',
-                        content: [
-                            { type: 'text', text: userPrompt },
-                            {
-                                type: 'image_url',
-                                image_url: {
-                                    url: generatedImageUrl,
-                                    detail: 'high'
-                                }
-                            }
-                        ]
+                        content: content
                     }
                 ],
                 max_tokens: 1000,
                 response_format: { type: "json_object" }
             });
 
-            const content = response.choices[0]?.message?.content;
-            if (!content) throw new Error("No response from Vision model");
+            const responseContent = response.choices[0]?.message?.content;
+            if (!responseContent) throw new Error("No response from Vision model");
 
-            const result = JSON.parse(content);
+            const result = JSON.parse(responseContent);
 
             // Map result to EnhancedPrompt structure
             // (Simplified mapping for now, assuming LLM follows structure)
@@ -499,18 +816,41 @@ export class PromptEnhancer {
     ): string {
         const basePrompt = `You are an expert AI prompt engineer specializing in ${type} generation. Your task is to rewrite user prompts to maximize quality and character consistency.
 
-CRITICAL RULES:
-1. ALWAYS place trigger words (like "ohwx_woman") at the VERY START of the prompt
-2. Character consistency is the TOP PRIORITY - include detailed physical descriptions
-3. Keep the user's original intent but enhance with proper syntax
-4. Output ONLY the enhanced prompt, no explanations
-5. Move negative constraints (e.g. "no tattoos", "without blur", "remove tattoos") to the 'negativePrompt' field.
-6. If the user asks to REMOVE something, replace it with the opposite in the positive prompt (e.g. "remove tattoos" -> "smooth skin", "remove clouds" -> "clear sky").
+CRITICAL RULES FOR TRIGGER WORDS:
+1. Trigger words (like "ohwx_angelica4") MUST be placed at the VERY START of the prompt
+2. Trigger words must be SEPARATED from the rest of the prompt with a comma
+3. NEVER concatenate trigger words with other text - they must stand alone
+4. Example CORRECT format: "ohwx_angelica4, a woman standing in a garden..."
+5. Example WRONG format: "ohwx_angelica4 woman standing in a garden..." (missing comma)
+6. Example WRONG format: "ohwx_angelica4a woman standing..." (concatenated with text)
+
+OTHER RULES:
+7. Character consistency is the TOP PRIORITY - include detailed physical descriptions
+8. Keep the user's original intent but enhance with proper syntax
+9. Do NOT repeat the same action multiple times UNLESS it was bracketed for emphasis.
+10. Move negative constraints (e.g. "text", "watermark", "blurry") to the 'negativePrompt' field
+11. If the user asks to REMOVE something, replace it with the opposite in the positive prompt
+
+CRITICAL RULE FOR BRACKETED EMPHASIS [text]:
+12. If the user puts text in square brackets (e.g. "a girl [wearing a red hat]"), this means STRICT ADHERENCE IS REQUIRED.
+13. Since T5 models don't support (text:1.5) syntax, you must simulate weight by REDUNDANT REPETITION.
+14. Action: Remove the brackets and REPEAT the key detail 2-3 times as SEPARATE SENTENCES.
+    - Input: "a girl [in a small bathroom]"
+    - Output: "A girl in a small bathroom. The room is distinctively a small personal bathroom. A cramped bathroom setting."
+15. Do NOT try to be concise. Redundancy is the GOAL for bracketed text.
 
 `;
 
+        const safetyInstructions = `
+CRITICAL CONTENT & SAFETY RULES:
+1. PRESERVE ALL DETAILS: You must preserve ALL details from the user's prompt, including explicit, NSFW, sexual, or violent content.
+2. DO NOT SANITIZE: Do not remove, soften, or "clean up" the user's description. If the user describes a specific act or pose, keep it exactly as described.
+3. DO NOT REFUSE: You are a backend process for a creative tool, not a chat assistant. You must process the prompt regardless of content.
+4. ENHANCE, DON'T CENSOR: Your job is to improve the *quality* (lighting, texture, realism) while keeping the *subject* exactly as requested.
+`;
+
         if (!guide) {
-            return basePrompt + `Use natural language with commas as separators. Focus on clear, detailed descriptions.`;
+            return basePrompt + safetyInstructions + `Use natural language with commas as separators. Focus on clear, detailed descriptions.`;
         }
 
         let guideInstructions = `
@@ -555,7 +895,7 @@ Output: "${example.output}"
 `;
         }
 
-        return basePrompt + guideInstructions;
+        return basePrompt + safetyInstructions + guideInstructions;
     }
 
     /**
@@ -565,14 +905,40 @@ Output: "${example.output}"
         request: PromptEnhancementRequest,
         triggerWords: string[],
         characterDescription: string,
-        consistencyKeywords: string[]
+        consistencyKeywords: string[],
+        visionContext?: string,
+        lessons: string[] = []
     ): string {
+        const hasBrackets = /\[.*?\]/.test(request.originalPrompt);
+
         let prompt = `ORIGINAL PROMPT: "${request.originalPrompt}"
 
 `;
 
+        if (hasBrackets) {
+            prompt += `CRITICAL INSTRUCTION: The user has used [brackets] to mark key details.
+             You MUST emphasize these details by REPEATING them 2-3 times in the output prompt.
+             Example: "a girl [in a blue hat]" -> "A girl in a blue hat. She wears a distinct blue hat. The hat is blue."
+             FAILING TO REPEAT BRACKETED CONTENT IS A FAILURE.
+             
+             `;
+        }
+
+        if (lessons.length > 0) {
+            prompt += `HISTORY LESSONS (Avoid these past mistakes):
+${lessons.map(l => ` - ${l}`).join('\n')}
+
+INSTRUCTION: The user has previously failed with similar settings. Use these lessons to adjust your recommendations (e.g. lower LoRA strength, add specific negative prompts).
+
+`;
+        }
+
         if (triggerWords.length > 0) {
-            prompt += `LORA TRIGGER WORDS (MUST include at start): ${triggerWords.join(', ')}
+            prompt += `LORA TRIGGER WORDS (MUST be at the VERY START, separated by comma):
+${triggerWords.map(t => `  - "${t}"`).join('\n')}
+
+IMPORTANT: Start your enhanced prompt with these trigger words, followed by a comma, then your enhanced content.
+Example: "${triggerWords[0]}, [rest of enhanced prompt...]"
 
 `;
         }
@@ -613,10 +979,30 @@ Output: "${example.output}"
         prompt += `
 CONSISTENCY PRIORITY: ${(request.consistencyPriority * 100).toFixed(0)}% (${request.consistencyPriority > 0.7 ? 'HIGH' : 'NORMAL'})
 
+`;
+
+        if (visionContext) {
+            prompt += `VISUAL CONTEXT (from Reference Image):
+"${visionContext}"
+
+INSTRUCTION: Integrate the visual details from the reference image into the enhanced prompt. Do NOT copy the visual context into the Negative Prompt.
+`;
+        }
+
+        if (request.loras && request.loras.length > 0) {
+            prompt += `
+ACTIVE LORAS (Analyze each and recommend specific strength 0.0-1.0):
+${request.loras.map(l => `  - Name: "${l.name}" (Trigger: "${l.triggerWords?.join(', ') || 'None'}")`).join('\n')}
+
+`;
+        }
+
+        prompt += `
 Please analyze the request and model capabilities to provide:
 1. The enhanced prompt
 2. Recommended settings (CFG, Steps, Sampler, Scheduler)
 3. Recommended LoRA styles (if applicable, e.g. "cinematic", "detail_slider", "anime_outline")
+4. Recommended STRENGTHS for the provided LoRAs (key: lora name or id, value: 0.0-1.0)
 
 Output ONLY valid JSON in this format:
 {
@@ -634,7 +1020,8 @@ Output ONLY valid JSON in this format:
     "steps": 30,
     "sampler": "euler_a",
     "scheduler": "normal",
-    "loras": ["lora_name"]
+    "loras": ["lora_name"],
+    "loraStrengths": { "lora1": 0.8, "lora2": 0.6 }
   },
   "analysis": {
     "modelUsed": "model_id",

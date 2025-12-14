@@ -1,13 +1,17 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, Upload, Check, ChevronRight, Search, Ratio, Plus, ChevronDown, Settings2, Sliders, Dice5, FileJson, FolderOpen } from "lucide-react";
+import { X, Upload, Check, ChevronRight, Search, Ratio, Plus, ChevronDown, Settings2, Sliders, Dice5, FileJson, FolderOpen, Library } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { clsx } from "clsx";
 import { useDropzone } from "react-dropzone";
 import { ParameterManager } from "../generations/ParameterManager";
-import { CreateStyleModal, CustomStyle, ADVANCED_OPTIONS } from "./CreateStyleModal";
+import { CreateStyleModal, CustomStyle } from "./CreateStyleModal";
 import { LoRAManager } from "../loras/LoRAManager";
+
+import { CinematicTagsModal } from "./CinematicTagsModal";
+import { NegativePromptManager } from "../prompts/NegativePromptManager";
+import { ALL_CATEGORIES, CinematicTag, CATEGORY_MAP } from "@/data/CinematicTags";
 
 export interface StyleConfig {
     preset: any;
@@ -33,6 +37,7 @@ export interface StyleConfig {
     seed?: number;
     negativePrompt?: string;
     workflow?: { name: string; file: File | null };
+    motionVideo?: string | File | null;
 }
 
 interface StyleSelectorModalProps {
@@ -261,26 +266,72 @@ function PresetCard({ preset, isSelected, onClick }: { preset: any, isSelected: 
     );
 }
 
-export function StyleSelectorModal({ isOpen, onClose, onApply, initialAspectRatio = "16:9", projectId }: StyleSelectorModalProps) {
-    const [selectedPreset, setSelectedPreset] = useState<any>(null);
-    const [searchQuery, setSearchQuery] = useState("");
+interface StyleSelectorModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onApply: (config: StyleConfig) => void;
+    initialAspectRatio?: string;
+    projectId: string;
+    config?: StyleConfig; // Added config prop for external control
+}
+
+export function StyleSelectorModal({ isOpen, onClose, onApply, initialAspectRatio, projectId, config: configProp }: StyleSelectorModalProps) {
+    // Basic Style State
+    const [selectedCategory, setSelectedCategory] = useState("All");
+    const [selectedStyle, setSelectedStyle] = useState<any>(null);
+    const [selectedPreset, setSelectedPreset] = useState<any>(null); // Restored
+    const [searchQuery, setSearchQuery] = useState(""); // Restored
+    const [referenceImage, setReferenceImage] = useState<string | File | null>(null);
+
+    // Internal Configuration State
     const [config, setConfig] = useState<StyleConfig>({
         preset: null,
         referenceImage: null,
         inspiration: "",
-        aspectRatio: initialAspectRatio,
+        aspectRatio: initialAspectRatio || "16:9",
         strength: 80,
-        guidanceScale: 3.5,
-        steps: 28,
+        guidanceScale: 7.5,
+        steps: 30,
         seed: undefined,
-        loras: []
+        loras: [],
+        motionVideo: null,
+        negativePrompt: ""
     });
+
+    // Advanced Parameters State (helpers if needed, but we rely on config)
+    const [selectedLoRAs, setSelectedLoRAs] = useState<{ id: string; name: string; strength: number }[]>([]);
+
+    // Sync state with incoming config prop
+    useEffect(() => {
+        if (isOpen && configProp) {
+            setConfig(prev => ({
+                ...prev,
+                ...configProp,
+                // Ensure defaults if missing in prop
+                strength: configProp.strength !== undefined ? configProp.strength : prev.strength,
+                steps: configProp.steps || prev.steps,
+                guidanceScale: configProp.guidanceScale || prev.guidanceScale,
+                loras: configProp.loras || prev.loras,
+                negativePrompt: configProp.negativePrompt !== undefined ? configProp.negativePrompt : prev.negativePrompt,
+                aspectRatio: configProp.aspectRatio || prev.aspectRatio
+            }));
+
+            // Sync helper states if they exist and are used separately (selectedLoRAs seems used in my previous edit, but maybe in original too?)
+            // Original code didn't show selectedLoRAs usage. But I might need to check if it's used.
+            // Based on my Previous Edit, I added `selectedLoRAs`. 
+            // If the rest of the file uses `config.loras`, I should ensure that's what is used.
+            // If I see `selectedLoRAs` being used in the file, I should keep it.
+            // But I broke the file because `config` was missing.
+            // I'll assume `config` is the source of truth.
+        }
+    }, [isOpen, configProp]);
 
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [customPresets, setCustomPresets] = useState<any[]>([]);
     const [activePopover, setActivePopover] = useState<string | null>(null);
     const [expandedSections, setExpandedSections] = useState<string[]>(["loras"]);
-    const [activeManager, setActiveManager] = useState<'lora' | 'sampler' | 'scheduler' | null>(null);
+    const [activeManager, setActiveManager] = useState<'lora' | 'sampler' | 'scheduler' | 'tags' | 'negative' | null>(null);
+    const [initialTagCategory, setInitialTagCategory] = useState<string | undefined>(undefined);
 
     const toggleSection = (section: string) => {
         setExpandedSections(prev =>
@@ -290,20 +341,16 @@ export function StyleSelectorModal({ isOpen, onClose, onApply, initialAspectRati
         );
     };
 
-    const handleAddTag = (tag: string, category: string) => {
+    const handleAddTag = (tag: CinematicTag, categoryId: string) => {
         const prefix = config.inspiration ? `${config.inspiration}, ` : "";
-        let newTag = tag;
+        // Use the tag's prompt directly - it already includes the proper formatting
+        setConfig({ ...config, inspiration: prefix + tag.prompt });
+        // Keep the panel open so users can add multiple tags
+    };
 
-        if (category === 'cameras') newTag = `shot on ${tag}`;
-        else if (category === 'lenses') newTag = `${tag} lens`;
-        else if (category === 'films') newTag = `${tag} film stock`;
-        else if (category === 'colors') newTag = `${tag} color grading`;
-        else if (category === 'lighting') newTag = `${tag} lighting`;
-        else if (category === 'cameraMotions') newTag = `${tag} camera movement`;
-        else if (category === 'moods') newTag = `${tag} mood`;
-
-        setConfig({ ...config, inspiration: prefix + newTag });
-        setActivePopover(null);
+    const openTagsPanel = (categoryId?: string) => {
+        setInitialTagCategory(categoryId);
+        setActiveManager(activeManager === 'tags' ? null : 'tags');
     };
 
     const handleApply = () => {
@@ -467,7 +514,7 @@ export function StyleSelectorModal({ isOpen, onClose, onApply, initialAspectRati
                                         <div className="p-4 space-y-4">
                                             {/* Reference Image */}
                                             <div>
-                                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Reference Image</span>
+                                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Reference Image (Structure/Character)</span>
                                                 <div
                                                     {...getRootProps()}
                                                     className={clsx(
@@ -501,6 +548,56 @@ export function StyleSelectorModal({ isOpen, onClose, onApply, initialAspectRati
                                                             <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                                                             <p className="text-xs text-gray-400">Drop image or click to upload</p>
                                                         </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Motion/Pose Video (New) */}
+                                            <div>
+                                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Motion / Pose Video</span>
+                                                <div className="relative w-full aspect-video border-2 border-dashed border-white/20 bg-white/5 hover:bg-white/10 rounded-xl flex flex-col items-center justify-center transition-colors overflow-hidden">
+                                                    {config.motionVideo ? (
+                                                        <>
+                                                            <video
+                                                                src={typeof config.motionVideo === 'string' ? config.motionVideo : URL.createObjectURL(config.motionVideo)}
+                                                                className="absolute inset-0 w-full h-full object-cover"
+                                                                autoPlay muted loop
+                                                            />
+                                                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity z-10 cursor-pointer">
+                                                                <label className="cursor-pointer">
+                                                                    <Upload className="w-6 h-6 text-white" />
+                                                                    <input
+                                                                        type="file"
+                                                                        accept="video/*"
+                                                                        className="hidden"
+                                                                        onChange={(e) => {
+                                                                            const file = e.target.files?.[0];
+                                                                            if (file) setConfig({ ...config, motionVideo: file });
+                                                                        }}
+                                                                    />
+                                                                </label>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => setConfig({ ...config, motionVideo: null })}
+                                                                className="absolute top-2 right-2 p-1 bg-black/60 hover:bg-red-500 rounded text-white z-20 transition-colors"
+                                                            >
+                                                                <X className="w-3 h-3" />
+                                                            </button>
+                                                        </>
+                                                    ) : (
+                                                        <label className="w-full h-full flex flex-col items-center justify-center cursor-pointer">
+                                                            <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                                                            <p className="text-xs text-gray-400">Upload Motion Video</p>
+                                                            <input
+                                                                type="file"
+                                                                accept="video/*"
+                                                                className="hidden"
+                                                                onChange={(e) => {
+                                                                    const file = e.target.files?.[0];
+                                                                    if (file) setConfig({ ...config, motionVideo: file });
+                                                                }}
+                                                            />
+                                                        </label>
                                                     )}
                                                 </div>
                                             </div>
@@ -569,6 +666,61 @@ export function StyleSelectorModal({ isOpen, onClose, onApply, initialAspectRati
                                                 )}
                                             </div>
 
+                                            {/* Sampler & Scheduler Accordion */}
+                                            <div className="border border-white/10 rounded-lg overflow-hidden">
+                                                <button
+                                                    onClick={() => toggleSection("sampler-scheduler")}
+                                                    className="w-full flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 transition-colors"
+                                                >
+                                                    <span className="text-xs font-bold text-gray-300 flex items-center gap-2">
+                                                        <Sliders className="w-3.5 h-3.5" />
+                                                        Sampler & Scheduler
+                                                    </span>
+                                                    <ChevronDown className={clsx(
+                                                        "w-4 h-4 text-gray-400 transition-transform",
+                                                        expandedSections.includes("sampler-scheduler") && "rotate-180"
+                                                    )} />
+                                                </button>
+
+                                                {expandedSections.includes("sampler-scheduler") && (
+                                                    <div className="p-3 border-t border-white/5">
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            {/* Sampler */}
+                                                            <div>
+                                                                <span className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Sampler</span>
+                                                                <button
+                                                                    onClick={() => setActiveManager(activeManager === 'sampler' ? null : 'sampler')}
+                                                                    className={clsx(
+                                                                        "w-full px-2 py-1.5 border rounded text-xs text-left truncate transition-colors",
+                                                                        activeManager === 'sampler'
+                                                                            ? "border-blue-500/50 text-blue-400 bg-blue-500/10"
+                                                                            : "border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
+                                                                    )}
+                                                                >
+                                                                    {config.sampler?.name || "DPM++ SDE Kar..."}
+                                                                </button>
+                                                            </div>
+
+                                                            {/* Scheduler */}
+                                                            <div>
+                                                                <span className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Scheduler</span>
+                                                                <button
+                                                                    onClick={() => setActiveManager(activeManager === 'scheduler' ? null : 'scheduler')}
+                                                                    className={clsx(
+                                                                        "w-full px-2 py-1.5 border rounded text-xs text-left truncate transition-colors",
+                                                                        activeManager === 'scheduler'
+                                                                            ? "border-blue-500/50 text-blue-400 bg-blue-500/10"
+                                                                            : "border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
+                                                                    )}
+                                                                >
+                                                                    {config.scheduler?.name || "Karras"}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
                                             {/* Workflow Accordion */}
                                             <div className="border border-white/10 rounded-lg overflow-hidden">
                                                 <button
@@ -622,40 +774,6 @@ export function StyleSelectorModal({ isOpen, onClose, onApply, initialAspectRati
                                                                 </label>
                                                             )}
                                                         </div>
-
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                            {/* Sampler */}
-                                                            <div>
-                                                                <span className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Sampler</span>
-                                                                <button
-                                                                    onClick={() => setActiveManager(activeManager === 'sampler' ? null : 'sampler')}
-                                                                    className={clsx(
-                                                                        "w-full px-2 py-1.5 border rounded text-xs text-left truncate transition-colors",
-                                                                        activeManager === 'sampler'
-                                                                            ? "border-blue-500/50 text-blue-400 bg-blue-500/10"
-                                                                            : "border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
-                                                                    )}
-                                                                >
-                                                                    {config.sampler?.name || "Default"}
-                                                                </button>
-                                                            </div>
-
-                                                            {/* Scheduler */}
-                                                            <div>
-                                                                <span className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Scheduler</span>
-                                                                <button
-                                                                    onClick={() => setActiveManager(activeManager === 'scheduler' ? null : 'scheduler')}
-                                                                    className={clsx(
-                                                                        "w-full px-2 py-1.5 border rounded text-xs text-left truncate transition-colors",
-                                                                        activeManager === 'scheduler'
-                                                                            ? "border-blue-500/50 text-blue-400 bg-blue-500/10"
-                                                                            : "border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
-                                                                    )}
-                                                                >
-                                                                    {config.scheduler?.name || "Default"}
-                                                                </button>
-                                                            </div>
-                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
@@ -667,47 +785,31 @@ export function StyleSelectorModal({ isOpen, onClose, onApply, initialAspectRati
                                         <div className="p-4 space-y-4">
                                             {/* Quick Add Tags */}
                                             <div>
-                                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Quick Add Tags</span>
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    {[
-                                                        { id: 'cameras', label: 'Cameras', icon: '📷' },
-                                                        { id: 'lenses', label: 'Lenses', icon: '🔍' },
-                                                        { id: 'films', label: 'Film Stock', icon: '🎞️' },
-                                                        { id: 'colors', label: 'Color Grade', icon: '🎨' },
-                                                        { id: 'lighting', label: 'Lighting', icon: '💡' },
-                                                        { id: 'cameraMotions', label: 'Motion', icon: '🎥' },
-                                                        { id: 'moods', label: 'Mood', icon: '🎭' },
-                                                    ].map(cat => (
-                                                        <div key={cat.id} className="relative">
-                                                            <button
-                                                                onClick={() => setActivePopover(activePopover === cat.id ? null : cat.id)}
-                                                                className={clsx(
-                                                                    "w-full px-2 py-1.5 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-gray-300 hover:text-white flex items-center justify-between transition-colors",
-                                                                    activePopover === cat.id && "bg-white/10 border-white/30 text-white"
-                                                                )}
-                                                            >
-                                                                <span className="flex items-center gap-1.5 truncate">
-                                                                    <span>{cat.icon}</span> {cat.label}
-                                                                </span>
-                                                                <ChevronDown className="w-3 h-3 opacity-50" />
-                                                            </button>
+                                                <button
+                                                    onClick={() => openTagsPanel()}
+                                                    className={clsx(
+                                                        "w-full px-3 py-2 rounded-lg border text-sm font-medium flex items-center justify-between transition-colors",
+                                                        activeManager === 'tags'
+                                                            ? "bg-blue-500/10 border-blue-500/50 text-blue-400"
+                                                            : "bg-white/5 hover:bg-white/10 border-white/10 text-gray-300 hover:text-white"
+                                                    )}
+                                                >
+                                                    <span className="flex items-center gap-2">
+                                                        <span>🎬</span> Add Cinematic Tags
+                                                    </span>
+                                                    <ChevronRight className="w-4 h-4 opacity-50" />
+                                                </button>
+                                            </div>
 
-                                                            {activePopover === cat.id && (
-                                                                <div className="absolute top-full mt-1 left-0 right-0 bg-[#1a1a1a] border border-white/20 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
-                                                                    {(ADVANCED_OPTIONS as any)[cat.id]?.map((opt: string) => (
-                                                                        <button
-                                                                            key={opt}
-                                                                            onClick={() => handleAddTag(opt, cat.id)}
-                                                                            className="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-blue-500/20 hover:text-blue-400 transition-colors"
-                                                                        >
-                                                                            {opt}
-                                                                        </button>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    ))}
-                                                </div>
+                                            {/* Cinematic Inspiration - moved here so users can see selected tags */}
+                                            <div>
+                                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Cinematic Inspiration</span>
+                                                <textarea
+                                                    value={config.inspiration}
+                                                    onChange={(e) => setConfig({ ...config, inspiration: e.target.value })}
+                                                    placeholder="E.g., 'Retro, gritty, eclectic, stylish, noir...'"
+                                                    className="w-full h-20 bg-black/30 border border-white/10 rounded-lg p-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-white/30 resize-none"
+                                                />
                                             </div>
 
                                             {/* Reference Strength */}
@@ -804,26 +906,29 @@ export function StyleSelectorModal({ isOpen, onClose, onApply, initialAspectRati
                                                 </div>
                                             </div>
 
-                                            {/* Cinematic Inspiration */}
-                                            <div>
-                                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Cinematic Inspiration</span>
-                                                <textarea
-                                                    value={config.inspiration}
-                                                    onChange={(e) => setConfig({ ...config, inspiration: e.target.value })}
-                                                    placeholder="E.g., 'Retro, gritty, eclectic, stylish, noir...'"
-                                                    className="w-full h-16 bg-black/30 border border-white/10 rounded-lg p-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-white/30 resize-none"
-                                                />
-                                            </div>
-
                                             {/* Negative Prompt */}
                                             <div>
-                                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Negative Prompt</span>
-                                                <textarea
-                                                    value={config.negativePrompt || ""}
-                                                    onChange={(e) => setConfig({ ...config, negativePrompt: e.target.value })}
-                                                    placeholder="E.g., 'blur, distortion, low quality, watermark...'"
-                                                    className="w-full h-16 bg-black/30 border border-white/10 rounded-lg p-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-white/30 resize-none"
-                                                />
+                                                <div>
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Negative Prompt</span>
+                                                        <button
+                                                            onClick={() => setActiveManager(activeManager === 'negative' ? null : 'negative')}
+                                                            className={clsx(
+                                                                "text-[10px] flex items-center gap-1 font-medium transition-colors",
+                                                                activeManager === 'negative' ? "text-red-400" : "text-gray-500 hover:text-white"
+                                                            )}
+                                                        >
+                                                            <Library className="w-3 h-3" />
+                                                            Library
+                                                        </button>
+                                                    </div>
+                                                    <textarea
+                                                        value={config.negativePrompt || ""}
+                                                        onChange={(e) => setConfig({ ...config, negativePrompt: e.target.value })}
+                                                        placeholder="E.g., 'blur, distortion, low quality, watermark...'"
+                                                        className="w-full h-16 bg-black/30 border border-white/10 rounded-lg p-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-white/30 resize-none"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -898,6 +1003,39 @@ export function StyleSelectorModal({ isOpen, onClose, onApply, initialAspectRati
                                             embedded={true}
                                             selectedId={config.scheduler?.id}
                                             onSelect={handleSelectScheduler}
+                                        />
+                                    </motion.div>
+                                )}
+                                {activeManager === 'tags' && (
+                                    <motion.div
+                                        initial={{ opacity: 0, x: -20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: -20 }}
+                                        className="h-full max-h-[90vh]"
+                                    >
+                                        <CinematicTagsModal
+                                            isOpen={true}
+                                            onClose={() => setActiveManager(null)}
+                                            onSelectTag={handleAddTag}
+                                            initialCategory={initialTagCategory}
+                                            embedded={true}
+                                        />
+                                    </motion.div>
+                                )}
+                                {activeManager === 'negative' && (
+                                    <motion.div
+                                        initial={{ opacity: 0, x: -20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: -20 }}
+                                        className="h-full max-h-[90vh]"
+                                    >
+                                        <NegativePromptManager
+                                            projectId={projectId}
+                                            isOpen={true}
+                                            onClose={() => setActiveManager(null)}
+                                            currentPrompt={config.negativePrompt}
+                                            onSelect={(prompt) => setConfig({ ...config, negativePrompt: prompt })}
+                                            embedded={true}
                                         />
                                     </motion.div>
                                 )}

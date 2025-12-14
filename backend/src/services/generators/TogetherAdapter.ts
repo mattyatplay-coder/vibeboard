@@ -4,13 +4,16 @@ import axios from 'axios';
 /**
  * Together AI Adapter
  * Cost: Very cheap! ~$0.0006 per image for FLUX Schnell
- * 
+ *
  * Available models:
  * - black-forest-labs/FLUX.1-schnell-Free (FREE!)
  * - black-forest-labs/FLUX.1-schnell ($0.0006/image)
  * - black-forest-labs/FLUX.1-dev ($0.025/image)
  * - stabilityai/stable-diffusion-xl-base-1.0
- * 
+ * - SG161222/RealVisXL_V4.0 (photorealistic, no filters)
+ * - SG161222/Realistic_Vision_V6.0_B1_noVAE (photorealistic)
+ * - Lykon/dreamshaper-xl-v2-turbo (artistic, fast)
+ *
  * No censorship by default on most models!
  */
 export class TogetherAdapter implements GenerationProvider {
@@ -35,6 +38,10 @@ export class TogetherAdapter implements GenerationProvider {
                 'flux-schnell': 'black-forest-labs/FLUX.1-schnell',
                 'flux-dev': 'black-forest-labs/FLUX.1-dev',
                 'sdxl': 'stabilityai/stable-diffusion-xl-base-1.0',
+                // Unrestricted models (no content filters)
+                'realvis-xl': 'SG161222/RealVisXL_V4.0',
+                'realistic-vision-together': 'SG161222/Realistic_Vision_V6.0_B1_noVAE',
+                'dreamshaper-xl': 'Lykon/dreamshaper-xl-v2-turbo',
             };
 
             model = modelMap[model] || model;

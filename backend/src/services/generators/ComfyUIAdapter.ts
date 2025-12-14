@@ -165,6 +165,7 @@ export class ComfyUIAdapter implements GenerationProvider {
 
     /**
      * Build SDXL/Flux image generation workflow
+     * Supports LoRAs when provided in options
      */
     private buildImageWorkflow(options: GenerationOptions): any {
         const seed = options.seed || Math.floor(Math.random() * 2147483647);
@@ -181,7 +182,7 @@ export class ComfyUIAdapter implements GenerationProvider {
         }
 
         // Default SDXL workflow
-        return {
+        const workflow: any = {
             "3": {
                 "inputs": {
                     "seed": seed,
@@ -190,7 +191,7 @@ export class ComfyUIAdapter implements GenerationProvider {
                     "sampler_name": options.sampler?.value || "euler",
                     "scheduler": options.scheduler?.value || "normal",
                     "denoise": options.strength || 1.0,
-                    "model": ["4", 0],
+                    "model": ["4", 0],  // Will be updated if LoRAs are present
                     "positive": ["6", 0],
                     "negative": ["7", 0],
                     "latent_image": ["5", 0]
@@ -214,14 +215,14 @@ export class ComfyUIAdapter implements GenerationProvider {
             "6": {
                 "inputs": {
                     "text": options.prompt,
-                    "clip": ["4", 1]
+                    "clip": ["4", 1]  // Will be updated if LoRAs are present
                 },
                 "class_type": "CLIPTextEncode"
             },
             "7": {
                 "inputs": {
                     "text": options.negativePrompt || "",
-                    "clip": ["4", 1]
+                    "clip": ["4", 1]  // Will be updated if LoRAs are present
                 },
                 "class_type": "CLIPTextEncode"
             },
@@ -240,13 +241,52 @@ export class ComfyUIAdapter implements GenerationProvider {
                 "class_type": "SaveImage"
             }
         };
+
+        // Add LoRA nodes if present
+        if (options.loras && options.loras.length > 0) {
+            let previousModelOutput: [string, number] = ["4", 0]; // Start from CheckpointLoader model output
+            let previousClipOutput: [string, number] = ["4", 1];  // Start from CheckpointLoader clip output
+            let loraNodeId = 100; // Start LoRA nodes at ID 100
+
+            for (const lora of options.loras) {
+                const nodeIdStr = loraNodeId.toString();
+
+                // Extract LoRA filename from path
+                const loraName = this.extractLoraName(lora.path);
+
+                workflow[nodeIdStr] = {
+                    "inputs": {
+                        "lora_name": loraName,
+                        "strength_model": lora.strength,
+                        "strength_clip": lora.strength,
+                        "model": previousModelOutput,
+                        "clip": previousClipOutput
+                    },
+                    "class_type": "LoraLoader"
+                };
+
+                previousModelOutput = [nodeIdStr, 0];
+                previousClipOutput = [nodeIdStr, 1];
+                loraNodeId++;
+            }
+
+            // Update downstream nodes to use the final LoRA output
+            workflow["3"]["inputs"]["model"] = previousModelOutput;
+            workflow["6"]["inputs"]["clip"] = previousClipOutput;
+            workflow["7"]["inputs"]["clip"] = previousClipOutput;
+
+            console.log(`[ComfyUI] Added ${options.loras.length} LoRA(s) to SDXL workflow`);
+        }
+
+        return workflow;
     }
 
     /**
      * Build Flux-specific workflow (uses different nodes)
+     * Supports LoRAs when provided in options
      */
     private buildFluxWorkflow(options: GenerationOptions, seed: number, steps: number, width: number, height: number): any {
-        return {
+        const workflow: any = {
             "6": {
                 "inputs": {
                     "text": options.prompt,
@@ -310,13 +350,13 @@ export class ComfyUIAdapter implements GenerationProvider {
                     "scheduler": "simple",
                     "steps": steps,
                     "denoise": options.strength || 1.0,
-                    "model": ["12", 0]
+                    "model": ["12", 0]  // Will be updated if LoRAs are present
                 },
                 "class_type": "BasicScheduler"
             },
             "22": {
                 "inputs": {
-                    "model": ["12", 0],
+                    "model": ["12", 0],  // Will be updated if LoRAs are present
                     "conditioning": ["26", 0]
                 },
                 "class_type": "BasicGuider"
@@ -343,6 +383,56 @@ export class ComfyUIAdapter implements GenerationProvider {
                 "class_type": "EmptySD3LatentImage"
             }
         };
+
+        // Add LoRA nodes if present
+        if (options.loras && options.loras.length > 0) {
+            let previousModelOutput: [string, number] = ["12", 0]; // Start from UNETLoader
+            let loraNodeId = 100; // Start LoRA nodes at ID 100
+
+            for (const lora of options.loras) {
+                const nodeIdStr = loraNodeId.toString();
+
+                // Extract LoRA filename from path (supports both local paths and URLs)
+                const loraName = this.extractLoraName(lora.path);
+
+                workflow[nodeIdStr] = {
+                    "inputs": {
+                        "lora_name": loraName,
+                        "strength_model": lora.strength,
+                        "strength_clip": lora.strength,
+                        "model": previousModelOutput,
+                        "clip": ["11", 0]  // CLIP from DualCLIPLoader
+                    },
+                    "class_type": "LoraLoader"
+                };
+
+                previousModelOutput = [nodeIdStr, 0];
+                loraNodeId++;
+            }
+
+            // Update downstream nodes to use the final LoRA output
+            workflow["17"]["inputs"]["model"] = previousModelOutput;
+            workflow["22"]["inputs"]["model"] = previousModelOutput;
+
+            console.log(`[ComfyUI] Added ${options.loras.length} LoRA(s) to Flux workflow`);
+        }
+
+        return workflow;
+    }
+
+    /**
+     * Extract LoRA filename from path or URL
+     */
+    private extractLoraName(loraPath: string): string {
+        // If it's a URL (from Civitai, HuggingFace, etc.), extract the filename
+        if (loraPath.startsWith('http')) {
+            const url = new URL(loraPath);
+            const pathParts = url.pathname.split('/');
+            return pathParts[pathParts.length - 1];
+        }
+        // If it's a local path, get the filename
+        const parts = loraPath.split(/[/\\]/);
+        return parts[parts.length - 1];
     }
 
     /**
@@ -351,12 +441,34 @@ export class ComfyUIAdapter implements GenerationProvider {
     private buildT2VWorkflow(options: GenerationOptions): any {
         const isWan = options.model?.toLowerCase().includes('wan');
         const isLTX = options.model?.toLowerCase().includes('ltx');
+        const isWan25 = options.model?.toLowerCase().includes('wan-2.5') || options.model?.toLowerCase().includes('wan25');
+
+        // Duration handling - Wan models use num_frames (24fps)
+        const durationSec = parseInt(String(options.duration || "5"), 10);
+        let numFrames: number;
+
+        if (isWan25) {
+            // Wan 2.5 - 5 or 10 seconds at 24fps
+            numFrames = durationSec >= 8 ? 241 : 121;
+            console.log(`[ComfyUI] Wan 2.5 numFrames: ${numFrames} (requested: ${options.duration})`);
+        } else if (isWan) {
+            // Wan 2.1/2.2 - 5 or 10 seconds at 24fps
+            numFrames = durationSec >= 8 ? 241 : 121;
+            console.log(`[ComfyUI] Wan numFrames: ${numFrames} (requested: ${options.duration})`);
+        } else if (isLTX) {
+            // LTX Video - typically 6 or 10 seconds at 24fps
+            numFrames = durationSec >= 8 ? 240 : 144;
+            console.log(`[ComfyUI] LTX numFrames: ${numFrames} (requested: ${options.duration})`);
+        } else {
+            // Default fallback
+            numFrames = durationSec >= 8 ? 241 : 121;
+        }
 
         // Basic T2V structure - you'd customize based on your installed nodes
         return {
             "1": {
                 "inputs": {
-                    "ckpt_name": isWan ? "wan_2.2_t2v.safetensors" : "ltx_video.safetensors"
+                    "ckpt_name": isWan25 ? "wan_2.5_t2v.safetensors" : (isWan ? "wan_2.2_t2v.safetensors" : "ltx_video.safetensors")
                 },
                 "class_type": "CheckpointLoaderSimple"
             },
@@ -378,7 +490,7 @@ export class ComfyUIAdapter implements GenerationProvider {
                 "inputs": {
                     "width": 1280,
                     "height": 720,
-                    "length": options.duration === "10" ? 241 : 121,
+                    "length": numFrames,
                     "batch_size": 1
                 },
                 "class_type": "EmptyLatentVideo"

@@ -10,6 +10,7 @@ export interface ModelPromptGuide {
     name: string;
     provider: string;
     type: 'image' | 'video' | 'both';
+    supportsAudio?: boolean; // Whether model supports audio/dialogue generation
 
     // Prompt structure
     syntax: {
@@ -215,6 +216,102 @@ export const MODEL_PROMPTING_GUIDES: Record<string, ModelPromptGuide> = {
         ]
     },
 
+    'recraft-v3': {
+        id: 'recraft-v3',
+        name: 'Recraft V3',
+        provider: 'fal',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 1000,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['same character', 'consistent style'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: ['vector art', 'icon', 'high quality', 'clean lines', 'svg style'],
+        stylePrefixes: ['icon of', 'vector art of', 'illustration of'],
+        avoidTerms: ['photorealistic', 'blurry', 'raster'],
+        recommendedSettings: {},
+        template: `{style} {subject_description}, {action_description}, {setting_description}, {quality}`,
+        examples: [
+            {
+                input: 'red apple icon',
+                output: 'icon of red apple, vector art style, clean lines, flat design, minimal shading, white background, high quality svg',
+                notes: 'Recraft excels at vector and icon styles'
+            }
+        ]
+    },
+
+    'ideogram-v2': {
+        id: 'ideogram-v2',
+        name: 'Ideogram V2',
+        provider: 'fal',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 1000,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'start',
+            consistencyKeywords: [],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: ['typography', 'text rendering', 'poster', 'graphic design'],
+        stylePrefixes: ['poster of', 'typography design of'],
+        avoidTerms: ['typo', 'spelling error'],
+        recommendedSettings: {},
+        template: `{subject_description} with text "{text_content}", {style_description}, {quality}`,
+        examples: [
+            {
+                input: 'neon sign saying hello',
+                output: 'neon sign text "Hello" glowing in blue and pink, brick wall background, cyber aesthetic, high quality typography, graphic design',
+                notes: 'Ideogram is best for text rendering'
+            }
+        ]
+    },
+
+    'sd3-5-large': {
+        id: 'sd3-5-large',
+        name: 'Stable Diffusion 3.5 Large',
+        provider: 'fal',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['same person', 'consistent character'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: ['masterpiece', 'best quality', 'highly detailed', '8k'],
+        stylePrefixes: ['style of', 'art by'],
+        avoidTerms: ['bad anatomy', 'blurry'],
+        recommendedSettings: {
+            cfgScale: [4, 6],
+            steps: [28, 50]
+        },
+        template: `{trigger_words} {subject_description}, {action_description}, {setting_description}, {style}, {quality}`,
+        examples: [
+            {
+                input: 'cyberpunk street',
+                output: 'ohwx_scene, bustling cyberpunk street at night, neon signs reflecting on wet pavement, futuristic vehicles, cinematic lighting, highly detailed, 8k resolution',
+                notes: 'SD 3.5 follows natural language prompts well'
+            }
+        ]
+    },
+
     // ==================== STABLE DIFFUSION MODELS ====================
 
     'sdxl': {
@@ -383,8 +480,8 @@ export const MODEL_PROMPTING_GUIDES: Record<string, ModelPromptGuide> = {
 
     // ==================== VIDEO MODELS ====================
 
-    'wan-video': {
-        id: 'wan-video',
+    'wan-v2-2': {
+        id: 'wan-v2-2',
         name: 'Wan 2.2 Video',
         provider: 'fal',
         type: 'video',
@@ -528,8 +625,8 @@ export const MODEL_PROMPTING_GUIDES: Record<string, ModelPromptGuide> = {
         ]
     },
 
-    'kling-video': {
-        id: 'kling-video',
+    'kling-video-v2-1': {
+        id: 'kling-video-v2-1',
         name: 'Kling 2.1',
         provider: 'fal',
         type: 'video',
@@ -564,6 +661,260 @@ export const MODEL_PROMPTING_GUIDES: Record<string, ModelPromptGuide> = {
         ]
     },
 
+    'kling-video-v2-6': {
+        id: 'kling-video-v2-6',
+        name: 'Kling 2.6',
+        provider: 'fal',
+        type: 'video',
+        supportsAudio: true, // Supports audio generation
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['same character', 'consistent appearance', 'high fidelity'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: [
+            'cinematic', 'high quality', 'smooth motion', '4k', 'realistic texture', 'detailed'
+        ],
+        stylePrefixes: ['cinematic shot of', 'video of', 'professional footage of'],
+        avoidTerms: ['static', 'blurry', 'distorted'],
+        recommendedSettings: {
+            cfgScale: [5, 7],
+            steps: [25, 30]
+        },
+        template: `{trigger_words} {subject_description}, {action_movement}, {camera_motion}, {setting_background}, {style}`,
+        examples: [
+            {
+                input: 'cyberpunk city street',
+                output: 'ohwx_city, neon-lit cyberpunk street at night, rain falling on pavement, flying cars passing overhead, dynamic camera tracking forward, cinematic lighting, high fidelity, 4k',
+                notes: 'Kling 2.6 excels at realistic textures and lighting'
+            }
+        ]
+    },
+
+    'kling-video-o1': {
+        id: 'kling-video-o1',
+        name: 'Kling O1',
+        provider: 'fal',
+        type: 'video',
+        supportsAudio: true, // Supports audio generation
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['same character', 'consistent appearance', 'maintaining identity'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'cinematic masterpiece', 'best quality', 'smooth motion', '8k', 'professional lighting'
+        ],
+        stylePrefixes: ['cinematic shot of', 'video of', 'movie scene'],
+        avoidTerms: ['static', 'blurry', 'low quality'],
+        recommendedSettings: {
+            cfgScale: [5, 7],
+            steps: [25, 30]
+        },
+        template: `{trigger_words} {subject_description}, {action_movement}, {camera_motion}, {setting_background}, {lighting}, {style}`,
+        examples: [
+            {
+                input: 'astronaut floating in space',
+                output: 'ohwx_astronaut, astronaut in detailed white spacesuit floating in zero gravity, earth visible in background reflection of visor, slow smooth rotation, cinematic lighting from distant sun, 8k, masterpiece',
+                notes: 'Kling O1 provides the highest quality cinematic motion'
+            }
+        ]
+    },
+
+    'fal-ai/kling-image/o1': {
+        id: 'fal-ai/kling-image/o1',
+        name: 'Kling O1 Image',
+        provider: 'fal',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 1000,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['same character', 'consistent appearance', 'high fidelity'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'masterpiece', 'best quality', 'highly detailed', '8k', 'professional photography'
+        ],
+        stylePrefixes: ['cinematic shot of', 'photograph of', 'portrait of'],
+        avoidTerms: ['blurry', 'low quality', 'distorted'],
+        recommendedSettings: {
+            cfgScale: [3.5, 5],
+            steps: [20, 30]
+        },
+        template: `{trigger_words} {subject_description}, {pose_action}, {setting_background}, {lighting}, {style}, {quality_boosters}`,
+        examples: [
+            {
+                input: 'cyberpunk street portrait',
+                output: 'ohwx_char, cyberpunk street portrait, neon lights reflecting on wet pavement, futuristic clothing, detailed facial features, cinematic lighting, 8k resolution, masterpiece',
+                notes: 'Kling O1 Image excels at high-fidelity image editing and generation'
+            }
+        ]
+    },
+
+    'kling-avatar-v2-pro': {
+        id: 'kling-avatar-v2-pro',
+        name: 'Kling Avatar V2 Pro',
+        provider: 'fal',
+        type: 'video',
+        supportsAudio: true,
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['high fidelity', 'realistic texture', 'consistent identity'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'cinematic', 'high fidelity', 'lip sync accuracy', 'professional lighting', '4k'
+        ],
+        stylePrefixes: ['cinematic shot of', 'professional footage of'],
+        avoidTerms: ['blurry', 'distorted', 'out of sync'],
+        recommendedSettings: {
+            cfgScale: [1, 1], // Avatar models often don't use CFG in the same way, or it's fixed
+            steps: [20, 30]
+        },
+        template: `{trigger_words} {subject_description}, {action_movement}, {setting_background}, {lighting}, {style}`,
+        examples: [
+            {
+                input: 'woman speaking professionally',
+                output: 'ohwx_woman, professional woman in business suit speaking confidently, office background with soft focus, studio lighting, high fidelity, lip sync accuracy, 4k',
+                notes: 'Focus on facial details and lighting for avatar models'
+            }
+        ]
+    },
+
+    'kling-avatar-v2-standard': {
+        id: 'kling-avatar-v2-standard',
+        name: 'Kling Avatar V2 Standard',
+        provider: 'fal',
+        type: 'video',
+        supportsAudio: true,
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['consistent identity', 'clear features'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'high quality', 'clear audio', 'smooth motion'
+        ],
+        stylePrefixes: ['video of'],
+        avoidTerms: ['blurry', 'distorted'],
+        recommendedSettings: {
+            cfgScale: [1, 1],
+            steps: [20, 30]
+        },
+        template: `{trigger_words} {subject_description}, {action_movement}, {setting_background}, {style}`,
+        examples: [
+            {
+                input: 'man talking',
+                output: 'ohwx_man, man in casual shirt talking naturally, living room background, daylight, high quality',
+                notes: 'Standard model is good for general purpose avatars'
+            }
+        ]
+    },
+
+    'wan-v2-5': {
+        id: 'wan-v2-5',
+        name: 'Wan 2.5',
+        provider: 'fal',
+        type: 'video',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['same character', 'consistent appearance', 'maintaining identity'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: [
+            'cinematic', 'high quality', 'smooth motion', 'professional video',
+            'detailed', '4k quality', 'photorealistic'
+        ],
+        stylePrefixes: ['cinematic shot of', 'video of'],
+        avoidTerms: ['static', 'still image', 'photograph', 'morphing'],
+        recommendedSettings: {
+            cfgScale: [5, 7],
+            steps: [25, 30]
+        },
+        template: `{trigger_words} {subject_description}, {action_movement}, {camera_motion}, {setting_background}, {lighting}, {style}`,
+        examples: [
+            {
+                input: 'lion roaring',
+                output: 'ohwx_lion, majestic male lion with full mane roaring on savanna, mouth wide open showing teeth, wind blowing through mane, golden hour lighting, cinematic 4k video, photorealistic',
+                notes: 'Wan 2.5 offers improved realism over 2.2'
+            }
+        ]
+    },
+
+    'sora': {
+        id: 'sora',
+        name: 'OpenAI Sora',
+        provider: 'openai',
+        type: 'video',
+        syntax: {
+            style: 'natural',
+            separator: '. ',
+            maxLength: 1000,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'start', // Sora might support LoRAs eventually, keeping standard
+            consistencyKeywords: ['same character', 'consistent appearance', 'identical person'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'cinematic', 'photorealistic', 'highly detailed', '8k', 'smooth motion', 'physics simulation'
+        ],
+        stylePrefixes: ['cinematic shot of', 'video of'],
+        avoidTerms: [],
+        recommendedSettings: {},
+        template: `{subject_description}. {action_description}. {setting_description}. {camera_movement}. {style_description}.`,
+        examples: [
+            {
+                input: 'woolly mammoths',
+                output: 'Several giant woolly mammoths approach treading through a snowy meadow, their long woolly fur blows lightly in the wind as they walk, snow covered trees and dramatic snow capped mountains in the distance, mid afternoon light with wispy clouds and a sun high in the distance creates a warm glow, the low camera view is stunning capturing the large furry mammal with beautiful photography, depth of field.',
+                notes: 'Sora excels with very descriptive, narrative prompts'
+            }
+        ]
+    },
+
     'minimax-video': {
         id: 'minimax-video',
         name: 'MiniMax Video',
@@ -593,6 +944,166 @@ export const MODEL_PROMPTING_GUIDES: Record<string, ModelPromptGuide> = {
                 input: 'cat sleeping',
                 output: 'ohwx_cat, fluffy white cat sleeping on velvet cushion, chest rising and falling rhythmically, soft morning light, peaceful atmosphere, high quality video',
                 notes: 'MiniMax handles simple motion well'
+            }
+        ]
+    },
+
+    'hunyuan-video': {
+        id: 'hunyuan-video',
+        name: 'Hunyuan Video',
+        provider: 'fal',
+        type: 'video',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['same character', 'consistent appearance'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: ['cinematic', 'high quality', 'smooth motion', '4k'],
+        stylePrefixes: ['video of', 'cinematic shot of'],
+        avoidTerms: ['static', 'blurry'],
+        recommendedSettings: {
+            cfgScale: [5, 7],
+            steps: [25, 30]
+        },
+        template: `{trigger_words} {subject_description}, {action_movement}, {camera_motion}, {setting_background}, {style}`,
+        examples: [
+            {
+                input: 'waves crashing',
+                output: 'ocean waves crashing on rocky shore, spray flying in air, dynamic camera movement, sunset lighting, cinematic quality, 4k video',
+                notes: 'Hunyuan handles long consistent video generation'
+            }
+        ]
+    },
+
+    'luma-dream-machine': {
+        id: 'luma-dream-machine',
+        name: 'Luma Dream Machine',
+        provider: 'fal',
+        type: 'video',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['same character', 'consistent appearance'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: ['dreamlike', 'smooth', 'cinematic', 'high quality'],
+        stylePrefixes: ['cinematic video of', 'dreamy shot of'],
+        avoidTerms: ['static', 'glitch'],
+        recommendedSettings: {},
+        template: `{trigger_words} {subject_description}, {action_movement}, {camera_motion}, {setting_background}, {style}`,
+        examples: [
+            {
+                input: 'flying through clouds',
+                output: 'camera flying through fluffy white clouds, blue sky, sun rays piercing through, dreamlike atmosphere, smooth motion, high quality',
+                notes: 'Luma excels at smooth, physics-based motion'
+            }
+        ]
+    },
+
+    'runway-gen3': {
+        id: 'runway-gen3',
+        name: 'Runway Gen-3 Alpha',
+        provider: 'fal',
+        type: 'video',
+        syntax: {
+            style: 'natural',
+            separator: '. ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['consistent character', 'same person'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: ['cinematic', 'photorealistic', 'high fidelity', 'slow motion'],
+        stylePrefixes: ['cinematic shot of', 'professional footage of'],
+        avoidTerms: ['morphing', 'blurry'],
+        recommendedSettings: {},
+        template: `{subject_description}. {action_description}. {camera_movement}. {setting_description}. {style}.`,
+        examples: [
+            {
+                input: 'car chase',
+                output: 'High speed car chase on highway. Red sports car weaving through traffic. Dynamic camera tracking. Sunset lighting with lens flares. Cinematic movie scene, high fidelity.',
+                notes: 'Gen-3 prefers descriptive sentences'
+            }
+        ]
+    },
+
+    'veo-2': {
+        id: 'veo-2',
+        name: 'Google Veo 2',
+        provider: 'google',
+        type: 'video',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['same character', 'consistent appearance'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: ['cinematic', 'high quality', 'smooth', '4k'],
+        stylePrefixes: ['cinematic shot of', 'video of'],
+        avoidTerms: ['static', 'blurry'],
+        recommendedSettings: {},
+        template: `{trigger_words} {subject_description}, {action_movement}, {camera_motion}, {setting_background}, {style}`,
+        examples: [
+            {
+                input: 'forest stream',
+                output: 'clear stream flowing through ancient forest, sunlight filtering through leaves, smooth camera tracking downstream, nature documentary style, 4k video',
+                notes: 'Veo 2 produces stable, realistic video'
+            }
+        ]
+    },
+
+    'animatediff': {
+        id: 'animatediff',
+        name: 'AnimateDiff',
+        provider: 'multiple',
+        type: 'video',
+        syntax: {
+            style: 'tags',
+            separator: ', ',
+            maxLength: 300,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'start',
+            consistencyKeywords: ['1girl', '1boy', 'solo'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: ['masterpiece', 'best quality', 'highres', 'smooth animation'],
+        stylePrefixes: ['anime style', 'animation of'],
+        avoidTerms: ['low quality', 'bad anatomy'],
+        recommendedSettings: {
+            steps: [20, 30]
+        },
+        template: `{trigger_words}, {quality_boosters}, {subject_description}, {action_movement}, {setting_background}, {style}`,
+        examples: [
+            {
+                input: 'anime girl dancing',
+                output: 'ohwx_girl, masterpiece, best quality, 1girl, dancing, spinning, frilly dress, stage lights, anime style, smooth animation',
+                notes: 'AnimateDiff works best with Stable Diffusion style tags'
             }
         ]
     },
@@ -710,9 +1221,17 @@ export const MODEL_PROMPTING_GUIDES: Record<string, ModelPromptGuide> = {
 
 // Helper to get guide by model ID
 export function getModelGuide(modelId: string): ModelPromptGuide | null {
+    console.log(`[ModelPromptGuides] Looking up guide for: ${modelId}`);
     // Direct match
     if (MODEL_PROMPTING_GUIDES[modelId]) {
+        console.log(`[ModelPromptGuides] Found direct match: ${MODEL_PROMPTING_GUIDES[modelId].id}`);
         return MODEL_PROMPTING_GUIDES[modelId];
+    }
+
+    // Standardize Wan IDs (case-insensitive)
+    const lowerId = modelId.toLowerCase();
+    if (lowerId.includes('wan-25') || lowerId.includes('wan-2.5') || lowerId.includes('wan-2.1') || lowerId.includes('wan-21') || lowerId.includes('wan 2.5')) {
+        return MODEL_PROMPTING_GUIDES['wan-v2-5'];
     }
 
     // Fuzzy match for common variations
@@ -738,8 +1257,45 @@ export function getGuidesForType(type: 'image' | 'video'): ModelPromptGuide[] {
 
 // Negative prompt templates for models that support them
 export const NEGATIVE_PROMPT_TEMPLATES: Record<string, string> = {
+    // === STABLE DIFFUSION MODELS ===
     'sdxl': 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name, deformed, disfigured',
     'sd15': 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, bad feet, poorly drawn hands, poorly drawn face, mutation, deformed, extra limbs',
+    'sd3-5-large': 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, jpeg artifacts, signature, watermark, blurry, deformed, disfigured, mutated',
     'realistic-vision': '(deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime:1.4), text, close up, cropped, out of frame, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck',
     'pony-diffusion': 'score_4, score_3, score_2, score_1, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry',
+
+    // === FLUX MODELS (limited negative support) ===
+    'flux-dev': 'blurry, low quality, distorted, deformed, ugly, bad anatomy, watermark, signature, text',
+    'flux-schnell': 'blurry, low quality, distorted, ugly',
+    'flux-pro': 'blurry, low quality, distorted, deformed, ugly, bad anatomy, watermark, signature, text, artifacts',
+    'flux-2': 'blurry, low quality, distorted, deformed, ugly, bad anatomy, watermark, signature, text, artifacts, oversaturated',
+
+    // === VIDEO MODELS ===
+    'wan-v2-2': 'static, frozen, blurry, low quality, distorted faces, morphing, flickering, jittery motion, bad anatomy, deformed',
+    'wan-v2-5': 'static, frozen, blurry, low quality, distorted faces, morphing, flickering, jittery motion, bad anatomy, deformed, inconsistent character',
+    'kling-video-v2-1': 'static, blurry, low quality, distorted, flickering, jittery, morphing faces, bad anatomy, deformed',
+    'kling-video-v2-6': 'static, blurry, low quality, distorted, flickering, jittery, morphing faces, bad anatomy, deformed, audio sync issues',
+    'kling-video-o1': 'static, blurry, low quality, distorted, flickering, jittery, morphing faces, bad anatomy, deformed, inconsistent character',
+    'ltx-video': 'static, frozen, blurry, low quality, distorted, flickering, jittery motion, morphing, bad anatomy',
+    'hailuo-director': 'static, blurry, low quality, distorted, flickering, jittery, morphing, bad anatomy, wrong camera movement',
+    'runway-gen3': 'static, blurry, low quality, distorted, flickering, morphing, bad anatomy, deformed, jittery',
+    'runway-gen4': 'static, blurry, low quality, distorted, flickering, morphing, bad anatomy, deformed, jittery, inconsistent',
+    'luma-dream-machine': 'static, frozen, blurry, low quality, distorted, flickering, glitchy, morphing, bad physics',
+    'hunyuan-video': 'static, frozen, blurry, low quality, distorted, flickering, jittery, morphing faces, bad anatomy',
+    'minimax-video': 'static, frozen, blurry, low quality, distorted, flickering, jittery, morphing',
+    'animatediff': 'lowres, bad anatomy, bad hands, text, worst quality, low quality, blurry, static, frozen, jittery, morphing',
+    'veo-2': 'static, frozen, blurry, low quality, distorted, flickering, morphing, bad anatomy, deformed',
+    'veo-3': 'static, frozen, blurry, low quality, distorted, flickering, morphing, bad anatomy, deformed, inconsistent',
+    'sora': 'static, blurry, low quality, distorted, flickering, morphing, bad physics, unrealistic motion, deformed',
+
+    // === IMAGE MODELS ===
+    'recraft-v3': 'blurry, pixelated, low resolution, bad lines, inconsistent style, raster artifacts',
+    'ideogram-v2': 'blurry, low quality, typos, misspellings, wrong text, bad typography, distorted letters',
+    'dall-e-3': 'blurry, low quality, distorted, deformed, bad anatomy, watermark, text errors',
+    'imagen-3': 'blurry, low quality, distorted, deformed, bad anatomy, watermark, artifacts, oversaturated',
+    'fal-ai/kling-image/o1': 'blurry, low quality, distorted, deformed, bad anatomy, watermark, artifacts',
+
+    // === AVATAR MODELS ===
+    'kling-avatar-v2-pro': 'blurry, distorted face, out of sync, unnatural mouth movements, frozen, static, glitchy audio',
+    'kling-avatar-v2-standard': 'blurry, distorted face, out of sync, unnatural mouth movements, frozen, static',
 };

@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -22,6 +22,8 @@ model Project {
   sessions    Session[]
   loras       LoRA[]
   modelParameters ModelParameter[]
+  workflows   Workflow[]
+  trainingJobs TrainingJob[]
 }
 
 model Session {
@@ -45,8 +47,8 @@ model Element {
   type      String   // 'character', 'prop', 'product', 'location', 'other'
   fileUrl   String
   isFavorite Boolean @default(false)
-  tags      String[] @default([])
-  metadata  Json?
+  tags      String   @default("[]") // JSON array string for SQLite
+  metadata  String?  // JSON string for SQLite
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -62,7 +64,7 @@ model Reference {
   projectId String
   name      String
   fileUrl   String
-  metadata  Json?
+  metadata  String?  // JSON string for SQLite
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -74,8 +76,8 @@ model StyleGuide {
   projectId       String
   name            String
   description     String?
-  files           Json?    // List of file URLs
-  derivedMetadata Json?    // Color palettes, etc.
+  files           String?  // JSON string for SQLite - List of file URLs
+  derivedMetadata String?  // JSON string for SQLite - Color palettes, etc.
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -97,23 +99,26 @@ model Generation {
   aspectRatio        String?
   variations         Int      @default(1)
   styleGuideId       String?
-  sourceElementIds   Json?
-  sourceReferenceIds Json?
+  sourceElementIds   String?  // JSON string for SQLite
+  sourceReferenceIds String?  // JSON string for SQLite
 
   name               String?
-  tags               String[] @default([])
+  tags               String   @default("[]") // JSON array string for SQLite
   engine             String   @default("fal") // 'fal', 'comfy'
-  usedLoras          Json?    // List of { id, strength, path }
+  usedLoras          String?  // JSON string for SQLite - List of { id, strength, path }
 
   prevGenerationId   String?
   sessionId          String?
   isFavorite         Boolean  @default(false)
   status             String   @default("queued") // 'queued', 'running', 'succeeded', 'failed'
   failureReason      String?
-  outputs            Json?    // List of { type, url, thumbnail_url }
+  outputs            String?  // JSON string for SQLite - List of { type, url, thumbnail_url }
   provider           String?
   actualCost         Float?
   inferenceTime      Int?     // milliseconds
+  rating             Int?     // 1-5 stars
+  aiAnalysis         String?  // JSON string from Grok
+  feedbackNotes      String?  // User manual notes
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -130,6 +135,9 @@ model Scene {
   projectId   String
   name        String
   description String?
+  referenceElementIds String?  // JSON string for SQLite - Element IDs to use as IP-Adapter references
+  inheritReferences   Boolean  @default(true)
+  defaultReferenceStrength Float @default(0.7)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -157,14 +165,47 @@ model LoRA {
   projectId   String
   name        String
   triggerWord String?
+  triggerWords String? // JSON array for multiple trigger words
   fileUrl     String   // Local path or HF URL
   baseModel   String   // 'SDXL', 'Flux', 'SVD', 'Other'
   strength    Float    @default(1.0)
+  strengthMin Float    @default(0.5)
+  strengthMax Float    @default(1.2)
   imageUrl    String?  // Thumbnail
+  type        String   @default("other") // 'checkpoint', 'lora', 'embedding'
+  category    String?  // 'character', 'style', 'concept', 'clothing', 'pose', 'background', 'effect', 'other'
+  characterAttributes String? // JSON for character-specific attributes
+  recommendedSettings String? // JSON string for SQLite compatibility
+  globalLoRAId String? // Reference to global library item
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   project     Project  @relation(fields: [projectId], references: [id])
+  globalLoRA  GlobalLoRA? @relation(fields: [globalLoRAId], references: [id])
+}
+
+// Global LoRA Library - shared across all projects
+model GlobalLoRA {
+  id          String   @id @default(uuid())
+  name        String
+  triggerWord String?
+  fileUrl     String   // Local path or HF URL
+  baseModel   String   // 'SDXL', 'Flux', 'SD1.5', 'Other'
+  strength    Float    @default(1.0)
+  imageUrl    String?  // Thumbnail
+  type        String   @default("lora") // 'checkpoint', 'lora', 'embedding'
+  category    String?  // 'character', 'style', 'concept', 'clothing', 'pose', 'background', 'effect', 'other'
+  recommendedSettings String? // JSON string for SQLite compatibility
+  civitaiModelId String? // For linking back to Civitai
+  civitaiVersionId String?
+  description String?
+  tags        String   @default("[]") // JSON array string for SQLite
+  usageCount  Int      @default(0) // Track popularity
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Project installations
+  projectInstalls LoRA[]
 }
 
 model ModelParameter {
@@ -177,4 +218,37 @@ model ModelParameter {
   updatedAt DateTime @updatedAt
 
   project   Project  @relation(fields: [projectId], references: [id])
+}
+
+model Workflow {
+  id          String   @id @default(uuid())
+  projectId   String
+  name        String
+  description String?
+  fileUrl     String
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project  @relation(fields: [projectId], references: [id])
+}
+
+model TrainingJob {
+  id            String   @id @default(uuid())
+  projectId     String
+  name          String
+  triggerWord   String
+  datasetUrl    String?
+  providerJobId String?
+  status        String   @default("uploading") // 'uploading', 'queued', 'training', 'completed', 'failed'
+  loraUrl       String?
+  error         String?
+  steps         Int      @default(1000)
+  learningRate  Float    @default(0.0001)
+  isStyle       Boolean  @default(true)
+  provider      String   @default("fal") // 'fal', 'replicate'
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  project       Project  @relation(fields: [projectId], references: [id])
 }

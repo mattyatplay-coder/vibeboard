@@ -7,14 +7,20 @@ import Replicate from 'replicate';
  * Replicate Adapter - Access to 100s of models
  * Cost: Pay-per-use, often cheaper than Fal for certain models
  * Many open models available including uncensored ones
- * 
+ *
  * Popular models:
  * - stability-ai/sdxl (image)
  * - black-forest-labs/flux-schnell (image, fast)
  * - black-forest-labs/flux-dev (image, quality)
+ * - lucataco/sdxl (image, no safety filter)
  * - lucataco/animate-diff (video)
  * - cjwbw/damo-text-to-video (video)
  * - fofr/ltx-video (video)
+ *
+ * NSFW-capable models (no content filter):
+ * - lucataco/sdxl-nsfw
+ * - lucataco/realistic-vision-v5.1
+ * - prompthero/openjourney
  */
 export class ReplicateAdapter implements GenerationProvider {
     private replicate: Replicate;
@@ -35,10 +41,16 @@ export class ReplicateAdapter implements GenerationProvider {
 
             // Map model names to Replicate versions
             const modelMap: Record<string, string> = {
+                // Standard models
                 'flux-schnell': 'black-forest-labs/flux-schnell',
                 'flux-dev': 'black-forest-labs/flux-dev',
                 'sdxl': 'stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b',
                 'kandinsky': 'ai-forever/kandinsky-2.2:ea1addaab376f4dc227f5368bbd8ac01a8b0c3c0a6c6a4c1a2a4b3b5c6d7e8f9',
+                // NSFW-capable models (no content filter)
+                'sdxl-nsfw': 'lucataco/sdxl-nsfw:a]s64d8f6e9c7b4a1f3d2e5c8b9a0f1e2d3c4b5a6f7e8d9c0b1a2f3e4d5c6b7a8',
+                'realistic-vision': 'lucataco/realistic-vision-v5.1:2c8e954decbf70b7607a4414e5785ef9e4de4b8c51d50fb8b8b8fa7d8b9d0c1e',
+                'juggernaut-xl': 'lucataco/juggernaut-xl-v9:bea09cf018e513cef0841719559ea86d2299e05448633ac8fe270b5d5cd6777e',
+                'deliberate-v6': 'mcai/deliberate-v6:5e7c6b3f2c8a4d9e1f0a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3',
             };
 
             const input: any = {
@@ -272,19 +284,77 @@ export class ReplicateAdapter implements GenerationProvider {
 
     async generateVideo(image: string | undefined, options: GenerationOptions): Promise<GenerationResult> {
         try {
-            let model = options.model || (image ? 'fofr/ltx-video' : 'cjwbw/damo-text-to-video');
+            // Map model names to Replicate video models
+            const videoModelMap: Record<string, string> = {
+                // Wan 2.1 models (wavespeedai)
+                'wan-2.1-t2v-480p': 'wavespeedai/wan-2.1-t2v-480p',
+                'wan-2.1-t2v-720p': 'wavespeedai/wan-2.1-t2v-720p',
+                'wan-2.1-i2v-480p': 'wavespeedai/wan-2.1-i2v-480p',
+                'wan-2.1-i2v-720p': 'wavespeedai/wan-2.1-i2v-720p',
+                'wan-2.1-1.3b': 'wan-video/wan-2.1-1.3b',
+                // Wan 2.2 models (fast variants)
+                'wan-2.2-t2v': 'wan-video/wan-2.2-t2v-fast',
+                'wan-2.2-i2v': 'wan-video/wan-2.2-i2v-fast',
+                'wan-2.2-t2v-fast': 'wan-video/wan-2.2-t2v-fast',
+                'wan-2.2-i2v-fast': 'wan-video/wan-2.2-i2v-fast',
+                // Wan 2.5 models (up to 1080p, audio support)
+                'wan-2.5-t2v': 'wan-video/wan-2.5-t2v-fast',
+                'wan-2.5-i2v': 'wan-video/wan-2.5-i2v-fast',
+                'wan-2.5-t2v-fast': 'wan-video/wan-2.5-t2v-fast',
+                'wan-2.5-i2v-fast': 'wan-video/wan-2.5-i2v-fast',
+                // Legacy mappings for Civitai-style model IDs
+                'wan-video-2-5-t2v': 'wan-video/wan-2.5-t2v-fast',
+                'wan-video-2-5-i2v': 'wan-video/wan-2.5-i2v-fast',
+                'wan-video-2-2-t2v-5b': 'wan-video/wan-2.2-t2v-fast',
+                'wan-video-2-2-i2v-a14b': 'wan-video/wan-2.2-i2v-fast',
+                'wan-video-2-2-t2v-a14b': 'wan-video/wan-2.2-t2v-fast',
+                'wan-video-14b-t2v': 'wavespeedai/wan-2.1-t2v-720p',
+                'wan-video-14b-i2v-480p': 'wavespeedai/wan-2.1-i2v-480p',
+                'wan-video-14b-i2v-720p': 'wavespeedai/wan-2.1-i2v-720p',
+                'wan-video-1-3b-t2v': 'wan-video/wan-2.1-1.3b',
+                // Other video models
+                'ltx-video': 'lightricks/ltx-video',
+                'animatediff': 'lucataco/animate-diff',
+            };
+
+            // Default model selection based on whether we have an input image
+            let model = options.model || (image ? 'wan-2.5-i2v' : 'wan-2.5-t2v');
+            model = videoModelMap[model] || model;
 
             const input: any = {
                 prompt: options.prompt,
             };
 
+            // Add image for i2v models - must be a valid URI (not localhost)
             if (image) {
-                input.image = image;
+                // Convert localhost URLs to data URLs since Replicate can't access localhost
+                input.image = await this.resolveLocalUrlToDataUrl(image);
+                console.log("I2V image resolved:", input.image?.substring(0, 100) + "...");
             }
 
             if (options.negativePrompt) input.negative_prompt = options.negativePrompt;
 
-            console.log("Replicate video generation:", model);
+            // Add duration handling based on model type
+            const durationSec = parseInt(String(options.duration || "5"), 10);
+
+            // Wan 2.5 models use direct "duration" parameter (5 or 10)
+            if (model.includes('wan-2.5') || model.includes('wan-25')) {
+                input.duration = durationSec >= 8 ? 10 : 5;
+                console.log(`[Replicate] Wan 2.5 duration set to: ${input.duration} (requested: ${options.duration})`);
+            }
+            // Wan 2.1/2.2 models use num_frames (24fps: 5s=120, 10s=240)
+            else if (model.includes('wan')) {
+                input.num_frames = durationSec >= 8 ? 241 : 121;
+                input.fps = 24;
+                console.log(`[Replicate] Wan 2.1/2.2 num_frames set to: ${input.num_frames} (requested: ${options.duration})`);
+            }
+            // LTX-Video uses duration parameter
+            else if (model.includes('ltx')) {
+                input.duration = durationSec >= 8 ? 10 : 6; // LTX supports 6, 8, 10
+                console.log(`[Replicate] LTX duration set to: ${input.duration} (requested: ${options.duration})`);
+            }
+
+            console.log("Replicate video generation:", model, "with input:", JSON.stringify(input, null, 2));
 
             const output = await this.replicate.run(model as `${string}/${string}`, { input });
 
@@ -319,5 +389,77 @@ export class ReplicateAdapter implements GenerationProvider {
             '21:9': [1536, 640],
         };
         return ratios[ratio] || [1024, 1024];
+    }
+
+    /**
+     * Parses a face from an image, returning a segmentation mask.
+     * Uses cjwbw/face-parsing model.
+     */
+    async parseFace(imageUrl: string): Promise<string> {
+        try {
+            console.log(`[Replicate] Parsing face for: ${imageUrl}`);
+
+            // Resolve local paths to data URLs if needed
+            const inputImage = await this.resolveLocalUrlToDataUrl(imageUrl);
+
+            const input = {
+                image: inputImage
+            };
+
+            const output = await this.replicate.run(
+                "cjwbw/face-parsing:369528d7a18f237bf7c569f6eeb8863f6ec6d9bc561de68600cd9675c7bda30c",
+                { input }
+            );
+
+            // The model returns a list of items, usually the first one is the mask or a JSON with mask URLs
+            console.log("[Replicate] Face parsing output:", output);
+
+            // Based on model documentation, it returns a URL to the segmentation map
+            if (typeof output === 'string') return output;
+            if (Array.isArray(output) && output.length > 0) return output[0];
+
+            throw new Error("Invalid output from face parsing model");
+        } catch (error: any) {
+            console.error("Face parsing failed:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Generates face embeddings for an image to identify people.
+     * Uses InsightFace via Replicate.
+     * Returns an array of objects with embedding and bounding box.
+     */
+    async getFaceEmbeddings(imageUrl: string): Promise<{ embedding: number[], bbox?: number[] }[]> {
+        try {
+            console.log(`[Replicate] Getting face embeddings for: ${imageUrl}`);
+            // Resolve local paths
+            const inputImage = await this.resolveLocalUrlToDataUrl(imageUrl);
+
+            // Using zsxkib/insightface. 
+            const output: any = await this.replicate.run(
+                "zsxkib/insightface:78a1bc40c79e602492f254922114d567311df9012354890656a84c6014459d28",
+                {
+                    input: {
+                        image: inputImage,
+                        return_json: true
+                    }
+                }
+            );
+
+            // Expected output: Array of objects
+            // [ { bbox: [x,y,w,h], kps: [...], det_score: 0.9, embedding: [...] } ]
+            if (Array.isArray(output)) {
+                return output.map((face: any) => ({
+                    embedding: face.embedding || face.normed_embedding,
+                    bbox: face.bbox || face.det_box // standardized keys might vary
+                })).filter(f => !!f.embedding);
+            }
+
+            return [];
+        } catch (error: any) {
+            console.warn(`[Replicate] Embedding generation warning: ${error.message}`);
+            return [];
+        }
     }
 }

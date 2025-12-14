@@ -109,14 +109,14 @@ export function ParameterManager({ projectId, type, isOpen, onClose, selectedId,
     const content = (
         <div className={clsx(
             "bg-[#1a1a1a] border border-white/10 rounded-xl flex flex-col shadow-2xl overflow-hidden",
-            embedded ? "w-full h-full" : "w-full max-w-md max-h-[80vh]"
+            embedded ? "w-full h-full max-h-[90vh]" : "w-full max-w-4xl max-h-[85vh]"
         )}>
             <div className="flex justify-between items-center p-4 border-b border-white/10">
                 <h2 className="text-lg font-bold text-white capitalize">{type}s</h2>
                 {!embedded && <button onClick={onClose} className="text-gray-400 hover:text-white">✕</button>}
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-4 show-scrollbar-on-hover">
                 {isAdding ? (
                     <div className="bg-white/5 rounded-xl p-4 border border-white/10 space-y-4">
                         <h3 className="font-medium text-white text-sm">Add New {type === 'sampler' ? 'Sampler' : 'Scheduler'}</h3>

@@ -7,6 +7,7 @@ import { TogetherAdapter } from './generators/TogetherAdapter';
 import { HuggingFaceAdapter } from './generators/HuggingFaceAdapter';
 import { BananaAdapter } from './generators/BananaAdapter';
 import { GoogleVeoAdapter } from './generators/GoogleVeoAdapter';
+import { WanVideoAdapter } from './generators/WanVideoAdapter';
 import { GenerationProvider, GenerationOptions, GenerationResult } from './generators/GenerationProvider';
 
 export type ProviderType =
@@ -19,6 +20,7 @@ export type ProviderType =
     | 'google'
     | 'openai'
     | 'civitai'
+    | 'wan'
     | 'auto';
 
 /**
@@ -89,7 +91,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         requiresApiKey: true,
         envVar: 'TOGETHER_API_KEY',
         models: {
-            image: ['flux-schnell-free', 'flux-schnell', 'flux-dev', 'sdxl'],
+            image: ['flux-schnell-free', 'flux-schnell', 'flux-dev', 'sdxl', 'realvis-xl', 'realistic-vision-together', 'dreamshaper-xl'],
             video: []
         },
         category: 'cloud'
@@ -120,8 +122,16 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         requiresApiKey: true,
         envVar: 'REPLICATE_API_TOKEN',
         models: {
-            image: ['flux-schnell', 'flux-dev', 'sdxl', 'kandinsky'],
-            video: ['ltx-video', 'animatediff', 'damo-text-to-video']
+            image: ['flux-schnell', 'flux-dev', 'sdxl', 'kandinsky', 'sdxl-nsfw', 'realistic-vision', 'juggernaut-xl', 'deliberate-v6'],
+            video: [
+                'ltx-video', 'animatediff',
+                'wan-2.1-t2v-480p', 'wan-2.1-t2v-720p', 'wan-2.1-i2v-480p', 'wan-2.1-i2v-720p', 'wan-2.1-1.3b',
+                'wan-2.2-t2v', 'wan-2.2-i2v', 'wan-2.2-t2v-fast', 'wan-2.2-i2v-fast',
+                'wan-2.5-t2v', 'wan-2.5-i2v', 'wan-2.5-t2v-fast', 'wan-2.5-i2v-fast',
+                'wan-video-1-3b-t2v', 'wan-video-14b-t2v', 'wan-video-14b-i2v-480p', 'wan-video-14b-i2v-720p',
+                'wan-video-2-2-t2v-5b', 'wan-video-2-2-i2v-a14b', 'wan-video-2-2-t2v-a14b',
+                'wan-video-2-5-t2v', 'wan-video-2-5-i2v'
+            ]
         },
         category: 'cloud'
     },
@@ -200,8 +210,39 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         requiresApiKey: true,
         envVar: 'CIVITAI_API_TOKEN',
         models: {
-            image: ['civitai-sdxl', 'civitai-flux'],
-            video: ['civitai-kling', 'civitai-mochi']
+            image: [
+                'auraflow', 'chroma', 'flux-1-d', 'flux-1-s', 'flux-1-krea', 'flux-1-kontext', 'flux-2-d',
+                'hidream', 'hunyuan-1', 'illustrious', 'kolors', 'lumina', 'noobai',
+                'pixart-a', 'pixart-e', 'pony', 'pony-v7', 'qwen',
+                'sd-1-4', 'sd-1-5', 'sd-1-5-lcm', 'sd-1-5-hyper', 'sd-2-0', 'sd-2-1',
+                'sdxl-1-0', 'sdxl-lightning', 'sdxl-hyper', 'zimage-turbo'
+            ],
+            video: [
+                'cogvideox', 'hunyuan-video', 'ltxv', 'mochi',
+                'wan-video-1-3b-t2v', 'wan-video-14b-t2v', 'wan-video-14b-i2v-480p', 'wan-video-14b-i2v-720p',
+                'wan-video-2-2-t2v-5b', 'wan-video-2-2-i2v-a14b', 'wan-video-2-2-t2v-a14b',
+                'wan-video-2-5-t2v', 'wan-video-2-5-i2v'
+            ]
+        },
+        category: 'cloud'
+    },
+    wan: {
+        type: 'wan',
+        name: 'Wan Video (Fal)',
+        priority: 4,
+        costPerImage: 0,
+        costPerVideo: 0.10,
+        supportsVideo: true,
+        supportsImage: false,
+        requiresApiKey: true,
+        envVar: 'FAL_KEY',
+        models: {
+            image: [],
+            video: [
+                'fal-ai/wan-2.1-t2v-1.3b',
+                'fal-ai/wan-2.1-i2v-14b',
+                'fal-ai/wan-video-2.2-animate-move'
+            ]
         },
         category: 'cloud'
     }
@@ -269,6 +310,8 @@ export class GenerationService {
                 return new OpenAIAdapter();
             case 'civitai':
                 return new CivitaiAdapter();
+            case 'wan':
+                return new WanVideoAdapter();
             default:
                 throw new Error(`Unknown provider type: ${type}`);
         }
@@ -339,6 +382,48 @@ export class GenerationService {
      */
     async generateImage(options: GenerationOptions): Promise<GenerationResult> {
         const errors: string[] = [];
+        let providersToTry = [...this.availableProviders];
+
+        // CRITICAL: If LoRAs are present, restrict to providers that support them (Fal.ai and ComfyUI)
+        if (options.loras && options.loras.length > 0) {
+            const loraProviders: ProviderType[] = ['fal', 'comfy'];
+            console.log(`LoRAs detected. Restricting to providers with LoRA support: ${loraProviders.join(', ')}`);
+            providersToTry = providersToTry.filter(p => loraProviders.includes(p));
+
+            if (providersToTry.length === 0) {
+                return {
+                    id: Date.now().toString(),
+                    status: 'failed',
+                    error: "LoRAs are supported by Fal.ai and ComfyUI, but neither is available. Please check your configuration."
+                };
+            }
+        }
+
+        // RESPECT EXPLICIT ENGINE SELECTION: If user chose 'comfy', use ComfyUI directly
+        // This check comes BEFORE model routing to honor user's explicit choice
+        const explicitEngine = (options as any).engine;
+        if (explicitEngine === 'comfy' && this.providers.has('comfy')) {
+            console.log(`User explicitly selected ComfyUI engine. Using ComfyUI directly...`);
+            const provider = this.providers.get('comfy')!;
+            try {
+                const result = await provider.generateImage(options);
+                if (result.status === 'succeeded') {
+                    console.log(`✓ ComfyUI succeeded`);
+                    return { ...result, provider: 'comfy' };
+                }
+                return {
+                    id: Date.now().toString(),
+                    status: 'failed',
+                    error: `comfy: ${result.error}`
+                };
+            } catch (err: any) {
+                return {
+                    id: Date.now().toString(),
+                    status: 'failed',
+                    error: `comfy: ${err.message}`
+                };
+            }
+        }
 
         // If a specific model is requested, route to the correct provider
         if (options.model) {
@@ -355,7 +440,13 @@ export class GenerationService {
                 }
             }
 
-            const targetProvider = this.getProviderForModel(options.model, 'image');
+            let targetProvider = this.getProviderForModel(options.model, 'image');
+
+            // Ensure target provider is allowed (e.g. supports LoRAs if needed)
+            if (targetProvider && !providersToTry.includes(targetProvider)) {
+                console.warn(`Model ${options.model} targets ${targetProvider}, but that provider is excluded (likely due to LoRA constraint). Falling back to allowed providers.`);
+                targetProvider = null;
+            }
 
             if (targetProvider) {
                 const provider = this.providers.get(targetProvider);
@@ -383,21 +474,33 @@ export class GenerationService {
                     }
                 }
             } else {
-                console.warn(`No provider found for model "${options.model}", trying all providers...`);
+                console.warn(`No provider found for model "${options.model}" (or provider excluded), trying allowed providers...`);
             }
         }
 
 
 
 
-        // Fallback: Try all providers
-        for (const providerType of this.availableProviders) {
+        // Fallback: Try allowed providers
+        for (const providerType of providersToTry) {
             const provider = this.providers.get(providerType);
             if (!provider) continue;
 
             try {
                 console.log(`Trying ${providerType} for image generation...`);
-                const result = await provider.generateImage(options);
+
+
+                // Map model to something the provider understands
+                const mappedModel = this.mapModelToProvider(options.model || '', providerType, 'image');
+                const providerOptions = { ...options, model: mappedModel };
+
+                if (options.model && !mappedModel) {
+                    console.log(`   > No direct mapping for ${options.model} on ${providerType}, using provider default.`);
+                } else if (mappedModel && mappedModel !== options.model) {
+                    console.log(`   > Mapped ${options.model} -> ${mappedModel}`);
+                }
+
+                const result = await provider.generateImage(providerOptions);
 
                 if (result.status === 'succeeded') {
                     console.log(`✓ ${providerType} succeeded`);
@@ -422,6 +525,31 @@ export class GenerationService {
      */
     async generateVideo(image: string | undefined, options: GenerationOptions): Promise<GenerationResult> {
         const errors: string[] = [];
+
+        // RESPECT EXPLICIT ENGINE SELECTION: If user chose 'comfy', use ComfyUI directly
+        const explicitEngine = (options as any).engine;
+        if (explicitEngine === 'comfy' && this.providers.has('comfy')) {
+            console.log(`User explicitly selected ComfyUI engine for video. Using ComfyUI directly...`);
+            const provider = this.providers.get('comfy')!;
+            try {
+                const result = await provider.generateVideo(image, options);
+                if (result.status === 'succeeded') {
+                    console.log(`✓ ComfyUI video succeeded`);
+                    return { ...result, provider: 'comfy' };
+                }
+                return {
+                    id: Date.now().toString(),
+                    status: 'failed',
+                    error: `comfy: ${result.error}`
+                };
+            } catch (err: any) {
+                return {
+                    id: Date.now().toString(),
+                    status: 'failed',
+                    error: `comfy: ${err.message}`
+                };
+            }
+        }
 
         // If a specific model is requested, route to the correct provider
         if (options.model) {
@@ -453,11 +581,29 @@ export class GenerationService {
                     }
                 }
             } else {
-                console.warn(`No provider found for model "${options.model}", trying all video providers...`);
+                console.warn(`No provider found for model "${options.model}", checking for provider-specific prefixes...`);
+
+                // Check for provider-specific prefixes to avoid blind fallback
+                if (options.model.startsWith('fal-ai/')) {
+                    console.log(`Model "${options.model}" is a Fal.ai model. Routing to Fal...`);
+                    const provider = this.providers.get('fal');
+                    if (provider) {
+                        try {
+                            const result = await provider.generateVideo(image, options);
+                            if (result.status === 'succeeded') return { ...result, provider: 'fal' };
+                            return { id: Date.now().toString(), status: 'failed', error: `fal: ${result.error}` };
+                        } catch (err: any) {
+                            return { id: Date.now().toString(), status: 'failed', error: `fal: ${err.message}` };
+                        }
+                    }
+                }
             }
         }
 
         // Fallback: Filter to video-capable providers
+        // CRITICAL: Do NOT try all providers if the model was clearly meant for a specific one (e.g. fal-ai/...)
+        // UNLESS we can map it.
+
         const videoProviders = this.availableProviders.filter(
             p => PROVIDER_CONFIGS[p].supportsVideo
         );
@@ -468,7 +614,12 @@ export class GenerationService {
 
             try {
                 console.log(`Trying ${providerType} for video generation...`);
-                const result = await provider.generateVideo(image, options);
+
+                // Map model to something the provider understands
+                const mappedModel = this.mapModelToProvider(options.model || '', providerType, 'video');
+                const providerOptions = { ...options, model: mappedModel };
+
+                const result = await provider.generateVideo(image, providerOptions);
 
                 if (result.status === 'succeeded') {
                     console.log(`✓ ${providerType} succeeded`);
@@ -486,6 +637,53 @@ export class GenerationService {
             status: 'failed',
             error: `All video providers failed:\n${errors.join('\n')}`
         };
+    }
+
+    private mapModelToProvider(model: string, providerType: ProviderType, type: 'image' | 'video'): string | undefined {
+        // If the provider supports the model directly, return it
+        const config = PROVIDER_CONFIGS[providerType];
+        const supportedModels = type === 'video' ? config.models.video : config.models.image;
+        if (supportedModels.includes(model)) {
+            return model;
+        }
+
+        // Image Model Mapping
+        if (type === 'image') {
+            const isFluxDev = model.includes('flux') && (model.includes('dev') || model.includes('pro'));
+            const isFluxSchnell = model.includes('flux') && model.includes('schnell');
+            const isSDXL = model.includes('sdxl');
+
+            switch (providerType) {
+                case 'together':
+                    if (isFluxDev) return 'flux-dev';
+                    if (isFluxSchnell) return 'flux-schnell';
+                    if (isSDXL) return 'sdxl';
+                    return 'flux-schnell'; // Default fallback
+                case 'replicate':
+                    if (isFluxDev) return 'flux-dev';
+                    if (isFluxSchnell) return 'flux-schnell';
+                    if (isSDXL) return 'sdxl';
+                    return 'flux-schnell'; // Default fallback
+                case 'openai':
+                    return 'dall-e-3';
+                case 'huggingface':
+                    if (isSDXL) return 'sdxl';
+                    return 'sdxl';
+                case 'google':
+                    return 'imagen-3';
+                case 'civitai':
+                    if (isFluxDev || isFluxSchnell) return 'civitai-flux';
+                    return 'civitai-sdxl';
+            }
+        }
+
+        // Video Model Mapping
+        if (type === 'video') {
+            // For video, if we don't match, return undefined to let provider use its default
+            return undefined;
+        }
+
+        return undefined;
     }
 
     /**
@@ -595,13 +793,93 @@ export class GenerationService {
             'flux-1.1-ultra': 'fal',
             'flux-2': 'fal',
 
-            // Video models
-            'ltx-video': 'fal',
-            'wan-2.1': 'fal',
+            // NSFW-friendly models (Replicate - no content filters)
+            'sdxl-nsfw': 'replicate',
+            'realistic-vision': 'replicate',
+            'juggernaut-xl': 'replicate',
+            'deliberate-v6': 'replicate',
+
+            // Together AI unrestricted models (cheap, no filters)
+            'realvis-xl': 'together',
+            'realistic-vision-together': 'together',
+            'dreamshaper-xl': 'together',
+
+            // Image models - Civitai
+            'auraflow': 'civitai',
+            'chroma': 'civitai',
+            'flux-1-d': 'civitai',
+            'flux-1-s': 'civitai',
+            'flux-1-krea': 'civitai',
+            'flux-1-kontext': 'civitai',
+            'flux-2-d': 'civitai',
+            'hidream': 'civitai',
+            'hunyuan-1': 'civitai',
+            'illustrious': 'civitai',
+            'kolors': 'civitai',
+            'lumina': 'civitai',
+            'noobai': 'civitai',
+            'pixart-a': 'civitai',
+            'pixart-e': 'civitai',
+            'pony': 'civitai',
+            'pony-v7': 'civitai',
+            'qwen': 'civitai',
+            'sd-1-4': 'civitai',
+            'sd-1-5': 'civitai',
+            'sd-1-5-lcm': 'civitai',
+            'sd-1-5-hyper': 'civitai',
+            'sd-2-0': 'civitai',
+            'sd-2-1': 'civitai',
+            'sdxl-1-0': 'civitai',
+            'sdxl-lightning': 'civitai',
+            'sdxl-hyper': 'civitai',
+            'zimage-turbo': 'civitai',
+
+            // Wan models (NEW)
+            'wan-2.1-t2v-1.3b': 'wan',
+            'wan-2.1-i2v-14b': 'wan',
+            'wan-video-2.2-animate-move': 'wan',
+
+            // Wan Video (Route to Wan Adapter)
+            'fal-ai/wan-2.1-t2v-1.3b': 'wan',
+            'fal-ai/wan-2.1-i2v-14b': 'wan',
+            'fal-ai/wan-video-2.2-animate-move': 'wan',
+            'wan-2.1': 'wan',
+            'wan-2.2-animate': 'wan',
+
+            // Fal Video (Others)
             'wan-2.2': 'fal',
             'wan-2.5': 'fal',
             'minimax-video': 'fal',
             'kling-video': 'fal',
+            'fal-ai/kling-video/v2.6/pro/image-to-video': 'fal',
+            'fal-ai/kling-video/v2.6/pro/text-to-video': 'fal',
+            'fal-ai/wan/v2.2-a14b/image-to-video': 'fal',
+            'fal-ai/wan-t2v': 'fal',
+
+            // Replicate Video (Wan variants)
+            'wan-2.1-t2v-480p': 'replicate',
+            'wan-2.1-t2v-720p': 'replicate',
+            'wan-2.1-i2v-480p': 'replicate',
+            'wan-2.1-i2v-720p': 'replicate',
+            'wan-2.1-1.3b': 'replicate',
+            'wan-2.2-t2v': 'replicate',
+            'wan-2.2-i2v': 'replicate',
+            'wan-2.2-t2v-fast': 'replicate',
+            'wan-2.2-i2v-fast': 'replicate',
+            'wan-2.5-t2v': 'replicate',
+            'wan-2.5-i2v': 'replicate',
+            'wan-2.5-t2v-fast': 'replicate',
+            'wan-2.5-i2v-fast': 'replicate',
+            'wan-video-1-3b-t2v': 'replicate',
+            'wan-video-14b-t2v': 'replicate',
+            'wan-video-14b-i2v-480p': 'replicate',
+            'wan-video-14b-i2v-720p': 'replicate',
+            'wan-video-2-2-t2v-5b': 'replicate',
+            'wan-video-2-2-i2v-a14b': 'replicate',
+            'wan-video-2-2-t2v-a14b': 'replicate',
+            'wan-video-2-5-t2v': 'replicate',
+            'wan-video-2-5-i2v': 'replicate',
+            'animatediff': 'replicate',
         };
 
         const preferredProvider = modelToProvider[modelId];

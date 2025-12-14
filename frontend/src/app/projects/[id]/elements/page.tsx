@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useDropzone } from "react-dropzone";
-import { Upload, X, Image as ImageIcon, Film, Edit2, Heart, Download, Trash2, Copy, CheckSquare } from "lucide-react";
+import { Upload, X, Image as ImageIcon, Film, Edit2, Heart, Download, Trash2, Copy, CheckSquare, Tag } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { clsx } from "clsx";
 import { fetchAPI, uploadFile } from "@/lib/api";
@@ -11,7 +11,9 @@ import { EditElementModal } from "@/components/elements/EditElementModal";
 import { SortFilterHeader, SortFilterState } from "@/components/elements/SortFilterHeader";
 import { Element as StoreElement, ElementType } from "@/lib/store";
 import { useParams } from "next/navigation";
+
 import { useSession } from "@/context/SessionContext";
+import { SaveElementModal } from "@/components/generations/SaveElementModal";
 
 export default function ElementsPage() {
     const params = useParams();
@@ -23,6 +25,7 @@ export default function ElementsPage() {
     const [uploading, setUploading] = useState(false);
     const [selectedElement, setSelectedElement] = useState<StoreElement | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isBatchTypeModalOpen, setIsBatchTypeModalOpen] = useState(false);
 
     // Sort & Filter State
     const [sortFilter, setSortFilter] = useState<SortFilterState>({
@@ -192,68 +195,7 @@ export default function ElementsPage() {
         );
     };
 
-    const selectAllElements = () => {
-        setSelectedElementIds(elements.map(e => e.id));
-    };
-
-    const deselectAllElements = () => {
-        setSelectedElementIds([]);
-    };
-
-    const handleBatchDelete = async () => {
-        if (!confirm(`Are you sure you want to delete ${selectedElementIds.length} elements?`)) return;
-
-        try {
-            await Promise.all(selectedElementIds.map(id =>
-                fetchAPI(`/projects/${projectId}/elements/${id}`, { method: 'DELETE' })
-            ));
-            setSelectedElementIds([]);
-            loadElements();
-        } catch (err) {
-            console.error("Batch delete failed", err);
-        }
-    };
-
-    const handleBatchMove = async (targetSessionId: string) => {
-        try {
-            const formData = new FormData();
-            formData.append('sessionId', targetSessionId);
-
-            await Promise.all(selectedElementIds.map(id =>
-                fetch(`http://localhost:3001/api/projects/${projectId}/elements/${id}`, {
-                    method: 'PATCH',
-                    body: formData
-                })
-            ));
-            setSelectedElementIds([]);
-            loadElements();
-        } catch (err) {
-            console.error("Batch move failed", err);
-        }
-    };
-
-    const handleBatchCopyLinks = () => {
-        const links = elements
-            .filter(e => selectedElementIds.includes(e.id))
-            .map(e => e.url)
-            .join('\n');
-
-        if (links) {
-            navigator.clipboard.writeText(links);
-            alert(`Copied ${selectedElementIds.length} links to clipboard!`);
-        }
-    };
-
-    const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
-        onDrop,
-        noClick: true,
-        accept: {
-            'image/*': [],
-            'video/*': []
-        }
-    });
-
-    // Filter and Sort Logic
+    // Filter and Sort Logic (Moved up to be available for Selection)
     const filteredElements = elements.filter(el => {
         // Filter by Session
         if (sortFilter.filterSessions.length > 0) {
@@ -269,7 +211,6 @@ export default function ElementsPage() {
             const isVideo = el.type === 'video';
             const isImage = el.type !== 'video';
             if (sortFilter.filterMediaType.includes('video') && !isVideo) {
-                // Check if user only wants video
                 if (!sortFilter.filterMediaType.includes('image')) return false;
             }
             if (sortFilter.filterMediaType.includes('image') && !isImage) {
@@ -318,6 +259,93 @@ export default function ElementsPage() {
         return 0;
     });
 
+    const selectAllElements = () => {
+        // Select all CURRENTLY VISIBLE elements
+        setSelectedElementIds(sortedElements.map(e => e.id));
+    };
+
+    const deselectAllElements = () => {
+        setSelectedElementIds([]);
+    };
+
+    const handleBatchDelete = async () => {
+        if (!confirm(`Are you sure you want to delete ${selectedElementIds.length} elements?`)) return;
+
+        try {
+            await Promise.all(selectedElementIds.map(id =>
+                fetchAPI(`/projects/${projectId}/elements/${id}`, { method: 'DELETE' })
+            ));
+            setSelectedElementIds([]);
+            loadElements();
+        } catch (err) {
+            console.error("Batch delete failed", err);
+        }
+    };
+
+    const handleBatchMove = async (targetSessionId: string) => {
+        try {
+            const formData = new FormData();
+            formData.append('sessionId', targetSessionId);
+
+            await Promise.all(selectedElementIds.map(id =>
+                fetch(`http://localhost:3001/api/projects/${projectId}/elements/${id}`, {
+                    method: 'PATCH',
+                    body: formData
+                })
+            ));
+            setSelectedElementIds([]);
+            loadElements();
+        } catch (err) {
+            console.error("Batch move failed", err);
+        }
+    };
+
+    const handleBatchSetType = async (name: string, type: string) => {
+        // Name is ignored in batch, only type is used
+        try {
+            const formData = new FormData();
+            formData.append('type', type);
+
+            await Promise.all(selectedElementIds.map(id =>
+                fetch(`http://localhost:3001/api/projects/${projectId}/elements/${id}`, {
+                    method: 'PATCH',
+                    body: formData
+                })
+            ));
+
+            setSelectedElementIds([]);
+            loadElements();
+        } catch (err) {
+            console.error("Batch set type failed", err);
+        }
+    };
+
+    const handleBatchCopyLinks = () => {
+        const links = elements
+            .filter(e => selectedElementIds.includes(e.id))
+            .map(e => e.url)
+            .join('\n');
+
+        if (links) {
+            navigator.clipboard.writeText(links);
+            alert(`Copied ${selectedElementIds.length} links to clipboard!`);
+        }
+    };
+
+    const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
+        onDrop,
+        noClick: true,
+        accept: {
+            'image/*': [],
+            'video/*': []
+        }
+    });
+
+    // Filter and Sort Logic
+
+
+
+
     // Extract all available tags
     const availableTags = Array.from(new Set(elements.flatMap(e => e.tags || [])));
 
@@ -336,10 +364,10 @@ export default function ElementsPage() {
                 />
                 {elements.length > 0 && (
                     <button
-                        onClick={selectedElementIds.length === elements.length ? deselectAllElements : selectAllElements}
+                        onClick={selectedElementIds.length === sortedElements.length ? deselectAllElements : selectAllElements}
                         className="ml-4 text-sm text-blue-400 hover:text-blue-300"
                     >
-                        {selectedElementIds.length === elements.length ? "Deselect All" : "Select All"}
+                        {selectedElementIds.length === sortedElements.length ? "Deselect All" : "Select All"}
                     </button>
                 )}
             </header>
@@ -431,6 +459,13 @@ export default function ElementsPage() {
                             ))}
                         </select>
                         <button
+                            onClick={() => setIsBatchTypeModalOpen(true)}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 rounded-lg text-sm font-medium transition-colors border border-yellow-500/20"
+                        >
+                            <Tag className="w-4 h-4" />
+                            Set Type
+                        </button>
+                        <button
                             onClick={handleBatchCopyLinks}
                             className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-sm font-medium transition-colors border border-blue-500/20"
                             title="Copy Links for JDownloader"
@@ -447,11 +482,11 @@ export default function ElementsPage() {
                         </button>
                         <div className="h-4 w-px bg-white/10 mx-1" />
                         <button
-                            onClick={selectedElementIds.length === elements.length ? deselectAllElements : selectAllElements}
+                            onClick={selectedElementIds.length === sortedElements.length ? deselectAllElements : selectAllElements}
                             className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg text-sm font-medium transition-colors border border-white/10"
                         >
                             <CheckSquare className="w-4 h-4" />
-                            {selectedElementIds.length === elements.length ? "Deselect All" : "Select All"}
+                            {selectedElementIds.length === sortedElements.length ? "Deselect All" : "Select All"}
                         </button>
                         <button
                             onClick={deselectAllElements}
@@ -470,6 +505,15 @@ export default function ElementsPage() {
                 onClose={() => setIsEditModalOpen(false)}
                 onSave={handleUpdateElement}
                 sessions={sessions}
+            />
+
+            <SaveElementModal
+                isOpen={isBatchTypeModalOpen}
+                onClose={() => setIsBatchTypeModalOpen(false)}
+                onSave={handleBatchSetType}
+                isBatch={true}
+                title={`Set Type for ${selectedElementIds.length} Elements`}
+                initialName=""
             />
         </div >
     );
@@ -519,33 +563,33 @@ function ElementCard({ element, onEdit, onUpdate, onDelete, isSelected, onToggle
         const left = (window.screen.width - width) / 2;
         const top = (window.screen.height - height) / 2;
 
-        const win = window.open(
-            "",
+        const html = `
+            <!DOCTYPE html>
+            <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>${element.name.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</title>
+                    <style>
+                        body { margin: 0; background: #000; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+                        video, img { max-width: 100%; max-height: 100%; object-fit: contain; }
+                    </style>
+                </head>
+                <body>
+                    ${element.type === 'video'
+                ? `<video src="${element.url}" controls autoplay loop></video>`
+                : `<img src="${element.url}" alt="${element.name.replace(/"/g, '&quot;')}" />`}
+                </body>
+            </html>
+        `;
+
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+
+        window.open(
+            url,
             "_blank",
             `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`
         );
-
-        if (win) {
-            win.document.write(`
-                <!DOCTYPE html>
-                <html>
-                    <head>
-                        <title>${element.name}</title>
-                        <style>
-                            body { margin: 0; background: #000; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-                            video, img { max-width: 100%; max-height: 100%; object-fit: contain; }
-                        </style>
-                    </head>
-                    <body>
-                        ${element.type === 'video'
-                    ? `<video src="${element.url}" controls autoplay loop></video>`
-                    : `<img src="${element.url}" alt="${element.name}" />`
-                }
-                    </body>
-                </html>
-            `);
-            win.document.close();
-        }
     };
 
     const handleDownload = (e: React.MouseEvent) => {
@@ -568,6 +612,13 @@ function ElementCard({ element, onEdit, onUpdate, onDelete, isSelected, onToggle
         onUpdate(element.id, { isFavorite: !element.isFavorite });
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleClick();
+        }
+    };
+
     return (
         <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -586,6 +637,10 @@ function ElementCard({ element, onEdit, onUpdate, onDelete, isSelected, onToggle
                     handleClick();
                 }
             }}
+            onKeyDown={handleKeyDown}
+            tabIndex={0}
+            role="button"
+            aria-label={`View details for ${element.name}`}
         >
             {/* Selection Checkbox and Favorite - top-left */}
             <div

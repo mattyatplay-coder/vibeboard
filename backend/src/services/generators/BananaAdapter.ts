@@ -102,6 +102,34 @@ export class BananaAdapter implements GenerationProvider {
                 throw new Error('No Banana video model key provided. Set BANANA_VIDEO_MODEL_KEY or pass model option.');
             }
 
+            // Duration handling based on model type
+            const durationSec = parseInt(String(options.duration || "5"), 10);
+            let numFrames: number;
+            let duration: number | undefined;
+
+            // Check model type for appropriate duration parameter
+            const isWan25 = modelKey.toLowerCase().includes('wan-2.5') || modelKey.toLowerCase().includes('wan25');
+            const isWan = modelKey.toLowerCase().includes('wan');
+            const isLTX = modelKey.toLowerCase().includes('ltx');
+
+            if (isWan25) {
+                // Wan 2.5 might use direct duration parameter
+                duration = durationSec >= 8 ? 10 : 5;
+                numFrames = durationSec >= 8 ? 241 : 121;
+                console.log(`[Banana] Wan 2.5 duration: ${duration}, numFrames: ${numFrames} (requested: ${options.duration})`);
+            } else if (isWan) {
+                // Wan 2.1/2.2 use num_frames at 24fps
+                numFrames = durationSec >= 8 ? 241 : 121;
+                console.log(`[Banana] Wan numFrames: ${numFrames} (requested: ${options.duration})`);
+            } else if (isLTX) {
+                // LTX Video
+                numFrames = durationSec >= 8 ? 240 : 144;
+                console.log(`[Banana] LTX numFrames: ${numFrames} (requested: ${options.duration})`);
+            } else {
+                // Default
+                numFrames = durationSec >= 8 ? 241 : 121;
+            }
+
             const payload: any = {
                 apiKey: this.apiKey,
                 modelKey: modelKey,
@@ -110,9 +138,10 @@ export class BananaAdapter implements GenerationProvider {
                     negative_prompt: options.negativePrompt || '',
                     num_inference_steps: options.steps || 25,
                     guidance_scale: options.guidanceScale || 7.0,
-                    num_frames: options.duration === "10" ? 241 : 121,
+                    num_frames: numFrames,
                     fps: 24,
                     seed: options.seed || Math.floor(Math.random() * 2147483647),
+                    ...(duration !== undefined ? { duration } : {})
                 }
             };
 

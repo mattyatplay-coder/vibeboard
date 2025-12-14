@@ -8,7 +8,7 @@ import { useDropzone } from "react-dropzone";
 
 interface FoundationImagePanelProps {
     projectId: string;
-    foundationImage: string | null;
+    foundationImage: string | File | null;
     onFoundationImageChange: (image: string | File | null) => void;
     onGenerateFromPrompt: (prompt: string) => void;
     styleConfig?: {

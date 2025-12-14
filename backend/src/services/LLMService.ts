@@ -2,6 +2,8 @@ import { LLMProvider, LLMRequest, LLMResponse } from './llm/LLMProvider';
 import { OllamaAdapter } from './llm/OllamaAdapter';
 import { GrokAdapter } from './llm/GrokAdapter';
 
+export type LLMProviderType = 'ollama' | 'grok';
+
 export class LLMService {
     private provider: LLMProvider;
 

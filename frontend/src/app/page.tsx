@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { fetchAPI } from "@/lib/api";
 import Link from "next/link";
 import { Plus, ArrowRight, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface Project {
   id: string;
@@ -29,19 +30,31 @@ export default function ProjectSelector() {
       setProjects(data);
     } catch (err) {
       console.error(err);
+      toast.error("Failed to load projects", {
+        description: "Please check your connection and try again.",
+      });
     } finally {
       setLoading(false);
     }
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName.trim()) return;
+    if (!newName.trim()) {
+      toast.error("Project name is required");
+      return;
+    }
 
+    setIsSubmitting(true);
     try {
       await fetchAPI("/projects", {
         method: "POST",
         body: JSON.stringify({ name: newName, description: newDesc }),
+      });
+      toast.success("Project created!", {
+        description: `"${newName}" is ready to use.`,
       });
       setNewName("");
       setNewDesc("");
@@ -49,6 +62,11 @@ export default function ProjectSelector() {
       loadProjects();
     } catch (err) {
       console.error(err);
+      toast.error("Failed to create project", {
+        description: "Please try again.",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -81,40 +99,50 @@ export default function ProjectSelector() {
 
         {isCreating && (
           <div className="mb-8 p-6 bg-white/5 border border-white/10 rounded-xl animate-in fade-in slide-in-from-top-4">
-            <form onSubmit={handleCreate} className="space-y-4">
+            <form onSubmit={handleCreate} className="space-y-4" aria-label="Create new project">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Project Name</label>
+                <label htmlFor="project-name" className="block text-sm font-medium text-gray-400 mb-1">
+                  Project Name <span className="text-red-400" aria-label="required">*</span>
+                </label>
                 <input
+                  id="project-name"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="My Awesome Movie"
                   autoFocus
+                  required
+                  aria-required="true"
+                  disabled={isSubmitting}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Description</label>
+                <label htmlFor="project-desc" className="block text-sm font-medium text-gray-400 mb-1">Description</label>
                 <input
+                  id="project-desc"
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
                   className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="A sci-fi thriller about..."
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setIsCreating(false)}
-                  className="px-4 py-2 text-sm text-gray-400 hover:text-white"
+                  className="px-4 py-2 text-sm text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/50 rounded"
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={!newName.trim()}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!newName.trim() || isSubmitting}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-black flex items-center gap-2"
                 >
-                  Create Project
+                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {isSubmitting ? "Creating..." : "Create Project"}
                 </button>
               </div>
             </form>

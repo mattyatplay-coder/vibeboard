@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
-import { LayoutGrid, Wand2, Clapperboard, Settings } from "lucide-react";
+import { LayoutGrid, Wand2, Clapperboard, Settings, FileText } from "lucide-react";
 import { motion } from "framer-motion";
 import { clsx } from "clsx";
 
@@ -34,7 +34,9 @@ export function Sidebar() {
   const navItems = [
     { name: "Elements", href: `/projects/${projectId}/elements`, icon: LayoutGrid },
     { name: "Generate", href: `/projects/${projectId}/generate`, icon: Wand2 },
+    { name: "Story Editor", href: `/projects/${projectId}/story-editor`, icon: FileText },
     { name: "Storyboard", href: `/projects/${projectId}/storyboard`, icon: Clapperboard },
+    { name: "Training", href: `/projects/${projectId}/train`, icon: Wand2 },
   ];
 
   return (

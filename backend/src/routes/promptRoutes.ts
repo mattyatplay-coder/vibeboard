@@ -8,6 +8,7 @@ import { Router, Request, Response } from 'express';
 import { promptEnhancer, PromptEnhancementRequest, ElementReference, LoRAReference } from '../services/prompts/PromptEnhancer';
 import { loraRegistry } from '../services/prompts/LoRARegistry';
 import { getModelGuide, MODEL_PROMPTING_GUIDES } from '../services/prompts/ModelPromptGuides';
+import { LLMService } from '../services/LLMService';
 
 const router = Router();
 
@@ -20,11 +21,13 @@ router.post('/enhance', async (req: Request, res: Response) => {
     try {
         const {
             prompt,
+            customNegativePrompt,
             modelId,
             generationType = 'image',
             elements = [],
             primaryCharacterId,
             loraIds = [],
+            loras: requestLoras = [], // Accept full LoRA objects from frontend
             style,
             mood,
             cameraMovement,
@@ -33,7 +36,9 @@ router.post('/enhance', async (req: Request, res: Response) => {
             preserveOriginalIntent = true,
             addQualityBoosters = true,
             addNegativePrompt = true,
-            consistencyPriority = 0.7
+            consistencyPriority = 0.7,
+            image, // Single legacy image
+            images = [] // Array of images (preferred)
         } = req.body;
 
         if (!prompt) {
@@ -44,23 +49,53 @@ router.post('/enhance', async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Model ID is required' });
         }
 
-        // Resolve LoRAs from registry
+        // Build LoRA references - prefer full objects from request, fallback to registry
         const loras: LoRAReference[] = [];
-        for (const loraId of loraIds) {
-            const lora = loraRegistry.get(loraId);
-            if (lora) {
+
+        // First, use LoRAs passed directly from frontend (has triggerWord from DB)
+        if (requestLoras && requestLoras.length > 0) {
+            for (const reqLora of requestLoras) {
+                // Handle both 'triggerWord' (DB format) and 'triggerWords' (array format)
+                const triggerWords = reqLora.triggerWords ||
+                    (reqLora.triggerWord ? [reqLora.triggerWord] : []);
+
                 loras.push({
-                    id: lora.id,
-                    name: lora.name,
-                    triggerWords: lora.triggerWords,
-                    strength: lora.recommendedStrength,
-                    type: lora.type as any,
-                    activationText: lora.activationText
+                    id: reqLora.id,
+                    name: reqLora.name,
+                    triggerWords,
+                    strength: reqLora.strength || 1.0,
+                    type: (reqLora.type || reqLora.category || 'concept') as any,
+                    activationText: triggerWords[0] || undefined,
+                    noTrigger: reqLora.noTrigger || reqLora.name?.toLowerCase().includes('notrigger')
                 });
-                // Record usage
-                loraRegistry.recordUsage(loraId);
             }
         }
+
+        // Fallback: resolve from registry by ID if no direct LoRAs provided
+        if (loras.length === 0 && loraIds.length > 0) {
+            for (const loraId of loraIds) {
+                const lora = loraRegistry.get(loraId);
+                if (lora) {
+                    loras.push({
+                        id: lora.id,
+                        name: lora.name,
+                        triggerWords: lora.triggerWords,
+                        strength: lora.recommendedStrength,
+                        type: lora.type as any,
+                        activationText: lora.activationText
+                    });
+                    // Record usage
+                    loraRegistry.recordUsage(loraId);
+                }
+            }
+        }
+
+        console.log('[Enhance] Received LoRAs:', JSON.stringify(loras.map(l => ({
+            name: l.name,
+            triggerWords: l.triggerWords,
+            type: l.type,
+            noTrigger: l.noTrigger
+        })), null, 2));
 
         // Find primary character from elements
         const primaryCharacter = primaryCharacterId
@@ -83,7 +118,9 @@ router.post('/enhance', async (req: Request, res: Response) => {
             preserveOriginalIntent,
             addQualityBoosters,
             addNegativePrompt,
-            consistencyPriority
+            consistencyPriority,
+            customNegativePrompt, // Pass the custom negative prompt
+            images: images && images.length > 0 ? images : (image ? [image] : []) // Normalize to array
         };
 
         // Enhance the prompt
@@ -93,6 +130,7 @@ router.post('/enhance', async (req: Request, res: Response) => {
             success: true,
             prompt: result.prompt,
             negativePrompt: result.negativePrompt,
+            triggerDetections: result.triggerDetections, // Include for UI transparency
             components: result.components,
             recommendations: result.recommendations,
             analysis: result.analysis
@@ -431,5 +469,72 @@ function generateSuggestions(prompt: string, guide: any): string[] {
 
     return suggestions;
 }
+
+// Parse Screenplay Script
+router.post('/parse-script', async (req, res) => {
+    try {
+        const { script } = req.body;
+        if (!script) {
+            return res.status(400).json({ error: 'Script text is required' });
+        }
+
+        const prompt = `
+        You are an expert AI screenplay parser and video direction assistant. 
+        Your task is to analyze the provided screenplay text and extract structured prompts for a 3-stage video generation pipeline.
+        
+        The pipeline consists of:
+        1. **Visual Prompt (Reference to Video)**: Describes the subject, setting, lighting, and style for generating the initial coherent character/scene video. Focus on visual details.
+        2. **Motion Prompt (One-to-All)**: Describes the camera movement, character action, and overall motion dynamics. Focus on verbs and movement.
+        3. **Audio/Dialogue Prompt (Sync Lips)**: Extracts the dialogue to be spoken. If there are multiple characters, prioritize the main speaker or combine them if they are in the same shot.
+        
+        Input Script:
+        """
+        ${script}
+        """
+        
+        Output JSON format:
+        {
+            "visual": "Detailed visual description...",
+            "motion": "Specific motion and camera instruction...",
+            "audio": "Exact dialogue text..."
+        }
+        
+        Return ONLY valid JSON. Do not include markdown formatting or explanations.
+        `;
+
+        try {
+            const llmService = new LLMService('ollama'); // Default to Ollama for now, can be configurable
+            const response = await llmService.generate({
+                prompt: prompt,
+                systemPrompt: "You are a specialized JSON-preprocessor. You output purely structured JSON data extracted from screenplay text.",
+                temperature: 0.2 // Lower temperature for more deterministic/structured output
+            });
+
+            // Clean up response if it contains markdown code blocks
+            let cleanResponse = response.content.replace(/```json/g, '').replace(/```/g, '').trim();
+
+            const parsed = JSON.parse(cleanResponse);
+
+            res.json({
+                visual: parsed.visual || "A cinematic scene based on the script.",
+                motion: parsed.motion || "Subtle cinematic movement.",
+                audio: parsed.audio || ""
+            });
+
+        } catch (llmError) {
+            console.error("LLM Parsing Failed:", llmError);
+            // Fallback if LLM fails
+            res.json({
+                visual: script.slice(0, 200),
+                motion: "Cinematic motion",
+                audio: ""
+            });
+        }
+
+    } catch (error) {
+        console.error('Error parsing script:', error);
+        res.status(500).json({ error: 'Failed to parse script' });
+    }
+});
 
 export default router;

@@ -8,12 +8,22 @@ import { useDroppable } from "@dnd-kit/core";
 interface ShotNavigatorProps {
     scenes: any[];
     activeDragId?: string | null;
+    isOverNavigator?: boolean;
     onDropIndexChange?: (index: number | null) => void;
     onRemove?: (shotId: string) => void;
 }
 
-export function ShotNavigator({ scenes, activeDragId, onDropIndexChange, onRemove }: ShotNavigatorProps) {
+export function ShotNavigator({ scenes, activeDragId, isOverNavigator, onDropIndexChange, onRemove }: ShotNavigatorProps) {
     const [isOpen, setIsOpen] = useState(true); // Default to open for visibility
+
+    // Container-level droppable (kept for drop detection, but visual feedback now comes from parent)
+    const { setNodeRef: setContainerRef } = useDroppable({
+        id: 'shot-navigator-container',
+        data: { isContainer: true }
+    });
+
+    // Only show insert lines when actively dragging AND cursor is over the Shot Navigator area
+    const showInsertIndicators = !!(activeDragId && isOverNavigator);
 
     // Flatten shots from scenes
     const allShots = scenes.flatMap(scene =>
@@ -51,24 +61,32 @@ export function ShotNavigator({ scenes, activeDragId, onDropIndexChange, onRemov
                         exit={{ height: 0, opacity: 0 }}
                         className="overflow-hidden"
                     >
-                        <div className="px-8 pb-6 overflow-x-auto">
+                        <div
+                            ref={setContainerRef}
+                            id="shot-navigator-container"
+                            className={clsx(
+                                "px-8 pb-6 overflow-x-auto transition-colors",
+                                activeDragId && "bg-white/[0.02]",
+                                isOverNavigator && "bg-blue-500/5"
+                            )}
+                        >
                             <div className="flex gap-4 min-w-max items-center">
                                 {allShots.map((shot, index) => (
                                     <ShotThumbnail
                                         key={shot.id || `shot-${index}`}
                                         shot={shot}
                                         index={shot.relativeIndex}
-                                        activeDragId={activeDragId}
+                                        showInsertIndicator={showInsertIndicators}
                                         displayIndex={index}
                                         onRemove={onRemove}
                                     />
                                 ))}
                                 {allShots.length === 0 && (
-                                    <EmptyStateDropTarget sceneId={scenes[0]?.id} />
+                                    <EmptyStateDropTarget sceneId={scenes[0]?.id} isActive={!!activeDragId} />
                                 )}
                                 {allShots.length > 0 && (
                                     <EndDropTarget
-                                        activeDragId={activeDragId}
+                                        showInsertIndicator={showInsertIndicators}
                                         index={lastSceneNextIndex}
                                         sceneId={lastScene?.id}
                                     />
@@ -82,7 +100,7 @@ export function ShotNavigator({ scenes, activeDragId, onDropIndexChange, onRemov
     );
 }
 
-function EmptyStateDropTarget({ sceneId }: { sceneId?: string }) {
+function EmptyStateDropTarget({ sceneId, isActive }: { sceneId?: string, isActive?: boolean }) {
     const { setNodeRef, isOver } = useDroppable({
         id: 'drop-empty',
         data: { index: 0, sceneId }
@@ -91,9 +109,11 @@ function EmptyStateDropTarget({ sceneId }: { sceneId?: string }) {
     return (
         <div
             ref={setNodeRef}
+            data-testid="shot-navigator-empty-state"
             className={clsx(
                 "flex items-center justify-center py-8 px-4 border-2 border-dashed rounded-lg w-full transition-colors min-w-[300px]",
-                isOver ? "border-blue-500 bg-blue-500/10 text-blue-400" : "border-white/10 text-gray-500"
+                isOver ? "border-blue-500 bg-blue-500/10 text-blue-400" : "border-white/10 text-gray-500",
+                isActive && !isOver && "border-white/20"
             )}
         >
             <span className="text-sm italic">Drag generations here to create a storyboard</span>
@@ -101,13 +121,13 @@ function EmptyStateDropTarget({ sceneId }: { sceneId?: string }) {
     );
 }
 
-function EndDropTarget({ activeDragId, index, sceneId }: { activeDragId?: string | null, index: number, sceneId?: string }) {
+function EndDropTarget({ showInsertIndicator, index, sceneId }: { showInsertIndicator?: boolean, index: number, sceneId?: string }) {
     const { setNodeRef, isOver } = useDroppable({
         id: `drop-end`,
         data: { index, sceneId }
     });
 
-    if (!activeDragId) return null;
+    if (!showInsertIndicator) return null;
 
     return (
         <div
@@ -124,7 +144,7 @@ function EndDropTarget({ activeDragId, index, sceneId }: { activeDragId?: string
     );
 }
 
-function ShotThumbnail({ shot, index, activeDragId, displayIndex, onRemove }: { shot: any, index: number, activeDragId?: string | null, displayIndex: number, onRemove?: (id: string) => void }) {
+function ShotThumbnail({ shot, index, showInsertIndicator, displayIndex, onRemove }: { shot: any, index: number, showInsertIndicator?: boolean, displayIndex: number, onRemove?: (id: string) => void }) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
 
@@ -169,13 +189,13 @@ function ShotThumbnail({ shot, index, activeDragId, displayIndex, onRemove }: { 
     return (
         <div
             ref={setNodeRef}
-            className="flex items-center gap-1 relative group/drop"
+            className="flex items-center gap-1 relative group/drop z-10" // Added z-10
         >
-            {/* Drop Indicator (Left) */}
-            {activeDragId && (
+            {/* Drop Indicator (Left) - Only shows when cursor is over Shot Navigator container */}
+            {showInsertIndicator && (
                 <div
                     className={clsx(
-                        "absolute -left-3 top-0 bottom-0 w-6 rounded-full transition-all duration-200 z-30 flex items-center justify-center", // Increased width for hit area
+                        "absolute -left-4 top-0 bottom-0 w-8 rounded-full transition-all duration-200 z-50 flex items-center justify-center pointer-events-none", // Increased width and z-index, pointer-events-none to let drop pass through if needed, but actually we want this to BE the visual
                         isOver ? "opacity-100" : "opacity-0"
                     )}
                 >
@@ -185,7 +205,7 @@ function ShotThumbnail({ shot, index, activeDragId, displayIndex, onRemove }: { 
 
             <div className={clsx(
                 "flex flex-col gap-2 w-40 transition-all duration-200",
-                isOver && activeDragId ? "translate-x-2 opacity-80" : ""
+                isOver && showInsertIndicator ? "translate-x-2 opacity-80" : ""
             )}>
                 <div
                     className="relative aspect-video bg-white/5 rounded-lg overflow-hidden border border-white/10 group cursor-pointer"

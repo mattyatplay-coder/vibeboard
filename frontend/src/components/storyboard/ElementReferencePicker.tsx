@@ -4,7 +4,9 @@ import { useState, useEffect } from "react";
 import { X, Plus, Users, Search, Check, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { clsx } from "clsx";
-import { fetchAPI } from "@/lib/api";
+import { fetchAPI, resolveFileUrl } from "@/lib/api";
+
+
 
 interface ElementReferencePickerProps {
     projectId: string;
@@ -209,7 +211,7 @@ export function ElementReferencePicker({
                         <div className="flex gap-2 overflow-x-auto pb-2">
                             {selectedElements.map((id, idx) => {
                                 const el = elements.find(e => e.id === id);
-                                const url = el ? `http://localhost:3001${el.fileUrl}` : '';
+                                const url = resolveFileUrl(el?.fileUrl);
                                 return (
                                     <div
                                         key={id}
@@ -226,6 +228,11 @@ export function ElementReferencePicker({
                                                 "w-16 h-16 rounded-lg object-cover border-2",
                                                 activeElementId === id ? "border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" : "border-purple-500"
                                             )}
+                                            onError={(e) => {
+                                                console.error("Image load failed for URL:", url);
+                                                console.error("Original fileUrl:", el?.fileUrl);
+                                                e.currentTarget.style.border = "2px solid red";
+                                            }}
                                         />
                                         <div className="absolute -top-1 -left-1 w-5 h-5 bg-purple-500 rounded-full flex items-center justify-center text-[10px] text-white font-bold z-10 shadow-sm border border-white/20">
                                             {idx + 1}
@@ -266,7 +273,7 @@ export function ElementReferencePicker({
                                 const isSelected = selectedElements.includes(element.id);
                                 const selectionIndex = selectedElements.indexOf(element.id);
                                 const canSelect = selectedElements.length < maxElements || isSelected;
-                                const url = `http://localhost:3001${element.fileUrl}`;
+                                const url = resolveFileUrl(element.fileUrl);
 
                                 return (
                                     <button

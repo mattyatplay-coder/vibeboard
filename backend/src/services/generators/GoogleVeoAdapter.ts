@@ -87,57 +87,90 @@ export class GoogleVeoAdapter implements GenerationProvider {
             // Veo 3.1 model
             const model = this.normalizeModelId(options.model || 'veo-3.1');
 
-            const payload: any = {
-                instances: [{
-                    prompt: options.prompt,
-                }],
-                parameters: {
-                    // Video parameters
-                    aspectRatio: this.mapAspectRatio(options.aspectRatio || '16:9'),
-                    durationSeconds: parseInt(options.duration || '5'),
-                    // Veo 3.1 supports up to 8 seconds
-                    // For longer videos, you'd need to chain generations
+            // Build payload based on API type (Vertex AI vs Gemini API / AI Studio)
+            let payload: any;
 
-                    // Quality settings
-                    sampleCount: 1,
-                    seed: options.seed,
+            if (this.useVertexAI) {
+                // Vertex AI format - uses instances/parameters structure
+                payload = {
+                    instances: [{
+                        prompt: options.prompt,
+                    }],
+                    parameters: {
+                        aspectRatio: this.mapAspectRatio(options.aspectRatio || '16:9'),
+                        durationSeconds: parseInt(options.duration || '5'),
+                        sampleCount: 1,
+                        seed: options.seed,
+                        safetyFilterLevel: 'block_none',
+                        personGeneration: 'allow_all',
+                    }
+                };
 
-                    // Safety - least restrictive
-                    safetyFilterLevel: 'block_none',
-                    personGeneration: 'allow_all',
-                }
-            };
-
-            // Handle different modes
-            if (options.mode === 'frames_to_video') {
-                // Start frame (image)
+                // Handle image/video inputs for Vertex AI
                 if (image) {
                     payload.instances[0].image = await this.processImageInput(image);
                 }
-                // End frame
                 if (options.endFrame) {
                     payload.parameters.lastFrame = await this.processImageInput(options.endFrame);
                 }
-            } else if (options.mode === 'extend_video') {
-                // Input video for extension
                 if (options.inputVideo) {
                     payload.instances[0].video = await this.processVideoInput(options.inputVideo);
                 }
             } else {
-                // Default: Text-to-Video or Image-to-Video
+                // Gemini API / AI Studio format - simpler structure
+                // Docs: https://ai.google.dev/gemini-api/docs/video
+                payload = {
+                    prompt: options.prompt,
+                    config: {
+                        aspectRatio: this.mapAspectRatio(options.aspectRatio || '16:9'),
+                        numberOfVideos: 1,
+                    }
+                };
+
+                // Add duration - Veo supports "4", "6", or "8" seconds
+                const duration = parseInt(options.duration || '5');
+                if (duration <= 4) {
+                    payload.config.durationSeconds = 4;
+                } else if (duration <= 6) {
+                    payload.config.durationSeconds = 6;
+                } else {
+                    payload.config.durationSeconds = 8;
+                }
+
+                // Add negative prompt if provided
+                if (options.negativePrompt) {
+                    payload.negativePrompt = options.negativePrompt;
+                }
+
+                // Image-to-Video: Add initial frame
                 if (image) {
-                    payload.instances[0].image = await this.processImageInput(image);
+                    payload.image = await this.processImageInput(image);
+                }
+
+                // Frames-to-Video: Add last frame for interpolation (Veo 3.1 only)
+                if (options.endFrame) {
+                    payload.lastFrame = await this.processImageInput(options.endFrame);
+                }
+
+                // Reference images for content guidance (up to 3, Veo 3.1 only)
+                if (options.elementReferences && options.elementReferences.length > 0) {
+                    payload.referenceImages = await Promise.all(
+                        options.elementReferences.slice(0, 3).map(ref => this.processImageInput(ref))
+                    );
+                }
+
+                // Video extension mode
+                if (options.inputVideo) {
+                    payload.video = await this.processVideoInput(options.inputVideo);
                 }
             }
 
-
-
-            console.log("Google Veo generation:", model);
+            console.log("[GoogleVeo] Generating video with model:", model);
 
             // Veo uses async generation - start the job
             const response = await this.makeRequest(model, payload, true);
 
-            // For Vertex AI, we get an operation ID to poll
+            // Both APIs return an operation to poll
             if (response.name) {
                 const result = await this.pollOperation(response.name);
                 return {
@@ -155,7 +188,7 @@ export class GoogleVeoAdapter implements GenerationProvider {
             };
 
         } catch (error: any) {
-            console.error("Google Veo generation failed:", error.response?.data || error.message);
+            console.error("[GoogleVeo] Generation failed:", error.response?.data || error.message);
             return {
                 id: Date.now().toString(),
                 status: 'failed',
@@ -183,9 +216,13 @@ export class GoogleVeoAdapter implements GenerationProvider {
     }
 
     private async makeRequest(model: string, payload: any, isVideo: boolean = false): Promise<any> {
-        const url = this.useVertexAI
-            ? `${this.baseUrl}/${model}:${isVideo ? 'generateVideo' : 'predict'}`
-            : `${this.baseUrl}/${model}:${isVideo ? 'generateVideo' : 'predict'}`;
+        // Google AI Studio (Gemini API) uses predictLongRunning for video
+        // Vertex AI uses generateVideo
+        const action = isVideo
+            ? (this.useVertexAI ? 'generateVideo' : 'predictLongRunning')
+            : 'predict';
+
+        const url = `${this.baseUrl}/${model}:${action}`;
 
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
@@ -197,6 +234,9 @@ export class GoogleVeoAdapter implements GenerationProvider {
             // For Vertex AI, use service account auth
             headers['Authorization'] = `Bearer ${await this.getAccessToken()}`;
         }
+
+        console.log(`[GoogleVeo] Making request to: ${url}`);
+        console.log(`[GoogleVeo] Payload:`, JSON.stringify(payload, null, 2));
 
         const response = await axios.post(url, payload, {
             headers,
@@ -260,7 +300,30 @@ export class GoogleVeoAdapter implements GenerationProvider {
     private extractVideoOutputs(response: any): string[] {
         if (!response) return [];
 
-        // Handle different response formats
+        console.log("[GoogleVeo] Extracting outputs from response:", JSON.stringify(response, null, 2));
+
+        // Gemini API format: generated_videos array
+        // Per docs: "the result is in operation.response" with "generated_videos[0].video"
+        if (response.generated_videos || response.generatedVideos) {
+            const videos = response.generated_videos || response.generatedVideos;
+            return videos.map((v: any) => {
+                // Video can be a file object with uri/url
+                if (v.video?.uri) return v.video.uri;
+                if (v.video?.url) return v.video.url;
+                if (v.uri) return v.uri;
+                if (v.url) return v.url;
+                // Base64 encoded
+                if (v.video?.bytesBase64Encoded) {
+                    return `data:video/mp4;base64,${v.video.bytesBase64Encoded}`;
+                }
+                if (v.bytesBase64Encoded) {
+                    return `data:video/mp4;base64,${v.bytesBase64Encoded}`;
+                }
+                return v;
+            }).filter(Boolean);
+        }
+
+        // Vertex AI format: predictions array
         if (response.predictions) {
             return response.predictions.map((p: any) => {
                 if (p.bytesBase64Encoded) {
@@ -273,11 +336,12 @@ export class GoogleVeoAdapter implements GenerationProvider {
                     return p.video.uri;
                 }
                 return p;
-            });
+            }).filter(Boolean);
         }
 
+        // Legacy format
         if (response.generatedSamples) {
-            return response.generatedSamples.map((s: any) => s.video?.uri || s.uri);
+            return response.generatedSamples.map((s: any) => s.video?.uri || s.uri).filter(Boolean);
         }
 
         return [];
@@ -285,19 +349,39 @@ export class GoogleVeoAdapter implements GenerationProvider {
 
     private normalizeModelId(modelId: string): string {
         // Map user-friendly IDs to Google's actual model names
+        // See: https://ai.google.dev/gemini-api/docs/video
+
         if (!this.useVertexAI) {
-            // API Key (AI Studio) specific mappings
-            // Imagen 3 not available, use Imagen 4 Preview
-            if (modelId.includes('imagen')) {
+            // API Key (AI Studio / Gemini API) model names
+            const aiStudioMapping: Record<string, string> = {
+                // Video models - Veo
+                'veo-2': 'veo-2.0-generate-001',
+                'veo-3': 'veo-3.0-generate-001',
+                'veo-3-fast': 'veo-3.0-fast-generate-001',
+                'veo-3.1': 'veo-3.1-generate-preview',
+                'veo-3.1-fast': 'veo-3.1-fast-generate-preview',
+                // Image models - Imagen
+                'imagen-3': 'imagen-3.0-generate-001',
+                'imagen-4': 'imagen-4.0-generate-preview-06-06',
+            };
+
+            // Handle imagen fallback to Imagen 4 if Imagen 3 not available
+            if (modelId.includes('imagen') && !aiStudioMapping[modelId]) {
                 return 'imagen-4.0-generate-preview-06-06';
             }
+
+            return aiStudioMapping[modelId] || modelId;
         }
 
+        // Vertex AI model names (same as AI Studio for newer models)
         const modelMapping: Record<string, string> = {
             'imagen-3': 'imagen-3.0-generate-001',
-            'veo-2': 'veo-2.0',
-            'veo-3': 'veo-3.0',
-            'veo-3.1': 'veo-3.1-generate-preview'
+            'imagen-4': 'imagen-4.0-generate-preview-06-06',
+            'veo-2': 'veo-2.0-generate-001',
+            'veo-3': 'veo-3.0-generate-001',
+            'veo-3-fast': 'veo-3.0-fast-generate-001',
+            'veo-3.1': 'veo-3.1-generate-preview',
+            'veo-3.1-fast': 'veo-3.1-fast-generate-preview',
         };
         return modelMapping[modelId] || modelId;
     }
