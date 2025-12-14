@@ -1,0 +1,30 @@
+import { prisma } from '../prisma';
+
+// const prisma = new PrismaClient();
+
+async function main() {
+    const userId = 'user_default';
+    const email = 'user@example.com';
+
+    const user = await prisma.user.upsert({
+        where: { email },
+        update: {},
+        create: {
+            id: userId,
+            email,
+            name: 'Demo User',
+            password: 'password',
+        },
+    });
+
+    console.log('✅ Test user seeded:', user.id);
+}
+
+main()
+    .catch((e) => {
+        console.error(e);
+        process.exit(1);
+    })
+    .finally(async () => {
+        await prisma.$disconnect();
+    });

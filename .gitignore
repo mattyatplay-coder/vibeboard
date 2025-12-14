@@ -8,3 +8,21 @@ build/
 *.zip
 vibeboard-improvements/
 temp_analysis/
+
+# Database files
+*.db
+*.db-journal
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# Uploads (user data)
+frontend/public/uploads/
+
+# Local LoRA files
+loras/
+
+# Native app builds
+*.app/
+VibeBoard-Native/

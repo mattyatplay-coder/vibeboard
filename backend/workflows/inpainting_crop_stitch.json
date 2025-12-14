@@ -1,0 +1,176 @@
+{
+    "1": {
+        "inputs": {
+            "ckpt_name": "lustify_sd_inpainting_fp16.safetensors"
+        },
+        "class_type": "LoadCheckpoint",
+        "_meta": {
+            "title": "Load Checkpoint"
+        }
+    },
+    "2": {
+        "inputs": {
+            "image": "example.png",
+            "upload": "image"
+        },
+        "class_type": "LoadImage",
+        "_meta": {
+            "title": "Load Image"
+        }
+    },
+    "3": {
+        "inputs": {
+            "text": "breasts, slim young woman, nude, nipples",
+            "clip": [
+                "1",
+                1
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "Positive Prompt"
+        }
+    },
+    "4": {
+        "inputs": {
+            "text": "wrinkles, old, cgi, clothes, pants",
+            "clip": [
+                "1",
+                1
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "Negative Prompt"
+        }
+    },
+    "5": {
+        "inputs": {
+            "context_expand_pixels": 75,
+            "context_expand_factor": 1,
+            "fill_mask_holes": true,
+            "blur_mask_pixels": 11,
+            "invert_mask": false,
+            "blend_pixels": 10,
+            "rescale_algorithm": "bicubic",
+            "mode": "forced size",
+            "force_width": 896,
+            "force_height": 1152,
+            "image": [
+                "2",
+                0
+            ],
+            "mask": [
+                "2",
+                1
+            ]
+        },
+        "class_type": "InpaintCrop",
+        "_meta": {
+            "title": "Inpaint Crop"
+        }
+    },
+    "6": {
+        "inputs": {
+            "positive": [
+                "3",
+                0
+            ],
+            "negative": [
+                "4",
+                0
+            ],
+            "vae": [
+                "1",
+                2
+            ],
+            "pixels": [
+                "5",
+                1
+            ],
+            "mask": [
+                "5",
+                2
+            ]
+        },
+        "class_type": "InpaintModelConditioning",
+        "_meta": {
+            "title": "Inpaint Model Conditioning"
+        }
+    },
+    "7": {
+        "inputs": {
+            "seed": 923431948501571,
+            "steps": 25,
+            "cfg": 2.7,
+            "sampler_name": "dpmpp_2m_sde",
+            "scheduler": "karras",
+            "denoise": 1,
+            "model": [
+                "1",
+                0
+            ],
+            "positive": [
+                "6",
+                0
+            ],
+            "negative": [
+                "6",
+                1
+            ],
+            "latent_image": [
+                "6",
+                2
+            ]
+        },
+        "class_type": "KSampler",
+        "_meta": {
+            "title": "KSampler"
+        }
+    },
+    "8": {
+        "inputs": {
+            "samples": [
+                "7",
+                0
+            ],
+            "vae": [
+                "1",
+                2
+            ]
+        },
+        "class_type": "VAEDecode",
+        "_meta": {
+            "title": "VAE Decode"
+        }
+    },
+    "9": {
+        "inputs": {
+            "rescale_algorithm": "bicubic",
+            "stitch": [
+                "5",
+                0
+            ],
+            "image": [
+                "8",
+                0
+            ]
+        },
+        "class_type": "InpaintStitch",
+        "_meta": {
+            "title": "Inpaint Stitch"
+        }
+    },
+    "10": {
+        "inputs": {
+            "images": [
+                "9",
+                0
+            ]
+        },
+        "class_type": "PreviewImage",
+        "_meta": {
+            "title": "Preview Image"
+        }
+    }
+}

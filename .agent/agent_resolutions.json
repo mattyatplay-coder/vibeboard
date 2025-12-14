@@ -1,0 +1,442 @@
+{
+    "meta": {
+        "version": "1.0",
+        "description": "Detailed log of coding sessions, bug fixes, and architectural decisions for AI agent consumption.",
+        "last_updated": "2025-12-13T18:00:00Z"
+    },
+    "sessions": [
+        {
+            "id": "SPB-001",
+            "timestamp": "2025-12-12T01:30:00Z",
+            "topic": "Smart Prompt Builder - Negative Prompt Integration",
+            "context": {
+                "symptom": "User-provided negative prompts were being ignored by the generation engine.",
+                "user_intent": "Explicitly wanted custom negative prompts to be additive to system defaults.",
+                "constraints": [
+                    "Do not remove system defaults unless requested",
+                    "Custom prompts must take precedence"
+                ]
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Analysis",
+                    "description": "Traced data flow from API endpoint to PromptEnhancer service.",
+                    "finding": "The 'customNegativePrompt' field was present in the incoming request but was dropped when constructing the internal PromptEnhancementRequest object."
+                },
+                {
+                    "step": 2,
+                    "action": "Code Modification",
+                    "file": "backend/src/services/prompts/PromptEnhancer.ts",
+                    "change_type": "Interface Update",
+                    "details": "Added 'customNegativePrompt?: string' to the PromptEnhancementRequest interface."
+                },
+                {
+                    "step": 3,
+                    "action": "Code Modification",
+                    "file": "backend/src/services/prompts/PromptEnhancer.ts",
+                    "change_type": "Logic Update",
+                    "details": "Updated the 'enhance' method. Modified the return object construction to append 'customNegativePrompt' to the generated 'negativePrompt' string if it exists."
+                },
+                {
+                    "step": 4,
+                    "action": "Code Modification",
+                    "file": "backend/src/routes/promptRoutes.ts",
+                    "change_type": "Data Passing",
+                    "details": "Updated the POST handler to extract 'customNegativePrompt' from 'req.body' and pass it to 'promptEnhancer.enhance'."
+                },
+                {
+                    "step": 5,
+                    "action": "Verification",
+                    "description": "Manual testing confirmed that putting 'no tattoos' in the custom field resulted in it appearing in the final enhanced prompt."
+                }
+            ],
+            "architectural_decision": {
+                "decision": "Additive Negative Prompts",
+                "rationale": "Allows the model to maintain quality baselines (e.g. 'bad anatomy') while respecting user constraints."
+            }
+        },
+        {
+            "id": "SPB-002",
+            "timestamp": "2025-12-12T02:00:00Z",
+            "topic": "Smart Prompt Builder - LoRA Trigger Word Handling",
+            "context": {
+                "symptom": "LLM was rephrasing or moving LoRA trigger words, breaking their specific activation effect.",
+                "user_intent": "Prevent the LLM from 'messing up' the trigger words, but explicitly requested NOT to use strict regex placement to preserve creativity."
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Consultation",
+                    "description": "Proposed strict regex enforcement (prepending/appending trigger words manually).",
+                    "resolution": "User rejected strict enforcement in favor of creative freedom."
+                },
+                {
+                    "step": 2,
+                    "action": "Configuration",
+                    "file": "backend/src/services/prompts/PromptEnhancer.ts",
+                    "change_type": "Prompt Engineering",
+                    "details": "The decision was made to rely on the LLM's 'intelligence' to place words, rather than forcing them with code. No code changes were made to enforce placement."
+                }
+            ]
+        },
+        {
+            "id": "SPB-003",
+            "timestamp": "2025-12-12T02:30:00Z",
+            "topic": "Smart Prompt Builder - System Prompt Hallucination Fix",
+            "context": {
+                "symptom": "System automatically added 'no tattoos' to negative prompts without user request.",
+                "root_cause": "System prompt contained '(e.g. \"no tattoos\")' as an example, which biased the model."
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Audit",
+                    "file": "backend/src/services/prompts/PromptEnhancer.ts",
+                    "description": "Inspected 'buildLLMSystemPrompt' method."
+                },
+                {
+                    "step": 2,
+                    "action": "Code Modification",
+                    "file": "backend/src/services/prompts/PromptEnhancer.ts",
+                    "change_type": "Prompt Engineering",
+                    "details": "Replaced '(e.g. \"no tattoos\")' with '(e.g. \"text\", \"watermark\", \"blurry\")' to use neutral, technical examples."
+                }
+            ]
+        },
+        {
+            "id": "SPB-004",
+            "timestamp": "2025-12-12T03:00:00Z",
+            "topic": "Smart Prompt Builder - Negative Prompt UI Integration",
+            "context": {
+                "symptom": "Users had no way to manage or select negative prompts within the Prompt Builder UI.",
+                "user_intent": "Integrate a 'catalog' of negative prompts that can be easily accessed and modified."
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Planning",
+                    "description": "Selected 'PromptBuilder.tsx' for modification and decided to reuse 'NegativePromptManager.tsx'."
+                },
+                {
+                    "step": 2,
+                    "action": "Code Modification",
+                    "file": "frontend/src/components/prompts/PromptBuilder.tsx",
+                    "change_type": "UI Feature",
+                    "details": "Added 'customNegativePrompt' state and 'showNegativePromptLibrary' toggle."
+                },
+                {
+                    "step": 3,
+                    "action": "Code Modification",
+                    "file": "frontend/src/components/prompts/PromptBuilder.tsx",
+                    "change_type": "UI Feature",
+                    "details": "Inserted a new UI section with a textarea for manual input and a 'Library' button to open the manager."
+                },
+                {
+                    "step": 4,
+                    "action": "Code Modification",
+                    "file": "frontend/src/components/prompts/PromptBuilder.tsx",
+                    "change_type": "Integration",
+                    "details": "Updated 'enhance' function to send 'customNegativePrompt' to the backend API."
+                }
+            ]
+        },
+        {
+            "id": "SEC-FIX-001",
+            "timestamp": "2025-12-12T04:30:00Z",
+            "topic": "Backend Security - Cross-Tenant Access & Mass Assignment",
+            "context": {
+                "symptom": "Identified critical vulnerabilities SEC-004 (access to other project's data) and SEC-005 (overwriting immutable fields).",
+                "user_intent": "Secure the backend against unauthorized access and data integrity violations."
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Analysis",
+                    "description": "Determined that `createGeneration` lacked ownership checks and `updateGeneration` lacked field filtering."
+                },
+                {
+                    "step": 2,
+                    "action": "Code Modification",
+                    "file": "backend/src/controllers/generationController.ts",
+                    "change_type": "Security Hardening",
+                    "details": "Added `ALLOWED_UPDATE_FIELDS` constant and filtered `req.body` in `updateGeneration`."
+                },
+                {
+                    "step": 3,
+                    "action": "Code Modification",
+                    "file": "backend/src/controllers/generationController.ts",
+                    "change_type": "Security Hardening",
+                    "details": "Implemented strict ownership validations for `sessionId`, `prevGenerationId`, and `sourceElementIds` in `createGeneration`."
+                }
+            ]
+        },
+        {
+            "id": "LLM-001",
+            "timestamp": "2025-12-12T18:00:00Z",
+            "topic": "Vision LLM Model Comparison - GLM-4.6V vs Grok vs OpenAI",
+            "context": {
+                "symptom": "User wanted to evaluate Zhipu AI (zai-org) GLM models for potential use in Smart Prompt Builder.",
+                "user_intent": "Compare GLM-4.6V vision capabilities against OpenAI GPT-4o and Grok Vision for character trait extraction, LoRA recognition, settings optimization, and multi-image consistency.",
+                "constraints": [
+                    "Test on VibeBoard-relevant use cases (tattoo placement, jewelry, hair/eye color, LoRA matching)",
+                    "Include latency and reliability metrics"
+                ]
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Comparison",
+                    "description": "Remote agent performed comparative testing of GLM-4.6V, Grok Vision, and GPT-4o.",
+                    "results": {
+                        "openai": {
+                            "avgScore": 100,
+                            "avgLatency": 5871,
+                            "reliability": "4/4"
+                        },
+                        "grok": {
+                            "avgScore": 100,
+                            "avgLatency": 3161,
+                            "reliability": "4/4"
+                        },
+                        "glm": {
+                            "avgScore": 100,
+                            "avgLatency": 7311,
+                            "reliability": "3/4"
+                        }
+                    }
+                }
+            ],
+            "architectural_decision": {
+                "decision": "Recommend Grok Vision as primary vision provider for VibeBoard",
+                "rationale": "Grok Vision is 2x faster than OpenAI (3161ms vs 5871ms), equally reliable (4/4 tests passed), and produces high-quality structured JSON output. GLM-4.6V not recommended for production vision tasks due to reliability issues."
+            }
+        },
+        {
+            "id": "COMP-001",
+            "timestamp": "2025-12-13T12:00:00Z",
+            "topic": "Competitive Analysis - VibeBoard vs Market (13 Competitors)",
+            "context": {
+                "symptom": "User requested competitive analysis to create improvement gameplan for VibeBoard as 'pro tool with UX masses can learn'.",
+                "user_intent": "Compare features against Runway, Midjourney, Leonardo, Civitai, Pika, Kling.ai, Higgsfield, InVideo, Hailuo/MiniMax, LTX Studio, Luma, and others.",
+                "analysis_scope": [
+                    "Image generation capabilities",
+                    "Video generation capabilities",
+                    "LoRA/training features",
+                    "Smart AI features",
+                    "Professional workflow tools",
+                    "UI/UX accessibility",
+                    "Pricing models"
+                ]
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Feature Inventory",
+                    "description": "Comprehensive exploration of VibeBoard codebase to catalog all current features.",
+                    "findings": {
+                        "imageModels": "70+ across 9 providers (Fal, Replicate, Together, Google, OpenAI, HuggingFace, Civitai, ComfyUI, Banana)",
+                        "videoModels": "40+ including Wan 2.5, Kling 2.6, Veo 3.1, Luma, MiniMax, LTX",
+                        "loraTraining": "Fal + Replicate with smart dataset curation and face matching",
+                        "storyboarding": "Full scene/shot management with timeline view",
+                        "smartFeatures": "LLM prompt enhancement, IP-Adapter, ControlNet, vision analysis"
+                    }
+                },
+                {
+                    "step": 2,
+                    "action": "Competitor Research",
+                    "description": "Web research on 13 competitors including pricing, features, and positioning.",
+                    "competitors_analyzed": [
+                        "Runway ($12-76/mo) - Video focus, 4K, 18s max",
+                        "Midjourney ($10-60/mo) - Image only, Discord-based",
+                        "Leonardo AI ($12-60/mo) - Image+video, mobile apps",
+                        "Civitai (Free+) - Model marketplace, 30+ community models",
+                        "Pika Labs ($8-58/mo) - Video, lip sync",
+                        "Kling.ai ($10-92/mo) - 2-minute videos, best duration",
+                        "Higgsfield ($5.99-29.99/mo) - 50+ camera presets, mobile-first",
+                        "InVideo ($20-96/mo) - Script-to-video automation, 16M stock library",
+                        "Hailuo/MiniMax ($9.99/mo) - #2 quality globally, best physics",
+                        "LTX Studio ($15-125/mo) - Script-to-storyboard, team collaboration",
+                        "Luma Dream Machine ($29/mo) - Smooth motion",
+                        "ComfyUI (Free OSS) - Node-based, power users"
+                    ]
+                },
+                {
+                    "step": 3,
+                    "action": "Gap Analysis",
+                    "description": "Identified critical gaps where competitors excel.",
+                    "critical_gaps": [
+                        {
+                            "gap": "Script-to-Storyboard automation",
+                            "competitors": ["LTX Studio", "InVideo"],
+                            "priority": "HIGH"
+                        },
+                        {
+                            "gap": "Camera preset library (50+)",
+                            "competitors": ["Higgsfield"],
+                            "priority": "HIGH"
+                        },
+                        {
+                            "gap": "Video duration (2 min max)",
+                            "competitors": ["Kling.ai"],
+                            "priority": "HIGH"
+                        },
+                        {
+                            "gap": "Onboarding/Guided Mode",
+                            "competitors": ["InVideo", "Leonardo"],
+                            "priority": "HIGH"
+                        },
+                        {
+                            "gap": "Team collaboration",
+                            "competitors": ["LTX Studio"],
+                            "priority": "MEDIUM"
+                        },
+                        {
+                            "gap": "LoRA/prompt marketplace",
+                            "competitors": ["Civitai"],
+                            "priority": "MEDIUM"
+                        }
+                    ]
+                },
+                {
+                    "step": 4,
+                    "action": "Detailed Analysis - Higgsfield Camera System",
+                    "description": "Deep dive into Higgsfield's 50+ camera preset implementation.",
+                    "findings": {
+                        "categories": ["Zoom (8)", "Dolly (7)", "Crane (3)", "Pan/Tilt (5)", "Orbital (5)", "Specialty (8)", "Dynamic (5)", "Vehicle (5)", "Character (5)", "Handheld (3)", "Static (2)", "Timelapse (3)"],
+                        "keyFeature": "Higgsfield Mix - combine 2+ camera moves into single shot",
+                        "implementation": "Subject lock while camera moves, prompt integration for actions"
+                    }
+                },
+                {
+                    "step": 5,
+                    "action": "Detailed Analysis - InVideo Automation",
+                    "description": "Deep dive into InVideo's script-to-video pipeline.",
+                    "findings": {
+                        "architecture": "Multi-agent system using OpenAI o3 (orchestrator), GPT-4.1 (scripts), gpt-image-1 (visuals), TTS (audio)",
+                        "pipeline": "Script Generation → Visual Selection (16M stock) → Audio Generation → Assembly → Natural Language Editing",
+                        "keyFeature": "Magic Box - edit video with text commands like 'make intro more punchy'"
+                    }
+                }
+            ],
+            "architectural_decision": {
+                "decision": "Implement Story Editor with Genre-Aware Camera Presets and Script-to-Storyboard Pipeline",
+                "rationale": "VibeBoard leads in raw capability (70+ image, 40+ video models) and cost efficiency (self-hosted). Critical gaps are UX simplification and intelligent automation. LTX Studio and InVideo prove script-to-storyboard is a killer feature. Higgsfield shows camera presets with genre awareness would differentiate VibeBoard."
+            },
+            "recommendations": {
+                "phase1_camera_presets": {
+                    "description": "Expand from 6 angles + 8 motions to 50+ organized presets",
+                    "implementation": "Create CAMERA_PRESETS constant with 10 categories, add CameraPresetSelector component",
+                    "files_to_modify": ["ShotActionsPanel.tsx", "CreateStyleModal.tsx"]
+                },
+                "phase2_genre_templates": {
+                    "description": "Genre-specific shot templates (Film Noir, Action, Horror, Romance, Documentary, Sci-Fi)",
+                    "implementation": "Create GENRE_SHOT_TEMPLATES with recommended/avoided camera moves per genre",
+                    "new_files": ["GenreTemplates.ts", "GenreSelector.tsx"]
+                },
+                "phase3_story_editor": {
+                    "description": "Script-to-storyboard pipeline with LLM orchestration",
+                    "implementation": "Concept → Script → Scenes → Shots → Camera Moves → Prompts → Storyboard",
+                    "key_features": ["Genre-aware shot suggestions", "Emotional beat mapping", "AI Director mode"]
+                },
+                "phase4_ux_simplification": {
+                    "description": "Guided vs Expert mode to make power accessible",
+                    "implementation": "First-run wizard, Quick Start templates, Progressive disclosure"
+                }
+            }
+        },
+        {
+            "id": "UI-001",
+            "timestamp": "2025-12-13T18:00:00Z",
+            "topic": "Cinematic Tags System - LoRA-Style Modal UI",
+            "context": {
+                "symptom": "Camera tags UI was using simple dropdowns, limiting discoverability of cinematographic options.",
+                "user_intent": "Create comprehensive cinematic tags system similar to LoRA modal with category filtering, search, and side panel layout.",
+                "constraints": [
+                    "Match LoRA modal UX pattern with side panel opening",
+                    "Support ~150 professional cinematography tags",
+                    "Condense to single 'Add Cinematic Tags' button",
+                    "Position Cinematic Inspiration textarea after tags button"
+                ]
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Data Architecture",
+                    "file": "frontend/src/data/CinematicTags.ts",
+                    "change_type": "New File",
+                    "details": "Created comprehensive tag library with 7 categories: Cameras (18), Lenses (15), Film Stock (18), Color Grade (20), Lighting (23), Motion (20), Mood (18). Each tag has id, name, prompt, and optional description. Includes search and subcategory filtering functions."
+                },
+                {
+                    "step": 2,
+                    "action": "Modal Component",
+                    "file": "frontend/src/components/storyboard/CinematicTagsModal.tsx",
+                    "change_type": "New File",
+                    "details": "Created modal with category pills, search input, subcategory sidebar, and tag grid. Supports embedded mode (w-[500px] h-[90vh]) for side panel display and overlay mode for standalone use. Includes CinematicTagsDropdown export for inline use."
+                },
+                {
+                    "step": 3,
+                    "action": "Integration",
+                    "file": "frontend/src/components/storyboard/StyleSelectorModal.tsx",
+                    "change_type": "Major Update",
+                    "details": "Added 'tags' to activeManager type. Created single 'Add Cinematic Tags' button that opens side panel. Moved Cinematic Inspiration textarea below button. Added separate Sampler & Scheduler accordion section. Tags panel appears in AnimatePresence side panels alongside LoRA manager."
+                },
+                {
+                    "step": 4,
+                    "action": "Integration",
+                    "file": "frontend/src/components/storyboard/ShotStyleEditorModal.tsx",
+                    "change_type": "Update",
+                    "details": "Integrated CinematicTagsModal for quick tag access when editing individual shots."
+                }
+            ],
+            "architectural_decision": {
+                "decision": "Side Panel Pattern with activeManager State",
+                "rationale": "Using activeManager state ('lora' | 'sampler' | 'scheduler' | 'tags' | null) with AnimatePresence allows consistent UX across different feature panels. Side panels match the established LoRA modal pattern and keep context visible while browsing options."
+            },
+            "files_created": [
+                "frontend/src/data/CinematicTags.ts",
+                "frontend/src/components/storyboard/CinematicTagsModal.tsx"
+            ],
+            "files_modified": [
+                "frontend/src/components/storyboard/StyleSelectorModal.tsx",
+                "frontend/src/components/storyboard/ShotStyleEditorModal.tsx",
+                "frontend/src/components/loras/LoRAManager.tsx"
+            ]
+        },
+        {
+            "id": "UI-002",
+            "timestamp": "2025-12-13T19:00:00Z",
+            "topic": "Cinematic Tags - Phone Cameras & Social Media Filters",
+            "context": {
+                "symptom": "Phone camera tags were outdated (iPhone 15, Pixel 8) and missing social media filter options.",
+                "user_intent": "Add current 2025 phone models and social media filter presets to cinematic tags."
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Web Research",
+                    "description": "Fetched current 2025 smartphone camera specs for iPhone 17 Pro, Google Pixel 10 Pro, Samsung Galaxy S25 Ultra."
+                },
+                {
+                    "step": 2,
+                    "action": "Data Update",
+                    "file": "frontend/src/data/CinematicTags.ts",
+                    "change_type": "Category Addition",
+                    "details": "Added 'Phones & Consumer' subcategory with 8 tags: iPhone 17 Pro (4K 120fps, Apple Log 2, 8x zoom), iPhone 16 Pro, Samsung Galaxy S25 Ultra (8K, Galaxy Log, 10x zoom), Google Pixel 10 Pro (Tensor G5, 100x Super Res Zoom), Disposable Camera, Polaroid Instant, Webcam, CCTV Security."
+                },
+                {
+                    "step": 3,
+                    "action": "Data Update",
+                    "file": "frontend/src/data/CinematicTags.ts",
+                    "change_type": "Category Addition",
+                    "details": "Added 'Social Media Filters' subcategory to Color Grades with 8 tags: Instagram Valencia, Instagram Clarendon, Instagram Juno, TikTok Beauty, VSCO A6, VSCO C1, Snapchat Vivid, Beauty Mode."
+                }
+            ],
+            "sources": [
+                "https://www.apple.com/iphone-17-pro/",
+                "https://blog.google/products/pixel/pixel-10-camera-features/",
+                "https://www.samsung.com/ca/mobile-buying-guide/samsung-galaxy-s25-camera-specs-explained/"
+            ]
+        }
+    ]
+}

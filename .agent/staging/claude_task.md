@@ -1,0 +1,83 @@
+# Training Module Audit & Fixes
+
+- [x] Locate and analyze existing training module code <!-- id: 0 -->
+    - [x] Backend controllers and routes (`trainingController.ts`, `trainingRoutes.ts`) <!-- id: 1 -->
+    - [x] Frontend pages (e.g., `train/page.tsx`) <!-- id: 2 -->
+    - [x] Service adapters (Fal.ai training integration) <!-- id: 3 -->
+- [x] Perform Code Audit <!-- id: 4 -->
+    - [x] Check API endpoint completeness and correctness <!-- id: 5 -->
+    - [x] Verify Fal.ai training configuration (zip upload, trigger words, parameters) <!-- id: 6 -->
+    - [x] Assessment of UI usability and completeness <!-- id: 7 -->
+- [x] Create Implementation Plan for fixes <!-- id: 8 -->
+- [/] Execute Fixes <!-- id: 9 -->
+    - [x] Verify `fal.storage.upload` capability <!-- id: 10 -->
+    - [x] Fix `FalTrainingService.ts` parameter mapping <!-- id: 11 -->
+    - [x] Fix `trainingController.ts` file handling <!-- id: 12 -->
+    - [x] Fix `trainingRoutes.ts` temp directory <!-- id: 13 -->
+- [x] Fix Server Routes <!-- id: 14 -->
+    - [x] Locate replacement for `storyboard.routes.ts` (Recreated) <!-- id: 15 -->
+    - [x] Update `server.ts` imports <!-- id: 16 -->
+- [x] Restore Missing Files from Backup <!-- id: 18 -->
+    - [x] Check `/Users/matthenrichmacbook/Downloads/Claude Downloads` (Files not compatible/found) <!-- id: 19 -->
+    - [x] Restore missing controllers (Skipped - logic missing in backup) <!-- id: 20 -->
+    - [x] Re-enable routes and verify build (Skipped - kept disabled) <!-- id: 21 -->
+- [x] Archive Outdated Files <!-- id: 22 -->
+    - [x] Create `Archived_Old_Code` in Downloads <!-- id: 23 -->
+    - [x] Move outdated `.ts` files to archive <!-- id: 24 -->
+- [x] Implement Training Job Deletion <!-- id: 25 -->
+    - [x] Update `trainingController.ts` with delete logic <!-- id: 26 -->
+    - [x] Update `trainingRoutes.ts` with delete endpoint <!-- id: 27 -->
+    - [x] Update `page.tsx` with delete UI <!-- id: 28 -->
+    - [x] Verify deletion <!-- id: 29 -->
+- [x] Implement Replicate Training <!-- id: 30 -->
+    - [x] Check dependencies (`replicate` SDK) <!-- id: 31 -->
+    - [x] Create `ReplicateTrainingService.ts` <!-- id: 32 -->
+    - [x] Update `trainingController.ts` to support multiple providers <!-- id: 33 -->
+    - [x] Update `trainingController.ts` to support multiple providers <!-- id: 33 -->
+    - [x] Update frontend to select provider <!-- id: 34 -->
+- [x] Dynamic Modal Width Adjustment <!-- id: 35 -->
+    - [x] Calculate dynamic width in `StyleSelectorModal` <!-- id: 36 -->
+    - [x] Integrate Negative Prompt Catalog into Prompt Builder (frontend) <!-- id: 4 -->
+        - [x] Add Negative Prompt UI to PromptBuilder.tsx
+        - [x] Connect NegativePromptManager
+        - [x] Verify persistence and enhancement flow <!-- id: 37 -->
+    - [x] Verify consistent sizing <!-- id: 38 -->
+
+- [x] Backend Security Remediation <!-- id: 56 -->
+    - [x] SEC-004: Fix Cross-Tenant Data Access in `generationController.ts` <!-- id: 57 -->
+    - [x] SEC-005: Fix Mass Assignment Vulnerability in `generationController.ts` <!-- id: 58 -->
+
+- [x] **Wan Video Integration**
+  - [x] Create backend adapter (`WanVideoAdapter.ts`)
+  - [x] Update `GenerationService.ts` to route Wan models
+  - [x] Update frontend `EngineSelector`
+  - [x] Update `GeneratePage` UI for dual inputs (Video + Image) <!-- id: 62 -->
+  - [x] Add Batch Save to Elements <!-- id: 63 -->
+
+- [x] **Dataset Preparation Feature** <!-- id: 64 -->
+    - [x] Create `DatasetService.ts` (Backend Pipeline) <!-- id: 65 -->
+    - [x] Update `ReplicateAdapter.ts` (Face Parsing) <!-- id: 66 -->
+    - [x] Update `FalAIAdapter.ts` (Auto-Captioning) <!-- id: 67 -->
+    - [x] Update `LoRAManager.tsx` (Frontend UI) <!-- id: 68 -->
+    - [x] Verify Pipeline (End-to-End) <!-- id: 69 -->
+
+- [x] **Face Identity Matching** <!-- id: 70 -->
+    - [x] Add "Reference Folder" upload to `LoRAManager.tsx` <!-- id: 71 -->
+    - [x] Update `DatasetService.ts` to handle reference images <!-- id: 72 -->
+    - [x] Implement `getFaceEmbeddings` in `ReplicateAdapter.ts` <!-- id: 73 -->
+    - [x] Implement Face Matching Logic (Cosine Similarity) <!-- id: 74 -->
+    - [x] Audit Remediation (Security & UX) <!-- id: 49 -->
+- [x] **Video Support & Smart Curation** <!-- id: 80 -->
+    - [x] Implement `extractFramesFromVideo` (ffmpeg) <!-- id: 82 -->
+    - [x] Implement `analyzeCandidate` (Score Face & Quality) <!-- id: 84 -->
+    - [x] Implement `curateDataset` (Select Top N) <!-- id: 85 -->
+    - [x] Update `datasetController` for Batch Processing <!-- id: 83 -->
+    - [x] Fix XSS in `GenerationCard.tsx` (Blob URL) <!-- id: 52 -->
+    - [x] **UI Integration & Training Enhancements** <!-- id: 90 -->
+    - [x] Update `FalTrainingService` to support Fast/Dev models <!-- id: 91 -->
+    - [x] Update `trainingController` to handle Base Model & Curation <!-- id: 92 -->
+    - [x] Update `TrainingPage` with Smart Curation & Base Model UI <!-- id: 93 -->
+    - [x] Process Reference Images & Dataset in `startJob` <!-- id: 94 -->
+
+- [x] Smart Prompt Builder Fixes <!-- id: 54 -->
+    - [x] Fix Missing Negative Prompts (`customNegativePrompt`) <!-- id: 55 -->

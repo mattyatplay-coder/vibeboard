@@ -1,0 +1,18 @@
+import { Router } from 'express';
+import {
+    getSceneChains,
+    createSceneChain,
+    getSceneChain,
+    updateSceneChain,
+    deleteSceneChain
+} from '../controllers/sceneChainController';
+
+const router = Router({ mergeParams: true });
+
+router.get('/', getSceneChains);
+router.post('/', createSceneChain);
+router.get('/:id', getSceneChain);
+router.put('/:id', updateSceneChain);
+router.delete('/:id', deleteSceneChain);
+
+export default router;

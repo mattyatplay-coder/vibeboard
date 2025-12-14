@@ -1,0 +1,253 @@
+{
+    "meta": {
+        "version": "1.0",
+        "description": "Detailed log of coding sessions, bug fixes, and architectural decisions for AI agent consumption.",
+        "last_updated": "2025-12-12T18:30:00Z"
+    },
+    "sessions": [
+        {
+            "id": "SPB-001",
+            "timestamp": "2025-12-12T01:30:00Z",
+            "topic": "Smart Prompt Builder - Negative Prompt Integration",
+            "context": {
+                "symptom": "User-provided negative prompts were being ignored by the generation engine.",
+                "user_intent": "Explicitly wanted custom negative prompts to be additive to system defaults.",
+                "constraints": [
+                    "Do not remove system defaults unless requested",
+                    "Custom prompts must take precedence"
+                ]
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Analysis",
+                    "description": "Traced data flow from API endpoint to PromptEnhancer service.",
+                    "finding": "The 'customNegativePrompt' field was present in the incoming request but was dropped when constructing the internal PromptEnhancementRequest object."
+                },
+                {
+                    "step": 2,
+                    "action": "Code Modification",
+                    "file": "backend/src/services/prompts/PromptEnhancer.ts",
+                    "change_type": "Interface Update",
+                    "details": "Added 'customNegativePrompt?: string' to the PromptEnhancementRequest interface."
+                },
+                {
+                    "step": 3,
+                    "action": "Code Modification",
+                    "file": "backend/src/services/prompts/PromptEnhancer.ts",
+                    "change_type": "Logic Update",
+                    "details": "Updated the 'enhance' method. Modified the return object construction to append 'customNegativePrompt' to the generated 'negativePrompt' string if it exists."
+                },
+                {
+                    "step": 4,
+                    "action": "Code Modification",
+                    "file": "backend/src/routes/promptRoutes.ts",
+                    "change_type": "Data Passing",
+                    "details": "Updated the POST handler to extract 'customNegativePrompt' from 'req.body' and pass it to 'promptEnhancer.enhance'."
+                },
+                {
+                    "step": 5,
+                    "action": "Verification",
+                    "description": "Manual testing confirmed that putting 'no tattoos' in the custom field resulted in it appearing in the final enhanced prompt."
+                }
+            ],
+            "architectural_decision": {
+                "decision": "Additive Negative Prompts",
+                "rationale": "Allows the model to maintain quality baselines (e.g. 'bad anatomy') while respecting user constraints."
+            }
+        },
+        {
+            "id": "SPB-002",
+            "timestamp": "2025-12-12T02:00:00Z",
+            "topic": "Smart Prompt Builder - LoRA Trigger Word Handling",
+            "context": {
+                "symptom": "LLM was rephrasing or moving LoRA trigger words, breaking their specific activation effect.",
+                "user_intent": "Prevent the LLM from 'messing up' the trigger words, but explicitly requested NOT to use strict regex placement to preserve creativity."
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Consultation",
+                    "description": "Proposed strict regex enforcement (prepending/appending trigger words manually).",
+                    "resolution": "User rejected strict enforcement in favor of creative freedom."
+                },
+                {
+                    "step": 2,
+                    "action": "Configuration",
+                    "file": "backend/src/services/prompts/PromptEnhancer.ts",
+                    "change_type": "Prompt Engineering",
+                    "details": "The decision was made to rely on the LLM's 'intelligence' to place words, rather than forcing them with code. No code changes were made to enforce placement."
+                }
+            ]
+        },
+        {
+            "id": "SPB-003",
+            "timestamp": "2025-12-12T02:30:00Z",
+            "topic": "Smart Prompt Builder - System Prompt Hallucination Fix",
+            "context": {
+                "symptom": "System automatically added 'no tattoos' to negative prompts without user request.",
+                "root_cause": "System prompt contained '(e.g. \"no tattoos\")' as an example, which biased the model."
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Audit",
+                    "file": "backend/src/services/prompts/PromptEnhancer.ts",
+                    "description": "Inspected 'buildLLMSystemPrompt' method."
+                },
+                {
+                    "step": 2,
+                    "action": "Code Modification",
+                    "file": "backend/src/services/prompts/PromptEnhancer.ts",
+                    "change_type": "Prompt Engineering",
+                    "details": "Replaced '(e.g. \"no tattoos\")' with '(e.g. \"text\", \"watermark\", \"blurry\")' to use neutral, technical examples."
+                }
+            ]
+        },
+        {
+            "id": "SPB-004",
+            "timestamp": "2025-12-12T03:00:00Z",
+            "topic": "Smart Prompt Builder - Negative Prompt UI Integration",
+            "context": {
+                "symptom": "Users had no way to manage or select negative prompts within the Prompt Builder UI.",
+                "user_intent": "Integrate a 'catalog' of negative prompts that can be easily accessed and modified."
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Planning",
+                    "description": "Selected 'PromptBuilder.tsx' for modification and decided to reuse 'NegativePromptManager.tsx'."
+                },
+                {
+                    "step": 2,
+                    "action": "Code Modification",
+                    "file": "frontend/src/components/prompts/PromptBuilder.tsx",
+                    "change_type": "UI Feature",
+                    "details": "Added 'customNegativePrompt' state and 'showNegativePromptLibrary' toggle."
+                },
+                {
+                    "step": 3,
+                    "action": "Code Modification",
+                    "file": "frontend/src/components/prompts/PromptBuilder.tsx",
+                    "change_type": "UI Feature",
+                    "details": "Inserted a new UI section with a textarea for manual input and a 'Library' button to open the manager."
+                },
+                {
+                    "step": 4,
+                    "action": "Code Modification",
+                    "file": "frontend/src/components/prompts/PromptBuilder.tsx",
+                    "change_type": "Integration",
+                    "details": "Updated 'enhance' function to send 'customNegativePrompt' to the backend API."
+                }
+            ]
+        },
+        {
+            "id": "SEC-FIX-001",
+            "timestamp": "2025-12-12T04:30:00Z",
+            "topic": "Backend Security - Cross-Tenant Access & Mass Assignment",
+            "context": {
+                "symptom": "Identified critical vulnerabilities SEC-004 (access to other project's data) and SEC-005 (overwriting immutable fields).",
+                "user_intent": "Secure the backend against unauthorized access and data integrity violations."
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Analysis",
+                    "description": "Determined that `createGeneration` lacked ownership checks and `updateGeneration` lacked field filtering."
+                },
+                {
+                    "step": 2,
+                    "action": "Code Modification",
+                    "file": "backend/src/controllers/generationController.ts",
+                    "change_type": "Security Hardening",
+                    "details": "Added `ALLOWED_UPDATE_FIELDS` constant and filtered `req.body` in `updateGeneration`."
+                },
+                {
+                    "step": 3,
+                    "action": "Code Modification",
+                    "file": "backend/src/controllers/generationController.ts",
+                    "change_type": "Security Hardening",
+                    "details": "Implemented strict ownership validations for `sessionId`, `prevGenerationId`, and `sourceElementIds` in `createGeneration`."
+                }
+            ]
+        },
+        {
+            "id": "LLM-001",
+            "timestamp": "2025-12-12T18:00:00Z",
+            "topic": "Vision LLM Model Comparison - GLM-4.6V vs Grok vs OpenAI",
+            "context": {
+                "symptom": "User wanted to evaluate Zhipu AI (zai-org) GLM models for potential use in Smart Prompt Builder.",
+                "user_intent": "Compare GLM-4.6V vision capabilities against OpenAI GPT-4o and Grok Vision for character trait extraction, LoRA recognition, settings optimization, and multi-image consistency.",
+                "constraints": [
+                    "Test on VibeBoard-relevant use cases (tattoo placement, jewelry, hair/eye color, LoRA matching)",
+                    "Include latency and reliability metrics"
+                ]
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Research",
+                    "description": "Researched GLM-4.6V availability. Found it accessible via Together AI (zai-org/GLM-4.6) with multimodal vision capabilities."
+                },
+                {
+                    "step": 2,
+                    "action": "Code Creation",
+                    "file": "backend/src/services/llm/LLMProvider.ts",
+                    "change_type": "Interface Extension",
+                    "details": "Added VisionRequest, VisionImage, and VisionLLMProvider interfaces to support multimodal image analysis."
+                },
+                {
+                    "step": 3,
+                    "action": "Code Creation",
+                    "file": "backend/src/services/llm/TogetherGLMAdapter.ts",
+                    "change_type": "New Adapter",
+                    "details": "Created Together AI adapter for GLM-4 series models with analyzeImage() method for vision support."
+                },
+                {
+                    "step": 4,
+                    "action": "Code Modification",
+                    "file": "backend/src/services/llm/GrokAdapter.ts",
+                    "change_type": "Feature Addition",
+                    "details": "Added analyzeImage() method implementing VisionLLMProvider interface for Grok Vision (grok-2-vision-1212)."
+                },
+                {
+                    "step": 5,
+                    "action": "Code Creation",
+                    "file": "backend/src/tests/vision-analysis-comparison.ts",
+                    "change_type": "Test Suite",
+                    "details": "Created comprehensive vision comparison test with 4 test cases: Character Trait Extraction, LoRA Recognition, Settings Optimization, Multi-Image Consistency."
+                },
+                {
+                    "step": 6,
+                    "action": "Execution",
+                    "description": "Ran vision comparison test across all three providers.",
+                    "results": {
+                        "openai": { "avgScore": 100, "avgLatency": 5871, "reliability": "4/4" },
+                        "grok": { "avgScore": 100, "avgLatency": 3161, "reliability": "4/4" },
+                        "glm": { "avgScore": 100, "avgLatency": 7311, "reliability": "3/4" }
+                    }
+                },
+                {
+                    "step": 7,
+                    "action": "Analysis",
+                    "description": "GLM-4.6V showed reliability issues: returned 'No image provided' on LoRA test (image URL fetching problem), JSON parse error on Settings test. Also ~2x slower than Grok."
+                }
+            ],
+            "architectural_decision": {
+                "decision": "Recommend Grok Vision as primary vision provider for VibeBoard",
+                "rationale": "Grok Vision is 2x faster than OpenAI (3161ms vs 5871ms), equally reliable (4/4 tests passed), and produces high-quality structured JSON output. GLM-4.6V not recommended for production vision tasks due to unreliable image URL fetching and JSON formatting issues. GLM-4.5 remains viable for text-only prompt enhancement (scored 97.5/100 in prior text comparison)."
+            },
+            "files_created": [
+                "backend/src/services/llm/TogetherGLMAdapter.ts",
+                "backend/src/tests/vision-analysis-comparison.ts",
+                "backend/src/tests/prompt-enhancement-comparison.ts",
+                "backend/vision-comparison-results.json"
+            ],
+            "files_modified": [
+                "backend/src/services/llm/LLMProvider.ts",
+                "backend/src/services/llm/GrokAdapter.ts",
+                "backend/src/services/LLMService.ts"
+            ]
+        }
+    ]
+}
