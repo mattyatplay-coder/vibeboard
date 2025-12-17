@@ -209,6 +209,176 @@ export class FrameExtractor {
             return this.extractMultipleFrames(videoUrl, ['first', 'middle', 'last']);
         }
     }
+
+    /**
+     * Extract ALL frames from a video at a specified FPS for rotoscoping
+     * Returns local file paths (not uploaded) for efficiency during editing
+     */
+    async extractFramesForRotoscope(
+        videoUrl: string,
+        options: {
+            fps?: number;  // Frames per second to extract (default: original video fps)
+            maxFrames?: number;  // Maximum frames to extract (default: 300)
+            outputDir?: string;  // Custom output directory
+        } = {}
+    ): Promise<{
+        frames: Array<{ path: string; timestamp: number; index: number }>;
+        totalFrames: number;
+        fps: number;
+        duration: number;
+        outputDir: string;
+    }> {
+        const { fps, maxFrames = 300, outputDir } = options;
+
+        try {
+            console.log(`[FrameExtractor] Extracting frames for rotoscope from: ${videoUrl}`);
+
+            // Get video metadata
+            const metadata = await this.getVideoMetadata(videoUrl);
+            const duration = metadata.duration || 0;
+            const originalFps = metadata.fps || 24;
+
+            // Use specified fps or original fps
+            const targetFps = fps || Math.min(originalFps, 30); // Cap at 30fps for performance
+            const estimatedFrames = Math.ceil(duration * targetFps);
+            const framesToExtract = Math.min(estimatedFrames, maxFrames);
+
+            console.log(`[FrameExtractor] Video: ${duration}s @ ${originalFps}fps, extracting ${framesToExtract} frames at ${targetFps}fps`);
+
+            // Create output directory
+            const frameDir = outputDir || path.join(os.tmpdir(), `rotoscope_${uuidv4()}`);
+            if (!fs.existsSync(frameDir)) {
+                fs.mkdirSync(frameDir, { recursive: true });
+            }
+
+            // Extract frames using ffmpeg
+            await new Promise<void>((resolve, reject) => {
+                let cmd = ffmpeg(videoUrl)
+                    .outputOptions([
+                        `-vf fps=${targetFps}`,
+                        '-frame_pts 1'  // Include presentation timestamp
+                    ])
+                    .output(path.join(frameDir, 'frame_%04d.png'))
+                    .on('end', () => resolve())
+                    .on('error', (err) => reject(err));
+
+                // Limit frames if needed
+                if (framesToExtract < estimatedFrames) {
+                    cmd = cmd.outputOptions([`-vframes ${framesToExtract}`]);
+                }
+
+                cmd.run();
+            });
+
+            // Read extracted frame files
+            const frameFiles = fs.readdirSync(frameDir)
+                .filter(f => f.startsWith('frame_') && f.endsWith('.png'))
+                .sort();
+
+            const frames = frameFiles.map((file, index) => ({
+                path: path.join(frameDir, file),
+                timestamp: index / targetFps,
+                index
+            }));
+
+            console.log(`[FrameExtractor] Extracted ${frames.length} frames to ${frameDir}`);
+
+            return {
+                frames,
+                totalFrames: frames.length,
+                fps: targetFps,
+                duration,
+                outputDir: frameDir
+            };
+
+        } catch (error: any) {
+            console.error('[FrameExtractor] Rotoscope extraction failed:', error);
+            throw new Error(`Rotoscope frame extraction failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * Upload a single frame to Fal storage (used when saving edited frames)
+     */
+    async uploadFrame(framePath: string): Promise<string> {
+        const fileBuffer = fs.readFileSync(framePath);
+        const blob = new Blob([fileBuffer], { type: 'image/png' });
+        return await fal.storage.upload(blob as any);
+    }
+
+    /**
+     * Get detailed video metadata
+     */
+    private getVideoMetadata(videoUrl: string): Promise<{ duration: number; fps: number; width: number; height: number }> {
+        return new Promise((resolve, reject) => {
+            ffmpeg.ffprobe(videoUrl, (err, metadata) => {
+                if (err) return reject(err);
+
+                const videoStream = metadata.streams.find(s => s.codec_type === 'video');
+                const duration = metadata.format.duration || 0;
+
+                let fps = 24; // Default
+                if (videoStream?.r_frame_rate) {
+                    const [num, den] = videoStream.r_frame_rate.split('/').map(Number);
+                    if (den > 0) fps = num / den;
+                }
+
+                resolve({
+                    duration,
+                    fps,
+                    width: videoStream?.width || 0,
+                    height: videoStream?.height || 0
+                });
+            });
+        });
+    }
+
+    /**
+     * Clean up extracted frames directory
+     */
+    cleanupFrames(outputDir: string): void {
+        try {
+            if (fs.existsSync(outputDir)) {
+                fs.rmSync(outputDir, { recursive: true, force: true });
+                console.log(`[FrameExtractor] Cleaned up ${outputDir}`);
+            }
+        } catch (error) {
+            console.warn('[FrameExtractor] Failed to cleanup:', error);
+        }
+    }
+
+    /**
+     * Reconstruct video from frames using ffmpeg
+     */
+    async reconstructVideo(
+        frameDir: string,
+        options: {
+            fps?: number;
+            outputPath?: string;
+            codec?: string;
+        } = {}
+    ): Promise<string> {
+        const { fps = 24, outputPath, codec = 'libx264' } = options;
+
+        const output = outputPath || path.join(os.tmpdir(), `reconstructed_${uuidv4()}.mp4`);
+
+        await new Promise<void>((resolve, reject) => {
+            ffmpeg()
+                .input(path.join(frameDir, 'frame_%04d.png'))
+                .inputOptions([`-framerate ${fps}`])
+                .outputOptions([
+                    `-c:v ${codec}`,
+                    '-pix_fmt yuv420p',
+                    '-crf 18'
+                ])
+                .output(output)
+                .on('end', () => resolve())
+                .on('error', (err) => reject(err))
+                .run();
+        });
+
+        return output;
+    }
 }
 
 // Export singleton instance

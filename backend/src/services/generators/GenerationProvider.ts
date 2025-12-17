@@ -60,4 +60,5 @@ export interface GenerationProvider {
     generateImage(options: GenerationOptions): Promise<GenerationResult>;
     generateVideo(image: string | undefined, options: GenerationOptions): Promise<GenerationResult>;
     checkStatus(id: string): Promise<GenerationResult>;
+    analyzeImage?(imageUrl: string, prompt?: string): Promise<string>;
 }

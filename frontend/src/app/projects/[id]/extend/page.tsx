@@ -1,19 +1,16 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
     Box,
     Container,
     Typography,
-    Paper,
     Button,
     Card,
-    CardContent,
-    CardActionArea,
-    Icon
+    CardActionArea
 } from '@mui/material';
-import { ArrowBack, Speed, Tune, MovieCreation } from '@mui/icons-material';
+import { ArrowBack, Speed, Tune } from '@mui/icons-material';
 import QuickModeWorkflow from '@/components/extend/QuickModeWorkflow';
 import AdvancedModeWorkflow from '@/components/extend/AdvancedModeWorkflow';
 

@@ -128,6 +128,17 @@ npm run test:audit          # Run session fixes audit tests
 - **Upscale Modal**: Clarity 2x, Clarity 4x, Aura SR
 - **Reliable Downloads** using blob fetch
 
+### LoRA Training & Character Foundry
+- **Character Foundry**: Generate 20 pose variations from a single reference image
+  - Powered by Flux 2 Max for best character consistency
+  - 7 clothing-aware pose presets (Universal, Swimwear, Casual, Formal, Fantasy, Anime, Cartoon)
+  - Dynamic aspect ratios (1:1, 3:4, 9:16) based on shot type
+  - Frame-relative directions for accurate pose rendering
+  - External editing support (edit in Photoshop before training)
+- **Smart Dataset Curation**: Face matching with cosine similarity
+- **Multi-Provider Training**: Fal.ai and Replicate support
+- **Video Frame Extraction**: Extract training frames from video with ffmpeg
+
 ### Backend Features
 - **JSON Field Serialization** for SQLite compatibility
 - **LoRA Editing** with PUT endpoint
@@ -172,9 +183,27 @@ DATABASE_URL=file:./dev.db
 - `POST /api/projects/:id/scenes` - Create scene
 - `POST /api/scenes/:sceneId/shots` - Add shot to scene
 
+### Training (LoRA)
+- `GET /api/training/pose-presets` - List available pose presets
+- `POST /api/training/jobs` - Create training job
+- `GET /api/training/jobs` - List all training jobs
+- `POST /api/training/jobs/:id/curate` - Upload images for curation
+- `POST /api/training/jobs/:id/generate-dataset` - Generate synthetic dataset (Character Foundry)
+- `GET /api/training/jobs/:id/dataset` - Get generated dataset images
+- `DELETE /api/training/jobs/:id/dataset/:filename` - Delete dataset image
+- `POST /api/training/jobs/:id/start` - Start training
+- `DELETE /api/training/jobs/:id` - Delete training job
+
 ## Recent Updates
 
 ### December 2024
+- **Character Foundry**: Single-image to full training dataset generation
+  - 7 pose presets (Universal, Swimwear, Casual, Formal, Fantasy, Anime, Cartoon)
+  - Flux 2 Max integration for character consistency
+  - External editing workflow support
+- **Cinematic Tags System**: 150+ professional cinematography tags across 7 categories
+  - Cameras (including 2025 smartphones), Lenses, Film Stock, Color Grade, Lighting, Motion, Mood
+  - Social media filter presets (Instagram, TikTok, VSCO)
 - Added Wan 2.5 T2V/I2V support
 - Added Kling O1 T2V/I2V/V2V Edit models
 - Added Kling 2.6 T2V/I2V models
@@ -187,4 +216,4 @@ DATABASE_URL=file:./dev.db
 - UI improvements: scrollbar hiding, GenerationCard layout, upscale modal
 
 ## Deployment Status
-Last updated: Sat Dec  7 22:53:00 EST 2024
+Last updated: Tue Dec 17 12:00:00 EST 2024

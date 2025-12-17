@@ -437,6 +437,98 @@
                 "https://blog.google/products/pixel/pixel-10-camera-features/",
                 "https://www.samsung.com/ca/mobile-buying-guide/samsung-galaxy-s25-camera-specs-explained/"
             ]
+        },
+        {
+            "id": "CF-001",
+            "timestamp": "2025-12-17T12:00:00Z",
+            "topic": "Character Foundry - Synthetic Dataset Generation",
+            "context": {
+                "symptom": "Users needed an easier way to generate consistent training datasets for LoRA training from a single reference image.",
+                "user_intent": "Create a 'Character Foundry' feature that generates 20 pose variations from one image, with proper framing and clothing-aware poses.",
+                "constraints": [
+                    "Must maintain character consistency across all variations",
+                    "Must handle different character types (realistic, anime, cartoon)",
+                    "Must avoid impossible poses (e.g., hands in pockets for swimwear)"
+                ]
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Model Evaluation",
+                    "description": "Tested multiple models for character consistency in pose generation.",
+                    "findings": {
+                        "kling_o1": "❌ Inconsistent - Character details changed between poses",
+                        "replicate_consistent_character": "❌ Style drift - Mixed Pixar/realistic styles",
+                        "flux_2_max": "✅ Selected - Best consistency + pose variety",
+                        "gpt_image_1_5": "✅ Good alternative - Slower but reliable"
+                    }
+                },
+                {
+                    "step": 2,
+                    "action": "Core Implementation",
+                    "file": "backend/src/services/training/DatasetGeneratorService.ts",
+                    "change_type": "New Service",
+                    "details": "Created DatasetGeneratorService with Flux 2 Max integration for generating 20 pose variations per character. Implemented dynamic aspect ratios (1:1 for close-ups, 3:4 for medium, 9:16 for full body) and frame-relative directions."
+                },
+                {
+                    "step": 3,
+                    "action": "Direction/Framing Fixes",
+                    "description": "Fixed left/right confusion and framing issues.",
+                    "changes": [
+                        "Frame-relative language: 'nose pointing toward left edge of frame' instead of 'facing left'",
+                        "Explicit cropping language: 'no legs visible', 'cropped at chest' for proper framing",
+                        "Dynamic aspect ratios matched to shot type"
+                    ]
+                },
+                {
+                    "step": 4,
+                    "action": "Pose Preset System",
+                    "file": "backend/src/services/training/DatasetGeneratorService.ts",
+                    "change_type": "Feature Addition",
+                    "details": "Added 7 clothing/style-aware pose presets: universal, swimwear, casual, formal, fantasy, anime, cartoon. Each preset has appropriate poses (e.g., swimwear has no pocket poses, anime has style prefix)."
+                },
+                {
+                    "step": 5,
+                    "action": "API Endpoint",
+                    "file": "backend/src/routes/trainingRoutes.ts",
+                    "change_type": "Route Addition",
+                    "details": "Added GET /api/training/pose-presets endpoint to fetch available presets."
+                },
+                {
+                    "step": 6,
+                    "action": "Controller Update",
+                    "file": "backend/src/controllers/trainingController.ts",
+                    "change_type": "Method Addition",
+                    "details": "Added getPosePresets method and updated generateDataset to accept preset parameter."
+                },
+                {
+                    "step": 7,
+                    "action": "Frontend UI",
+                    "file": "frontend/src/app/projects/[id]/train/page.tsx",
+                    "change_type": "UI Feature",
+                    "details": "Added pose preset dropdown to Character Foundry mode with descriptions. Presets load on mount and pass to backend during generation."
+                }
+            ],
+            "architectural_decision": {
+                "decision": "Flux 2 Max with Clothing-Aware Pose Presets",
+                "rationale": "Flux 2 Max (fal-ai/flux-2-max/edit) provides best character consistency. Pose presets prevent impossible poses (e.g., hands in pockets for bikini) and style prefixes ensure consistent rendering for anime/cartoon characters."
+            },
+            "pose_presets": {
+                "universal": "Works with any character - 20 generic poses",
+                "swimwear": "Bikinis, underwear - 19 poses, no pocket poses",
+                "casual": "T-shirts, jeans - 20 poses with pocket and layered clothing poses",
+                "formal": "Suits, dresses - 20 poses with elegant gestures",
+                "fantasy": "Armor, capes - 18 poses with dramatic stances",
+                "anime": "2D style - style prefix + exaggerated expressions",
+                "cartoon": "3D animated - style prefix + playful poses"
+            },
+            "files_created": [],
+            "files_modified": [
+                "backend/src/services/training/DatasetGeneratorService.ts",
+                "backend/src/controllers/trainingController.ts",
+                "backend/src/routes/trainingRoutes.ts",
+                "frontend/src/app/projects/[id]/train/page.tsx"
+            ]
         }
     ]
 }

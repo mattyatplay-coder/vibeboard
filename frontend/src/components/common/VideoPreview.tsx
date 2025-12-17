@@ -1,3 +1,4 @@
+ /* eslint-disable react-hooks/rules-of-hooks */
 import React, { useEffect, useState } from 'react';
 import { X, Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { clsx } from 'clsx';

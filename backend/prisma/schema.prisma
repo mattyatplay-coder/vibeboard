@@ -24,6 +24,7 @@ model Project {
   modelParameters ModelParameter[]
   workflows   Workflow[]
   trainingJobs TrainingJob[]
+  customPosePresets CustomPosePreset[]
 }
 
 model Session {
@@ -251,4 +252,18 @@ model TrainingJob {
   updatedAt     DateTime @updatedAt
 
   project       Project  @relation(fields: [projectId], references: [id])
+}
+
+// Custom Pose Presets for Character Foundry
+model CustomPosePreset {
+  id          String   @id @default(uuid())
+  projectId   String?  // null = global preset available to all projects
+  name        String
+  description String?
+  stylePrefix String?  // Prepended to all prompts for style consistency
+  poses       String   // JSON array of pose prompt strings
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project? @relation(fields: [projectId], references: [id])
 }

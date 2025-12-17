@@ -20,6 +20,58 @@ echo -e "${BLUE}  VibeBoard Service Launcher${NC}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
 echo ""
 
+# ==========================================
+# DRIVE AUTO-MOUNT CHECK
+# ==========================================
+# ==========================================
+# DRIVE AUTO-MOUNT CHECK
+# ==========================================
+
+check_and_mount_drive() {
+    local drive_name="$1"
+    local drive_path="/Volumes/$drive_name"
+    local server_address="smb://Mac mini.local/$drive_name"
+
+    echo -e "${BLUE}Checking for drive: $drive_name...${NC}"
+
+    if [ ! -d "$drive_path" ]; then
+        echo -e "${YELLOW}Drive not found at $drive_path${NC}"
+        echo -e "${YELLOW}Attempting auto-mount from Mac mini...${NC}"
+        
+        # Try to open the connection (standard macOS mount behavior)
+        open "$server_address"
+        
+        # Wait up to 10 seconds for it to appear
+        for i in {1..10}; do
+            echo -n "."
+            sleep 1
+            if [ -d "$drive_path" ]; then
+                echo ""
+                echo -e "${GREEN}Drive mounted successfully!${NC}"
+                return 0
+            fi
+        done
+        echo ""
+        
+        # Final check
+        if [ ! -d "$drive_path" ]; then
+            echo -e "${RED}ERROR: Could not mount '$drive_name' automatically.${NC}"
+            echo -e "${RED}Please ensure 'Mac mini' is on and the drive is connected.${NC}"
+            echo -e "${YELLOW}Press Enter to ignore and continue, or Ctrl+C to abort.${NC}"
+            read
+        fi
+    else
+        echo -e "${GREEN}Drive found: $drive_path${NC}"
+    fi
+    echo ""
+}
+
+# Check both drives
+check_and_mount_drive "Samsung.SSD.990.PRO.2TB"
+check_and_mount_drive "WD 8TB"
+
+# ==========================================
+
 # Function to open a new terminal with a service wrapper
 open_service_terminal() {
     local title="$1"
@@ -48,6 +100,12 @@ open_service_terminal() {
     # Create restart function and run
     full_cmd+="r() { echo 'Restarting...'; $run_cmd; }; "
     full_cmd+="$run_cmd"
+
+    # Escape quotes for AppleScript
+    # 1. Escape backslashes first
+    full_cmd=${full_cmd//\\/\\\\}
+    # 2. Escape double quotes
+    full_cmd=${full_cmd//\"/\\\"}
 
     osascript <<EOF
 tell application "Terminal"
@@ -113,8 +171,7 @@ open_service_terminal \
 
 echo ""
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}All services started!${NC}"
-echo ""
+echo -e "${GREEN}All systems operational!${NC}"
 echo -e "  ${YELLOW}ComfyUI${NC}:   http://localhost:8188"
 echo -e "  ${YELLOW}Frontend${NC}:  http://localhost:3000"
 echo -e "  ${YELLOW}Backend${NC}:   http://localhost:3001"
@@ -123,3 +180,4 @@ echo -e "  ${YELLOW}Browser${NC}:   Antigravity"
 echo ""
 echo "To restart a service: Press Ctrl+C, then type 'r' and Enter"
 echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
+echo -e "${YELLOW}REMINDER: When you are finished, run './scripts/backup_assets.sh' to sync your files!${NC}"

@@ -6,20 +6,16 @@ import { useParams } from "next/navigation";
 import { EngineSelectorV2 } from '@/components/generations/EngineSelectorV2';
 import { PromptBuilder } from '@/components/prompts/PromptBuilder';
 import {
-    Loader2, Send, Image as ImageIcon, Video,
-    Wand2, Settings, History, ChevronRight,
-    Sparkles, Zap, Layers, AlertCircle, Check, X,
-    Play, Ratio, ChevronDown, SlidersHorizontal, Users, Trash2, Copy, CheckSquare,
+    Loader2, Image as ImageIcon, Video,
+    Wand2, Sparkles, Layers, X,
+    ChevronDown, SlidersHorizontal, Users, Trash2, Copy, CheckSquare,
     Database, Music, FilePlus
 } from 'lucide-react';
-import { ADVANCED_OPTIONS } from "@/components/storyboard/CreateStyleModal";
 import { Element, Generation, Scene } from "@/lib/store";
 import { clsx } from "clsx";
 import { GenerationCard } from "@/components/generations/GenerationCard";
 import { ShotNavigator } from "@/components/generations/ShotNavigator";
-import { ElementPicker } from "@/components/generations/ElementPicker";
 import { ElementReferencePicker } from "@/components/storyboard/ElementReferencePicker";
-import { MagicPromptButton } from "@/components/generations/MagicPromptButton";
 import { StyleSelectorModal, StyleConfig } from "@/components/storyboard/StyleSelectorModal";
 import { useSession } from "@/context/SessionContext";
 import {
@@ -31,8 +27,7 @@ import {
     DragStartEvent,
     DragEndEvent,
     DragOverEvent,
-    pointerWithin,
-    Modifier
+    pointerWithin
 } from "@dnd-kit/core";
 
 import { SaveElementModal } from "@/components/generations/SaveElementModal";
@@ -71,7 +66,6 @@ export default function GeneratePage() {
     const [mode, setMode] = useState<'image' | 'video'>('image'); // Generation mode
     const [steps, setSteps] = useState(30);
     const [guidanceScale, setGuidanceScale] = useState(7.5);
-    const [seed, setSeed] = useState<number | undefined>(undefined); // Seed for reproducible results
     const [selectedElementIds, setSelectedElementIds] = useState<string[]>([]);
     const [selectedGenerationIds, setSelectedGenerationIds] = useState<string[]>([]); // Added missing state
     const [referenceCreativity, setReferenceCreativity] = useState(0.6); // Default reference strength
@@ -84,10 +78,10 @@ export default function GeneratePage() {
     const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
     const [isStyleModalOpen, setIsStyleModalOpen] = useState(false);
     const [isElementPickerOpen, setIsElementPickerOpen] = useState(false);
+    const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
     const [isSaveElementModalOpen, setIsSaveElementModalOpen] = useState(false);
     const [isBatchSaveMode, setIsBatchSaveMode] = useState(false);
     const [saveElementData, setSaveElementData] = useState<{ url: string, type: string } | null>(null);
-    const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
 
 
 
@@ -191,7 +185,7 @@ export default function GeneratePage() {
         try {
             console.log("Loading elements...");
             const data = await fetchAPI(`/elements`); // Fetch global elements
-            const mapped: Element[] = data.map((e: any) => ({
+            const mapped: Element[] = data.map((e: Record<string, unknown>) => ({
                 id: e.id,
                 name: e.name,
                 type: e.type,
@@ -316,12 +310,12 @@ export default function GeneratePage() {
 
             // Construct NextStage Chain (Recursive)
             // Chain: Base -> Stage 1 -> Stage 2 ...
-            let pipelineConfig: any = undefined;
+            let pipelineConfig: Record<string, unknown> | undefined = undefined;
 
             // Build from last stage backwards
             for (let i = updatedStages.length - 1; i >= 0; i--) {
                 const stage = updatedStages[i];
-                let stageOptions: any = {};
+                let stageOptions: Record<string, unknown> = {};
 
                 if (stage.type === 'motion') {
                     // One-To-All Animation
@@ -457,7 +451,7 @@ export default function GeneratePage() {
         const engine = generation.engine || generation.usedLoras?.provider || 'fal';
         const model = generation.falModel || generation.usedLoras?.model || generation.usedLoras?.falModel;
 
-        if (engine && model) {
+        if (engine && model && typeof model === 'string') {
             setEngineConfig({
                 provider: engine,
                 model: model,
@@ -504,14 +498,23 @@ export default function GeneratePage() {
 
         // Restore StyleConfig structure
         // Helper to map string/object to object for dropdowns
-        const mapToObj = (val?: string | any) => {
+        const mapToObj = (val?: string | Record<string, unknown>): { id: string; name: string; value: string } | undefined => {
             if (!val) return undefined;
-            if (typeof val === 'object' && val.id) return val;
-            return { id: val, name: val, value: val };
+            if (typeof val === 'object' && typeof val.id === 'string' && typeof val.name === 'string' && typeof val.value === 'string') {
+                return val as { id: string; name: string; value: string };
+            }
+            if (typeof val === 'string') {
+                return { id: val, name: val, value: val };
+            }
+            return undefined;
         };
 
         const restoredConfig: StyleConfig = {
-            loras: generation.usedLoras?.loras?.map((l: any) => ({ ...l, name: l.name || '' })) || [],
+            loras: generation.usedLoras?.loras?.map((l: Record<string, unknown>) => ({
+                id: (l.id as string) || '',
+                name: (l.name as string) || '',
+                strength: (l.strength as number) || 1.0
+            })) || [],
             steps: generation.usedLoras?.steps || 30,
             guidanceScale: generation.usedLoras?.guidanceScale || 7.5,
             negativePrompt: generation.usedLoras?.negativePrompt || "",
@@ -546,7 +549,7 @@ export default function GeneratePage() {
                 })
             });
             loadGenerations();
-        } catch (err: any) {
+        } catch (err) {
             console.error("Animation failed:", err);
         } finally {
             setIsGenerating(false);
@@ -569,7 +572,7 @@ export default function GeneratePage() {
                 })
             });
             loadGenerations();
-        } catch (err: any) {
+        } catch (err) {
             console.error("Upscale failed:", err);
         } finally {
             setIsGenerating(false);
@@ -591,7 +594,7 @@ export default function GeneratePage() {
             });
             console.log("Enhancement result:", result);
             loadGenerations();
-        } catch (err: any) {
+        } catch (err) {
             console.error("Video enhancement failed:", err);
         } finally {
             setIsGenerating(false);
@@ -656,7 +659,7 @@ export default function GeneratePage() {
                 body: JSON.stringify(payload),
             });
             loadGenerations();
-        } catch (err: any) {
+        } catch (err) {
             console.error("Inpainting failed:", err);
         } finally {
             setIsGenerating(false);
@@ -681,7 +684,7 @@ export default function GeneratePage() {
                 })
             });
             loadGenerations();
-        } catch (err: any) {
+        } catch (err) {
             console.error("Retake failed:", err);
         } finally {
             setIsGenerating(false);
@@ -818,11 +821,11 @@ export default function GeneratePage() {
                                     generation: generation,
                                     notes: ""
                                 };
-                                const updatedShots = [...(scene.shots || [])];
+                                const updatedShots = [...((scene.shots as unknown[]) || [])];
                                 updatedShots.splice(index, 0, newShot);
                                 // Re-index subsequent shots for local state consistency
                                 for (let i = index + 1; i < updatedShots.length; i++) {
-                                    updatedShots[i].index = i;
+                                    (updatedShots[i] as Record<string, unknown>).index = i;
                                 }
                                 return { ...scene, shots: updatedShots };
                             }
@@ -852,7 +855,9 @@ export default function GeneratePage() {
 
     const handleRemoveShot = async (shotId: string) => {
         // Find the scene containing the shot
-        const scene = scenes.find(s => s.shots?.some(shot => shot.id === shotId));
+        const scene = scenes.find(s =>
+            (s.shots as Array<{ id: string }>)?.some(shot => shot.id === shotId)
+        );
         if (!scene) return;
 
         // Optimistic Update
@@ -860,7 +865,7 @@ export default function GeneratePage() {
             if (s.id === scene.id) {
                 return {
                     ...s,
-                    shots: s.shots?.filter(shot => shot.id !== shotId)
+                    shots: (s.shots as Array<{ id: string }>)?.filter(shot => shot.id !== shotId)
                 };
             }
             return s;
@@ -1030,7 +1035,7 @@ export default function GeneratePage() {
                                 {/* Results Column */}
                                 <div className="lg:col-span-3">
                                     <h2 className="text-xl font-bold mb-4">Recent Generations</h2>
-                                    <div className="grid grid-cols-3 gap-4">
+                                    <div className="grid grid-cols-6 gap-3">
                                         {generations.map((gen, index) => (
                                             <GenerationCard
                                                 key={gen.id || `gen-${index}`}
@@ -1208,10 +1213,10 @@ export default function GeneratePage() {
                                             )}
                                         </div>
 
-                                        <div className="flex items-center gap-2 shrink-0 pb-0.5">
+                                        <div className="flex items-center gap-2 shrink-0 h-10 relative">
                                             <button
                                                 onClick={() => setIsPromptBuilderOpen(true)}
-                                                className="p-2.5 bg-gradient-to-br from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border border-purple-500/30 rounded-xl text-purple-300 transition-all hover:scale-105 hover:shadow-lg hover:shadow-purple-500/10"
+                                                className="h-10 w-10 flex items-center justify-center bg-gradient-to-br from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border border-purple-500/30 rounded-xl text-purple-300 transition-all hover:scale-105 hover:shadow-lg hover:shadow-purple-500/10"
                                                 title="Open Smart Prompt Builder"
                                             >
                                                 <Wand2 className="w-5 h-5" />
@@ -1221,7 +1226,7 @@ export default function GeneratePage() {
                                             <button
                                                 type="button"
                                                 onClick={() => setIsStyleModalOpen(true)}
-                                                className="flex items-center gap-2 px-3 py-2.5 rounded-xl border bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white transition-all whitespace-nowrap"
+                                                className="h-10 flex items-center gap-2 px-3 rounded-xl border bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white transition-all whitespace-nowrap"
                                                 title="Style & Settings"
                                             >
                                                 <SlidersHorizontal className="w-5 h-5" />
@@ -1236,7 +1241,7 @@ export default function GeneratePage() {
                                                 type="button"
                                                 onClick={() => setIsElementPickerOpen(!isElementPickerOpen)}
                                                 className={clsx(
-                                                    "p-2.5 rounded-xl transition-colors relative border border-white/10",
+                                                    "h-10 w-10 flex items-center justify-center rounded-xl transition-colors relative border border-white/10",
                                                     isElementPickerOpen ? "bg-white/10 text-white" : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white"
                                                 )}
                                                 title="Toggle Elements"
@@ -1250,14 +1255,14 @@ export default function GeneratePage() {
                                             </button>
 
                                             {/* Mode Switch */}
-                                            <div className="flex items-center bg-white/5 rounded-xl p-1 border border-white/10">
+                                            <div className="flex items-center bg-white/5 rounded-xl border border-white/10 h-10 p-1">
                                                 <button
                                                     onClick={() => {
                                                         setMode('image');
                                                         setEngineConfig(prev => ({ ...prev, provider: 'fal', model: 'fal-ai/flux/dev' }));
                                                     }}
                                                     className={clsx(
-                                                        "p-1.5 rounded-lg transition-all",
+                                                        "h-full px-2 rounded-lg transition-all flex items-center justify-center",
                                                         mode === 'image' ? "bg-blue-500 text-white shadow-lg" : "text-gray-400 hover:text-white"
                                                     )}
                                                     title="Image Mode"
@@ -1270,7 +1275,7 @@ export default function GeneratePage() {
                                                         setEngineConfig(prev => ({ ...prev, provider: 'fal', model: 'fal-ai/kling-video/v1/standard/text-to-video' }));
                                                     }}
                                                     className={clsx(
-                                                        "p-1.5 rounded-lg transition-all",
+                                                        "h-full px-2 rounded-lg transition-all flex items-center justify-center",
                                                         mode === 'video' ? "bg-blue-500 text-white shadow-lg" : "text-gray-400 hover:text-white"
                                                     )}
                                                     title="Video Mode"
@@ -1279,11 +1284,11 @@ export default function GeneratePage() {
                                                 </button>
                                             </div>
 
-                                            <div className="w-px h-8 bg-white/10 mx-1" />
+                                            <div className="w-px h-6 bg-white/10 mx-1" />
 
                                             {/* Duration Dropdown (Video Only) */}
                                             {(engineConfig.model?.includes('video') || engineConfig.model?.includes('t2v') || engineConfig.model?.includes('wan') || engineConfig.model?.includes('kling') || engineConfig.model?.includes('ltx')) && (
-                                                <div className="flex items-center gap-2 bg-white/5 px-2 py-1 rounded-lg border border-white/10 h-10">
+                                                <div className="flex items-center gap-2 bg-white/5 px-2 rounded-lg border border-white/10 h-10">
                                                     <span className="text-xs text-gray-400 font-medium px-1">Sec</span>
                                                     <select
                                                         value={duration}
@@ -1297,7 +1302,7 @@ export default function GeneratePage() {
                                             )}
 
                                             {/* Iterations Dropdown */}
-                                            <div className="flex items-center gap-2 bg-white/5 px-2 py-1 rounded-lg border border-white/10 h-10">
+                                            <div className="flex items-center gap-2 bg-white/5 px-2 rounded-lg border border-white/10 h-10">
                                                 <span className="text-xs text-gray-400 font-medium px-1">Qty</span>
                                                 <select
                                                     value={variations}
@@ -1315,7 +1320,7 @@ export default function GeneratePage() {
                                                 <button
                                                     onClick={() => setIsAudioModalOpen(true)}
                                                     className={clsx(
-                                                        "flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all h-10",
+                                                        "flex items-center gap-2 px-3 rounded-lg border transition-all h-10",
                                                         audioFile
                                                             ? "bg-blue-500/20 border-blue-500 text-blue-400"
                                                             : "bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10"
@@ -1329,26 +1334,19 @@ export default function GeneratePage() {
                                                 </button>
                                             )}
 
-                                            {/* Data Button */}
-                                            <button
-                                                onClick={() => setIsBackupModalOpen(true)}
-                                                className="p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-gray-400 hover:text-white transition-colors"
-                                                title="Data Management"
-                                            >
-                                                <Database className="w-5 h-5" />
-                                            </button>
-
                                             {/* Engine Selector */}
                                             <EngineSelectorV2
                                                 selectedProvider={engineConfig.provider}
                                                 selectedModel={engineConfig.model}
                                                 onSelect={(provider, model) => setEngineConfig({ provider, model })}
                                                 mode={mode}
+                                                variant="compact"
+                                                className="w-48"
                                             />
 
                                             {/* Pipeline Node Workflow (Vidu Q2 Only) */}
                                             {engineConfig.model === 'fal-ai/vidu/q2/reference-to-video' && (
-                                                <div className="flex flex-col gap-3 p-3 bg-white/5 rounded-xl border border-white/10 mt-2">
+                                                <div className="absolute bottom-full right-0 mb-2 w-72 flex flex-col gap-3 p-3 bg-[#1a1a1a] rounded-xl border border-white/10 z-50 shadow-xl">
                                                     <div className="flex items-center justify-between text-xs font-semibold text-gray-300">
                                                         <div className="flex items-center gap-2">
                                                             <Layers className="w-4 h-4 text-blue-400" />
@@ -1472,7 +1470,7 @@ export default function GeneratePage() {
                                             <button
                                                 onClick={handleGenerate}
                                                 disabled={isGenerating || !prompt?.trim()}
-                                                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 h-10"
+                                                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 rounded-lg font-medium transition-colors flex items-center gap-2 h-10"
                                             >
                                                 {isGenerating ? (
                                                     <>
@@ -1509,24 +1507,24 @@ export default function GeneratePage() {
                                                         .map(e => ({
                                                             id: e.id,
                                                             name: e.name,
-                                                            type: e.type as any,
+                                                            type: (e.type === 'image' ? 'style' : e.type) as 'character' | 'prop' | 'location' | 'style',
                                                             description: e.name,
                                                             imageUrl: e.url,
                                                             consistencyWeight: 0.8
                                                         }))}
-                                                    initialLoRAs={styleConfig?.loras?.map((l: any) => ({
+                                                    initialLoRAs={styleConfig?.loras?.map((l) => ({
                                                         id: l.id,
                                                         name: l.name,
-                                                        triggerWords: l.triggerWord ? [l.triggerWord] : [],
-                                                        type: l.type || 'style',
-                                                        baseModel: 'SDXL', // Default fallback
-                                                        recommendedStrength: l.strength,
+                                                        triggerWords: [],
+                                                        type: 'style' as const,
+                                                        baseModel: 'SDXL',
+                                                        recommendedStrength: l.strength || 0.8,
                                                         useCount: 0
                                                     }))}
                                                     initialImages={styleConfig?.referenceImage && typeof styleConfig.referenceImage === 'string'
                                                         ? [styleConfig.referenceImage]
                                                         : []}
-                                                    onPromptChange={(newPrompt, negativePrompt) => {
+                                                    onPromptChange={(newPrompt, _negativePrompt) => {
                                                         setPrompt(newPrompt);
                                                         // Negative prompt handling can be added here
                                                     }}
@@ -1534,15 +1532,15 @@ export default function GeneratePage() {
                                                         if (recs?.steps) setSteps(recs.steps);
                                                         if (recs?.cfgScale) setGuidanceScale(recs.cfgScale);
                                                     }}
-                                                    onScriptParsed={(parsed: any) => {
+                                                    onScriptParsed={(parsed: Record<string, unknown>) => {
                                                         // 1. Set Visual Prompt
-                                                        setPrompt(parsed.visual);
+                                                        if (typeof parsed.visual === 'string') setPrompt(parsed.visual);
 
                                                         // 2. Configure Pipeline Stages
                                                         const newStages: PipelineStage[] = [];
 
                                                         // Motion Stage
-                                                        if (parsed.motion) {
+                                                        if (parsed.motion && typeof parsed.motion === 'string') {
                                                             newStages.push({
                                                                 id: crypto.randomUUID(),
                                                                 type: 'motion',
@@ -1553,7 +1551,7 @@ export default function GeneratePage() {
                                                         }
 
                                                         // Lip Sync Stage (Dialogue)
-                                                        if (parsed.audio) {
+                                                        if (parsed.audio && typeof parsed.audio === 'string') {
                                                             newStages.push({
                                                                 id: crypto.randomUUID(),
                                                                 type: 'lipsync',
@@ -1593,9 +1591,9 @@ export default function GeneratePage() {
                             return transform;
                         }
 
-                        const activator = activatorEvent as any;
-                        const clientX = activator.clientX !== undefined ? activator.clientX : (activator.touches ? activator.touches[0].clientX : 0);
-                        const clientY = activator.clientY !== undefined ? activator.clientY : (activator.touches ? activator.touches[0].clientY : 0);
+                        const activator = activatorEvent as MouseEvent | TouchEvent;
+                        const clientX = 'clientX' in activator ? activator.clientX : (activator.touches ? activator.touches[0].clientX : 0);
+                        const clientY = 'clientY' in activator ? activator.clientY : (activator.touches ? activator.touches[0].clientY : 0);
 
                         const offsetX = clientX - activeNodeRect.left;
                         const offsetY = clientY - activeNodeRect.top;
@@ -1665,7 +1663,7 @@ export default function GeneratePage() {
                 }}
                 onSave={(id, updates) => {
                     // Map updates back to generation fields
-                    const genUpdates: any = {};
+                    const genUpdates: Record<string, unknown> = {};
                     if (updates.name) genUpdates.name = updates.name;
                     if (updates.tags) genUpdates.tags = updates.tags;
                     if (updates.sessionId !== undefined) genUpdates.sessionId = updates.sessionId;
@@ -1766,6 +1764,7 @@ export default function GeneratePage() {
                     }
                 }}
             />
+
         </DndContext >
     );
 }

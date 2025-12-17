@@ -12,9 +12,10 @@ interface EngineSelectorProps {
     onSelect: (provider: string, model: string) => void;
     className?: string; // Support custom class names
     mode?: 'image' | 'video';
+    variant?: 'default' | 'compact';
 }
 
-export function EngineSelectorV2({ selectedProvider, selectedModel, onSelect, className, mode }: EngineSelectorProps) {
+export function EngineSelectorV2({ selectedProvider, selectedModel, onSelect, className, mode, variant = 'default' }: EngineSelectorProps) {
     const [isLibraryOpen, setIsLibraryOpen] = useState(false);
 
     // Find current model info
@@ -27,48 +28,62 @@ export function EngineSelectorV2({ selectedProvider, selectedModel, onSelect, cl
     return (
         <div className={className}>
             <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider px-1">
-                    Generation Engine
-                </label>
+                {variant === 'default' && (
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider px-1">
+                        Generation Engine
+                    </label>
+                )}
 
                 <button
                     onClick={() => setIsLibraryOpen(true)}
-                    className="group relative w-full flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-xl transition-all text-left"
+                    className={clsx(
+                        "group relative w-full flex items-center justify-between bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-xl transition-all text-left",
+                        variant === 'compact' ? "h-10 px-2" : "p-3"
+                    )}
                 >
                     <div className="flex items-center gap-3">
                         {/* Icon */}
                         <div className={clsx(
-                            "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
-                            providerDef?.bgColor || "bg-gray-800"
+                            "rounded-lg flex items-center justify-center transition-colors flex-shrink-0",
+                            providerDef?.bgColor || "bg-gray-800",
+                            variant === 'compact' ? "w-6 h-6" : "w-10 h-10"
                         )}>
-                            {providerDef?.icon && <providerDef.icon className={clsx("w-5 h-5", providerDef.color)} />}
+                            {providerDef?.icon && <providerDef.icon className={clsx(variant === 'compact' ? "w-3.5 h-3.5" : "w-5 h-5", providerDef.color)} />}
                         </div>
 
                         {/* Text */}
-                        <div>
+                        <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                                <span className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors">
+                                <span className={clsx(
+                                    "font-bold text-white group-hover:text-blue-400 transition-colors truncate",
+                                    variant === 'compact' ? "text-xs" : "text-sm"
+                                )}>
                                     {currentModel?.name || "Select Model"}
                                 </span>
                                 {currentModel?.type === 'video' && (
-                                    <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-medium uppercase">
+                                    <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-medium uppercase whitespace-nowrap">
                                         Video
                                     </span>
                                 )}
                             </div>
-                            <div className="flex items-center gap-2 mt-0.5">
-                                <span className={clsx("text-xs", providerDef?.color || "text-gray-400")}>
-                                    {providerDef?.name || "Unknown Provider"}
-                                </span>
-                                <span className="text-xs text-gray-600">•</span>
-                                <span className="text-xs text-gray-500 line-clamp-1 w-32 md:w-auto">
-                                    {currentModel?.desc || "AI Generation Model"}
-                                </span>
-                            </div>
+                            {variant === 'default' && (
+                                <div className="flex items-center gap-2 mt-0.5">
+                                    <span className={clsx("text-xs", providerDef?.color || "text-gray-400")}>
+                                        {providerDef?.name || "Unknown Provider"}
+                                    </span>
+                                    <span className="text-xs text-gray-600">•</span>
+                                    <span className="text-xs text-gray-500 line-clamp-1 w-32 md:w-auto">
+                                        {currentModel?.desc || "AI Generation Model"}
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    <ChevronDown className="w-5 h-5 text-gray-500 group-hover:text-white transition-colors" />
+                    <ChevronDown className={clsx(
+                        "text-gray-500 group-hover:text-white transition-colors flex-shrink-0 ml-2",
+                        variant === 'compact' ? "w-4 h-4" : "w-5 h-5"
+                    )} />
                 </button>
             </div>
 

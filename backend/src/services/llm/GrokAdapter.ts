@@ -2,6 +2,7 @@ import axios from 'axios';
 import { LLMProvider, LLMRequest, LLMResponse } from './LLMProvider';
 import fs from 'fs';
 import path from 'path';
+import { KnowledgeBaseService } from '../knowledge/KnowledgeBaseService';
 
 export class GrokAdapter implements LLMProvider {
     private apiKey: string;
@@ -16,14 +17,25 @@ export class GrokAdapter implements LLMProvider {
 
     async generate(request: LLMRequest): Promise<LLMResponse> {
         try {
+            // Inject Knowledge Base Context
+            const params = request;
+            let finalSystemPrompt = params.systemPrompt || '';
+
+            try {
+                const knowledge = await KnowledgeBaseService.getInstance().getGlobalContext();
+                finalSystemPrompt = `${knowledge}\n\n${finalSystemPrompt}`;
+            } catch (kErr) {
+                console.warn('GrokAdapter: Failed to inject knowledge base context', kErr);
+            }
+
             const response = await axios.post(
                 `${this.baseUrl}/chat/completions`,
                 {
                     messages: [
-                        ...(request.systemPrompt ? [{ role: 'system', content: request.systemPrompt }] : []),
+                        ...(finalSystemPrompt ? [{ role: 'system', content: finalSystemPrompt }] : []),
                         { role: 'user', content: request.prompt }
                     ],
-                    model: request.model || 'grok-4',
+                    model: request.model || 'grok-beta',
                     temperature: request.temperature || 0.7,
                     max_tokens: request.maxTokens,
                     stream: false
@@ -55,14 +67,23 @@ export class GrokAdapter implements LLMProvider {
 
     async stream(request: LLMRequest, onChunk: (chunk: string) => void): Promise<void> {
         try {
+            // Inject Knowledge Base Context
+            let finalSystemPrompt = request.systemPrompt || '';
+            try {
+                const knowledge = await KnowledgeBaseService.getInstance().getGlobalContext();
+                finalSystemPrompt = `${knowledge}\n\n${finalSystemPrompt}`;
+            } catch (kErr) {
+                console.warn('GrokAdapter: Failed to inject knowledge base context', kErr);
+            }
+
             const response = await axios.post(
                 `${this.baseUrl}/chat/completions`,
                 {
                     messages: [
-                        ...(request.systemPrompt ? [{ role: 'system', content: request.systemPrompt }] : []),
+                        ...(finalSystemPrompt ? [{ role: 'system', content: finalSystemPrompt }] : []),
                         { role: 'user', content: request.prompt }
                     ],
-                    model: request.model || 'grok-4',
+                    model: request.model || 'grok-beta',
                     temperature: request.temperature || 0.7,
                     max_tokens: request.maxTokens,
                     stream: true
@@ -101,13 +122,31 @@ export class GrokAdapter implements LLMProvider {
             throw new Error(`Grok streaming failed: ${error.message}`);
         }
     }
+
     async analyzeImage(images: (string | { url: string, label: string })[], prompt: string): Promise<string> {
         try {
             console.log(`[GrokAdapter] Analyzing ${images.length} items with grok-2-vision-1212...`);
 
-            const contentConfig: any[] = [
-                { type: 'text', text: prompt }
-            ];
+            // Inject Knowledge Base Context
+            let contextStr = "";
+            try {
+                contextStr = await KnowledgeBaseService.getInstance().getGlobalContext();
+            } catch (e) {
+                console.warn("Failed to get knowledge context for vision", e);
+            }
+
+            const contentConfig: any[] = [];
+
+            // Add system-like context as first text block if it exists
+            if (contextStr) {
+                contentConfig.push({
+                    type: 'text',
+                    text: `SYSTEM CONTEXT (Know about these tools):\n${contextStr}\n\nUSER PROMPT:\n${prompt}`
+                });
+            } else {
+                contentConfig.push({ type: 'text', text: prompt });
+            }
+
             // Process images sequentially to handle async file reading
             for (let i = 0; i < images.length; i++) {
                 const item = images[i];

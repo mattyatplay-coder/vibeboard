@@ -105,19 +105,28 @@ const processQueue = async () => {
             // Map to store URL -> Strength for the adapter
             const referenceStrengthsByUrl: Record<string, number> = {};
 
+            // NEW: Track element types for smart IP-Adapter routing
+            let elementReferencesWithTypes: { url: string; type: string; strength: number }[] = [];
+
             if (Array.isArray(sourceIds) && sourceIds.length > 0) {
                 const elements = await prisma.element.findMany({
                     where: { id: { in: sourceIds } }
                 });
                 console.log(`[DEBUG] Found ${elements.length} elements for IP-Adapter`);
 
-                // Map to file URLs and build strength map
+                // Map to file URLs, build strength map, AND track types
                 elementReferences = elements.map(e => {
                     if (e.fileUrl) {
-                        // Map ID-based strength to URL-based strength
-                        if (usedLorasParsed?.referenceStrengths && usedLorasParsed.referenceStrengths[e.id]) {
-                            referenceStrengthsByUrl[e.fileUrl] = usedLorasParsed.referenceStrengths[e.id];
-                        }
+                        const strength = usedLorasParsed?.referenceStrengths?.[e.id] ?? usedLorasParsed?.referenceCreativity ?? 0.6;
+                        referenceStrengthsByUrl[e.fileUrl] = strength;
+
+                        // Track with type for routing
+                        elementReferencesWithTypes.push({
+                            url: e.fileUrl,
+                            type: e.type || 'other',
+                            strength: strength
+                        });
+
                         return e.fileUrl;
                     }
                     return null;
@@ -125,6 +134,7 @@ const processQueue = async () => {
 
                 console.log(`[DEBUG] Resolved elementReferences: ${JSON.stringify(elementReferences)}`);
                 console.log(`[DEBUG] Mapped referenceStrengthsByUrl: ${JSON.stringify(referenceStrengthsByUrl)}`);
+                console.log(`[DEBUG] Element types: ${elementReferencesWithTypes.map(e => `${e.type}(${e.strength})`).join(', ')}`);
             } else {
                 console.log(`[DEBUG] No sourceIds found for IP-Adapter`);
             }
@@ -189,23 +199,29 @@ const processQueue = async () => {
             let loraRecords: any[] = []; // Initialize loraRecords outside the if block
             if (Array.isArray(usedLorasData) && usedLorasData.length > 0) {
                 const loraIds = usedLorasData.map((l: any) => l.id).filter((id: any) => id !== undefined && id !== null);
+                console.log(`[LoRA Debug] Requested LoRA IDs:`, loraIds);
                 if (loraIds.length > 0) {
                     loraRecords = await prisma.loRA.findMany({
                         where: { id: { in: loraIds } }
                     });
+                    console.log(`[LoRA Debug] Found DB records:`, loraRecords.map((r: any) => ({ id: r.id, name: r.name, fileUrl: r.fileUrl })));
                 }
 
                 resolvedLoras = usedLorasData.map((l: any) => {
                     const record = loraRecords.find((r) => r.id === l.id);
                     if (record) {
+                        console.log(`[LoRA Debug] Resolved ${record.name} -> ${record.fileUrl}`);
                         return { path: record.fileUrl, strength: l.strength || record.strength || 1.0 };
                     }
                     // Fallback: If no record but path is provided, use it (Ad-hoc LoRA)
                     if (l.path) {
+                        console.log(`[LoRA Debug] Using fallback path for ${l.name}: ${l.path}`);
                         return { path: l.path, strength: l.strength || 1.0 };
                     }
+                    console.log(`[LoRA Debug] No record or path for LoRA ID ${l.id}`);
                     return null;
                 }).filter((l): l is { path: string; strength: number } => l !== null);
+                console.log(`[LoRA Debug] Final resolved LoRAs:`, resolvedLoras);
             }
 
             const options = {
@@ -215,7 +231,8 @@ const processQueue = async () => {
                 loras: resolvedLoras,
                 model: usedLorasParsed?.model,
                 sourceImages, // Only contains structure images
-                elementReferences, // Contains character/style references
+                elementReferences, // Contains character/style references (URLs only, for backward compat)
+                elementReferencesWithTypes, // NEW: Contains { url, type, strength } for smart routing
                 sourceVideoUrl: usedLorasParsed?.inputVideo, // Pass inputVideo as sourceVideoUrl
                 strength: usedLorasParsed?.strength, // Pass strength to options
                 referenceCreativity: usedLorasParsed?.referenceCreativity, // Pass to service
@@ -235,7 +252,38 @@ const processQueue = async () => {
             };
 
             // Auto-detect video intent if mode is text_to_image but prompt suggests video
-            if (options.mode === 'text_to_video' || options.mode === 'image_to_video' || !options.mode || options.mode === 'text_to_image') {
+            // IMPORTANT: Only do this for models that support video generation
+            const imageOnlyModels = [
+                'fal-ai/flux/dev',
+                'fal-ai/flux-pro',
+                'fal-ai/flux-pro/v1.1',
+                'fal-ai/flux-pro/v1.1-ultra',
+                'fal-ai/flux-realism',
+                'fal-ai/flux-lora',
+                'fal-ai/flux/schnell',
+                'fal-ai/flux-2-max',
+                'fal-ai/flux-2-flex',
+                'fal-ai/stable-diffusion',
+                'fal-ai/stable-diffusion-v3',
+                'fal-ai/aura-flow',
+                'fal-ai/recraft-v3',
+                'fal-ai/ideogram/v2',
+                'fal-ai/ideogram/v2/turbo',
+                'fal-ai/ideogram/character',
+                'fal-ai/kling-image',
+                'fal-ai/kling-image/o1',
+                'fal-ai/nano-banana-pro/edit',
+                'fal-ai/gpt-image-1.5/edit',
+            ];
+
+            const isImageOnlyModel = imageOnlyModels.some(m =>
+                options.model?.toLowerCase().includes(m.toLowerCase()) ||
+                options.model?.toLowerCase() === m.toLowerCase()
+            );
+
+            if (isImageOnlyModel) {
+                console.log(`🖼️ Model "${options.model}" is image-only. Skipping video intent inference.`);
+            } else if (options.mode === 'text_to_video' || options.mode === 'image_to_video' || !options.mode || options.mode === 'text_to_image') {
                 const videoKeywords = ['video', 'animated', 'animation', 'shot', 'film', 'movie', 'cinematic', 'drone', 'camera'];
                 const hasVideoKeywords = videoKeywords.some(k => generation.inputPrompt.toLowerCase().includes(k));
 

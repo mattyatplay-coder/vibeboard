@@ -5,6 +5,7 @@ import { replicateTrainingService } from '../services/training/ReplicateTraining
 import path from 'path';
 import fs from 'fs';
 import { DatasetService } from '../services/DatasetService'; // Import DatasetService
+import { DatasetGeneratorService, POSE_PRESETS, PosePresetKey, CustomPosePresetData } from '../services/training/DatasetGeneratorService';
 
 const datasetService = new DatasetService(); // Instantiate
 // @ts-ignore - Prisma client types might not be fully updated in IDE
@@ -166,8 +167,10 @@ export const trainingController = {
 
     // STAGE 2: Start Training (from curated folder)
     startJob: async (req: Request, res: Response) => {
+        const { id } = req.params;
+        let zipPath: string | null = null;
+
         try {
-            const { id } = req.params;
             const { baseModel, datasetPath } = req.body;
 
             // Validation
@@ -191,29 +194,75 @@ export const trainingController = {
                 return res.status(400).json({ error: 'No images found in dataset folder' });
             }
 
-            const zipPath = await falTrainingService.createDatasetZip(files, uploadDir);
+            zipPath = await falTrainingService.createDatasetZip(files, uploadDir);
 
             // 2. Upload to Fal
-            const datasetUrl = await falTrainingService.uploadDataset(zipPath);
+            let datasetUrl: string;
+            try {
+                datasetUrl = await falTrainingService.uploadDataset(zipPath);
+            } catch (uploadError: any) {
+                console.error('[TrainingController] Dataset upload failed:', uploadError);
+                await prisma.trainingJob.update({
+                    where: { id },
+                    data: {
+                        status: 'failed',
+                        error: 'Dataset upload failed. Please ensure your images are valid PNG/JPG files and try again.'
+                    }
+                });
+                throw new Error('Dataset upload failed');
+            }
 
             // 3. Start Training
-            let requestId;
-            // @ts-ignore
-            if (job.provider === 'replicate') {
-                requestId = await replicateTrainingService.createTraining(
-                    datasetUrl,
-                    job.triggerWord,
-                    job.steps,
-                    job.isStyle,
-                    job.name
-                );
-            } else {
-                requestId = await falTrainingService.startTraining(
-                    datasetUrl,
-                    job.triggerWord,
-                    job.steps,
-                    baseModel as 'fast' | 'dev'
-                );
+            let requestId: string;
+            try {
+                // @ts-ignore
+                if (baseModel === 'wan-video') {
+                    // NEW: Wan Video Training
+                    requestId = await falTrainingService.startWanTraining(
+                        datasetUrl,
+                        job.triggerWord,
+                        job.steps,
+                        // webhookUrl could be added here
+                    );
+                } else if (job.provider === 'replicate') {
+                    requestId = await replicateTrainingService.createTraining(
+                        datasetUrl,
+                        job.triggerWord,
+                        job.steps,
+                        job.isStyle,
+                        job.name
+                    );
+                } else {
+                    requestId = await falTrainingService.startTraining(
+                        datasetUrl,
+                        job.triggerWord,
+                        job.steps,
+                        baseModel as 'fast' | 'dev'
+                    );
+                }
+            } catch (trainingError: any) {
+                console.error('[TrainingController] Training start failed:', trainingError);
+
+                // Parse Fal error for user-friendly message
+                let userMessage = 'Training failed to start. Please try again.';
+                const errorStr = JSON.stringify(trainingError);
+
+                if (errorStr.includes('octet') || errorStr.includes('unpack')) {
+                    userMessage = 'Dataset format error: The training data must be uploaded as a valid .zip archive. This can happen if your images are corrupted or the upload was interrupted. Please try again with fresh images.';
+                } else if (errorStr.includes('images_data_url')) {
+                    userMessage = 'Invalid dataset: Please ensure your training folder contains valid PNG or JPG images (at least 5-10 images recommended).';
+                } else if (trainingError.message) {
+                    userMessage = trainingError.message;
+                }
+
+                await prisma.trainingJob.update({
+                    where: { id },
+                    data: {
+                        status: 'failed',
+                        error: userMessage
+                    }
+                });
+                throw new Error(userMessage);
             }
 
             // 4. Update Job
@@ -227,12 +276,16 @@ export const trainingController = {
             });
 
             // Cleanup Zip
-            if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+            if (zipPath && fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
 
             res.json(updatedJob);
 
         } catch (error: any) {
             console.error('Start job failed:', error);
+            // Cleanup Zip on error
+            if (zipPath && fs.existsSync(zipPath)) {
+                try { fs.unlinkSync(zipPath); } catch (e) { /* ignore */ }
+            }
             res.status(500).json({ error: error.message || 'Failed to start training' });
         }
     },
@@ -319,6 +372,317 @@ export const trainingController = {
                 return res.status(404).json({ error: 'Job not found' });
             }
             res.status(500).json({ error: 'Failed to delete job' });
+        }
+    },
+
+    // Get available pose presets for UI (built-in + custom)
+    getPosePresets: async (req: Request, res: Response) => {
+        try {
+            const { projectId } = req.query;
+
+            // 1. Get built-in presets
+            const builtInPresets = DatasetGeneratorService.getPresetOptions().map(p => ({
+                ...p,
+                isBuiltIn: true,
+                id: p.key // Use key as id for built-ins
+            }));
+
+            // 2. Get custom presets (global + project-specific)
+            const customPresets = await prisma.customPosePreset.findMany({
+                where: {
+                    OR: [
+                        { projectId: null }, // Global presets
+                        { projectId: projectId ? String(projectId) : undefined } // Project-specific
+                    ].filter(Boolean)
+                },
+                orderBy: { createdAt: 'desc' }
+            });
+
+            const formattedCustom = customPresets.map((p: any) => ({
+                key: `custom_${p.id}`,
+                id: p.id,
+                name: p.name,
+                description: p.description || 'Custom preset',
+                stylePrefix: p.stylePrefix,
+                poses: JSON.parse(p.poses || '[]'),
+                isBuiltIn: false,
+                projectId: p.projectId
+            }));
+
+            res.json({
+                presets: [...builtInPresets, ...formattedCustom],
+                builtIn: builtInPresets,
+                custom: formattedCustom
+            });
+        } catch (error: any) {
+            console.error('Get pose presets failed:', error);
+            res.status(500).json({ error: 'Failed to fetch pose presets' });
+        }
+    },
+
+    // Create a custom pose preset
+    createCustomPreset: async (req: Request, res: Response) => {
+        try {
+            const { projectId, name, description, stylePrefix, poses } = req.body;
+
+            if (!name || !poses || !Array.isArray(poses) || poses.length === 0) {
+                return res.status(400).json({ error: 'Name and at least one pose are required' });
+            }
+
+            const preset = await prisma.customPosePreset.create({
+                data: {
+                    projectId: projectId || null, // null = global
+                    name,
+                    description: description || null,
+                    stylePrefix: stylePrefix || null,
+                    poses: JSON.stringify(poses)
+                }
+            });
+
+            res.json({
+                key: `custom_${preset.id}`,
+                id: preset.id,
+                name: preset.name,
+                description: preset.description,
+                stylePrefix: preset.stylePrefix,
+                poses: JSON.parse(preset.poses),
+                isBuiltIn: false,
+                projectId: preset.projectId
+            });
+        } catch (error: any) {
+            console.error('Create custom preset failed:', error);
+            res.status(500).json({ error: 'Failed to create custom preset' });
+        }
+    },
+
+    // Update a custom pose preset
+    updateCustomPreset: async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+            const { name, description, stylePrefix, poses } = req.body;
+
+            const updateData: any = {};
+            if (name !== undefined) updateData.name = name;
+            if (description !== undefined) updateData.description = description;
+            if (stylePrefix !== undefined) updateData.stylePrefix = stylePrefix;
+            if (poses !== undefined) updateData.poses = JSON.stringify(poses);
+
+            const preset = await prisma.customPosePreset.update({
+                where: { id },
+                data: updateData
+            });
+
+            res.json({
+                key: `custom_${preset.id}`,
+                id: preset.id,
+                name: preset.name,
+                description: preset.description,
+                stylePrefix: preset.stylePrefix,
+                poses: JSON.parse(preset.poses),
+                isBuiltIn: false,
+                projectId: preset.projectId
+            });
+        } catch (error: any) {
+            console.error('Update custom preset failed:', error);
+            if (error.code === 'P2025') {
+                return res.status(404).json({ error: 'Preset not found' });
+            }
+            res.status(500).json({ error: 'Failed to update custom preset' });
+        }
+    },
+
+    // Delete a custom pose preset
+    deleteCustomPreset: async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+
+            await prisma.customPosePreset.delete({
+                where: { id }
+            });
+
+            res.json({ message: 'Preset deleted successfully', id });
+        } catch (error: any) {
+            console.error('Delete custom preset failed:', error);
+            if (error.code === 'P2025') {
+                return res.status(404).json({ error: 'Preset not found' });
+            }
+            res.status(500).json({ error: 'Failed to delete custom preset' });
+        }
+    },
+
+    // Get a single custom preset with full pose list
+    getCustomPreset: async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+
+            const preset = await prisma.customPosePreset.findUnique({
+                where: { id }
+            });
+
+            if (!preset) {
+                return res.status(404).json({ error: 'Preset not found' });
+            }
+
+            res.json({
+                key: `custom_${preset.id}`,
+                id: preset.id,
+                name: preset.name,
+                description: preset.description,
+                stylePrefix: preset.stylePrefix,
+                poses: JSON.parse(preset.poses),
+                isBuiltIn: false,
+                projectId: preset.projectId
+            });
+        } catch (error: any) {
+            console.error('Get custom preset failed:', error);
+            res.status(500).json({ error: 'Failed to fetch preset' });
+        }
+    },
+
+    // STAGE 0: Generate Synthetic Dataset
+    generateDataset: async (req: Request, res: Response) => {
+        try {
+            console.log("Generate dataset request received");
+            const { projectId, triggerWord, prompt, characterDescription, posePreset } = req.body;
+            let { id } = req.params;
+
+            if (!req.file) {
+                return res.status(400).json({ error: 'Source image is required' });
+            }
+
+            const sourcePath = req.file.path;
+
+            // Determine preset: built-in key or custom preset from database
+            let presetToUse: PosePresetKey | CustomPosePresetData = 'universal';
+
+            if (posePreset) {
+                if (posePreset.startsWith('custom_')) {
+                    // Custom preset - fetch from database
+                    const customId = posePreset.replace('custom_', '');
+                    const customPreset = await prisma.customPosePreset.findUnique({
+                        where: { id: customId }
+                    });
+
+                    if (customPreset) {
+                        presetToUse = {
+                            name: customPreset.name,
+                            description: customPreset.description || undefined,
+                            stylePrefix: customPreset.stylePrefix || undefined,
+                            poses: JSON.parse(customPreset.poses || '[]')
+                        };
+                        console.log(`[Controller] Using custom preset: ${customPreset.name}`);
+                    } else {
+                        console.warn(`[Controller] Custom preset ${customId} not found, using universal`);
+                    }
+                } else if (posePreset in POSE_PRESETS) {
+                    // Built-in preset
+                    presetToUse = posePreset as PosePresetKey;
+                }
+            }
+
+            // Import dynamically to avoid circular dependencies
+            const { datasetGenerator } = require('../services/training/DatasetGeneratorService');
+
+            // 1. Update Job Status
+            await prisma.trainingJob.update({
+                where: { id },
+                data: { status: 'processing_dataset' }
+            });
+
+            // 2. Start Background Process
+            // Pass characterDescription and preset to the generator
+            console.log(`[Controller] Starting dataset generation for job ${id}...`);
+            console.log(`[Controller] Source: ${sourcePath}`);
+            console.log(`[Controller] Trigger: ${triggerWord}`);
+            console.log(`[Controller] Preset: ${typeof presetToUse === 'string' ? presetToUse : presetToUse.name}`);
+            console.log(`[Controller] Description: ${characterDescription?.substring(0, 100)}...`);
+
+            datasetGenerator.generateVariations(sourcePath, triggerWord, prompt, projectId, id, characterDescription, presetToUse)
+                .then(async (result: any) => {
+                    // Success
+                    console.log(`[Controller] Job ${id} generation complete. Updating status...`);
+                    try {
+                        await prisma.trainingJob.update({
+                            where: { id },
+                            data: {
+                                status: 'generated_dataset', // New status
+                                datasetUrl: result.outputDir // Save the output path
+                            }
+                        });
+                        console.log(`[Controller] ✅ Job ${id} status updated to 'generated_dataset'. Generated ${result.count} images at ${result.outputDir}`);
+                    } catch (dbErr: any) {
+                        console.error(`[Controller] ❌ Failed to update job ${id} status:`, dbErr);
+                    }
+                })
+                .catch(async (err: any) => {
+                    console.error(`[Controller] ❌ Job ${id} generation failed:`, err);
+                    try {
+                        await prisma.trainingJob.update({
+                            where: { id },
+                            data: { status: 'failed', error: err.message || 'Unknown generation error' }
+                        });
+                        console.log(`[Controller] Job ${id} marked as failed in database.`);
+                    } catch (dbErr: any) {
+                        console.error(`[Controller] ❌ Failed to update job ${id} failure status:`, dbErr);
+                    }
+                });
+
+            res.json({ message: 'Dataset generation started', jobId: id, status: 'processing_dataset' });
+
+        } catch (error: any) {
+            console.error('Generate dataset failed:', error);
+            res.status(500).json({ error: 'Failed to start generation' });
+        }
+    },
+
+    getJobDataset: async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+
+            // Construct path: datasets/synthetic_{id}
+            const datasetDir = path.resolve(__dirname, '../../datasets', `synthetic_${id}`);
+
+            if (!fs.existsSync(datasetDir)) {
+                return res.json({ images: [] });
+            }
+
+            const files = fs.readdirSync(datasetDir)
+                .filter(f => f.toLowerCase().endsWith('.png') || f.toLowerCase().endsWith('.jpg'));
+
+            // Convert to server URLs
+            // URL format: /datasets/synthetic_{id}/{filename}
+            const images = files.map(f => ({
+                filename: f,
+                url: `/datasets/synthetic_${id}/${f}`
+            }));
+
+            res.json({ images });
+        } catch (error: any) {
+            console.error("Get dataset error:", error);
+            res.status(500).json({ error: error.message });
+        }
+    },
+
+    deleteDatasetImage: async (req: Request, res: Response) => {
+        try {
+            const { id, filename } = req.params;
+            const datasetDir = path.resolve(__dirname, '../../datasets', `synthetic_${id}`);
+            const filePath = path.join(datasetDir, filename);
+
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+
+                // Also delete caption txt if exists
+                const captionPath = filePath.replace(/\.(png|jpg)$/i, '.txt');
+                if (fs.existsSync(captionPath)) fs.unlinkSync(captionPath);
+
+                res.json({ success: true });
+            } else {
+                res.status(404).json({ error: "File not found" });
+            }
+        } catch (error: any) {
+            console.error("Delete image error:", error);
+            res.status(500).json({ error: error.message });
         }
     }
 };

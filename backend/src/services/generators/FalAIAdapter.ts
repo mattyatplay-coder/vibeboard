@@ -97,22 +97,21 @@ export class FalAIAdapter implements GenerationProvider {
             }
 
             // Handle LoRAs - Upload local files if needed
+            // Handle LoRAs - Upload local files if needed
+            let processedLoRAs: any[] = [];
             if (options.loras && options.loras.length > 0) {
-                const processedLoRAs = await Promise.all(options.loras.map(async (l) => {
+                console.log(`[FalAIAdapter] Processing ${options.loras.length} LoRAs...`);
+                processedLoRAs = await Promise.all(options.loras.map(async (l) => {
                     let path = l.path.replace(/^['"]|['"]$/g, '').trim();
-                    // Check if path is local (not http/https and not a fal/huggingface ID)
-                    // Fal/HF IDs usually look like "fal-ai/..." or "user/repo"
-                    // Local paths start with / or have extensions like .safetensors
                     const isLocal = path.startsWith('/') || path.match(/\.(safetensors|ckpt|pt|bin)$/i);
                     const isUrl = path.startsWith('http');
 
+                    // Upload local LoRAs if needed
                     if (isLocal && !isUrl) {
-                        console.log(`Uploading local LoRA: ${path}`);
                         try {
                             path = await this.uploadToFal(path);
                         } catch (e) {
-                            console.error(`Failed to upload LoRA ${path}:`, e);
-                            // Keep original path, might fail but better than crashing
+                            console.error(`[FalAI] Failed to upload LoRA ${path}:`, e);
                         }
                     }
 
@@ -122,9 +121,92 @@ export class FalAIAdapter implements GenerationProvider {
                     };
                 }));
 
+                // Add to standard Flux input
                 input.loras = processedLoRAs;
             }
 
+            // KLING IMAGE O1 SUPPORT
+            if (options.model === 'fal-ai/kling-image/o1') {
+                console.log("[FalAIAdapter] Using Kling Image O1...");
+                const klingInput: any = {
+                    prompt: options.prompt,
+                    aspect_ratio: options.aspectRatio || "3:2", // Kling default
+                    batch_size: options.count || 1,
+                };
+
+                // Kling Image O1 Img2Img / Reference
+                // NOTE: image_fidelity controls how much the output can DEVIATE from the reference
+                // 0.0 = exact copy, 1.0 = maximum creativity/change
+                // For character consistency, we want LOW values (0.2-0.4)
+                if (options.elementReferences && options.elementReferences.length > 0) {
+                    // Use the first reference as the base image (Img2Img)
+                    const refUrl = await this.uploadToFal(options.elementReferences[0]);
+                    klingInput.image_url = refUrl;
+                    // INVERTED: referenceCreativity 0.8 means "80% consistent" = 0.2 fidelity (20% change allowed)
+                    // referenceCreativity 0.5 means "50% consistent" = 0.5 fidelity
+                    const creativity = options.referenceCreativity ?? 0.5;
+                    klingInput.image_fidelity = 1.0 - creativity; // Invert for Kling's semantics
+                    console.log(`[FalAIAdapter] Kling image_fidelity: ${klingInput.image_fidelity} (from referenceCreativity: ${creativity})`);
+                }
+
+                // Negative Prompt
+                if (options.negativePrompt) {
+                    klingInput.negative_prompt = options.negativePrompt;
+                }
+
+                console.log("Sending to Fal (Kling):", JSON.stringify(klingInput, null, 2));
+                const result: any = await fal.subscribe("fal-ai/kling-image/o1", {
+                    input: klingInput,
+                    logs: true,
+                });
+
+                return {
+                    id: Date.now().toString(),
+                    status: 'succeeded',
+                    outputs: result.images.map((img: any) => img.url),
+                    seed: result.seed
+                };
+            }
+
+            // QWEN IMAGE EDIT SUPPORT
+            if (options.model === 'fal-ai/qwen-image/edit-plus') {
+                console.log("[FalAIAdapter] Using Qwen Image Edit Plus...");
+                const qwenInput: any = {
+                    prompt: options.prompt,
+                    loras: processedLoRAs,
+                };
+
+                // Handle source image for editing
+                if (!options.sourceImages?.[0]) {
+                    throw new Error("Qwen Image Edit Plus requires a source image to edit.");
+                }
+                qwenInput.image_url = await this.uploadToFal(options.sourceImages[0]);
+
+                // Mask support? Usually Qwen Edit takes whole image + prompt instructions "remove X".
+                // If mask is provided, some versions support it, but generic "edit" usually implies instruction-based editing.
+
+                // Negative Prompt
+                if (options.negativePrompt) {
+                    // qwen might treat this as part of instruction or generic param? 
+                    // Usually generic fallback:
+                    // qwenInput.negative_prompt = options.negativePrompt;
+                }
+
+                console.log("Sending to Fal (Qwen Plus):", JSON.stringify(qwenInput, null, 2));
+                const result: any = await fal.subscribe("fal-ai/qwen-image/edit-plus", {
+                    input: qwenInput,
+                    logs: true,
+                });
+
+                return {
+                    id: Date.now().toString(),
+                    status: 'succeeded',
+                    outputs: result.images.map((img: any) => img.url),
+                    seed: result.seed
+                };
+            }
+
+            // Standard Generation Logic for Flux/SDXL
             // Handle Image-to-Image
             let model = options.model || "fal-ai/flux/dev";
 
@@ -190,14 +272,17 @@ export class FalAIAdapter implements GenerationProvider {
             width,
             height,
             seed,
-            guidanceScale = 7,
-            steps = 30,
+            guidanceScale = 3.5,
+            steps = 28,
             aspectRatio
         } = options;
 
         const uploadedRefs = await Promise.all(
             (elementReferences || []).map(ref => this.uploadToFal(ref))
         );
+
+        const model = options.model || 'fal-ai/flux/dev';
+        console.log(`[SmartMode] Using model: ${model}`);
 
         const falRequest: any = {
             prompt: prompt,
@@ -234,49 +319,56 @@ export class FalAIAdapter implements GenerationProvider {
             falRequest.loras = processedLoRAs;
         }
 
-        // If sourceImages are provided, use them for ControlNet
+        // If sourceImages are provided, use them for ControlNet (Structure)
+        // FLUX SPECIFIC: ControlNets and Image Prompts are distinct
         if (sourceImages && sourceImages.length > 0) {
             const sourceImageUrl = await this.uploadToFal(sourceImages[0]);
             const structureStrength = 1 - strength;
-            const controlNetDepthScale = 0.15 + (structureStrength * 0.6);
+            // Map structure strength to conditioning scale
+            // 0 (Original) -> 1.0 scale
+            // 1 (Creative) -> 0.0 scale
+            const controlNetDepthScale = structureStrength;
 
-            console.log(`[SmartMode] Structure: UI strength=${(1 - strength) * 100}% -> ControlNet scale=${controlNetDepthScale.toFixed(2)}`);
+            console.log(`[SmartMode] Structure: UI strength=${(strength * 100).toFixed(0)}% -> ControlNet scale=${controlNetDepthScale.toFixed(2)}`);
 
-            falRequest.control_nets = [{
-                path: "https://huggingface.co/XLabs-AI/flux-controlnet-depth-v3/resolve/main/flux-depth-controlnet-v3.safetensors",
-                image_url: sourceImageUrl,
-                conditioning_scale: controlNetDepthScale,
-            }];
+            if (controlNetDepthScale > 0.05) {
+                falRequest.control_nets = [{
+                    path: "https://huggingface.co/XLabs-AI/flux-controlnet-depth-v3/resolve/main/flux-depth-controlnet-v3.safetensors",
+                    image_url: sourceImageUrl,
+                    conditioning_scale: controlNetDepthScale,
+                }];
+            }
         }
 
-        // Always apply IP-Adapter if elementReferences are present
+        // FLUX IMAGE PROMPTS (IP-Adapter Equivalent)
         if (uploadedRefs.length > 0) {
-            const ipAdapterImages = uploadedRefs.map((url, index) => {
+            const imagePrompts = uploadedRefs.map((url, index) => {
                 // Find original ref URL to look up strength
                 const originalUrl = elementReferences![index];
 
-                // Look up strength. If not found, fall back to referenceCreativity.
-                // referenceStrengths is now Record<string, number> where keys are original URLs.
+                // Look up strength. 
+                // CRITICAL FIX: Do not clamp minimum weight. Trust the slider/input.
+                // If referenceCreativity (Character Strength) is 1.0, send 1.0.
                 const elementStrength = referenceStrengths?.[originalUrl] ?? referenceCreativity ?? 0.85;
 
-                // Lower minimum weight (0.2) to allow better scene override when slider is low
-                // 0% slider = 0.2 weight (character hints only)
-                // 50% slider = 0.5 weight (balanced)
-                // 100% slider = 0.8 weight (strong character consistency)
-                const ipWeight = 0.2 + (elementStrength * 0.6);
-
-                console.log(`[SmartMode] IP-Adapter: slider=${(elementStrength * 100).toFixed(0)}% -> weight=${ipWeight.toFixed(2)}`);
+                console.log(`[SmartMode] Image Prompt: val=${elementStrength.toFixed(2)} -> weight=${elementStrength.toFixed(2)}`);
 
                 return {
                     image_url: url,
-                    weight: ipWeight,
+                    type: "image_prompt", // Explicitly use image_prompt type for pure Flux
+                    weight: elementStrength,
                 };
             });
-            falRequest.ip_adapter = ipAdapterImages;
+
+            // Flux Dev/Pro/Schnell usually take 'image_prompts' array
+            if (model.includes('kling-image')) {
+                // Kling Image model uses 'image_urls' (simple string array) instead of 'image_prompts'
+                falRequest.image_urls = imagePrompts.map(p => p.image_url);
+            } else {
+                falRequest.image_prompts = imagePrompts;
+            }
         }
 
-        const model = options.model || 'fal-ai/flux/dev';
-        console.log(`[SmartMode] Using model: ${model}`);
         const result: any = await fal.subscribe(model, {
             input: falRequest,
             logs: true,
@@ -292,6 +384,172 @@ export class FalAIAdapter implements GenerationProvider {
 
     private async generateWithIPAdapter(options: GenerationOptions): Promise<GenerationResult> {
         return this.generateSmartMode({ ...options, sourceImages: [] });
+    }
+
+    /**
+     * Generate character turnaround/reference sheet using Ideogram V3 Character
+     * Best for: Creating consistent character sheets from a single reference
+     */
+    async generateCharacterSheet(options: GenerationOptions): Promise<GenerationResult> {
+        try {
+            console.log("[FalAIAdapter] Generating character sheet with Ideogram V3 Character...");
+
+            const input: any = {
+                prompt: options.prompt,
+                aspect_ratio: options.aspectRatio || "1:1",
+                style: "Auto", // Let Ideogram choose best style
+            };
+
+            // If reference image provided, use it for character consistency
+            if (options.elementReferences && options.elementReferences.length > 0) {
+                input.image_url = await this.uploadToFal(options.elementReferences[0]);
+                input.image_weight = options.referenceCreativity ?? 0.7;
+            } else if (options.sourceImages && options.sourceImages.length > 0) {
+                input.image_url = await this.uploadToFal(options.sourceImages[0]);
+                input.image_weight = options.strength ?? 0.7;
+            }
+
+            if (options.negativePrompt) {
+                input.negative_prompt = options.negativePrompt;
+            }
+
+            const result: any = await fal.subscribe("fal-ai/ideogram/character", {
+                input,
+                logs: true,
+            });
+
+            return {
+                id: Date.now().toString(),
+                status: 'succeeded',
+                outputs: result.images?.map((img: any) => img.url) || [result.image?.url],
+                seed: result.seed,
+            };
+        } catch (error: any) {
+            console.error("[FalAIAdapter] Character sheet generation failed:", error);
+            return {
+                id: Date.now().toString(),
+                status: 'failed',
+                error: error.message || "Character sheet generation failed"
+            };
+        }
+    }
+
+    /**
+     * Generate or edit images with Flux Kontext - maintains character consistency across edits
+     * Best for: Iterative character editing, placing characters in new scenes
+     *
+     * @param options.kontextMode - 'generate' | 'edit' | 'character_transfer'
+     */
+    async generateWithKontext(options: GenerationOptions & { kontextMode?: 'generate' | 'edit' | 'character_transfer' }): Promise<GenerationResult> {
+        try {
+            const mode = options.kontextMode || 'generate';
+            const isPro = options.model?.includes('pro');
+            const model = isPro ? "fal-ai/flux-kontext/pro" : "fal-ai/flux-kontext/dev";
+
+            console.log(`[FalAIAdapter] Generating with Flux Kontext (${mode}, ${isPro ? 'pro' : 'dev'})...`);
+
+            const input: any = {
+                prompt: options.prompt,
+            };
+
+            // Handle reference/source image for character transfer or editing
+            if (options.elementReferences && options.elementReferences.length > 0) {
+                // Character reference mode - transfer character to new scene
+                input.image_url = await this.uploadToFal(options.elementReferences[0]);
+                console.log(`[Kontext] Using character reference for transfer`);
+            } else if (options.sourceImages && options.sourceImages.length > 0) {
+                // Edit mode - modify existing image
+                input.image_url = await this.uploadToFal(options.sourceImages[0]);
+                console.log(`[Kontext] Using source image for editing`);
+            }
+
+            // Kontext-specific parameters
+            if (options.seed) {
+                input.seed = options.seed;
+            }
+
+            // Guidance scale affects how closely to follow the prompt vs reference
+            if (options.guidanceScale) {
+                input.guidance_scale = options.guidanceScale;
+            }
+
+            // Number of outputs
+            input.num_images = options.count || 1;
+
+            const result: any = await fal.subscribe(model, {
+                input,
+                logs: true,
+            });
+
+            return {
+                id: Date.now().toString(),
+                status: 'succeeded',
+                outputs: result.images?.map((img: any) => img.url) || [result.image?.url],
+                seed: result.seed,
+            };
+        } catch (error: any) {
+            console.error("[FalAIAdapter] Kontext generation failed:", error);
+            return {
+                id: Date.now().toString(),
+                status: 'failed',
+                error: error.message || "Kontext generation failed"
+            };
+        }
+    }
+
+    /**
+     * Generate image with IP-Adapter Face ID for face consistency
+     * Best for: Maintaining facial identity across different images
+     */
+    async generateWithFaceID(options: GenerationOptions): Promise<GenerationResult> {
+        try {
+            console.log("[FalAIAdapter] Generating with IP-Adapter Face ID...");
+
+            if (!options.elementReferences || options.elementReferences.length === 0) {
+                throw new Error("Face reference image required for FaceID generation");
+            }
+
+            const faceImageUrl = await this.uploadToFal(options.elementReferences[0]);
+
+            const input: any = {
+                prompt: options.prompt,
+                face_image_url: faceImageUrl,
+                face_strength: options.referenceCreativity ?? 0.7,
+            };
+
+            if (options.negativePrompt) {
+                input.negative_prompt = options.negativePrompt;
+            }
+
+            if (options.aspectRatio) {
+                input.image_size = this.mapAspectRatioToSize(options.aspectRatio);
+            }
+
+            if (options.seed) {
+                input.seed = options.seed;
+            }
+
+            input.num_images = options.count || 1;
+
+            const result: any = await fal.subscribe("fal-ai/ip-adapter-face-id", {
+                input,
+                logs: true,
+            });
+
+            return {
+                id: Date.now().toString(),
+                status: 'succeeded',
+                outputs: result.images?.map((img: any) => img.url) || [result.image?.url],
+                seed: result.seed,
+            };
+        } catch (error: any) {
+            console.error("[FalAIAdapter] FaceID generation failed:", error);
+            return {
+                id: Date.now().toString(),
+                status: 'failed',
+                error: error.message || "FaceID generation failed"
+            };
+        }
     }
 
     async generateVideo(image: string | undefined, options: GenerationOptions): Promise<GenerationResult> {
@@ -554,6 +812,34 @@ export class FalAIAdapter implements GenerationProvider {
                 }
             }
 
+            // Handle LoRAs for Video
+            if (options.loras && options.loras.length > 0) {
+                console.log(`[FalAI] Processing ${options.loras.length} LoRAs for video generation`);
+                const processedLoRAs = await Promise.all(options.loras.map(async (l) => {
+                    let path = l.path.replace(/^['"]|['"]$/g, '').trim();
+                    const isLocal = path.startsWith('/') || path.match(/\.(safetensors|ckpt|pt|bin)$/i);
+                    const isUrl = path.startsWith('http');
+
+                    // Upload local LoRAs if needed
+                    if (isLocal && !isUrl) {
+                        console.log(`[FalAI] Uploading local LoRA for video: ${path}`);
+                        try {
+                            path = await this.uploadToFal(path);
+                        } catch (e) {
+                            console.error(`[FalAI] Failed to upload LoRA ${path}:`, e);
+                        }
+                    }
+
+                    return {
+                        path: path,
+                        scale: l.strength
+                    };
+                }));
+
+                // Generic LoRA injection - works for Wan LoRA endpoint and others
+                input.loras = processedLoRAs;
+            }
+
             console.log("Generating video with:", model);
             console.log("Input payload:", JSON.stringify(input, null, 2));
 
@@ -731,6 +1017,8 @@ export class FalAIAdapter implements GenerationProvider {
             case "1:1": return "square_hd";
             case "4:3": return "landscape_4_3";
             case "3:4": return "portrait_4_3";
+            case "3:2": return "landscape_4_3"; // Map 3:2 to 4:3
+            case "2:3": return "portrait_4_3";  // Map 2:3 to 4:3
             case "2.35:1": return "landscape_16_9"; // Approximate
             case "portrait_9:16": return "portrait_16_9"; // Handle potential mismatch
             case "landscape_16:9": return "landscape_16_9"; // Handle potential mismatch

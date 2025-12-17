@@ -47,7 +47,7 @@ export async function uploadFile(endpoint: string, file: File, metadata: Record<
     return res.json();
 }
 
-export async function updateElement(endpoint: string, data: any) {
+export async function updateElement(endpoint: string, data: Record<string, unknown>) {
     const res = await fetch(`${API_URL}${endpoint}`, {
         method: 'PATCH',
         headers: {
@@ -64,9 +64,10 @@ export async function updateElement(endpoint: string, data: any) {
     return res.json();
 }
 
-export async function analyzeGeneration(projectId: string, generationId: string) {
+export async function analyzeGeneration(projectId: string, generationId: string, feedback?: string) {
     return fetchAPI(`/projects/${projectId}/generations/${generationId}/analyze`, {
-        method: 'POST'
+        method: 'POST',
+        body: JSON.stringify({ feedback })
     });
 }
 

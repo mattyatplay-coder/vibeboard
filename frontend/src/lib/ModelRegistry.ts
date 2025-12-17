@@ -1,4 +1,4 @@
-import { Cloud, Server, Zap, Play, Bot, Sparkles, Video, Image } from "lucide-react";
+import { Cloud, Server, Zap, Play, Bot, Sparkles } from "lucide-react";
 
 export type ModelCapability =
     | 'text-to-image'
@@ -22,7 +22,7 @@ export interface ModelInfo {
 export interface ProviderDefinition {
     id: string;
     name: string;
-    icon: any;
+    icon: React.ComponentType<{ className?: string }>;
     color: string;
     bgColor: string;
 }
@@ -44,9 +44,17 @@ export const ALL_MODELS: ModelInfo[] = [
     { id: 'fal-ai/flux/dev', name: 'Flux Dev', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Best quality, great text & detail' },
     { id: 'fal-ai/flux/schnell', name: 'Flux Schnell', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Fast, good for drafts' },
     { id: 'fal-ai/flux-pro', name: 'Flux Pro', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Premium quality, commercial use' },
+    { id: 'fal-ai/flux-pro/v1.1-ultra', name: 'Flux 1.1 Pro Ultra', provider: 'fal', capability: 'text-to-image', type: 'image', desc: '4K Ultra HD quality' },
+    { id: 'fal-ai/flux-2-max', name: 'Flux 2 Max', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Highest fidelity Flux v2' },
     { id: 'fal-ai/flux-2-flex', name: 'Flux 2 Flex', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Flexible style control' },
+    { id: 'fal-ai/nano-banana-pro/edit', name: 'Banana Pro Edit', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Experimental editor' },
+    { id: 'fal-ai/gpt-image-1.5/edit', name: 'GPT Image 1.5 Edit', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Advanced prompt adherence' },
     { id: 'fal-ai/recraft-v3', name: 'Recraft V3', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Vector art, logos, icons' },
     { id: 'fal-ai/ideogram/v2', name: 'Ideogram V2', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Perfect text in images' },
+    { id: 'fal-ai/ideogram/character', name: 'Ideogram V3 Character', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Character sheets & turnarounds', tier: 'quality' },
+    { id: 'fal-ai/flux-kontext/dev', name: 'Flux Kontext Dev', provider: 'fal', capability: 'image-editing', type: 'image', desc: 'Character-consistent editing' },
+    { id: 'fal-ai/flux-kontext/pro', name: 'Flux Kontext Pro', provider: 'fal', capability: 'image-editing', type: 'image', desc: 'Premium character consistency', tier: 'pro' },
+    { id: 'fal-ai/ip-adapter-face-id', name: 'IP-Adapter Face ID', provider: 'fal', capability: 'image-editing', type: 'image', desc: 'Face identity preservation' },
     { id: 'fal-ai/stable-diffusion-v35-large', name: 'SD 3.5 Large', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Latest Stability AI model' },
     { id: 'fal-ai/imagen3', name: 'Imagen 3', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Google photorealistic' },
     { id: 'fal-ai/imagen4/preview', name: 'Imagen 4 (Preview)', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Latest Google quality' },
@@ -55,7 +63,7 @@ export const ALL_MODELS: ModelInfo[] = [
     { id: 'fal-ai/flux-2-flex/edit', name: 'Flux 2 Flex Edit', provider: 'fal', capability: 'image-editing', type: 'image', desc: 'Edit existing images' },
     { id: 'fal-ai/flux/dev/image-to-image', name: 'Flux Dev I2I', provider: 'fal', capability: 'image-editing', type: 'image', desc: 'Transform images' },
     { id: 'fal-ai/flux/dev/inpainting', name: 'Flux Dev Inpaint', provider: 'fal', capability: 'image-editing', type: 'image', desc: 'Edit specific regions' },
-    { id: 'fal-ai/kling-image/o1', name: 'Kling O1 Image', provider: 'fal', capability: 'image-editing', type: 'image', desc: 'Multi-reference editor' },
+    { id: 'fal-ai/kling-image/o1', name: 'Kling O1 Image', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Multi-reference editor' },
     { id: 'fal-ai/creative-upscaler', name: 'Creative Upscaler (4x)', provider: 'fal', capability: 'image-editing', type: 'image', desc: 'Add detail while upscaling' },
     { id: 'fal-ai/clarity-upscaler', name: 'Clarity Upscaler', provider: 'fal', capability: 'image-editing', type: 'image', desc: 'Sharp, faithful upscaling' },
 
@@ -73,6 +81,7 @@ export const ALL_MODELS: ModelInfo[] = [
 
     // Video I2V (Animation)
     { id: 'fal-ai/wan/v2.2-a14b/image-to-video', name: 'Wan 2.2 I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Animate still images' },
+    { id: 'fal-ai/wan/v2.2-a14b/image-to-video/lora', name: 'Wan 2.2 (LoRA)', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Animation with trained characters' },
     { id: 'fal-ai/wan-25-preview/image-to-video', name: 'Wan 2.5 I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Best image animation' },
     { id: 'fal-ai/wan-2.1-i2v-14b', name: 'Wan 2.1 I2V (14B)', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'High quality image-to-video' },
     { id: 'fal-ai/ltx-video/image-to-video', name: 'LTX-Video I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Quick image animation' },
@@ -94,7 +103,14 @@ export const ALL_MODELS: ModelInfo[] = [
     { id: 'fal-ai/wan-vace-14b/inpainting', name: 'Wan VACE Inpaint', provider: 'fal', capability: 'video-editing', type: 'video', desc: 'Edit video regions' },
     { id: 'fal-ai/kling-video/o1/video-to-video/edit', name: 'Kling O1 V2V Edit', provider: 'fal', capability: 'video-editing', type: 'video', desc: 'Edit existing videos' },
 
+    // === HUGGINGFACE ===
+    // { id: 'starsfriday/Qwen-Image-Edit-Remove-Clothes', name: 'Qwen Image Edit', provider: 'huggingface', capability: 'image-editing', type: 'image', desc: 'Remove clothes/objects (Experimental)' },
+
+    // === FAL.AI ===
+    { id: 'fal-ai/qwen-image/edit-plus', name: 'Qwen Image Edit Plus', provider: 'fal', capability: 'image-editing', type: 'image', desc: 'Remove clothes/objects (Plus)', tier: 'quality' },
+
     // === REPLICATE ===
+    { id: 'fofr/consistent-character', name: 'Consistent Character', provider: 'replicate', capability: 'text-to-image', type: 'image', desc: 'Character poses & turnarounds', tier: 'quality' },
     { id: 'black-forest-labs/flux-dev', name: 'Flux Dev', provider: 'replicate', capability: 'text-to-image', type: 'image', desc: 'Replicate Flux Dev' },
     { id: 'black-forest-labs/flux-schnell', name: 'Flux Schnell', provider: 'replicate', capability: 'text-to-image', type: 'image', desc: 'Replicate Flux Schnell' },
     { id: 'stability-ai/sdxl', name: 'SDXL', provider: 'replicate', capability: 'text-to-image', type: 'image', desc: 'Standard SDXL' },
@@ -109,7 +125,9 @@ export const ALL_MODELS: ModelInfo[] = [
 
     // === OPENAI ===
     { id: 'dall-e-3', name: 'DALL-E 3', provider: 'openai', capability: 'text-to-image', type: 'image', desc: 'Creative concepts' },
-    { id: 'sora', name: 'Sora', provider: 'openai', capability: 'text-to-video', type: 'video', desc: 'Coming soon' },
+    { id: 'sora-2-pro', name: 'Sora 2.0 Pro', provider: 'openai', capability: 'text-to-video', type: 'video', desc: 'High-fidelity cinematic video' },
+    { id: 'sora-2', name: 'Sora 2.0', provider: 'openai', capability: 'text-to-video', type: 'video', desc: 'Standard video generation' },
+    { id: 'sora', name: 'Sora 1.0 (Alpha)', provider: 'openai', capability: 'text-to-video', type: 'video', desc: 'Legacy alpha' },
 
     // === COMFY (Local) ===
     { id: 'sdxl', name: 'SDXL (Local)', provider: 'comfy', capability: 'text-to-image', type: 'image', desc: 'Local SDXL' },

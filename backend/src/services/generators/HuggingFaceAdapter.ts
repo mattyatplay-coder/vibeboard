@@ -28,6 +28,9 @@ export class HuggingFaceAdapter implements GenerationProvider {
     /**
      * Required by GenerationProvider interface
      */
+    /**
+     * Required by GenerationProvider interface
+     */
     async generateImage(options: GenerationOptions): Promise<GenerationResult> {
         try {
             // Default to Flux-Schnell if available, or SDXL
@@ -35,6 +38,41 @@ export class HuggingFaceAdapter implements GenerationProvider {
 
             console.log(`[HuggingFace] Generating image with ${model}`);
 
+            // Check if this is an image-to-image request (has source image)
+            // The Qwen model is an editing model so it requires an input image
+            if (options.sourceImages && options.sourceImages.length > 0) {
+                const sourceImage = options.sourceImages[0];
+                console.log(`[HuggingFace] Performing Image-to-Image with ${sourceImage.substring(0, 30)}...`);
+
+                // Fetch the source image to a blob
+                const response = await fetch(sourceImage);
+                const imageBlob = await response.blob();
+
+                const blob: any = await this.hf.imageToImage({
+                    model: model,
+                    inputs: imageBlob,
+                    parameters: {
+                        prompt: options.prompt,
+                        negative_prompt: options.negativePrompt,
+                        num_inference_steps: options.steps,
+                        guidance_scale: options.guidanceScale,
+                        strength: options.strength, // Strength is crucial for i2i
+                        // seed: options.seed
+                    }
+                });
+
+                // Convert Blob to Data URL
+                const buffer = Buffer.from(await blob.arrayBuffer());
+                const dataUrl = `data:${blob.type || 'image/png'};base64,${buffer.toString('base64')}`;
+
+                return {
+                    id: Date.now().toString(),
+                    status: 'succeeded',
+                    outputs: [dataUrl]
+                };
+            }
+
+            // Normal Text-to-Image
             const blob: any = await this.hf.textToImage({
                 model: model,
                 inputs: options.prompt,
@@ -58,6 +96,14 @@ export class HuggingFaceAdapter implements GenerationProvider {
 
         } catch (error: any) {
             console.error("[HuggingFace] Image generation failed:", error);
+            // Check for disabled model specific error
+            if (error.message && error.message.includes('403')) {
+                return {
+                    id: Date.now().toString(),
+                    status: 'failed',
+                    error: `Model access disabled or restricted: ${error.message}`
+                };
+            }
             return {
                 id: Date.now().toString(),
                 status: 'failed',

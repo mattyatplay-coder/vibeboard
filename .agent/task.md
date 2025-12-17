@@ -216,3 +216,47 @@ These are areas where VibeBoard already leads:
 - ✅ Smart dataset curation with face matching (unique)
 - ✅ Cost transparency with provider comparison (unique)
 - ✅ Storyboarding workflow (only LTX comes close)
+- ✅ Character Foundry - single image to full training dataset (unique)
+
+---
+
+# Character Foundry - Synthetic Dataset Generation (Dec 2025)
+
+- [x] **Core Implementation** <!-- id: 300 -->
+    - [x] Create `DatasetGeneratorService.ts` with Flux 2 Max integration <!-- id: 301 -->
+    - [x] Implement pose variation generation (20 poses per character) <!-- id: 302 -->
+    - [x] Add auto-captioning via vision LLM <!-- id: 303 -->
+    - [x] Integrate with `trainingController.ts` <!-- id: 304 -->
+
+- [x] **Direction & Framing Fixes** <!-- id: 305 -->
+    - [x] Fix left/right confusion - use frame-relative language <!-- id: 306 -->
+    - [x] Fix medium shot rendering as full body - add explicit cropping language <!-- id: 307 -->
+    - [x] Implement dynamic aspect ratios (1:1, 3:4, 9:16) based on shot type <!-- id: 308 -->
+
+- [x] **Pose Preset System** <!-- id: 310 -->
+    - [x] Create 7 pose presets (universal, swimwear, casual, formal, fantasy, anime, cartoon) <!-- id: 311 -->
+    - [x] Add style prefixes for anime/cartoon presets <!-- id: 312 -->
+    - [x] Create `GET /api/training/pose-presets` endpoint <!-- id: 313 -->
+    - [x] Add preset dropdown to Character Foundry UI <!-- id: 314 -->
+    - [x] Pass preset to backend generation <!-- id: 315 -->
+
+- [x] **UI Integration** <!-- id: 320 -->
+    - [x] Update `train/page.tsx` with Character Foundry mode <!-- id: 321 -->
+    - [x] Add dataset review panel for generated images <!-- id: 322 -->
+    - [x] Add delete button for individual dataset images <!-- id: 323 -->
+    - [x] Support external editing (Photoshop) before training <!-- id: 324 -->
+
+### Models Tested
+| Model | Result | Notes |
+|-------|--------|-------|
+| Kling O1 | ❌ Inconsistent | Character details changed between poses |
+| Replicate fofr/consistent-character | ❌ Style drift | Mixed Pixar/realistic styles |
+| Flux 2 Max (fal-ai/flux-2-max/edit) | ✅ Selected | Best consistency + pose variety |
+| GPT Image 1.5 | ✅ Good | Alternative option, slower |
+
+### Key Technical Decisions
+1. **Flux 2 Max over Kling O1**: Better character consistency with reference image
+2. **Frame-relative directions**: "nose pointing toward left edge of frame" vs "facing left"
+3. **Explicit cropping language**: "no legs visible", "cropped at chest" to force framing
+4. **Dynamic aspect ratios**: Match aspect ratio to shot type for better results
+5. **Clothing-aware presets**: Avoid impossible poses (no pockets in swimwear)

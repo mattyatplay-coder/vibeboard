@@ -51,22 +51,28 @@ export class FalTrainingService {
     async uploadDataset(zipPath: string): Promise<string> {
         console.log(`[FalTrainingService] Starting upload to Fal: ${zipPath}`);
         try {
-            // Fal's storage.upload is the standard way, but if not available in this SDK version,
-            // we might need to use a general file upload endpoint or S3.
-            // Assuming fal.storage.upload exists or similar.
-            // If not, we'll mock it or use a public URL if we have one (e.g. from our own server).
-
-            // For now, let's assume we serve it from our server and pass that URL.
-            // In production, we should upload to S3/Fal Storage.
-
-            // NOTE: Since we are running locally, we can't pass localhost URL to Fal.
-            // We MUST upload to Fal storage.
-
-            // @ts-ignore - Fal SDK types might mismatch with Node streams
+            // Read the zip file as a buffer
             const fileBuffer = fs.readFileSync(zipPath);
-            const blob = new Blob([fileBuffer]);
-            const url = await fal.storage.upload(blob);
+            const fileName = path.basename(zipPath);
+
+            // IMPORTANT: Create a Blob with the correct MIME type for zip files
+            // Fal's training API requires proper archive format detection
+            const blob = new Blob([fileBuffer], { type: 'application/zip' });
+
+            // Use the File constructor to preserve the filename with .zip extension
+            // This ensures Fal can properly detect the archive format
+            const file = new File([blob], fileName, { type: 'application/zip' });
+
+            console.log(`[FalTrainingService] Uploading file: ${fileName} (${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
+
+            const url = await fal.storage.upload(file);
             console.log(`[FalTrainingService] Upload complete. URL: ${url}`);
+
+            // Verify the URL has proper extension (warn if it doesn't)
+            if (!url.includes('.zip') && !url.includes('application/zip')) {
+                console.warn(`[FalTrainingService] Warning: Uploaded URL may not have proper zip extension: ${url}`);
+            }
+
             return url;
         } catch (error) {
             console.error("[FalTrainingService] Fal upload failed:", error);
@@ -132,6 +138,39 @@ export class FalTrainingService {
         } catch (error) {
             console.error("Fal result fetch failed:", error);
             throw error;
+        }
+    }
+    /**
+     * Start a Wan 2.2 Video Model Training Job
+     */
+    async startWanTraining(
+        datasetUrl: string,
+        triggerWord: string,
+        steps: number = 1000,
+        webhookUrl?: string
+    ): Promise<string> {
+        console.log(`[FalTrainingService] Submitting WAN 2.2 training job to Fal...`);
+        const modelEndpoint = "fal-ai/wan-22-image-trainer";
+
+        try {
+            const result = await fal.queue.submit(modelEndpoint, {
+                input: {
+                    training_data_url: datasetUrl,
+                    trigger_phrase: triggerWord,
+                    steps: steps,
+                    // Default parameters for standard subject training
+                    is_style: false,
+                    use_face_detection: true,
+                    include_synthetic_captions: true
+                },
+                webhookUrl
+            });
+
+            console.log(`[FalTrainingService] Wan 2.2 Training submitted. Request ID: ${result.request_id}`);
+            return result.request_id;
+        } catch (error) {
+            console.error("[FalTrainingService] Wan training start failed:", error);
+            throw new Error("Failed to start Wan training job");
         }
     }
 }

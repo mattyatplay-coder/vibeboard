@@ -19,6 +19,11 @@ test-results/
 
 # Uploads (user data)
 frontend/public/uploads/
+backend/uploads/
+datasets/
+backend/datasets/
+temp_frames/
+backend/temp_frames/
 
 # Local LoRA files
 loras/
@@ -26,3 +31,20 @@ loras/
 # Native app builds
 *.app/
 VibeBoard-Native/
+
+# Local services (large ML models)
+local-services/
+
+# Scratch/temp files
+AI improvements/
+VibeBoard Storyboard/
+VibeBoard.applescript
+backend/check_*.js
+backend/check_*.ts
+backend/get_*.js
+backend/setup-backend.sh
+backend/test_*.js
+backend/test_*.jpg
+backend/test_*.png
+chat history*.md
+reference-consistency-fix.json

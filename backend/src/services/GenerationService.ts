@@ -122,7 +122,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         requiresApiKey: true,
         envVar: 'REPLICATE_API_TOKEN',
         models: {
-            image: ['flux-schnell', 'flux-dev', 'sdxl', 'kandinsky', 'sdxl-nsfw', 'realistic-vision', 'juggernaut-xl', 'deliberate-v6'],
+            image: ['flux-schnell', 'flux-dev', 'sdxl', 'kandinsky', 'sdxl-nsfw', 'realistic-vision', 'juggernaut-xl', 'deliberate-v6', 'fofr/consistent-character'],
             video: [
                 'ltx-video', 'animatediff',
                 'wan-2.1-t2v-480p', 'wan-2.1-t2v-720p', 'wan-2.1-i2v-480p', 'wan-2.1-i2v-720p', 'wan-2.1-1.3b',
@@ -146,8 +146,25 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         requiresApiKey: true,
         envVar: 'FAL_KEY',
         models: {
-            image: ['flux-schnell', 'flux-dev', 'flux-pro', 'flux-1.1-ultra'],
-            video: ['ltx-video', 'wan-2.1', 'wan-2.2', 'wan-2.5', 'minimax-video']
+            image: [
+                'flux-schnell', 'flux-dev', 'flux-pro', 'flux-1.1-ultra',
+                'fal-ai/kling-image/o1',
+                'fal-ai/flux-2-max',           // User requested "Max"
+                'fal-ai/flux-pro/v1.1-ultra',
+                'fal-ai/nano-banana-pro/edit', // User requested
+                'fal-ai/gpt-image-1.5/edit',   // User requested
+                'fal-ai/recraft-v3',           // High quality vector/image
+                'fal-ai/luma-photon',          // High fidelity
+                'fal-ai/ideogram/character', 'fal-ai/flux-kontext/dev', 'fal-ai/flux-kontext/pro', 'fal-ai/ip-adapter-face-id'
+            ],
+            video: [
+                'ltx-video',
+                'wan-2.1',
+                'wan-2.2',
+                'fal-ai/wan/v2.2-a14b/image-to-video/lora', // Wan 2.2 with LoRA support
+                'wan-2.5',
+                'minimax-video'
+            ]
         },
         category: 'cloud'
     },
@@ -195,7 +212,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         envVar: 'OPENAI_API_KEY',
         models: {
             image: ['dall-e-3', 'dall-e-2'],
-            video: ['sora'] // When available
+            video: ['sora', 'sora-2-pro', 'sora-2'] // Added specific Sora versions
         },
         category: 'cloud'
     },
@@ -246,7 +263,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         },
         category: 'cloud'
     }
-};
+}; // End PROVIDER_CONFIGS
 
 export class GenerationService {
     private providers: Map<ProviderType, GenerationProvider> = new Map();
@@ -263,6 +280,20 @@ export class GenerationService {
                 this.availableProviders.unshift(preferredProvider);
             }
         }
+    }
+
+    /**
+     * Analyze an image to get a caption/description (Logic: try Fal LLaVA first)
+     */
+    async analyzeImage(imageUrl: string, prompt: string = "Describe this character in detail"): Promise<string> {
+        // Prefer Fal
+        const provider = this.providers.get('fal');
+        if (provider && provider.analyzeImage) {
+            return await provider.analyzeImage(imageUrl, prompt);
+        }
+
+        // Fallback or Error
+        throw new Error("Analysis provider (Fal) not available or does not support analysis");
     }
 
     private initializeProviders() {
@@ -779,6 +810,8 @@ export class GenerationService {
             'dall-e-3': 'openai',
             'dall-e-2': 'openai',
             'sora': 'openai',
+            'sora-2': 'openai',
+            'sora-2-pro': 'openai',
 
             // Google models
             'imagen-3': 'google',
@@ -792,6 +825,10 @@ export class GenerationService {
             'flux-pro': 'fal',
             'flux-1.1-ultra': 'fal',
             'flux-2': 'fal',
+            'fal-ai/flux-2-max': 'fal',
+            'fal-ai/flux-pro/v1.1-ultra': 'fal',
+            'fal-ai/nano-banana-pro/edit': 'fal',
+            'fal-ai/gpt-image-1.5/edit': 'fal',
 
             // NSFW-friendly models (Replicate - no content filters)
             'sdxl-nsfw': 'replicate',
@@ -803,6 +840,13 @@ export class GenerationService {
             'realvis-xl': 'together',
             'realistic-vision-together': 'together',
             'dreamshaper-xl': 'together',
+
+            // Character Consistency Models
+            'fal-ai/ideogram/character': 'fal',
+            'fal-ai/flux-kontext/dev': 'fal',
+            'fal-ai/flux-kontext/pro': 'fal',
+            'fal-ai/ip-adapter-face-id': 'fal',
+            'fofr/consistent-character': 'replicate',
 
             // Image models - Civitai
             'auraflow': 'civitai',
@@ -855,6 +899,7 @@ export class GenerationService {
             'fal-ai/kling-video/v2.6/pro/text-to-video': 'fal',
             'fal-ai/wan/v2.2-a14b/image-to-video': 'fal',
             'fal-ai/wan-t2v': 'fal',
+            'fal-ai/wan/v2.2-a14b/image-to-video/lora': 'fal', // Added mapping
 
             // Replicate Video (Wan variants)
             'wan-2.1-t2v-480p': 'replicate',

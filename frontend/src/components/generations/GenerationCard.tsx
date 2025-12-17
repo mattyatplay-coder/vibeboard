@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Generation, Element } from "@/lib/store";
 import { analyzeGeneration, refineGeneration } from "@/lib/api";
-import { Heart, Download, Trash2, X, Play, Loader2, Sparkles, Check, Maximize2, ZoomIn, FilePlus, Wand2, AlertTriangle, Lightbulb } from "lucide-react";
+import { Heart, Download, Trash2, X, Play, Loader2, Sparkles, Check, Maximize2, ZoomIn, FilePlus, Wand2, AlertTriangle, Lightbulb, Paintbrush, Film } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { clsx } from "clsx";
 import { useDraggable } from "@dnd-kit/core";
@@ -35,6 +36,7 @@ const UPSCALE_OPTIONS = [
 ];
 
 export function GenerationCard({ generation, elements, onUpdate, onDelete, onIterate, onUseSettings, onEdit, onAnimate, onRetake, onInpaint, onUpscale, onSaveAsElement, onEnhanceVideo, isSelected, onToggleSelection }: GenerationCardProps) {
+    const router = useRouter();
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: generation.id,
         data: {
@@ -80,7 +82,7 @@ export function GenerationCard({ generation, elements, onUpdate, onDelete, onIte
         setIsRefining(true);
         try {
             console.log("Triggering Smart Refine for", generation.id);
-            const result = await refineGeneration(generation.projectId, generation.id);
+            const result = await refineGeneration(generation.projectId, generation.id, "");
             if (result.success && result.refinedPrompt) {
                 setEditedPrompt(result.refinedPrompt);
                 console.log("Smart Refine success:", result);
@@ -145,7 +147,7 @@ export function GenerationCard({ generation, elements, onUpdate, onDelete, onIte
     const output = generation.outputs?.[0];
     const isVideo = output?.type === 'video';
     const rawUrl = output?.url;
-    const mediaUrl = rawUrl
+    const mediaUrl = rawUrl && typeof rawUrl === 'string'
         ? (rawUrl.startsWith('http') || rawUrl.startsWith('data:') ? rawUrl : `http://localhost:3001${rawUrl}`)
         : undefined;
 
@@ -446,6 +448,39 @@ export function GenerationCard({ generation, elements, onUpdate, onDelete, onIte
                                 </div>
                             )}
                         </div>
+                    )}
+
+                    {/* Roto & Paint (Success + Image only) */}
+                    {generation.status === 'succeeded' && !isVideo && mediaUrl && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                // Encode the URL for safe passing via query params
+                                const encodedUrl = encodeURIComponent(mediaUrl);
+                                router.push(`/projects/${generation.projectId}/process?url=${encodedUrl}&tool=eraser`);
+                            }}
+                            className="w-7 h-7 rounded bg-orange-600/80 hover:bg-orange-500 flex items-center justify-center transition-colors backdrop-blur-sm"
+                            title="Roto & Paint"
+                            aria-label="Edit in Roto & Paint"
+                        >
+                            <Paintbrush className="w-4 h-4 text-white" />
+                        </button>
+                    )}
+
+                    {/* Rotoscope (Success + Video only) */}
+                    {generation.status === 'succeeded' && isVideo && mediaUrl && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const encodedUrl = encodeURIComponent(mediaUrl);
+                                router.push(`/projects/${generation.projectId}/process?video=${encodedUrl}&tool=rotoscope`);
+                            }}
+                            className="w-7 h-7 rounded bg-cyan-600/80 hover:bg-cyan-500 flex items-center justify-center transition-colors backdrop-blur-sm"
+                            title="Rotoscope"
+                            aria-label="Edit in Rotoscope"
+                        >
+                            <Film className="w-4 h-4 text-white" />
+                        </button>
                     )}
 
                     {/* Save as Element (Success only) */}

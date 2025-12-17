@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { fetchAPI } from "@/lib/api";
 import Link from "next/link";
-import { Plus, ArrowRight, Loader2 } from "lucide-react";
+import { Plus, ArrowRight, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface Project {
@@ -77,6 +77,22 @@ export default function ProjectSelector() {
       </div>
     );
   }
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.preventDefault(); // Prevent Link navigation
+    e.stopPropagation();
+
+    if (!confirm("Are you sure you want to delete this project? This cannot be undone.")) return;
+
+    try {
+      await fetchAPI(`/projects/${id}`, { method: "DELETE" });
+      toast.success("Project deleted");
+      loadProjects();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to delete project");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-black text-white p-8">
@@ -154,9 +170,17 @@ export default function ProjectSelector() {
             <Link
               key={project.id}
               href={`/projects/${project.id}/elements`}
-              className="group block p-6 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 hover:border-white/20 transition-all"
+              className="group relative block p-6 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 hover:border-white/20 transition-all"
             >
-              <h3 className="text-xl font-bold mb-2 group-hover:text-blue-400 transition-colors">
+              <button
+                onClick={(e) => handleDelete(e, project.id)}
+                className="absolute top-4 right-4 p-2 text-gray-500 hover:text-red-500 hover:bg-white/10 rounded-full transition-all opacity-0 group-hover:opacity-100"
+                title="Delete Project"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+
+              <h3 className="text-xl font-bold mb-2 group-hover:text-blue-400 transition-colors pr-8">
                 {project.name}
               </h3>
               <p className="text-gray-400 text-sm line-clamp-2 mb-4">
@@ -169,6 +193,7 @@ export default function ProjectSelector() {
             </Link>
           ))}
         </div>
+
 
         {projects.length === 0 && !isCreating && (
           <div className="text-center py-20 text-gray-500">

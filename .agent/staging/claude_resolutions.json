@@ -222,9 +222,21 @@
                     "action": "Execution",
                     "description": "Ran vision comparison test across all three providers.",
                     "results": {
-                        "openai": { "avgScore": 100, "avgLatency": 5871, "reliability": "4/4" },
-                        "grok": { "avgScore": 100, "avgLatency": 3161, "reliability": "4/4" },
-                        "glm": { "avgScore": 100, "avgLatency": 7311, "reliability": "3/4" }
+                        "openai": {
+                            "avgScore": 100,
+                            "avgLatency": 5871,
+                            "reliability": "4/4"
+                        },
+                        "grok": {
+                            "avgScore": 100,
+                            "avgLatency": 3161,
+                            "reliability": "4/4"
+                        },
+                        "glm": {
+                            "avgScore": 100,
+                            "avgLatency": 7311,
+                            "reliability": "3/4"
+                        }
                     }
                 },
                 {
@@ -248,6 +260,63 @@
                 "backend/src/services/llm/GrokAdapter.ts",
                 "backend/src/services/LLMService.ts"
             ]
+        },
+        {
+            "id": "PROD-FIX-001",
+            "timestamp": "2025-12-16T22:00:00Z",
+            "topic": "Production Hardening & Character Foundry Integration",
+            "context": {
+                "symptom": "Backend crashed on startup due to missing drive; Training UI upload was unresponsive; New models (Kling, Flux 2) were missing or misrouted.",
+                "user_intent": "Stabilize the system, integrate 'Character Foundry' (Kling O1), and fix critical UI bugs."
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Code Modification",
+                    "file": "start-vibeboard.sh",
+                    "change_type": "Stability Fix",
+                    "details": "Added loop to check for external drive mount (/Volumes/Samsung...) before starting backend to prevent crashes."
+                },
+                {
+                    "step": 2,
+                    "action": "Code Modification",
+                    "file": "backend/src/services/GenerationService.ts",
+                    "change_type": "Model Integration",
+                    "details": "Added `fal-ai/flux-2-max`, `kling-image/o1`, `wan-video` to supported models list."
+                },
+                {
+                    "step": 3,
+                    "action": "UI Refactor",
+                    "file": "frontend/src/app/projects/[id]/train/page.tsx",
+                    "change_type": "Bug Fix",
+                    "details": "Refactored file upload from absolute div overlay to semantic `<label>` + `id` + `sr-only` input. Fixed persistent unresponsiveness."
+                },
+                {
+                    "step": 4,
+                    "action": "Logic Fix",
+                    "file": "backend/src/controllers/generationController.ts",
+                    "change_type": "Bug Fix",
+                    "details": "Excluded `flux-2-max` and others from 'Video Intent' inference to prevent accidental routing to video pipeline."
+                },
+                {
+                    "step": 5,
+                    "action": "Code Modification",
+                    "file": "backend/src/services/generators/FalAIAdapter.ts",
+                    "change_type": "API Fix",
+                    "details": "Updated adapter to send `image_urls` (string array) instead of `image_prompts` (object array) when using `kling-image` models."
+                },
+                {
+                    "step": 6,
+                    "action": "Security",
+                    "file": "backend/.gitignore / .env",
+                    "change_type": "Remediation",
+                    "details": "Added `.env` to gitignore and rotated compromised OpenRouter API key."
+                }
+            ],
+            "architectural_decision": {
+                "decision": "Use Semantic HTML for Custom Inputs",
+                "rationale": "CSS-based overlays for file inputs proved unreliable across rendering contexts. Semantic `<label>` with `htmlFor` provides native, robust click-to-upload behavior."
+            }
         }
     ]
 }

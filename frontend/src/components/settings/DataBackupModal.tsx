@@ -101,7 +101,7 @@ export function DataBackupModal({ projectId, isOpen, onClose }: DataBackupModalP
     };
 
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
             <div className="bg-[#1a1a1a] border border-white/10 rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
                 <div className="flex justify-between items-center p-4 border-b border-white/10">
                     <h2 className="text-lg font-bold text-white flex items-center gap-2">

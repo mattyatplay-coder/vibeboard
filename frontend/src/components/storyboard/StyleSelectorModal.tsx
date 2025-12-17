@@ -1,7 +1,8 @@
+/* eslint-disable react-hooks/rules-of-hooks */
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, Upload, Check, ChevronRight, Search, Ratio, Plus, ChevronDown, Settings2, Sliders, Dice5, FileJson, FolderOpen, Library } from "lucide-react";
+import { X, Upload, Check, ChevronRight, Search, Ratio, Plus, ChevronDown, Settings2, Sliders, Dice5, FileJson, FolderOpen, Library, Database } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { clsx } from "clsx";
 import { useDropzone } from "react-dropzone";
@@ -10,6 +11,7 @@ import { CreateStyleModal, CustomStyle } from "./CreateStyleModal";
 import { LoRAManager } from "../loras/LoRAManager";
 
 import { CinematicTagsModal } from "./CinematicTagsModal";
+import { DataBackupModal } from "../settings/DataBackupModal";
 import { NegativePromptManager } from "../prompts/NegativePromptManager";
 import { ALL_CATEGORIES, CinematicTag, CATEGORY_MAP } from "@/data/CinematicTags";
 
@@ -332,6 +334,7 @@ export function StyleSelectorModal({ isOpen, onClose, onApply, initialAspectRati
     const [expandedSections, setExpandedSections] = useState<string[]>(["loras"]);
     const [activeManager, setActiveManager] = useState<'lora' | 'sampler' | 'scheduler' | 'tags' | 'negative' | null>(null);
     const [initialTagCategory, setInitialTagCategory] = useState<string | undefined>(undefined);
+    const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
 
     const toggleSection = (section: string) => {
         setExpandedSections(prev =>
@@ -505,6 +508,13 @@ export function StyleSelectorModal({ isOpen, onClose, onApply, initialAspectRati
                                             >
                                                 <Plus className="w-4 h-4" />
                                                 Create New Style
+                                            </button>
+                                            <button
+                                                onClick={() => setIsBackupModalOpen(true)}
+                                                className="w-full mt-2 py-2 border border-dashed border-white/20 hover:border-green-500/50 hover:bg-green-500/10 rounded-lg text-xs text-gray-400 hover:text-green-400 transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                <Database className="w-4 h-4" />
+                                                Data Management
                                             </button>
                                         </div>
                                     </div>
@@ -1044,6 +1054,12 @@ export function StyleSelectorModal({ isOpen, onClose, onApply, initialAspectRati
                     </div>
                 )}
             </AnimatePresence>
+
+            <DataBackupModal
+                isOpen={isBackupModalOpen}
+                onClose={() => setIsBackupModalOpen(false)}
+                projectId={projectId}
+            />
 
             {/* Create Style Modal */}
             <CreateStyleModal

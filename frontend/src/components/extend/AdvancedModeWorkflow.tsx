@@ -164,8 +164,9 @@ export default function AdvancedModeWorkflow({ projectId }: AdvancedModeWorkflow
                     <Paper sx={{ p: 4 }}>
                         <Typography variant="h6" gutterBottom>2. Select Model</Typography>
                         <EngineSelectorV2
-                            config={engineConfig}
-                            onChange={setEngineConfig}
+                            selectedProvider={engineConfig.provider}
+                            selectedModel={engineConfig.model}
+                            onSelect={(provider, model) => setEngineConfig({ provider, model })}
                             mode="video"
                         />
                     </Paper>

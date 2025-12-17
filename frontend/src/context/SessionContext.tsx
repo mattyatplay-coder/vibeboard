@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { useParams } from "next/navigation";
 import { fetchAPI } from "@/lib/api";
 
@@ -34,14 +34,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
 
-    const loadSessions = async () => {
+    const loadSessions = useCallback(async () => {
         if (!projectId) return;
         setIsLoading(true);
         try {
             const data = await fetchAPI(`/projects/${projectId}/sessions`);
             setSessions(data);
 
-            // Auto-select first session if none selected? 
+            // Auto-select first session if none selected?
             // Or keep 'All Generations' (null) as default?
             // Let's keep null as default for now, or maybe restore from localStorage?
         } catch (error) {
@@ -49,11 +49,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [projectId]);
 
     useEffect(() => {
         loadSessions();
-    }, [projectId]);
+    }, [projectId, loadSessions]);
 
     const createSession = async (name: string) => {
         if (!projectId) return;

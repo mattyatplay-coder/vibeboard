@@ -17,6 +17,20 @@ import providerRoutes from './routes/providerRoutes';
 import promptRoutes from './routes/promptRoutes';
 import storyEditorRoutes from './routes/storyEditorRoutes';
 import path from 'path';
+import { validateStorage, getStorageStatus } from './utils/storageValidation';
+
+import processingRoutes from './routes/processingRoutes';
+import trainingRoutes from './routes/trainingRoutes';
+
+// Validate storage before starting server
+try {
+    validateStorage();
+} catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    console.error('\n⚠️  Server startup aborted due to storage validation failure.');
+    console.error('   Please ensure the network drive is mounted and try again.\n');
+    process.exit(1);
+}
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -33,8 +47,11 @@ app.use((req, res, next) => {
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+app.use('/datasets', express.static(path.join(process.cwd(), 'datasets')));
 
 app.use('/api/projects', projectRoutes);
+app.use('/api/training', trainingRoutes);
+app.use('/api/process', processingRoutes);
 // Nested route for elements: /api/projects/:projectId/elements
 app.use('/api/projects/:projectId/elements', elementRoutes);
 // Nested route for generations: /api/projects/:projectId/generations
@@ -49,17 +66,21 @@ app.use('/api/projects/:projectId/loras', loraRoutes);
 app.use('/api/projects/:projectId/workflows', workflowRoutes);
 // Nested route for parameters: /api/projects/:projectId/parameters
 app.use('/api/projects/:projectId/parameters', modelParameterRoutes);
+import backupRoutes from './routes/backupRoutes';
+app.use('/api/projects/:projectId/backup', backupRoutes);
 app.use('/api/llm', llmRoutes);
 app.use('/api/providers', providerRoutes);
 app.use('/api/prompts', promptRoutes);
 app.use('/api/story-editor', storyEditorRoutes);
 app.get('/api/elements', require('./controllers/elementController').getAllElements);
 
+
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
-        falConfigured: !!process.env.FAL_KEY
+        falConfigured: !!process.env.FAL_KEY,
+        storage: getStorageStatus()
     });
 });
 

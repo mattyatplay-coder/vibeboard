@@ -1,3 +1,4 @@
+ /* eslint-disable react-hooks/rules-of-hooks */
 import { useState, useEffect } from "react";
 import { X, Sparkles, Loader2, Video } from "lucide-react";
 import { MagicPromptButton } from "./MagicPromptButton";

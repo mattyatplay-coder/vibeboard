@@ -436,7 +436,7 @@ export class ReplicateAdapter implements GenerationProvider {
             // Resolve local paths
             const inputImage = await this.resolveLocalUrlToDataUrl(imageUrl);
 
-            // Using zsxkib/insightface. 
+            // Using zsxkib/insightface.
             const output: any = await this.replicate.run(
                 "zsxkib/insightface:78a1bc40c79e602492f254922114d567311df9012354890656a84c6014459d28",
                 {
@@ -460,6 +460,142 @@ export class ReplicateAdapter implements GenerationProvider {
         } catch (error: any) {
             console.warn(`[Replicate] Embedding generation warning: ${error.message}`);
             return [];
+        }
+    }
+
+    /**
+     * Generate consistent character images in different poses using fofr/consistent-character
+     * Best for: Creating character reference sheets, multiple poses of the same character
+     *
+     * @param referenceImage - The character reference image URL
+     * @param options.prompt - Description of the pose/scene (e.g., "sitting on a bench", "running")
+     * @param options.count - Number of poses to generate (default: 4)
+     */
+    async generateConsistentCharacter(
+        referenceImage: string,
+        options: GenerationOptions
+    ): Promise<GenerationResult> {
+        try {
+            console.log(`[Replicate] Generating consistent character poses...`);
+
+            const inputImage = await this.resolveLocalUrlToDataUrl(referenceImage);
+
+            const input: any = {
+                subject: inputImage,
+                prompt: options.prompt || "a photo of the character",
+                negative_prompt: options.negativePrompt || "bad quality, worst quality",
+                number_of_outputs: options.count || 4,
+                randomise_poses: true,
+                number_of_images_per_pose: 1,
+                output_format: "png",
+                output_quality: 100,
+            };
+
+            // Style parameters
+            if (options.seed) {
+                input.seed = options.seed;
+            }
+
+            console.log(`[Replicate] Running fofr/consistent-character with ${input.number_of_outputs} outputs...`);
+
+            const output = await this.replicate.run(
+                "fofr/consistent-character:9c77a3c2f884193fcee4d89645f02a0b9def9434f9e03cb98460456b831c8772",
+                { input }
+            );
+
+            // Extract URLs from output
+            let outputs: string[] = [];
+            if (Array.isArray(output)) {
+                outputs = output.map((item: any) => {
+                    if (typeof item === 'string') return item;
+                    if (item?.url) return item.url;
+                    return String(item);
+                }).filter(url => url && url.length > 0);
+            }
+
+            console.log(`[Replicate] Generated ${outputs.length} consistent character images`);
+
+            return {
+                id: Date.now().toString(),
+                status: 'succeeded',
+                outputs: outputs,
+                provider: 'replicate'
+            };
+        } catch (error: any) {
+            console.error("[Replicate] Consistent character generation failed:", error);
+            return {
+                id: Date.now().toString(),
+                status: 'failed',
+                error: error.message || "Consistent character generation failed"
+            };
+        }
+    }
+
+    /**
+     * Generate character turnaround sheet (front, side, back views) using consistent-character
+     * Best for: Creating model sheets for animation or 3D reference
+     */
+    async generateCharacterTurnaround(
+        referenceImage: string,
+        options: GenerationOptions
+    ): Promise<GenerationResult> {
+        try {
+            console.log(`[Replicate] Generating character turnaround sheet...`);
+
+            const inputImage = await this.resolveLocalUrlToDataUrl(referenceImage);
+
+            // Generate specific poses for turnaround
+            const turnaroundPrompts = [
+                "front view, facing camera, full body, standing pose",
+                "left side profile view, full body, standing pose",
+                "back view, facing away, full body, standing pose",
+                "right side profile view, full body, standing pose"
+            ];
+
+            const allOutputs: string[] = [];
+
+            for (const posePrompt of turnaroundPrompts) {
+                const input: any = {
+                    subject: inputImage,
+                    prompt: `${options.prompt || "character"}, ${posePrompt}, white background, character reference sheet style`,
+                    negative_prompt: options.negativePrompt || "bad quality, worst quality, multiple people, crowd",
+                    number_of_outputs: 1,
+                    randomise_poses: false,
+                    number_of_images_per_pose: 1,
+                    output_format: "png",
+                    output_quality: 100,
+                };
+
+                if (options.seed) {
+                    input.seed = options.seed;
+                }
+
+                const output = await this.replicate.run(
+                    "fofr/consistent-character:9c77a3c2f884193fcee4d89645f02a0b9def9434f9e03cb98460456b831c8772",
+                    { input }
+                );
+
+                if (Array.isArray(output) && output.length > 0) {
+                    const url = typeof output[0] === 'string' ? output[0] : output[0]?.url;
+                    if (url) allOutputs.push(url);
+                }
+            }
+
+            console.log(`[Replicate] Generated ${allOutputs.length} turnaround views`);
+
+            return {
+                id: Date.now().toString(),
+                status: 'succeeded',
+                outputs: allOutputs,
+                provider: 'replicate'
+            };
+        } catch (error: any) {
+            console.error("[Replicate] Character turnaround generation failed:", error);
+            return {
+                id: Date.now().toString(),
+                status: 'failed',
+                error: error.message || "Character turnaround generation failed"
+            };
         }
     }
 }

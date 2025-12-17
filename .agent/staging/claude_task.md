@@ -81,3 +81,15 @@
 
 - [x] Smart Prompt Builder Fixes <!-- id: 54 -->
     - [x] Fix Missing Negative Prompts (`customNegativePrompt`) <!-- id: 55 -->
+
+- [x] **Character Foundry Implementation** <!-- id: 100 -->
+    - [x] Create Foundry Mode UI in `TrainingPage` <!-- id: 101 -->
+    - [x] Integrate `kling-image/o1` for synthetic dataset generation <!-- id: 102 -->
+    - [x] Implement "Golden Record" single-image source workflow <!-- id: 103 -->
+
+- [x] **Production Reliability & Fixes** <!-- id: 110 -->
+    - [x] Fix Backend Startup Crash (Drive Mount Check script) <!-- id: 111 -->
+    - [x] Fix File Upload Unresponsiveness (Refactor to `<label>` + `id`) <!-- id: 112 -->
+    - [x] Fix Model Routing (Flux 2 Max video intent bug) <!-- id: 113 -->
+    - [x] Fix Kling O1 Parameter Error (`image_urls` vs `image_prompts`) <!-- id: 114 -->
+    - [x] Security: Fix `.env` leak and rotate OpenRouter Key <!-- id: 115 -->

@@ -71,21 +71,37 @@ router.post('/enhance', async (req: Request, res: Response) => {
             }
         }
 
-        // Fallback: resolve from registry by ID if no direct LoRAs provided
+        // Fallback: resolve from KnowledgeBase (DB) if no direct LoRAs provided
         if (loras.length === 0 && loraIds.length > 0) {
+            const { KnowledgeBaseService } = require('../services/knowledge/KnowledgeBaseService');
+            const kb = KnowledgeBaseService.getInstance();
+
             for (const loraId of loraIds) {
-                const lora = loraRegistry.get(loraId);
-                if (lora) {
+                // Try KnowledgeBase first (DB)
+                const kbLora = await kb.getLoRAById(loraId);
+
+                if (kbLora) {
                     loras.push({
-                        id: lora.id,
-                        name: lora.name,
-                        triggerWords: lora.triggerWords,
-                        strength: lora.recommendedStrength,
-                        type: lora.type as any,
-                        activationText: lora.activationText
+                        id: kbLora.id,
+                        name: kbLora.name,
+                        triggerWords: kbLora.triggerWords,
+                        strength: 0.8, // Default strength
+                        type: 'concept' as any, // Default type from KB
+                        activationText: kbLora.triggerWords[0]
                     });
-                    // Record usage
-                    loraRegistry.recordUsage(loraId);
+                } else {
+                    // Fallback to static registry if KB fails
+                    const lora = loraRegistry.get(loraId);
+                    if (lora) {
+                        loras.push({
+                            id: lora.id,
+                            name: lora.name,
+                            triggerWords: lora.triggerWords,
+                            strength: lora.recommendedStrength,
+                            type: lora.type as any,
+                            activationText: lora.activationText
+                        });
+                    }
                 }
             }
         }

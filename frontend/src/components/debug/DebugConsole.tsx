@@ -6,7 +6,7 @@ import { X, Copy, Trash2, Bug, ChevronDown, ChevronUp, Pause, Play } from 'lucid
 import clsx from 'clsx';
 
 export const DebugConsole = () => {
-    const { logs, isOpen, toggleOpen, clearLogs } = useVideoConsole();
+    const { logs, isOpen, toggleOpen, clearLogs, addLog } = useVideoConsole();
     const [filter, setFilter] = useState<'all' | 'error' | 'warn' | 'info'>('all');
     const [autoScroll, setAutoScroll] = useState(true);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -97,11 +97,11 @@ export const DebugConsole = () => {
                                 .then(res => res.json())
                                 .then(data => {
                                     console.log('API Test Result:', data);
-                                    addLog('info', 'API Test Result: ' + JSON.stringify(data));
+                                    addLog('info', ['API Test Result:', JSON.stringify(data)]);
                                 })
                                 .catch(err => {
                                     console.error('API Test Failed:', err);
-                                    addLog('error', 'API Test Failed: ' + err.message);
+                                    addLog('error', ['API Test Failed:', err.message]);
                                 });
                         }}
                         className="p-1.5 text-blue-400 hover:text-blue-300 hover:bg-white/10 rounded transition-colors"

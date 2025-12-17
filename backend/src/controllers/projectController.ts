@@ -55,3 +55,16 @@ export const getProjectById = async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Failed to fetch project' });
     }
 };
+
+export const deleteProject = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        await prisma.project.delete({
+            where: { id },
+        });
+        res.status(204).send();
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to delete project' });
+    }
+};

@@ -280,17 +280,18 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
         if (!newUrl) return;
         setIsFetchingMetadata(true);
         setError(null);
+        let foundMetadata = false;
+
         try {
             // Dynamic import to avoid SSR issues if any, though this is client side
             const { fetchCivitaiModelVersion, extractVersionIdFromUrl, extractRecommendedSettings, fetchCivitaiModelByHash } = await import("@/lib/civitai");
 
-            let versionId = extractVersionIdFromUrl(newUrl);
+            // 1. Try Civitai first
+            const versionId = extractVersionIdFromUrl(newUrl);
             let metadata = null;
 
             if (versionId) {
                 metadata = await fetchCivitaiModelVersion(versionId);
-            } else if (newUrl.includes("urn:air:")) {
-                // Handle URN if needed, but usually we need ID
             }
 
             if (metadata) {
@@ -307,17 +308,34 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                 if (metadata.description) {
                     const settings = extractRecommendedSettings(metadata.description, metadata.trainedWords);
                     setNewSettings(settings);
-                    // Auto-set trigger word if found in description? 
-                    // Civitai API usually provides trainedWords in version metadata
-                    // But the type definition I made didn't include it.
-                    // Let's assume user fills trigger word or we add it to interface later.
                 }
+                foundMetadata = true;
             } else {
-                setError("Could not fetch metadata from Civitai URL");
+                // 2. Fallback: Parse URL for clues (HuggingFace, generic file)
+                console.log("Not a Civitai URL or metadata fetch failed. Attempting manual parse.");
+
+                // HuggingFace: https://huggingface.co/User/Repo/blob/main/file.safetensors
+                if (newUrl.includes("huggingface.co")) {
+                    const parts = newUrl.split('/');
+                    const lastPart = parts[parts.length - 1];
+                    const possibleName = lastPart.replace(/\.(safetensors|ckpt|pt|bin)$/i, "").replace(/[_-]/g, " ");
+                    setNewName(possibleName || "HuggingFace Model");
+                } else {
+                    // Generic file URL
+                    const parts = newUrl.split('/');
+                    const lastPart = parts[parts.length - 1];
+                    const possibleName = lastPart.replace(/\.(safetensors|ckpt|pt|bin)$/i, "").replace(/[_-]/g, " ");
+                    if (possibleName) {
+                        setNewName(possibleName);
+                    }
+                }
+
+                setError("Metadata not found automatically. Please fill in details manually.");
             }
         } catch (err) {
             console.error(err);
-            setError("Failed to fetch metadata");
+            // Don't block user, just warn
+            setError("Failed to fetch metadata. Please enter details manually.");
         } finally {
             setIsFetchingMetadata(false);
         }
@@ -469,7 +487,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                         </div>
 
                         <div>
-                            <label className="block text-xs text-gray-400 mb-1">File Path or URL (Civitai/HuggingFace)</label>
+                            <label className="block text-xs text-gray-400 mb-1">File Path or URL (Civitai, HuggingFace, or Direct Link)</label>
                             <div className="flex gap-2">
                                 <input
                                     type="text"

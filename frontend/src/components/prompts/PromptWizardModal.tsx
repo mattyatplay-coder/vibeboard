@@ -46,7 +46,7 @@ const PromptWizardContent = ({ onClose, onComplete, initialPrompt }: Omit<Prompt
             );
 
             // If manual details were added, append them
-            let finalPrompt = enhancedResultPrompt(enhancedPrompt, manualDetails);
+            const finalPrompt = enhancedResultPrompt(enhancedPrompt, manualDetails);
 
             dispatch({ type: 'SET_ENHANCED_PROMPT', prompt: finalPrompt });
 

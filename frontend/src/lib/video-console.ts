@@ -5,13 +5,13 @@ export interface LogEntry {
     timestamp: string;
     level: 'info' | 'warn' | 'error';
     message: string;
-    args: any[];
+    args: unknown[];
 }
 
 interface VideoConsoleStore {
     logs: LogEntry[];
     isOpen: boolean;
-    addLog: (level: 'info' | 'warn' | 'error', args: any[]) => void;
+    addLog: (level: 'info' | 'warn' | 'error', args: unknown[]) => void;
     clearLogs: () => void;
     toggleOpen: () => void;
     setOpen: (open: boolean) => void;

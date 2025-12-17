@@ -137,7 +137,7 @@ function getEngineOptimalKeywords(engine: VideoEngine): string[] {
     return engineKeywords[engine.id] || [];
 }
 
-function buildNegativePrompt(engine: VideoEngine, tags: Tag[]): string {
+function buildNegativePrompt(engine: VideoEngine, _tags: Tag[]): string {
     const baseNegatives = [
         'low quality',
         'bad quality',

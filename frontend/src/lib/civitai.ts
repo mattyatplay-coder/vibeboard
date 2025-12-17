@@ -1,6 +1,4 @@
 
-import { LoRA } from "@/components/loras/LoRAManager";
-
 export interface CivitaiModelVersion {
     id: number;
     modelId: number;
