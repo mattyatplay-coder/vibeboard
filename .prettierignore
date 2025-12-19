@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Generated files
+*.generated.ts
+*.generated.js
+prisma/migrations/
+
+# Large data files (don't format these)
+frontend/src/data/CinematicTags.ts
+frontend/src/data/CameraPresets.ts
+frontend/src/data/GenreTemplates.ts
+frontend/src/lib/ModelRegistry.ts
+
+# Lock files
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Test outputs
+playwright-report/
+test-results/
+coverage/
+
+# IDE
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+!.env.example

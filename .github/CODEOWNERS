@@ -1,0 +1,94 @@
+# VibeBoard CODEOWNERS
+# ====================
+# This file defines code ownership for automated review assignment.
+# When a PR modifies files matching a pattern, the listed owners are
+# automatically requested for review.
+#
+# Syntax: <pattern> <owner1> <owner2> ...
+# Owners can be GitHub usernames (@user) or team names (@org/team)
+#
+# Last match wins - more specific patterns should come later.
+
+# ==============================================================================
+# DEFAULT OWNER - All files not matched by other rules
+# ==============================================================================
+*                                       @matthenrich
+
+# ==============================================================================
+# BACKEND - Claude/Backend Agent Domain
+# ==============================================================================
+# All backend code, services, adapters, routes, controllers
+/backend/                               @matthenrich
+/backend/src/services/                  @matthenrich
+/backend/src/controllers/               @matthenrich
+/backend/src/routes/                    @matthenrich
+/backend/src/middleware/                @matthenrich
+/backend/prisma/                        @matthenrich
+
+# ==============================================================================
+# FRONTEND LOGIC - Claude Domain (Protected)
+# ==============================================================================
+# State management, API client, data registries, types
+/frontend/src/lib/store.ts              @matthenrich
+/frontend/src/lib/api.ts                @matthenrich
+/frontend/src/lib/ModelRegistry.ts      @matthenrich
+/frontend/src/lib/promptBuilder.ts      @matthenrich
+/frontend/src/lib/loraManager.ts        @matthenrich
+/frontend/src/lib/engineRecommendation.ts @matthenrich
+/frontend/src/lib/sceneDetection.ts     @matthenrich
+/frontend/src/lib/tagTransform.ts       @matthenrich
+/frontend/src/lib/civitai.ts            @matthenrich
+
+# Data registries (large static data files)
+/frontend/src/data/                     @matthenrich
+/frontend/src/data/CinematicTags.ts     @matthenrich
+/frontend/src/data/CameraPresets.ts     @matthenrich
+/frontend/src/data/GenreTemplates.ts    @matthenrich
+/frontend/src/data/engines.ts           @matthenrich
+/frontend/src/data/modelCapabilities.ts @matthenrich
+/frontend/src/data/workflowTemplates.ts @matthenrich
+
+# Context providers and types
+/frontend/src/context/                  @matthenrich
+/frontend/src/types/                    @matthenrich
+
+# ==============================================================================
+# FRONTEND UI - Antigravity Domain
+# ==============================================================================
+# UI components, layouts, styling (Antigravity has more freedom here)
+/frontend/src/components/ui/            @matthenrich
+/frontend/src/components/layout/        @matthenrich
+/frontend/src/app/                      @matthenrich
+
+# Note: Component logic (handlers, state) still requires review
+# but styling/structure changes are more flexible
+
+# ==============================================================================
+# SHARED/CONFIG - Requires Multiple Reviewers
+# ==============================================================================
+# Changes to these files affect multiple areas and need careful review
+/frontend/package.json                  @matthenrich
+/frontend/package-lock.json             @matthenrich
+/backend/package.json                   @matthenrich
+/backend/package-lock.json              @matthenrich
+/docker-compose.yml                     @matthenrich
+/.github/                               @matthenrich
+/.env.example                           @matthenrich
+/frontend/tailwind.config.ts            @matthenrich
+/frontend/next.config.ts                @matthenrich
+/frontend/tsconfig.json                 @matthenrich
+/backend/tsconfig.json                  @matthenrich
+
+# ==============================================================================
+# DOCUMENTATION
+# ==============================================================================
+*.md                                    @matthenrich
+/INTEGRATION_GUIDE.md                   @matthenrich
+/AGENT_ROLES.md                         @matthenrich
+
+# ==============================================================================
+# CI/CD & Infrastructure
+# ==============================================================================
+/.github/workflows/                     @matthenrich
+/Dockerfile                             @matthenrich
+/docker-compose*.yml                    @matthenrich
