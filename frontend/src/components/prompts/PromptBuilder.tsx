@@ -325,7 +325,12 @@ export function PromptBuilder({
             setEnhancedPrompt(result);
             setShowEnhanced(true);
 
-
+            // Auto-apply the enhanced prompt and close
+            if (result?.prompt) {
+                setPrompt(result.prompt);
+                onPromptChange(result.prompt, result.negativePrompt);
+                if (onClose) onClose();
+            }
 
         } catch (error) {
             console.error('Enhancement failed:', error);
@@ -1165,63 +1170,34 @@ export function PromptBuilder({
                                             )
                                         }
 
-                                        {/* Use enhanced prompt button */}
-                                        <button
-                                            onClick={useEnhancedPrompt}
-                                            className="mt-3 w-full py-2 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 rounded-lg text-sm text-purple-400 font-medium transition-colors"
-                                        >
-                                            Use Enhanced Prompt
-                                        </button>
                                     </div >
                                 </div >
                             )
                         }
-                        {/* Footer Actions */}
-                        {/* Footer Actions */}
+                        {/* Footer - Enhance Button */}
                         <div className="p-4 border-t border-white/10 bg-[#1a1a1a]">
-                            {enhancedPrompt && showEnhanced ? (
-                                <div className="flex gap-3">
-                                    <button
-                                        onClick={() => {
-                                            setShowEnhanced(false);
-                                            setEnhancedPrompt(null);
-                                        }}
-                                        className="px-4 py-3 rounded-xl text-sm font-bold text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 transition-colors"
-                                    >
-                                        Back
-                                    </button>
-                                    <button
-                                        onClick={useEnhancedPrompt}
-                                        className="flex-1 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold shadow-lg shadow-purple-600/20 transition-all flex items-center justify-center gap-2"
-                                    >
-                                        <Check className="w-4 h-4" />
-                                        Use Enhanced Prompt
-                                    </button>
-                                </div>
-                            ) : (
-                                <button
-                                    onClick={enhance}
-                                    disabled={isEnhancing || !prompt.trim()}
-                                    className={clsx(
-                                        "w-full py-3 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2",
-                                        prompt.trim()
-                                            ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:from-pink-400 hover:to-purple-500 shadow-pink-500/20"
-                                            : "bg-white/5 text-gray-500 cursor-not-allowed"
-                                    )}
-                                >
-                                    {isEnhancing ? (
-                                        <>
-                                            <RefreshCw className="w-4 h-4 animate-spin" />
-                                            Enhancing Prompt...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Sparkles className="w-4 h-4" />
-                                            Enhance Prompt for {modelGuide?.name || 'Model'}
-                                        </>
-                                    )}
-                                </button>
-                            )}
+                            <button
+                                onClick={enhance}
+                                disabled={isEnhancing || !prompt.trim()}
+                                className={clsx(
+                                    "w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2",
+                                    prompt.trim()
+                                        ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:from-pink-400 hover:to-purple-500"
+                                        : "bg-white/5 text-gray-500 cursor-not-allowed"
+                                )}
+                            >
+                                {isEnhancing ? (
+                                    <>
+                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                        Enhancing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Sparkles className="w-4 h-4" />
+                                        Enhance
+                                    </>
+                                )}
+                            </button>
                         </div>
                     </>
                 )

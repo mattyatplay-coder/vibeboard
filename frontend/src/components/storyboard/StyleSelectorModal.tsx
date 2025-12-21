@@ -31,7 +31,7 @@ export interface StyleConfig {
         type?: string;
     };
     strength?: number;
-    loras?: { id: string; name: string; strength: number }[];
+    loras?: { id: string; name: string; strength: number; triggerWord?: string }[];
     sampler?: { id: string; name: string; value: string };
     scheduler?: { id: string; name: string; value: string };
     guidanceScale?: number;
@@ -391,7 +391,12 @@ export function StyleSelectorModal({ isOpen, onClose, onApply, initialAspectRati
         } else {
             setConfig({
                 ...config,
-                loras: [...currentLoras, { id: lora.id, name: lora.name, strength: lora.strength || 1.0 }]
+                loras: [...currentLoras, {
+                    id: lora.id,
+                    name: lora.name,
+                    strength: lora.strength || 1.0,
+                    triggerWord: lora.triggerWord
+                }]
             });
         }
     };
