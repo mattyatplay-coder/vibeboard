@@ -1,18 +1,21 @@
 import { create } from 'zustand';
 
-export type ElementType = 'image' | 'video' | 'character' | 'prop' | 'place';
+export type ElementType = 'image' | 'video' | 'character' | 'prop' | 'place' | 'style' | 'voice';
 
 export interface Element {
     id: string;
     name: string;
     type: ElementType;
     url: string;
+    fileUrl?: string;
     thumbnail?: string;
     isFavorite?: boolean;
     tags?: string[];
     metadata?: any;
     session?: { id: string; name: string };
     projectId: string;
+    width?: number;
+    height?: number;
 }
 
 export interface GenerationSettings {

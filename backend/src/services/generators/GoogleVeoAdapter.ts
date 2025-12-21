@@ -117,52 +117,61 @@ export class GoogleVeoAdapter implements GenerationProvider {
                     payload.instances[0].video = await this.processVideoInput(options.inputVideo);
                 }
             } else {
-                // Gemini API / AI Studio format - simpler structure
+                // Gemini API / AI Studio format
+                // Uses instances/parameters structure same as Vertex AI
                 // Docs: https://ai.google.dev/gemini-api/docs/video
-                payload = {
+
+                // Determine duration - Veo supports 4, 6, or 8 seconds (as numbers)
+                const duration = parseInt(options.duration || '5');
+                let durationSeconds: number;
+                if (duration <= 4) {
+                    durationSeconds = 4;
+                } else if (duration <= 6) {
+                    durationSeconds = 6;
+                } else {
+                    durationSeconds = 8;
+                }
+
+                const instance: any = {
                     prompt: options.prompt,
-                    config: {
-                        aspectRatio: this.mapAspectRatio(options.aspectRatio || '16:9'),
-                        numberOfVideos: 1,
-                    }
                 };
 
-                // Add duration - Veo supports "4", "6", or "8" seconds
-                const duration = parseInt(options.duration || '5');
-                if (duration <= 4) {
-                    payload.config.durationSeconds = 4;
-                } else if (duration <= 6) {
-                    payload.config.durationSeconds = 6;
-                } else {
-                    payload.config.durationSeconds = 8;
-                }
+                const parameters: any = {
+                    aspectRatio: this.mapAspectRatio(options.aspectRatio || '16:9'),
+                    durationSeconds,
+                };
 
                 // Add negative prompt if provided
                 if (options.negativePrompt) {
-                    payload.negativePrompt = options.negativePrompt;
+                    parameters.negativePrompt = options.negativePrompt;
                 }
 
                 // Image-to-Video: Add initial frame
                 if (image) {
-                    payload.image = await this.processImageInput(image);
+                    instance.image = await this.processImageInput(image);
                 }
 
                 // Frames-to-Video: Add last frame for interpolation (Veo 3.1 only)
                 if (options.endFrame) {
-                    payload.lastFrame = await this.processImageInput(options.endFrame);
+                    parameters.lastFrame = await this.processImageInput(options.endFrame);
                 }
 
                 // Reference images for content guidance (up to 3, Veo 3.1 only)
                 if (options.elementReferences && options.elementReferences.length > 0) {
-                    payload.referenceImages = await Promise.all(
+                    parameters.referenceImages = await Promise.all(
                         options.elementReferences.slice(0, 3).map(ref => this.processImageInput(ref))
                     );
                 }
 
                 // Video extension mode
                 if (options.inputVideo) {
-                    payload.video = await this.processVideoInput(options.inputVideo);
+                    instance.video = await this.processVideoInput(options.inputVideo);
                 }
+
+                payload = {
+                    instances: [instance],
+                    parameters
+                };
             }
 
             console.log("[GoogleVeo] Generating video with model:", model);

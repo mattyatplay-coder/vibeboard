@@ -324,7 +324,7 @@ export function GenerationForm({
                                         name: l.name,
                                         triggerWords: l.triggerWords || (l.triggerWord ? [l.triggerWord] : []),
                                         type: 'style' as const,
-                                        baseModel: 'flux',
+                                        baseModel: l.baseModel || 'Unknown',
                                         recommendedStrength: l.strength,
                                         useCount: 0
                                     })) || []}

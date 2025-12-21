@@ -5,12 +5,16 @@ import {
     Sparkles, Settings, Wand2, Eye, EyeOff, Copy, Check,
     ChevronDown, ChevronUp, AlertCircle, Info, Zap, User, ExternalLink,
     Palette, Camera, Layers, RefreshCw, Search, Plus, X,
-    Lightbulb, Target, Sliders, Library, Image as ImageIcon, Upload
+    Lightbulb, Target, Sliders, Library, Image as ImageIcon, Upload,
+    AlertTriangle
 } from "lucide-react";
 import { NegativePromptManager } from "./NegativePromptManager";
+import { TagSelectorModal } from "@/components/generation/TagSelectorModal";
+import { Tag } from "@/components/tag-system";
 import { clsx } from "clsx";
 import { fetchAPI } from "@/lib/api";
 import { useDebouncedCallback } from "use-debounce";
+import { getLoRACompatibility, getModelConstraints } from "@/lib/ModelConstraints";
 
 // ==================== TYPES ====================
 
@@ -86,6 +90,22 @@ interface SmartSuggestion {
     trigger: string;
 }
 
+interface LoRAMatch {
+    id: string;
+    name: string;
+    baseModel: string;
+    triggerWords: string[];
+    thumbnailUrl?: string;
+    source: 'project' | 'global';
+}
+
+interface LoRASuggestionMatch {
+    suggestion: string;
+    hasLocalMatches: boolean;
+    localMatches: LoRAMatch[];
+    civitaiSearchUrl: string;
+}
+
 interface PromptBuilderProps {
     initialPrompt?: string;
     modelId: string;
@@ -158,6 +178,10 @@ export function PromptBuilder({
     const [customNegativePrompt, setCustomNegativePrompt] = useState("");
     const [showNegativePromptLibrary, setShowNegativePromptLibrary] = useState(false);
 
+    // Tags
+    const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
+    const [isTagSelectorOpen, setIsTagSelectorOpen] = useState(false);
+
     // Vision / Image Input
     const [images, setImages] = useState<string[]>(initialImages);
 
@@ -165,6 +189,10 @@ export function PromptBuilder({
 
     // Smart Suggestions
     const [suggestions, setSuggestions] = useState<SmartSuggestion[]>([]);
+
+    // LoRA Recommendation Matches (local LoRAs matching AI suggestions)
+    const [loraMatches, setLoraMatches] = useState<LoRASuggestionMatch[]>([]);
+    const [isMatchingLoRAs, setIsMatchingLoRAs] = useState(false);
 
     // Detect Smart Suggestions
     useEffect(() => {
@@ -305,11 +333,14 @@ export function PromptBuilder({
             setEnhancedPrompt(result);
             setShowEnhanced(true);
 
-            // Auto-apply the enhanced prompt and close
+            // Update local prompt state to show enhanced version
             if (result?.prompt) {
                 setPrompt(result.prompt);
-                onPromptChange(result.prompt, result.negativePrompt);
-                if (onClose) onClose();
+            }
+
+            // Match AI-suggested LoRAs to local installed LoRAs
+            if (result?.recommendations?.loras && result.recommendations.loras.length > 0) {
+                matchLoRASuggestions(result.recommendations.loras);
             }
 
         } catch (error) {
@@ -367,6 +398,56 @@ export function PromptBuilder({
 
     const removeLoRA = (loraId: string) => {
         setSelectedLoRAs(prev => prev.filter(l => l.id !== loraId));
+    };
+
+    // Match AI-suggested LoRA styles to local installed LoRAs
+    const matchLoRASuggestions = async (suggestions: string[]) => {
+        if (!suggestions || suggestions.length === 0) return;
+
+        setIsMatchingLoRAs(true);
+
+        try {
+            const result = await fetchAPI('/prompts/loras/match-suggestions', {
+                method: 'POST',
+                body: JSON.stringify({
+                    suggestions,
+                    baseModel: modelId // Filter by compatible base model
+                })
+            });
+
+            if (result?.matches) {
+                setLoraMatches(result.matches);
+            }
+        } catch (error) {
+            console.error('Failed to match LoRA suggestions:', error);
+            // Fallback: show all suggestions with CivitAI links only
+            setLoraMatches(suggestions.map(s => ({
+                suggestion: s,
+                hasLocalMatches: false,
+                localMatches: [],
+                civitaiSearchUrl: `https://civitai.com/search/models?query=${encodeURIComponent(s)}&types=LORA`
+            })));
+        } finally {
+            setIsMatchingLoRAs(false);
+        }
+    };
+
+    // Add a matched LoRA to selection
+    const addLoRAFromMatch = (match: LoRAMatch) => {
+        // Check if already selected
+        if (selectedLoRAs.some(l => l.id === match.id)) return;
+
+        const newLoRA: LoRAItem = {
+            id: match.id,
+            name: match.name,
+            triggerWords: match.triggerWords,
+            type: 'style',
+            baseModel: match.baseModel,
+            recommendedStrength: 0.8,
+            useCount: 0
+        };
+
+        setSelectedLoRAs(prev => [...prev, newLoRA]);
     };
 
     const copyToClipboard = async (text: string) => {
@@ -529,34 +610,75 @@ export function PromptBuilder({
                 {/* Selected LoRAs */}
                 {selectedLoRAs.length > 0 ? (
                     <div className="flex flex-wrap gap-2 mb-2">
-                        {selectedLoRAs.map(lora => (
-                            <div
-                                key={lora.id}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-purple-500/10 border border-purple-500/30 rounded-lg group hover:border-purple-500/50 transition-colors"
-                            >
-                                <div className="flex flex-col">
-                                    <span className="text-xs text-white font-semibold tracking-wide">
-                                        {lora.name}
-                                    </span>
-                                    {lora.triggerWords && lora.triggerWords.length > 0 && (
-                                        <span className="text-[10px] text-purple-300 font-mono mt-0.5 block">
-                                            {lora.triggerWords[0]}
-                                        </span>
+                        {selectedLoRAs.map(lora => {
+                            const compatibility = getLoRACompatibility(lora.baseModel, lora.name, modelId);
+                            const isIncompatible = !compatibility.compatible;
+
+                            return (
+                                <div
+                                    key={lora.id}
+                                    className={clsx(
+                                        "flex items-center gap-2 px-3 py-1.5 rounded-lg group transition-colors",
+                                        isIncompatible
+                                            ? "bg-orange-500/15 border border-orange-500/40 hover:border-orange-500/60"
+                                            : "bg-purple-500/10 border border-purple-500/30 hover:border-purple-500/50"
                                     )}
-                                </div>
-                                <button
-                                    onClick={() => removeLoRA(lora.id)}
-                                    className="ml-1 p-0.5 text-gray-400 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                    title={isIncompatible ? compatibility.message : undefined}
                                 >
-                                    <X className="w-3 h-3" />
-                                </button>
-                            </div>
-                        ))}
+                                    {isIncompatible && (
+                                        <AlertTriangle className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />
+                                    )}
+                                    <div className="flex flex-col">
+                                        <span className={clsx(
+                                            "text-xs font-semibold tracking-wide",
+                                            isIncompatible ? "text-orange-300" : "text-white"
+                                        )}>
+                                            {lora.name}
+                                        </span>
+                                        {lora.triggerWords && lora.triggerWords.length > 0 && (
+                                            <span className={clsx(
+                                                "text-[10px] font-mono mt-0.5 block",
+                                                isIncompatible ? "text-orange-400/70" : "text-purple-300"
+                                            )}>
+                                                {lora.triggerWords[0]}
+                                            </span>
+                                        )}
+                                        {isIncompatible && (
+                                            <span className="text-[9px] text-orange-400 mt-0.5">
+                                                {lora.baseModel} LoRA
+                                            </span>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => removeLoRA(lora.id)}
+                                        className="ml-1 p-0.5 text-gray-400 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            );
+                        })}
                     </div>
                 ) : (
                     <p className="text-[10px] text-gray-500 mb-2 italic">
                         No LoRAs selected.
                     </p>
+                )}
+
+                {/* LoRA Compatibility Warning Banner */}
+                {selectedLoRAs.some(lora => !getLoRACompatibility(lora.baseModel, lora.name, modelId).compatible) && (
+                    <div className="mb-2 p-2 bg-orange-500/10 border border-orange-500/30 rounded-lg flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-orange-400 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                            <span className="text-[10px] font-medium text-orange-300 block">
+                                Incompatible LoRA(s) detected
+                            </span>
+                            <span className="text-[10px] text-orange-400/80">
+                                Some LoRAs are trained for different base models and may not work correctly.
+                                Check the model requirements or switch to a compatible generation model.
+                            </span>
+                        </div>
+                    </div>
                 )}
 
                 {/* Trigger Words Preview */}
@@ -724,55 +846,44 @@ export function PromptBuilder({
                 </div>
             </div>
 
-            {/* Style & Camera (Video) */}
-            {
-                generationType === 'video' && (
-                    <div className="p-3 border-b border-white/10 grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">
-                                Camera Movement
-                            </label>
-                            <select
-                                value={cameraMovement}
-                                onChange={(e) => setCameraMovement(e.target.value)}
-                                className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-xs text-white"
-                            >
-                                <option value="">None</option>
-                                <option value="Push in">Push in</option>
-                                <option value="Pull back">Pull back</option>
-                                <option value="Pan left">Pan left</option>
-                                <option value="Pan right">Pan right</option>
-                                <option value="Tilt up">Tilt up</option>
-                                <option value="Tilt down">Tilt down</option>
-                                <option value="Tracking shot">Tracking shot</option>
-                                <option value="Dolly zoom">Dolly zoom</option>
-                                <option value="Orbit">Orbit around subject</option>
-                                <option value="Crane up">Crane up</option>
-                                <option value="Handheld">Handheld shake</option>
-                            </select>
+            {/* Tags Section */}
+            <div className="p-3 border-t border-white/10">
+                <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                        Tags
+                    </label>
+                    <button
+                        onClick={() => setIsTagSelectorOpen(true)}
+                        className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1"
+                    >
+                        <Library className="w-3 h-3" />
+                        Library
+                    </button>
+                </div>
+                <div className="min-h-[56px] px-3 py-2 bg-white/5 border border-white/10 rounded-lg focus-within:border-amber-500/50">
+                    {selectedTags.length === 0 ? (
+                        <p className="text-sm text-gray-500">Click Library to add tags to your prompt...</p>
+                    ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                            {selectedTags.map(tag => (
+                                <div
+                                    key={tag.id}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-white"
+                                    style={{ backgroundColor: tag.color || '#6B7280' }}
+                                >
+                                    {tag.name}
+                                    <button
+                                        onClick={() => setSelectedTags(prev => prev.filter(t => t.id !== tag.id))}
+                                        className="hover:bg-white/20 rounded-full p-0.5 transition-colors"
+                                    >
+                                        <X className="w-2.5 h-2.5" />
+                                    </button>
+                                </div>
+                            ))}
                         </div>
-                        <div>
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">
-                                Camera Angle
-                            </label>
-                            <select
-                                value={cameraAngle}
-                                onChange={(e) => setCameraAngle(e.target.value)}
-                                className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-xs text-white"
-                            >
-                                <option value="">Default</option>
-                                <option value="low angle">Low angle</option>
-                                <option value="high angle">High angle</option>
-                                <option value="eye level">Eye level</option>
-                                <option value="bird's eye">Bird's eye</option>
-                                <option value="worm's eye">Worm's eye</option>
-                                <option value="dutch angle">Dutch angle</option>
-                                <option value="over the shoulder">Over the shoulder</option>
-                            </select>
-                        </div>
-                    </div>
-                )
-            }
+                    )}
+                </div>
+            </div>
 
             {/* Prompt Input */}
             <div className="p-3">
@@ -982,27 +1093,114 @@ export function PromptBuilder({
                                 </div>
                             )}
 
-                            {/* Recommended LoRAs */}
+                            {/* Recommended LoRAs - Now with Local Matches! */}
                             {enhancedPrompt.recommendations.loras && enhancedPrompt.recommendations.loras.length > 0 && (
                                 <div className="mt-3">
-                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">
-                                        Recommended LoRAs
-                                    </span>
-                                    <div className="flex flex-wrap gap-2">
-                                        {enhancedPrompt.recommendations.loras.map((lora, idx) => (
-                                            <a
-                                                key={idx}
-                                                href={`https://civitai.com/search/models?query=${encodeURIComponent(lora)}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="px-2 py-1 bg-purple-500/10 border border-purple-500/20 rounded text-[10px] text-purple-300 hover:bg-purple-500/20 hover:text-purple-200 transition-colors flex items-center gap-1"
-                                            >
-                                                {lora}
-                                                < ExternalLink className="w-2 h-2 opacity-50" />
-                                            </a >
-                                        ))}
-                                    </div >
-                                </div >
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                            Recommended LoRAs
+                                        </span>
+                                        {isMatchingLoRAs && (
+                                            <RefreshCw className="w-3 h-3 text-purple-400 animate-spin" />
+                                        )}
+                                    </div>
+
+                                    {/* Show matched results if available */}
+                                    {loraMatches.length > 0 ? (
+                                        <div className="space-y-2">
+                                            {loraMatches.map((match, idx) => (
+                                                <div key={idx} className="p-2 bg-white/5 rounded-lg border border-white/10">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <span className="text-[10px] text-purple-300 font-medium">
+                                                            {match.suggestion}
+                                                        </span>
+                                                        {!match.hasLocalMatches && (
+                                                            <a
+                                                                href={match.civitaiSearchUrl}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="text-[9px] text-gray-500 hover:text-purple-400 flex items-center gap-1 transition-colors"
+                                                            >
+                                                                Search CivitAI
+                                                                <ExternalLink className="w-2 h-2" />
+                                                            </a>
+                                                        )}
+                                                    </div>
+
+                                                    {match.hasLocalMatches ? (
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {match.localMatches.map((lora) => {
+                                                                const isAlreadySelected = selectedLoRAs.some(l => l.id === lora.id);
+                                                                return (
+                                                                    <button
+                                                                        key={lora.id}
+                                                                        onClick={() => !isAlreadySelected && addLoRAFromMatch(lora)}
+                                                                        disabled={isAlreadySelected}
+                                                                        className={clsx(
+                                                                            "px-2 py-1 rounded text-[10px] flex items-center gap-1.5 transition-all",
+                                                                            isAlreadySelected
+                                                                                ? "bg-green-500/20 border border-green-500/40 text-green-300 cursor-default"
+                                                                                : "bg-purple-500/15 border border-purple-500/30 text-purple-300 hover:bg-purple-500/25 hover:border-purple-500/50"
+                                                                        )}
+                                                                        title={isAlreadySelected ? 'Already added' : `Add ${lora.name}`}
+                                                                    >
+                                                                        {lora.source === 'project' && (
+                                                                            <span className="text-[8px] bg-blue-500/30 text-blue-300 px-1 rounded">
+                                                                                Project
+                                                                            </span>
+                                                                        )}
+                                                                        {lora.source === 'global' && (
+                                                                            <span className="text-[8px] bg-gray-500/30 text-gray-400 px-1 rounded">
+                                                                                Global
+                                                                            </span>
+                                                                        )}
+                                                                        <span className="font-medium">{lora.name}</span>
+                                                                        {isAlreadySelected ? (
+                                                                            <Check className="w-2.5 h-2.5 text-green-400" />
+                                                                        ) : (
+                                                                            <Plus className="w-2.5 h-2.5 opacity-60" />
+                                                                        )}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                            {/* CivitAI fallback even when there are matches */}
+                                                            <a
+                                                                href={match.civitaiSearchUrl}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[10px] text-gray-400 hover:bg-white/10 hover:text-gray-300 flex items-center gap-1 transition-colors"
+                                                                title="Find more on CivitAI"
+                                                            >
+                                                                More
+                                                                <ExternalLink className="w-2 h-2" />
+                                                            </a>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-[9px] text-gray-500 italic">
+                                                            No matching LoRAs installed - search CivitAI to find one
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        /* Fallback: Original CivitAI-only links while matching */
+                                        <div className="flex flex-wrap gap-2">
+                                            {enhancedPrompt.recommendations.loras.map((lora, idx) => (
+                                                <a
+                                                    key={idx}
+                                                    href={`https://civitai.com/search/models?query=${encodeURIComponent(lora)}&types=LORA`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="px-2 py-1 bg-purple-500/10 border border-purple-500/20 rounded text-[10px] text-purple-300 hover:bg-purple-500/20 hover:text-purple-200 transition-colors flex items-center gap-1"
+                                                >
+                                                    {lora}
+                                                    <ExternalLink className="w-2 h-2 opacity-50" />
+                                                </a>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             )}
 
                             {/* LoRA Strength Recommendations */}
@@ -1068,10 +1266,18 @@ export function PromptBuilder({
                     </div >
                 )
             }
-            {/* Footer - Enhance Button */}
+            {/* Footer - Single Enhance/Apply Button */}
             <div className="p-4 border-t border-white/10 bg-[#1a1a1a]">
                 <button
-                    onClick={enhance}
+                    onClick={() => {
+                        if (enhancedPrompt && showEnhanced) {
+                            // Apply enhanced prompt and close
+                            useEnhancedPrompt();
+                        } else {
+                            // Run enhancement
+                            enhance();
+                        }
+                    }}
                     disabled={isEnhancing || !prompt.trim()}
                     className={clsx(
                         "w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2",
@@ -1084,6 +1290,11 @@ export function PromptBuilder({
                         <>
                             <RefreshCw className="w-4 h-4 animate-spin" />
                             Enhancing...
+                        </>
+                    ) : enhancedPrompt && showEnhanced ? (
+                        <>
+                            <Check className="w-4 h-4" />
+                            Use Enhanced Prompt
                         </>
                     ) : (
                         <>
@@ -1105,6 +1316,14 @@ export function PromptBuilder({
                     const separator = customNegativePrompt.trim() ? ', ' : '';
                     setCustomNegativePrompt((customNegativePrompt || '') + separator + prompt);
                 }}
+            />
+
+            {/* Tag Selector Modal */}
+            <TagSelectorModal
+                isOpen={isTagSelectorOpen}
+                onClose={() => setIsTagSelectorOpen(false)}
+                onTagsApply={(tags) => setSelectedTags(tags)}
+                initialTags={selectedTags}
             />
         </div >
     );

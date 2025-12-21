@@ -20,6 +20,10 @@ export interface LoRAContext {
     triggerWords: string[]; // Actual trigger words
     tagDefinitions: string[]; // Descriptive tags (e.g. "red dress - clothing")
     description?: string;
+    category?: string;
+    imageUrl?: string;
+    strength?: number;
+    source?: 'project' | 'global';
 }
 
 export class KnowledgeBaseService {
@@ -85,11 +89,190 @@ export class KnowledgeBaseService {
 
             if (!lora) return null;
 
-            return this.mapLoRAToContext(lora);
+            return this.mapLoRAToContext(lora, 'project');
         } catch (e) {
             console.error(`KnowledgeBase: Failed to fetch LoRA ${id}`, e);
             return null;
         }
+    }
+
+    /**
+     * Search for LoRAs matching a query across project and global LoRAs
+     * Prioritizes exact matches, then partial matches, sorted by usage
+     */
+    async searchLoRAs(options: {
+        query?: string;
+        projectId?: string;
+        baseModel?: string;
+        category?: string;
+        limit?: number;
+    }): Promise<LoRAContext[]> {
+        const { query, projectId, baseModel, category, limit = 20 } = options;
+        const results: LoRAContext[] = [];
+        const lowerQuery = query?.toLowerCase() || '';
+
+        try {
+            // 1. Search project-specific LoRAs first (if projectId provided)
+            if (projectId) {
+                const projectLoras = await prisma.loRA.findMany({
+                    where: {
+                        projectId,
+                        ...(baseModel ? { baseModel: { contains: baseModel } } : {}),
+                        ...(category ? { category } : {}),
+                    },
+                    include: { globalLoRA: true },
+                    orderBy: { updatedAt: 'desc' }
+                });
+
+                for (const lora of projectLoras) {
+                    const mapped = this.mapLoRAToContext(lora, 'project');
+                    if (this.matchesQuery(mapped, lowerQuery)) {
+                        results.push(mapped);
+                    }
+                }
+            }
+
+            // 2. Search global LoRAs
+            const globalLoras = await prisma.globalLoRA.findMany({
+                where: {
+                    ...(baseModel ? { baseModel: { contains: baseModel } } : {}),
+                    ...(category ? { category } : {}),
+                },
+                orderBy: { usageCount: 'desc' }
+            });
+
+            for (const lora of globalLoras) {
+                // Skip if already in results (project LoRA takes priority)
+                if (results.some(r => r.name.toLowerCase() === lora.name.toLowerCase())) {
+                    continue;
+                }
+                const mapped = this.mapGlobalLoRAToContext(lora);
+                if (this.matchesQuery(mapped, lowerQuery)) {
+                    results.push(mapped);
+                }
+            }
+
+            // Sort: exact name matches first, then partial matches
+            results.sort((a, b) => {
+                const aExact = a.name.toLowerCase() === lowerQuery;
+                const bExact = b.name.toLowerCase() === lowerQuery;
+                if (aExact && !bExact) return -1;
+                if (bExact && !aExact) return 1;
+                // Project LoRAs before global
+                if (a.source === 'project' && b.source === 'global') return -1;
+                if (b.source === 'project' && a.source === 'global') return 1;
+                return 0;
+            });
+
+            return results.slice(0, limit);
+        } catch (e) {
+            console.error("KnowledgeBase: Failed to search LoRAs", e);
+            return [];
+        }
+    }
+
+    /**
+     * Match LoRAs against AI-suggested style descriptions
+     * Returns LoRAs that match the suggested styles (e.g., "photo-realistic portrait")
+     */
+    async matchLoRAsToSuggestions(
+        suggestions: string[],
+        options: { projectId?: string; baseModel?: string; limit?: number }
+    ): Promise<{ suggestion: string; matches: LoRAContext[] }[]> {
+        const results: { suggestion: string; matches: LoRAContext[] }[] = [];
+
+        for (const suggestion of suggestions) {
+            const matches = await this.searchLoRAs({
+                query: suggestion,
+                projectId: options.projectId,
+                baseModel: options.baseModel,
+                limit: options.limit || 3
+            });
+            results.push({ suggestion, matches });
+        }
+
+        return results;
+    }
+
+    /**
+     * Get all LoRAs for a project (for the LoRA picker/library)
+     */
+    async getProjectLoRAs(projectId: string): Promise<LoRAContext[]> {
+        try {
+            const loras = await prisma.loRA.findMany({
+                where: { projectId },
+                include: { globalLoRA: true },
+                orderBy: { updatedAt: 'desc' }
+            });
+
+            return loras.map(l => this.mapLoRAToContext(l, 'project'));
+        } catch (e) {
+            console.error("KnowledgeBase: Failed to fetch project LoRAs", e);
+            return [];
+        }
+    }
+
+    /**
+     * Get all global LoRAs (shared library)
+     */
+    async getGlobalLoRAs(options?: { baseModel?: string; category?: string; limit?: number }): Promise<LoRAContext[]> {
+        try {
+            const loras = await prisma.globalLoRA.findMany({
+                where: {
+                    ...(options?.baseModel ? { baseModel: { contains: options.baseModel } } : {}),
+                    ...(options?.category ? { category: options.category } : {}),
+                },
+                orderBy: { usageCount: 'desc' },
+                take: options?.limit
+            });
+
+            return loras.map(l => this.mapGlobalLoRAToContext(l));
+        } catch (e) {
+            console.error("KnowledgeBase: Failed to fetch global LoRAs", e);
+            return [];
+        }
+    }
+
+    /**
+     * Check if a LoRA matches a search query
+     */
+    private matchesQuery(lora: LoRAContext, query: string): boolean {
+        if (!query) return true;
+
+        const searchTerms = query.split(/\s+/).filter(t => t.length > 1);
+        const loraText = [
+            lora.name,
+            lora.description || '',
+            lora.category || '',
+            ...lora.triggerWords,
+            ...lora.tagDefinitions
+        ].join(' ').toLowerCase();
+
+        // Match if ALL search terms are found (AND logic)
+        return searchTerms.every(term => loraText.includes(term));
+    }
+
+    /**
+     * Map GlobalLoRA to LoRAContext
+     */
+    private mapGlobalLoRAToContext(lora: any): LoRAContext {
+        let triggerWords: string[] = [];
+        if (lora.triggerWord) {
+            triggerWords = [lora.triggerWord];
+        }
+
+        return {
+            id: lora.id,
+            name: lora.name,
+            baseModel: lora.baseModel,
+            triggerWords,
+            tagDefinitions: [],
+            description: lora.description || undefined,
+            category: lora.category || undefined,
+            imageUrl: lora.imageUrl || undefined,
+            strength: lora.strength || 1.0,
+            source: 'global'
+        };
     }
 
     private getModels(): ModelContext[] {
@@ -117,7 +300,7 @@ export class KnowledgeBaseService {
         }
     }
 
-    private mapLoRAToContext(lora: any): LoRAContext {
+    private mapLoRAToContext(lora: any, source: 'project' | 'global' = 'project'): LoRAContext {
         let triggerWords: string[] = [];
 
         // Parse triggerWords if JSON string, or use singular triggerWord
@@ -142,7 +325,11 @@ export class KnowledgeBaseService {
             baseModel: lora.baseModel,
             triggerWords,
             tagDefinitions: [],
-            description
+            description,
+            category: lora.category || undefined,
+            imageUrl: lora.imageUrl || undefined,
+            strength: lora.strength || 1.0,
+            source
         };
     }
 }

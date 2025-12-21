@@ -31,6 +31,11 @@ export interface SavedNegativePrompt {
     createdAt: string;
 }
 
+// Helper to escape special regex characters
+function escapeRegExp(string: string): string {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Helper to get saved negative prompts from localStorage (project-scoped)
 function getSavedPrompts(projectId: string): SavedNegativePrompt[] {
     if (typeof window === 'undefined') return [];
@@ -239,6 +244,16 @@ export function NegativePromptManager({
         return result;
     }, [customCategories, prompts]);
 
+    // Helper to check if a prompt is already in the current negative prompt
+    const isPromptAdded = (promptText: string): boolean => {
+        if (!currentPrompt?.trim()) return false;
+        // Normalize both strings for comparison (trim whitespace, lowercase)
+        const normalizedCurrent = currentPrompt.toLowerCase();
+        const normalizedPrompt = promptText.toLowerCase().trim();
+        // Check if the prompt text is contained in the current prompt
+        return normalizedCurrent.includes(normalizedPrompt);
+    };
+
     // Filter prompts by category and search
     const filteredPrompts = useMemo(() => {
         let filtered = prompts;
@@ -386,6 +401,52 @@ export function NegativePromptManager({
     };
 
     const handleSelectPrompt = (prompt: SavedNegativePrompt) => {
+        // Toggle behavior - if already added, remove it; otherwise add it
+        if (isPromptAdded(prompt.prompt)) {
+            // Remove the prompt from current
+            handleRemovePrompt(prompt.prompt);
+        } else {
+            // Append behavior - don't close modal to allow multiple selections
+            if (onAppend) {
+                onAppend(prompt.prompt);
+            } else {
+                const separator = currentPrompt?.trim() ? ', ' : '';
+                onSelect(currentPrompt + separator + prompt.prompt);
+            }
+        }
+        // Don't close - allow user to select multiple prompts
+    };
+
+    const handleRemovePrompt = (promptText: string) => {
+        if (!currentPrompt?.trim()) return;
+
+        // Remove the prompt text from current prompt
+        const normalizedPrompt = promptText.toLowerCase().trim();
+
+        // Split by comma, filter out matching prompt, rejoin
+        const parts = currentPrompt.split(',').map(p => p.trim()).filter(p => p);
+        const filteredParts = parts.filter(p => p.toLowerCase() !== normalizedPrompt);
+
+        // If filtering didn't remove anything, try substring removal for compound prompts
+        if (filteredParts.length === parts.length) {
+            // Try to remove as substring (handles prompts with embedded commas)
+            let newPrompt = currentPrompt;
+            // Remove with leading comma
+            newPrompt = newPrompt.replace(new RegExp(',\\s*' + escapeRegExp(promptText), 'gi'), '');
+            // Remove with trailing comma
+            newPrompt = newPrompt.replace(new RegExp(escapeRegExp(promptText) + '\\s*,', 'gi'), '');
+            // Remove if it's the only/last item
+            newPrompt = newPrompt.replace(new RegExp(escapeRegExp(promptText), 'gi'), '');
+            // Clean up extra commas and whitespace
+            newPrompt = newPrompt.replace(/,\s*,/g, ',').replace(/^\s*,\s*/, '').replace(/\s*,\s*$/, '').trim();
+            onSelect(newPrompt);
+        } else {
+            onSelect(filteredParts.join(', '));
+        }
+    };
+
+    const handleReplacePrompt = (prompt: SavedNegativePrompt, e: React.MouseEvent) => {
+        e.stopPropagation();
         onSelect(prompt.prompt);
         if (!embedded) onClose();
     };
@@ -398,6 +459,7 @@ export function NegativePromptManager({
             const separator = currentPrompt?.trim() ? ', ' : '';
             onSelect(currentPrompt + separator + prompt.prompt);
         }
+        // Don't close - allow user to select multiple prompts
     };
 
     // Save current prompt as new
@@ -422,6 +484,24 @@ export function NegativePromptManager({
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 show-scrollbar-on-hover">
+                {/* Current Negative Prompt Display */}
+                {currentPrompt?.trim() && (
+                    <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-medium text-red-300">Current Negative Prompt</span>
+                            <button
+                                onClick={() => onSelect('')}
+                                className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                            >
+                                Clear All
+                            </button>
+                        </div>
+                        <p className="text-sm text-gray-300 leading-relaxed break-words">
+                            {currentPrompt}
+                        </p>
+                    </div>
+                )}
+
                 {/* Search Bar */}
                 <div className="mb-4 relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -734,32 +814,61 @@ export function NegativePromptManager({
                         </div>
 
                         <div className="space-y-2">
-                            {filteredPrompts.map((prompt) => (
+                            {filteredPrompts.map((prompt) => {
+                                const alreadyAdded = isPromptAdded(prompt.prompt);
+                                return (
                                 <div
                                     key={prompt.id}
-                                    className="group flex items-start gap-3 p-3 rounded-lg border bg-white/5 border-white/5 hover:border-red-500/30 hover:bg-red-500/5 transition-colors cursor-pointer"
+                                    className={clsx(
+                                        "group flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer",
+                                        alreadyAdded
+                                            ? "bg-green-500/15 border-green-500/40 hover:bg-green-500/20"
+                                            : "bg-white/5 border-white/5 hover:border-red-500/30 hover:bg-red-500/5"
+                                    )}
                                     onClick={() => handleSelectPrompt(prompt)}
                                 >
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
-                                            <h4 className="font-medium text-sm text-white truncate">
+                                            <h4 className={clsx(
+                                                "font-medium text-sm truncate",
+                                                alreadyAdded ? "text-green-300" : "text-white"
+                                            )}>
                                                 {prompt.name}
                                             </h4>
-                                            <span className="text-[10px] bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded">
+                                            {alreadyAdded && (
+                                                <span className="text-[10px] bg-green-500/30 text-green-300 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                    <Check className="w-2.5 h-2.5" />
+                                                    Added
+                                                </span>
+                                            )}
+                                            <span className={clsx(
+                                                "text-[10px] px-1.5 py-0.5 rounded",
+                                                alreadyAdded
+                                                    ? "bg-green-500/20 text-green-300"
+                                                    : "bg-red-500/20 text-red-300"
+                                            )}>
                                                 {allCategories.find(c => c.id === prompt.category)?.name || 'Other'}
                                             </span>
                                         </div>
-                                        <p className="text-xs text-gray-500 line-clamp-2">
+                                        <p className={clsx(
+                                            "text-xs line-clamp-2",
+                                            alreadyAdded ? "text-green-400/70" : "text-gray-500"
+                                        )}>
                                             {prompt.prompt}
                                         </p>
                                     </div>
-                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="flex items-center gap-1">
                                         <button
                                             onClick={(e) => handleAppendPrompt(prompt, e)}
-                                            className="p-1.5 text-gray-500 hover:text-green-400 transition-colors"
-                                            title="Append to current"
+                                            className={clsx(
+                                                "p-1.5 rounded transition-colors",
+                                                alreadyAdded
+                                                    ? "text-green-400 hover:text-green-300 hover:bg-green-500/20"
+                                                    : "text-green-500 hover:text-green-400 hover:bg-green-500/10"
+                                            )}
+                                            title={alreadyAdded ? "Add again" : "Append to current"}
                                         >
-                                            <Plus className="w-3 h-3" />
+                                            <Plus className="w-4 h-4" />
                                         </button>
                                         <button
                                             onClick={(e) => startEditing(prompt, e)}
@@ -777,7 +886,8 @@ export function NegativePromptManager({
                                         </button>
                                     </div>
                                 </div>
-                            ))}
+                            );
+                            })}
                             {filteredPrompts.length === 0 && (
                                 <p className="text-center text-gray-500 text-xs py-4">
                                     {searchQuery ? "No prompts match your search." : "No prompts in this category."}
@@ -786,6 +896,24 @@ export function NegativePromptManager({
                         </div>
                     </div>
                 )}
+            </div>
+
+            {/* Footer - Use Selected Prompts Button */}
+            <div className="p-4 border-t border-white/10 bg-[#1a1a1a]">
+                <button
+                    onClick={onClose}
+                    className={clsx(
+                        "w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2",
+                        currentPrompt?.trim()
+                            ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-400 hover:to-emerald-500"
+                            : "bg-white/10 text-gray-400 hover:bg-white/15"
+                    )}
+                >
+                    <Check className="w-4 h-4" />
+                    {currentPrompt?.trim()
+                        ? `Use Selected Prompts`
+                        : "Close"}
+                </button>
             </div>
         </div>
     );

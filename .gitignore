@@ -48,3 +48,22 @@ backend/test_*.jpg
 backend/test_*.png
 chat history*.md
 reference-consistency-fix.json
+
+# Next.js build cache
+frontend/.next/
+
+# Temp uploads
+backend/uploads_local_temp/
+
+# ComfyUI (if used locally)
+ComfyUI/
+*.safetensors
+*.ckpt
+
+# Generated media
+*.mp4
+*.webm
+*.gif
+
+# Agent/Claude temp files
+.agent/staging/

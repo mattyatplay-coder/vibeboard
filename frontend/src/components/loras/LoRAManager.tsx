@@ -81,6 +81,75 @@ const CATEGORIES = [
     { id: 'other', label: 'Other' }
 ];
 
+// Base model options that match CivitAI's format
+const BASE_MODEL_OPTIONS = [
+    { value: 'SDXL 1.0', label: 'SDXL 1.0' },
+    { value: 'SD 1.5', label: 'SD 1.5' },
+    { value: 'SD 3', label: 'SD 3' },
+    { value: 'SD 3.5 Large', label: 'SD 3.5 Large' },
+    { value: 'Flux.1 D', label: 'Flux.1 Dev' },
+    { value: 'Flux.1 S', label: 'Flux.1 Schnell' },
+    { value: 'Pony', label: 'Pony' },
+    { value: 'Illustrious', label: 'Illustrious' },
+    { value: 'Wan Video 2.2 I2V-A14B', label: 'Wan 2.2 I2V-A14B' },
+    { value: 'Wan Video 2.2 T2V-A14B', label: 'Wan 2.2 T2V-A14B' },
+    { value: 'Wan Video', label: 'Wan Video' },
+    { value: 'Hunyuan Video', label: 'Hunyuan Video' },
+    { value: 'SVD', label: 'SVD' },
+    { value: 'Other', label: 'Other' },
+];
+
+// Normalize CivitAI base model to our standard format
+function normalizeCivitaiBaseModel(civitaiBase: string): string {
+    if (!civitaiBase) return 'Other';
+
+    // Check if it matches one of our options directly
+    if (BASE_MODEL_OPTIONS.some(opt => opt.value === civitaiBase)) {
+        return civitaiBase;
+    }
+
+    const lower = civitaiBase.toLowerCase();
+
+    // Flux variants
+    if (lower.includes('flux')) {
+        if (lower.includes('dev') || lower === 'flux.1 d') return 'Flux.1 D';
+        if (lower.includes('schnell') || lower === 'flux.1 s') return 'Flux.1 S';
+        return 'Flux.1 D'; // Default to Dev
+    }
+
+    // Wan variants
+    if (lower.includes('wan')) {
+        if (lower.includes('i2v') && lower.includes('14b')) return 'Wan Video 2.2 I2V-A14B';
+        if (lower.includes('t2v') && lower.includes('14b')) return 'Wan Video 2.2 T2V-A14B';
+        return 'Wan Video';
+    }
+
+    // SDXL
+    if (lower.includes('sdxl') || lower === 'xl') return 'SDXL 1.0';
+
+    // SD 1.5
+    if (lower.includes('sd 1.5') || lower.includes('sd1.5')) return 'SD 1.5';
+
+    // SD 3
+    if (lower.includes('sd 3.5')) return 'SD 3.5 Large';
+    if (lower.includes('sd 3') || lower.includes('sd3')) return 'SD 3';
+
+    // Pony
+    if (lower.includes('pony')) return 'Pony';
+
+    // Illustrious
+    if (lower.includes('illustrious')) return 'Illustrious';
+
+    // Hunyuan
+    if (lower.includes('hunyuan')) return 'Hunyuan Video';
+
+    // SVD
+    if (lower.includes('svd')) return 'SVD';
+
+    // If not matched, return the original value so it can be displayed
+    return civitaiBase;
+}
+
 export interface LoRA {
     id: string;
     name: string;
@@ -149,7 +218,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
     const [newName, setNewName] = useState("");
     const [newTrigger, setNewTrigger] = useState("");
     const [newUrl, setNewUrl] = useState("");
-    const [newBaseModel, setNewBaseModel] = useState("SDXL");
+    const [newBaseModel, setNewBaseModel] = useState("SDXL 1.0");
     const [newType, setNewType] = useState<'lora' | 'checkpoint' | 'embedding'>('lora');
     const [newStrength, setNewStrength] = useState(1.0);
     const [newImageUrl, setNewImageUrl] = useState("");
@@ -161,6 +230,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
     const [editStrength, setEditStrength] = useState(1.0);
     const [newSettings, setNewSettings] = useState<any>(null);
     const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
+    const [fetchSuccess, setFetchSuccess] = useState<string | null>(null);
     useEffect(() => {
         if (isOpen) {
             loadLoRAs();
@@ -225,12 +295,13 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
         setNewName("");
         setNewTrigger("");
         setNewUrl("");
-        setNewBaseModel("SDXL");
+        setNewBaseModel("SDXL 1.0");
         setNewType("lora");
         setNewStrength(1.0);
         setNewImageUrl("");
         setNewCategory("other");
         setNewSettings(null);
+        setFetchSuccess(null);
     };
 
     const startEditing = (lora: LoRA, e: React.MouseEvent) => {
@@ -281,11 +352,11 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
         if (!newUrl) return;
         setIsFetchingMetadata(true);
         setError(null);
-        let foundMetadata = false;
+        setFetchSuccess(null);
 
         try {
             // Dynamic import to avoid SSR issues if any, though this is client side
-            const { fetchCivitaiModelVersion, extractVersionIdFromUrl, extractRecommendedSettings, fetchCivitaiModelByHash } = await import("@/lib/civitai");
+            const { fetchCivitaiModelVersion, extractVersionIdFromUrl, extractRecommendedSettings } = await import("@/lib/civitai");
 
             // 1. Try Civitai first
             const versionId = extractVersionIdFromUrl(newUrl);
@@ -296,21 +367,51 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
             }
 
             if (metadata) {
+                // Set name
                 setNewName(metadata.model.name + " " + metadata.name);
-                setNewBaseModel(metadata.baseModel);
+
+                // Set base model (normalize CivitAI format to our format)
+                const normalizedBase = normalizeCivitaiBaseModel(metadata.baseModel);
+                setNewBaseModel(normalizedBase);
+
+                // Set type
                 if (metadata.model.type === "Checkpoint") setNewType("checkpoint");
                 else if (metadata.model.type === "TextualInversion") setNewType("embedding");
                 else setNewType("lora");
 
+                // Set image
                 if (metadata.images && metadata.images.length > 0) {
                     setNewImageUrl(metadata.images[0].url);
                 }
 
-                if (metadata.description) {
+                // Set trigger word(s) from trainedWords
+                if (metadata.trainedWords && metadata.trainedWords.length > 0) {
+                    // Use the first trained word as the primary trigger
+                    setNewTrigger(metadata.trainedWords[0]);
+                }
+
+                // Extract recommended settings including strength
+                if (metadata.description || metadata.trainedWords) {
                     const settings = extractRecommendedSettings(metadata.description, metadata.trainedWords);
                     setNewSettings(settings);
+
+                    // Auto-set strength if found in description
+                    if (settings.strength && settings.strength >= 0.1 && settings.strength <= 2.0) {
+                        setNewStrength(settings.strength);
+                    }
                 }
-                foundMetadata = true;
+
+                // Show success with what was found
+                const foundFields: string[] = [];
+                if (metadata.baseModel) foundFields.push("Base Model");
+                if (metadata.trainedWords?.length) foundFields.push(`${metadata.trainedWords.length} Trigger Word${metadata.trainedWords.length > 1 ? 's' : ''}`);
+                if (metadata.images?.length) foundFields.push("Thumbnail");
+                const settings = extractRecommendedSettings(metadata.description, metadata.trainedWords);
+                if (settings.strength) foundFields.push(`Strength (${settings.strength})`);
+
+                if (foundFields.length > 0) {
+                    setFetchSuccess(`Found: ${foundFields.join(", ")}`);
+                }
             } else {
                 // 2. Fallback: Parse URL for clues (HuggingFace, generic file)
                 console.log("Not a Civitai URL or metadata fetch failed. Attempting manual parse.");
@@ -394,11 +495,9 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                                         onChange={(e) => setEditBaseModel(e.target.value)}
                                         className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 outline-none"
                                     >
-                                        <option value="SDXL">SDXL</option>
-                                        <option value="Flux">Flux.1</option>
-                                        <option value="Wan 2.2 I2V-A14B">Wan 2.2 I2V-A14B</option>
-                                        <option value="SVD">SVD</option>
-                                        <option value="Other">Other</option>
+                                        {BASE_MODEL_OPTIONS.map(opt => (
+                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                        ))}
                                     </select>
                                 </div>
                                 <div>
@@ -505,9 +604,15 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                                     {isFetchingMetadata ? "..." : "Fetch"}
                                 </button>
                             </div>
-                            {newSettings && (
-                                <div className="mt-2 p-2 bg-green-500/10 border border-green-500/20 rounded text-[10px] text-green-400">
-                                    Found recommended settings: {Object.keys(newSettings).join(", ")}
+                            {fetchSuccess && (
+                                <div className="mt-2 p-2 bg-green-500/10 border border-green-500/20 rounded text-[10px] text-green-400 flex items-center gap-2">
+                                    <Check className="w-3 h-3" />
+                                    {fetchSuccess}
+                                </div>
+                            )}
+                            {newSettings && Object.keys(newSettings).length > 0 && (
+                                <div className="mt-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded text-[10px] text-blue-400">
+                                    Settings: {Object.keys(newSettings).filter(k => newSettings[k] !== undefined && newSettings[k] !== null && (Array.isArray(newSettings[k]) ? newSettings[k].length > 0 : true)).join(", ")}
                                 </div>
                             )}
                         </div>
@@ -520,11 +625,9 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                                     onChange={(e) => setNewBaseModel(e.target.value)}
                                     className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 outline-none"
                                 >
-                                    <option value="SDXL">SDXL</option>
-                                    <option value="Flux">Flux.1</option>
-                                    <option value="Wan 2.2 I2V-A14B">Wan 2.2 I2V-A14B</option>
-                                    <option value="SVD">SVD</option>
-                                    <option value="Other">Other</option>
+                                    {BASE_MODEL_OPTIONS.map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
                                 </select>
                             </div>
                             <div>

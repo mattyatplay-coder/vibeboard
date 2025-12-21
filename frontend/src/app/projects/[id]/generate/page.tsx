@@ -75,6 +75,7 @@ export default function GeneratePage() {
     const [selectedGenerationIds, setSelectedGenerationIds] = useState<string[]>([]); // Added missing state
     const [referenceCreativity, setReferenceCreativity] = useState(0.6); // Default reference strength
     const [elementStrengths, setElementStrengths] = useState<Record<string, number>>({}); // Per-element strength
+    const [motionScale, setMotionScale] = useState(0.5); // Motion scale for video models (0-1)
     const { selectedSessionId, sessions } = useSession();
 
     // Audio State for Avatar Models
@@ -440,7 +441,7 @@ export default function GeneratePage() {
                     audioUrl: finalAudioUrl, // Pass audio URL for avatar models
                     referenceStrengths: elementStrengths, // Pass per-element strengths
                     referenceCreativity: referenceCreativity, // Pass global creativity fallback
-                    motionScale: referenceCreativity, // Motion scale for video models (uses same state)
+                    motionScale: motionScale, // Motion scale for video models (dedicated state)
                     // inputVideo: inputVideoUrl, // Only needed for standalone motion mode, if supported handling existed.
 
                     // Engine Stacking (Pipeline)
@@ -1350,7 +1351,16 @@ export default function GeneratePage() {
                                                 <Wand2 className="w-5 h-5" />
                                             </button>
 
-                                            {/* 2. Style & Aspect Ratio */}
+                                            {/* 2. Tag Selector */}
+                                            <button
+                                                onClick={() => setIsTagSelectorOpen(true)}
+                                                className="h-10 w-10 flex items-center justify-center bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-xl text-amber-400 transition-all hover:scale-105"
+                                                title="Add Tags to Prompt"
+                                            >
+                                                <TagIcon className="w-5 h-5" />
+                                            </button>
+
+                                            {/* 3. Style & Aspect Ratio */}
                                             <button
                                                 onClick={() => setIsStyleModalOpen(true)}
                                                 className="h-10 flex items-center gap-2 px-3 rounded-xl border bg-black/20 border-white/5 text-gray-400 hover:bg-white/5 hover:text-white transition-all"
@@ -1379,7 +1389,23 @@ export default function GeneratePage() {
                                                 )}
                                             </button>
 
-                                            {/* 4. Model Selector Pill */}
+                                            {/* 5. Motion Scale (Video Models Only) */}
+                                            {mode === 'video' && (
+                                                <CompactMotionSlider
+                                                    value={motionScale}
+                                                    onChange={setMotionScale}
+                                                    engineType={
+                                                        engineConfig.model.includes('kling') ? 'kling' :
+                                                        engineConfig.model.includes('veo') ? 'veo' :
+                                                        engineConfig.model.includes('wan') ? 'wan' :
+                                                        engineConfig.model.includes('luma') ? 'luma' :
+                                                        engineConfig.model.includes('ltx') ? 'ltx' :
+                                                        'other'
+                                                    }
+                                                />
+                                            )}
+
+                                            {/* 6. Model Selector Pill */}
                                             <div className="min-w-[160px]">
                                                 <EngineSelectorV2
                                                     selectedProvider={engineConfig.provider}
@@ -1566,9 +1592,9 @@ export default function GeneratePage() {
                                                     initialLoRAs={styleConfig?.loras?.map((l) => ({
                                                         id: l.id,
                                                         name: l.name,
-                                                        triggerWords: [],
+                                                        triggerWords: l.triggerWords || (l.triggerWord ? [l.triggerWord] : []),
                                                         type: 'style' as const,
-                                                        baseModel: 'SDXL',
+                                                        baseModel: l.baseModel || 'Unknown',
                                                         recommendedStrength: l.strength || 0.8,
                                                         useCount: 0
                                                     }))}

@@ -594,3 +594,194 @@ export function getMissingInputsMessage(modelId: string, inputs: CurrentInputs):
     const missing = validation.missingInputs.map(r => r.label).join(', ');
     return `Missing required inputs: ${missing}`;
 }
+
+// =============================================
+// LORA COMPATIBILITY
+// =============================================
+
+/**
+ * Known LoRA base model types
+ * These are the common base models that LoRAs are trained on
+ */
+export type LoRABaseModel =
+    | 'SDXL'
+    | 'SD1.5'
+    | 'SD3'
+    | 'SD3.5'
+    | 'Flux'
+    | 'Flux.1'
+    | 'Pony'
+    | 'Illustrious'
+    | 'Wan'
+    | 'Unknown';
+
+/**
+ * Mapping of generation model IDs to compatible LoRA base models
+ * If a model isn't listed, it doesn't support LoRAs
+ */
+export const MODEL_LORA_COMPATIBILITY: Record<string, LoRABaseModel[]> = {
+    // === FAL.AI FLUX MODELS ===
+    'fal-ai/flux/dev': ['Flux', 'Flux.1'],
+    'fal-ai/flux/schnell': ['Flux', 'Flux.1'],
+    'fal-ai/flux-2-flex': ['Flux', 'Flux.1'],
+
+    // === FAL.AI STABLE DIFFUSION ===
+    'fal-ai/stable-diffusion-v35-large': ['SD3', 'SD3.5'],
+
+    // === FAL.AI WAN (video) ===
+    'fal-ai/wan/v2.2-a14b/image-to-video/lora': ['Wan'],
+
+    // === REPLICATE MODELS ===
+    'black-forest-labs/flux-dev': ['Flux', 'Flux.1'],
+    'black-forest-labs/flux-schnell': ['Flux', 'Flux.1'],
+    'stability-ai/sdxl': ['SDXL', 'Pony', 'Illustrious'],
+    'realistic-vision': ['SD1.5'],
+
+    // === COMFY (Local) - most flexible ===
+    'sdxl': ['SDXL', 'Pony', 'Illustrious'],
+    'flux-dev': ['Flux', 'Flux.1'],
+};
+
+/**
+ * Normalize a LoRA base model string to a known type
+ * Handles variations in naming (e.g., "FLUX", "Flux 1", "flux.1-dev" all → 'Flux.1')
+ */
+export function normalizeLoRABaseModel(baseModel: string): LoRABaseModel {
+    const lower = baseModel.toLowerCase().trim();
+
+    // Flux variants
+    if (lower.includes('flux')) {
+        if (lower.includes('1') || lower.includes('.1') || lower.includes('dev') || lower.includes('schnell')) {
+            return 'Flux.1';
+        }
+        return 'Flux';
+    }
+
+    // Stable Diffusion variants
+    if (lower.includes('sdxl') || lower.includes('sd xl') || lower === 'xl') {
+        return 'SDXL';
+    }
+    if (lower.includes('sd 1.5') || lower.includes('sd1.5') || lower.includes('sd15') || lower === '1.5') {
+        return 'SD1.5';
+    }
+    if (lower.includes('sd3.5') || lower.includes('sd 3.5')) {
+        return 'SD3.5';
+    }
+    if (lower.includes('sd3') || lower.includes('sd 3')) {
+        return 'SD3';
+    }
+
+    // Pony / Illustrious (SDXL-based)
+    if (lower.includes('pony')) {
+        return 'Pony';
+    }
+    if (lower.includes('illustrious') || lower.includes('ilxl')) {
+        return 'Illustrious';
+    }
+
+    // Wan
+    if (lower.includes('wan')) {
+        return 'Wan';
+    }
+
+    return 'Unknown';
+}
+
+/**
+ * Check if a LoRA is compatible with a generation model
+ */
+export function isLoRACompatible(loraBaseModel: string, generationModelId: string): boolean {
+    const constraints = getModelConstraints(generationModelId);
+
+    // If the model doesn't support LoRAs at all, not compatible
+    if (!constraints.supportsLoRA) {
+        return false;
+    }
+
+    const compatibleBases = MODEL_LORA_COMPATIBILITY[generationModelId];
+
+    // If not in our mapping, assume compatible if model supports LoRA (be permissive)
+    if (!compatibleBases) {
+        return true;
+    }
+
+    const normalizedLoRABase = normalizeLoRABaseModel(loraBaseModel);
+
+    // Unknown base models get a pass (user knows what they're doing)
+    if (normalizedLoRABase === 'Unknown') {
+        return true;
+    }
+
+    // Special case: Pony and Illustrious are SDXL-compatible
+    if ((normalizedLoRABase === 'Pony' || normalizedLoRABase === 'Illustrious') &&
+        compatibleBases.includes('SDXL')) {
+        return true;
+    }
+
+    return compatibleBases.includes(normalizedLoRABase);
+}
+
+/**
+ * Result of LoRA compatibility check with detailed info
+ */
+export interface LoRACompatibilityResult {
+    compatible: boolean;
+    loraBase: LoRABaseModel;
+    expectedBases: LoRABaseModel[];
+    message?: string;
+}
+
+/**
+ * Get detailed compatibility info for a LoRA
+ */
+export function getLoRACompatibility(
+    loraBaseModel: string,
+    loraName: string,
+    generationModelId: string
+): LoRACompatibilityResult {
+    const constraints = getModelConstraints(generationModelId);
+
+    // Model doesn't support LoRAs at all
+    if (!constraints.supportsLoRA) {
+        return {
+            compatible: false,
+            loraBase: normalizeLoRABaseModel(loraBaseModel),
+            expectedBases: [],
+            message: `"${loraName}" won't work - this model doesn't support LoRAs`
+        };
+    }
+
+    const compatibleBases = MODEL_LORA_COMPATIBILITY[generationModelId] || [];
+    const normalizedLoRABase = normalizeLoRABaseModel(loraBaseModel);
+    const isCompatible = isLoRACompatible(loraBaseModel, generationModelId);
+
+    if (!isCompatible) {
+        const expectedStr = compatibleBases.length > 0
+            ? compatibleBases.join(' or ')
+            : 'unknown';
+        return {
+            compatible: false,
+            loraBase: normalizedLoRABase,
+            expectedBases: compatibleBases,
+            message: `"${loraName}" is trained for ${normalizedLoRABase}, but this model needs ${expectedStr} LoRAs`
+        };
+    }
+
+    return {
+        compatible: true,
+        loraBase: normalizedLoRABase,
+        expectedBases: compatibleBases
+    };
+}
+
+/**
+ * Check multiple LoRAs and return all incompatible ones
+ */
+export function checkLoRAsCompatibility(
+    loras: Array<{ name: string; baseModel: string }>,
+    generationModelId: string
+): LoRACompatibilityResult[] {
+    return loras
+        .map(lora => getLoRACompatibility(lora.baseModel, lora.name, generationModelId))
+        .filter(result => !result.compatible);
+}

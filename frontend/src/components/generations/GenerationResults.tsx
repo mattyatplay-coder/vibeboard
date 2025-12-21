@@ -100,7 +100,7 @@ export function GenerationResults({
                                 onInpaint={onInpaint}
                                 onEnhanceVideo={onEnhanceVideo}
                                 isSelected={selectedGenerationIds.includes(gen.id)}
-                                onToggleSelection={() => onToggleSelection(gen.id, {} as React.MouseEvent)}
+                                onToggleSelection={(e) => onToggleSelection(gen.id, e)}
                                 onSaveAsElement={(url, type) => onSaveElement(url, type)}
                             />
                         ))}

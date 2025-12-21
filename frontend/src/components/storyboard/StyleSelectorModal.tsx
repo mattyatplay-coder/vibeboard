@@ -31,7 +31,7 @@ export interface StyleConfig {
         type?: string;
     };
     strength?: number;
-    loras?: { id: string; name: string; strength: number; triggerWord?: string; triggerWords?: string[] }[];
+    loras?: { id: string; name: string; strength: number; triggerWord?: string; triggerWords?: string[]; baseModel?: string }[];
     sampler?: { id: string; name: string; value: string };
     scheduler?: { id: string; name: string; value: string };
     guidanceScale?: number;
@@ -396,7 +396,8 @@ export function StyleSelectorModal({ isOpen, onClose, onApply, initialAspectRati
                     name: lora.name,
                     strength: lora.strength || 1.0,
                     triggerWord: lora.triggerWord,
-                    triggerWords: lora.triggerWords || (lora.triggerWord ? [lora.triggerWord] : [])
+                    triggerWords: lora.triggerWords || (lora.triggerWord ? [lora.triggerWord] : []),
+                    baseModel: lora.baseModel || 'Unknown'
                 }]
             });
         }
