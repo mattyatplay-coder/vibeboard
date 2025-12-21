@@ -1532,16 +1532,18 @@ export default function GeneratePage() {
                                                     initialPrompt={prompt}
                                                     modelId={engineConfig.model}
                                                     generationType={mode}
-                                                    elements={elements
-                                                        .filter(e => selectedElementIds.includes(e.id))
-                                                        .map(e => ({
-                                                            id: e.id,
-                                                            name: e.name,
-                                                            type: (e.type === 'image' ? 'style' : e.type) as 'character' | 'prop' | 'location' | 'style',
-                                                            description: e.name,
-                                                            imageUrl: e.url,
-                                                            consistencyWeight: 0.8
-                                                        }))}
+                                                    elements={elements.map(e => ({
+                                                        id: e.id,
+                                                        name: e.name,
+                                                        type: (e.type === 'image' ? 'style' : e.type) as 'character' | 'prop' | 'location' | 'style',
+                                                        description: e.name,
+                                                        imageUrl: e.url,
+                                                        consistencyWeight: elementStrengths[e.id] || 0.8
+                                                    }))}
+                                                    selectedElementIds={selectedElementIds}
+                                                    onElementSelectionChange={(newIds) => {
+                                                        setSelectedElementIds(newIds);
+                                                    }}
                                                     initialLoRAs={styleConfig?.loras?.map((l) => ({
                                                         id: l.id,
                                                         name: l.name,
