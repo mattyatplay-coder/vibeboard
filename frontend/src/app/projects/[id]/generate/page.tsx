@@ -9,7 +9,7 @@ import {
     Loader2, Image as ImageIcon, Video,
     Wand2, Sparkles, Layers, X,
     ChevronDown, SlidersHorizontal, Users, Trash2, Copy, CheckSquare,
-    Database, Music, FilePlus
+    Database, Music, FilePlus, Tag as TagIcon
 } from 'lucide-react';
 import { Element, Generation, Scene } from "@/lib/store";
 import { clsx } from "clsx";
@@ -36,6 +36,9 @@ import { VideoMaskEditor } from "@/components/generations/VideoMaskEditor";
 import { ImageMaskEditor } from "@/components/generations/ImageMaskEditor";
 import { AudioInputModal } from "@/components/generations/AudioInputModal";
 import { DataBackupModal } from "@/components/settings/DataBackupModal";
+import { TagSelectorModal } from "@/components/generation/TagSelectorModal";
+import { CompactMotionSlider } from "@/components/generation/CompactMotionSlider";
+import { Tag } from "@/components/tag-system";
 
 interface PipelineStage {
     id: string;
@@ -108,6 +111,7 @@ export default function GeneratePage() {
     const [selectedGeneration, setSelectedGeneration] = useState<Generation | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isPromptBuilderOpen, setIsPromptBuilderOpen] = useState(false);
+    const [isTagSelectorOpen, setIsTagSelectorOpen] = useState(false);
 
     // Engine State
     const [engineConfig, setEngineConfig] = useState<{ provider: string, model: string }>({
@@ -377,6 +381,7 @@ export default function GeneratePage() {
                     audioUrl: audioUrl, // Pass audio URL for avatar models
                     referenceStrengths: elementStrengths, // Pass per-element strengths
                     referenceCreativity: referenceCreativity, // Pass global creativity fallback
+                    motionScale: referenceCreativity, // Motion scale for video models (uses same state)
                     // inputVideo: inputVideoUrl, // Only needed for standalone motion mode, if supported handling existed.
 
                     // Engine Stacking (Pipeline)
@@ -1222,6 +1227,15 @@ export default function GeneratePage() {
                                                 <Wand2 className="w-5 h-5" />
                                             </button>
 
+                                            {/* Tag Selector Button */}
+                                            <button
+                                                onClick={() => setIsTagSelectorOpen(true)}
+                                                className="h-10 w-10 flex items-center justify-center bg-gradient-to-br from-teal-500/20 to-cyan-500/20 hover:from-teal-500/30 hover:to-cyan-500/30 border border-teal-500/30 rounded-xl text-teal-300 transition-all hover:scale-105 hover:shadow-lg hover:shadow-teal-500/10"
+                                                title="Add Tags to Prompt"
+                                            >
+                                                <TagIcon className="w-5 h-5" />
+                                            </button>
+
                                             {/* Style Tools Button */}
                                             <button
                                                 type="button"
@@ -1299,6 +1313,22 @@ export default function GeneratePage() {
                                                         <option value="10" className="bg-[#1a1a1a]">10s</option>
                                                     </select>
                                                 </div>
+                                            )}
+
+                                            {/* Motion Slider (Video Only) */}
+                                            {(engineConfig.model?.includes('video') || engineConfig.model?.includes('t2v') || engineConfig.model?.includes('wan') || engineConfig.model?.includes('kling') || engineConfig.model?.includes('ltx') || engineConfig.model?.includes('luma') || engineConfig.model?.includes('veo')) && (
+                                                <CompactMotionSlider
+                                                    value={referenceCreativity}
+                                                    onChange={setReferenceCreativity}
+                                                    engineType={
+                                                        engineConfig.model?.includes('kling') ? 'kling' :
+                                                        engineConfig.model?.includes('wan') ? 'wan' :
+                                                        engineConfig.model?.includes('ltx') ? 'ltx' :
+                                                        engineConfig.model?.includes('luma') ? 'luma' :
+                                                        engineConfig.model?.includes('veo') ? 'veo' :
+                                                        'other'
+                                                    }
+                                                />
                                             )}
 
                                             {/* Iterations Dropdown */}
@@ -1762,6 +1792,18 @@ export default function GeneratePage() {
                             console.error("Failed to save element", e);
                         }
                     }
+                }}
+            />
+
+            <TagSelectorModal
+                isOpen={isTagSelectorOpen}
+                onClose={() => setIsTagSelectorOpen(false)}
+                onTagsApply={(tags: Tag[]) => {
+                    const tagText = tags
+                        .map(t => t.promptKeyword || t.name.toLowerCase())
+                        .join(', ');
+                    setPrompt(prev => prev.trim() ? `${prev.trim()}, ${tagText}` : tagText);
+                    setIsTagSelectorOpen(false);
                 }}
             />
 
