@@ -6,11 +6,10 @@ import { LayoutGrid, Wand2, Clapperboard, Settings, FileText, Paintbrush } from 
 import { motion } from "framer-motion";
 import { clsx } from "clsx";
 
-
-
 import { useSession } from "@/context/SessionContext";
 import { Plus, Folder, ChevronDown, ChevronRight, Trash2, ChevronLeft } from "lucide-react";
 import { useState } from "react";
+import { SpendingWidget } from "@/components/sidebar/SpendingWidget";
 import { useSidebarStore } from "@/lib/sidebarStore";
 
 export function Sidebar() {
@@ -174,6 +173,11 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Spending Widget */}
+      <div className={clsx("px-4 pb-2", isCollapsed && "px-2")}>
+        <SpendingWidget collapsed={isCollapsed} />
+      </div>
 
       <div className="p-4 border-t border-white/10">
         <button

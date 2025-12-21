@@ -216,6 +216,554 @@ export const MODEL_PROMPTING_GUIDES: Record<string, ModelPromptGuide> = {
         ]
     },
 
+    'flux-pro-ultra': {
+        id: 'flux-pro-ultra',
+        name: 'FLUX 1.1 Pro Ultra',
+        provider: 'fal',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 1024,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['consistent character', 'same person', 'identical features', 'high resolution'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'highly detailed', 'professional photography', 'sharp focus',
+            '4K resolution', 'masterpiece', 'best quality', 'photorealistic', 'ultra high resolution'
+        ],
+        stylePrefixes: [
+            'in the style of', 'rendered as', 'artistic interpretation of'
+        ],
+        avoidTerms: [
+            'ugly', 'deformed', 'noisy', 'blurry', 'low quality'
+        ],
+        recommendedSettings: {
+            cfgScale: [3.5, 4.5],
+            steps: [28, 50]
+        },
+        template: `{trigger_words} {subject_description}, {pose_action}, {setting_background}, {lighting}, {style}, {quality_boosters}`,
+        examples: [
+            {
+                input: 'landscape photograph',
+                output: 'ohwx_scene, breathtaking mountain landscape at golden hour, dramatic peaks with snow caps, crystal clear alpine lake reflection, wispy clouds, professional landscape photography, ultra high resolution, 4K',
+                notes: 'FLUX Pro Ultra outputs up to 4 megapixel images with enhanced photorealism'
+            }
+        ]
+    },
+
+    'flux-kontext': {
+        id: 'flux-kontext',
+        name: 'FLUX Kontext',
+        provider: 'fal',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 1024,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['same character', 'consistent appearance', 'matching reference', 'identical features'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'highly detailed', 'consistent with reference', 'sharp focus',
+            'high quality', 'professional', 'character accurate'
+        ],
+        stylePrefixes: [
+            'in the style of the reference', 'maintaining appearance from reference'
+        ],
+        avoidTerms: [
+            'different person', 'changed appearance', 'blurry', 'low quality'
+        ],
+        recommendedSettings: {
+            cfgScale: [3.5, 4.5],
+            steps: [28, 50]
+        },
+        template: `{subject_description} from reference, {new_pose_action}, {new_setting}, {lighting}, {style}`,
+        examples: [
+            {
+                input: 'character in new pose (with reference image)',
+                output: 'same character from reference image, now standing in heroic pose with arms crossed, dramatic studio lighting, professional portrait, consistent facial features, high quality',
+                notes: 'Kontext requires exactly 1 reference image for character consistency'
+            }
+        ]
+    },
+
+    'flux-fill': {
+        id: 'flux-fill',
+        name: 'FLUX Fill Pro',
+        provider: 'fal',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 512,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'middle',
+            triggerWordPlacement: 'start',
+            consistencyKeywords: ['seamless blend', 'natural integration', 'matching style'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'seamless', 'natural blend', 'consistent lighting', 'matching texture'
+        ],
+        stylePrefixes: [
+            'fill with', 'replace with', 'add'
+        ],
+        avoidTerms: [
+            'visible seam', 'mismatched', 'inconsistent'
+        ],
+        recommendedSettings: {},
+        template: `{description_of_fill_content}, {style_matching}, {quality}`,
+        examples: [
+            {
+                input: 'remove person from photo',
+                output: 'natural background continuation, matching lighting and texture, seamless blend with surrounding area, consistent perspective',
+                notes: 'FLUX Fill excels at inpainting and outpainting with seamless object removal'
+            }
+        ]
+    },
+
+    'flux-depth': {
+        id: 'flux-depth',
+        name: 'FLUX Depth Pro',
+        provider: 'fal',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 512,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['same structure', 'preserved depth', 'maintained layout'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'structure preserved', 'depth consistent', 'spatial accuracy', 'high quality'
+        ],
+        stylePrefixes: [
+            'restyle as', 'transform to', 'convert to'
+        ],
+        avoidTerms: [
+            'distorted structure', 'wrong perspective', 'depth errors'
+        ],
+        recommendedSettings: {},
+        template: `{new_style_description}, maintaining original structure, {quality}`,
+        examples: [
+            {
+                input: 'convert room photo to cyberpunk style',
+                output: 'cyberpunk interior with neon lighting and holographic displays, maintaining original room layout and furniture positions, depth consistent, high quality',
+                notes: 'FLUX Depth preserves spatial relationships while allowing style changes'
+            }
+        ]
+    },
+
+    'flux-canny': {
+        id: 'flux-canny',
+        name: 'FLUX Canny Pro',
+        provider: 'fal',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 512,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['edge guided', 'outline preserved', 'shape maintained'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'edge accurate', 'outline preserved', 'shape consistent', 'high quality'
+        ],
+        stylePrefixes: [
+            'render as', 'style as', 'create'
+        ],
+        avoidTerms: [
+            'wrong edges', 'distorted outline', 'shape errors'
+        ],
+        recommendedSettings: {},
+        template: `{new_style_description}, following edge guidance, {quality}`,
+        examples: [
+            {
+                input: 'convert sketch to realistic portrait',
+                output: 'realistic portrait following sketch outlines, detailed skin texture, natural lighting, edge accurate, high quality photorealistic',
+                notes: 'FLUX Canny uses Canny edge detection for controlled composition'
+            }
+        ]
+    },
+
+    'flux-redux': {
+        id: 'flux-redux',
+        name: 'FLUX Redux',
+        provider: 'fal',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 512,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['variation of', 'similar to original', 'inspired by'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'high quality variation', 'creative interpretation', 'detailed'
+        ],
+        stylePrefixes: [
+            'variation of', 'reimagined as', 'alternative version'
+        ],
+        avoidTerms: [
+            'exact copy', 'identical'
+        ],
+        recommendedSettings: {},
+        template: `variation of original image, {variation_description}, {style}, {quality}`,
+        examples: [
+            {
+                input: 'create variation with different lighting',
+                output: 'variation of original portrait, dramatic side lighting with deep shadows, maintaining subject identity, high quality creative interpretation',
+                notes: 'FLUX Redux creates variations while preserving core elements'
+            }
+        ]
+    },
+
+    'ip-adapter-face-id': {
+        id: 'ip-adapter-face-id',
+        name: 'IP-Adapter Face ID',
+        provider: 'fal',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 512,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'after_subject',
+            consistencyKeywords: ['same face', 'identical identity', 'face preserved', 'same person'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'face accurate', 'identity preserved', 'high quality', 'detailed features'
+        ],
+        stylePrefixes: [
+            'portrait of', 'photo of', 'image of'
+        ],
+        avoidTerms: [
+            'different face', 'changed identity', 'wrong person'
+        ],
+        recommendedSettings: {},
+        template: `{subject_description} with preserved face identity, {new_pose_setting}, {style}, {quality}`,
+        examples: [
+            {
+                input: 'person in new setting (with face reference)',
+                output: 'professional woman with preserved face identity from reference, standing in modern office, business attire, confident pose, natural lighting, high quality portrait',
+                notes: 'IP-Adapter Face ID preserves facial identity across different poses and settings'
+            }
+        ]
+    },
+
+    'ideogram-v3': {
+        id: 'ideogram-v3',
+        name: 'Ideogram V3',
+        provider: 'fal',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 1000,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'start',
+            consistencyKeywords: [],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: ['typography', 'text rendering', 'poster', 'graphic design', 'high quality'],
+        stylePrefixes: ['poster of', 'typography design of', 'graphic with text'],
+        avoidTerms: ['typo', 'spelling error', 'wrong text'],
+        recommendedSettings: {},
+        template: `{subject_description} with text "{text_content}", {style_description}, {quality}`,
+        examples: [
+            {
+                input: 'motivational poster',
+                output: 'inspirational poster with text "BELIEVE IN YOURSELF" in bold modern typography, sunrise over mountains, warm golden colors, professional graphic design, high quality',
+                notes: 'Ideogram V3 has improved text rendering and realistic outputs'
+            }
+        ]
+    },
+
+    'ideogram-character': {
+        id: 'ideogram-character',
+        name: 'Ideogram V3 Character',
+        provider: 'fal',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 1000,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['character sheet', 'turnaround', 'multiple poses', 'reference sheet'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: ['character sheet', 'turnaround', 'multiple angles', 'reference poses', 'consistent design'],
+        stylePrefixes: ['character sheet of', 'turnaround of', 'reference sheet for'],
+        avoidTerms: ['single pose', 'inconsistent'],
+        recommendedSettings: {},
+        template: `character sheet of {character_description}, {poses_angles}, {style}, {quality}`,
+        examples: [
+            {
+                input: 'fantasy warrior character sheet',
+                output: 'character sheet of armored fantasy warrior, front view, side view, back view, three-quarter view, consistent design across all poses, detailed armor, professional concept art, reference sheet',
+                notes: 'Ideogram Character specializes in character sheets, turnarounds, and reference poses'
+            }
+        ]
+    },
+
+    'hidream': {
+        id: 'hidream',
+        name: 'HiDream I1',
+        provider: 'fal',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 1024,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['high resolution', 'detailed', 'sharp'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'high resolution', 'exceptional detail', 'sharp focus', 'professional quality'
+        ],
+        stylePrefixes: [
+            'high resolution image of', 'detailed render of'
+        ],
+        avoidTerms: [
+            'low resolution', 'blurry', 'low quality'
+        ],
+        recommendedSettings: {},
+        template: `{trigger_words} {subject_description}, {pose_action}, {setting_background}, {style}, {quality}`,
+        examples: [
+            {
+                input: 'detailed fantasy landscape',
+                output: 'ohwx_scene, epic fantasy landscape with floating islands, waterfalls cascading into clouds, ancient ruins, dramatic lighting, exceptional detail, high resolution, professional concept art',
+                notes: 'HiDream I1 excels at high-resolution generation with exceptional detail'
+            }
+        ]
+    },
+
+    'janus': {
+        id: 'janus',
+        name: 'Janus',
+        provider: 'fal',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 1024,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['multimodal', 'understanding', 'creative'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'creative', 'artistic', 'detailed', 'high quality'
+        ],
+        stylePrefixes: [
+            'creative interpretation of', 'artistic render of'
+        ],
+        avoidTerms: [
+            'low quality', 'blurry'
+        ],
+        recommendedSettings: {},
+        template: `{trigger_words} {subject_description}, {creative_elements}, {style}, {quality}`,
+        examples: [
+            {
+                input: 'surreal dreamscape',
+                output: 'ohwx_scene, surreal dreamscape with melting clocks and floating geometric shapes, ethereal lighting, impossible architecture, creative artistic interpretation, high quality',
+                notes: 'Janus combines multimodal understanding with creative generation'
+            }
+        ]
+    },
+
+    'imagen-4': {
+        id: 'imagen-4',
+        name: 'Imagen 4',
+        provider: 'google',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['same person', 'consistent character', 'identical features'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'highly detailed', 'professional quality', 'sharp focus',
+            'vivid colors', 'photorealistic', 'masterful composition'
+        ],
+        stylePrefixes: ['artistic', 'styled as', 'in the manner of'],
+        avoidTerms: [],
+        recommendedSettings: {},
+        template: `{subject_description} {trigger_words}, {pose_action}, {setting_environment}, {lighting_mood}, {style}, {quality}`,
+        examples: [
+            {
+                input: 'astronaut on alien planet',
+                output: 'astronaut ohwx_astronaut in detailed spacesuit, standing on alien planet with purple sky and twin moons, bioluminescent vegetation, dramatic alien landscape, highly detailed, photorealistic, professional quality',
+                notes: 'Imagen 4 is Google latest model with improved quality and detail'
+            }
+        ]
+    },
+
+    'gpt-image': {
+        id: 'gpt-image',
+        name: 'GPT Image',
+        provider: 'fal',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 1000,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['consistent', 'same character', 'matching'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'highly detailed', 'professional', 'sharp', 'high quality'
+        ],
+        stylePrefixes: [
+            'image of', 'photograph of', 'render of'
+        ],
+        avoidTerms: [
+            'low quality', 'blurry', 'distorted'
+        ],
+        recommendedSettings: {},
+        template: `{trigger_words} {subject_description}, {pose_action}, {setting}, {style}, {quality}`,
+        examples: [
+            {
+                input: 'modern kitchen interior',
+                output: 'ohwx_scene, modern minimalist kitchen interior with marble countertops, stainless steel appliances, natural wood accents, morning sunlight through large windows, interior design photography, highly detailed, professional quality',
+                notes: 'GPT Image has advanced prompt understanding for complex generation and editing'
+            }
+        ]
+    },
+
+    'creative-upscaler': {
+        id: 'creative-upscaler',
+        name: 'Creative Upscaler',
+        provider: 'fal',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 256,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'middle',
+            triggerWordPlacement: 'start',
+            consistencyKeywords: ['enhanced detail', 'improved quality', 'sharpened'],
+            poseDescriptionStyle: 'brief'
+        },
+        qualityBoosters: [
+            'enhanced detail', 'improved texture', 'sharpened', 'high resolution'
+        ],
+        stylePrefixes: [
+            'upscale with', 'enhance'
+        ],
+        avoidTerms: [
+            'blur', 'artifacts', 'noise'
+        ],
+        recommendedSettings: {},
+        template: `enhance and upscale, {detail_additions}, {quality_improvements}`,
+        examples: [
+            {
+                input: 'upscale portrait with added detail',
+                output: 'enhance and upscale portrait, add skin texture detail, sharpen facial features, improve hair detail, 4x resolution, high quality',
+                notes: 'Creative Upscaler adds AI-enhanced detail during 4x upscaling'
+            }
+        ]
+    },
+
+    'clarity-upscaler': {
+        id: 'clarity-upscaler',
+        name: 'Clarity Upscaler',
+        provider: 'fal',
+        type: 'image',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 256,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'middle',
+            triggerWordPlacement: 'start',
+            consistencyKeywords: ['faithful', 'preserved', 'original'],
+            poseDescriptionStyle: 'brief'
+        },
+        qualityBoosters: [
+            'sharp', 'faithful', 'preserved original', 'clean upscale'
+        ],
+        stylePrefixes: [
+            'upscale faithfully', 'sharpen'
+        ],
+        avoidTerms: [
+            'altered', 'changed', 'modified'
+        ],
+        recommendedSettings: {},
+        template: `faithfully upscale, preserve original details, {quality}`,
+        examples: [
+            {
+                input: 'upscale photo without alteration',
+                output: 'faithfully upscale photograph, preserve original details and colors, sharp edges, clean upscale, maintain integrity',
+                notes: 'Clarity Upscaler provides sharp, faithful upscaling preserving original image integrity'
+            }
+        ]
+    },
+
     'recraft-v3': {
         id: 'recraft-v3',
         name: 'Recraft V3',
@@ -882,6 +1430,588 @@ export const MODEL_PROMPTING_GUIDES: Record<string, ModelPromptGuide> = {
         ]
     },
 
+    'wan-v2-6': {
+        id: 'wan-v2-6',
+        name: 'Wan 2.6',
+        provider: 'fal',
+        type: 'video',
+        supportsAudio: true, // Native audio sync support
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['same character', 'consistent appearance', 'maintaining identity', 'multi-shot'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: [
+            'cinematic', 'high quality', 'smooth motion', 'professional video',
+            'detailed', '4k quality', '1080p', 'photorealistic', 'multi-shot'
+        ],
+        stylePrefixes: ['cinematic shot of', 'video of', 'multi-shot video of'],
+        avoidTerms: ['static', 'still image', 'photograph', 'morphing', 'flickering'],
+        recommendedSettings: {
+            cfgScale: [5, 7],
+            steps: [25, 30]
+        },
+        template: `{trigger_words} {subject_description}, {action_movement}, {camera_motion}, {setting_background}, {lighting}, {style}`,
+        examples: [
+            {
+                input: 'woman walking through city',
+                output: 'ohwx_woman, elegant woman in red dress walking through neon-lit city streets at night, smooth tracking shot, rain-slicked pavement reflecting lights, cinematic 4k video, 1080p, photorealistic',
+                notes: 'Wan 2.6 supports 5-15s duration, 1080p resolution, and native audio sync'
+            }
+        ]
+    },
+
+    'wan-v2-6-r2v': {
+        id: 'wan-v2-6-r2v',
+        name: 'Wan 2.6 Reference-to-Video',
+        provider: 'fal',
+        type: 'video',
+        supportsAudio: true,
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            weightSyntax: '@Video1, @Video2, @Video3', // Reference video syntax
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['@Video1', '@Video2', '@Video3', 'same character', 'consistent appearance', 'reference video'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: [
+            'cinematic', 'high quality', 'smooth motion', 'professional video',
+            'detailed', '4k quality', '1080p', 'character consistent'
+        ],
+        stylePrefixes: ['cinematic shot of', 'video of'],
+        avoidTerms: ['static', 'morphing', 'flickering', 'inconsistent'],
+        recommendedSettings: {
+            cfgScale: [5, 7],
+            steps: [25, 30]
+        },
+        template: `@Video1 {subject_description}, {action_movement}, {camera_motion}, {setting_background}, {lighting}, {style}`,
+        examples: [
+            {
+                input: 'character running through forest (with 2 reference videos)',
+                output: '@Video1 running through dense forest, @Video2 follows behind, dynamic camera tracking, sunlight filtering through trees, cinematic quality, 1080p',
+                notes: 'Use @Video1, @Video2, @Video3 to reference up to 3 uploaded videos for character consistency'
+            },
+            {
+                input: 'two characters talking',
+                output: '@Video1 and @Video2 having conversation in coffee shop, natural gestures, warm ambient lighting, medium shot, cinematic quality',
+                notes: 'Reference videos maintain character identity and style across the generated video'
+            }
+        ]
+    },
+
+    'wan-pro': {
+        id: 'wan-pro',
+        name: 'Wan Pro',
+        provider: 'fal',
+        type: 'video',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['same character', 'consistent appearance', 'maintaining identity', 'professional quality'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: [
+            'cinematic', 'high quality', 'smooth motion', 'professional video',
+            'detailed', '4k quality', 'enhanced fidelity', 'photorealistic'
+        ],
+        stylePrefixes: ['cinematic shot of', 'professional video of'],
+        avoidTerms: ['static', 'still image', 'photograph', 'morphing', 'flickering'],
+        recommendedSettings: {
+            cfgScale: [5, 7],
+            steps: [25, 30]
+        },
+        template: `{trigger_words} {subject_description}, {action_movement}, {camera_motion}, {setting_background}, {lighting}, {style}`,
+        examples: [
+            {
+                input: 'cinematic ocean waves',
+                output: 'ohwx_scene, massive ocean waves crashing against rocky cliffs at sunset, spray catching golden light, dramatic slow-motion, aerial tracking shot, professional video quality, 4k',
+                notes: 'Wan Pro offers enhanced visual fidelity for professional video generation'
+            }
+        ]
+    },
+
+    'vidu-q1': {
+        id: 'vidu-q1',
+        name: 'Vidu Q1',
+        provider: 'fal',
+        type: 'video',
+        supportsAudio: true,
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['same character', 'consistent appearance'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: [
+            'cinematic', 'high quality', 'smooth motion', 'with sound effects', 'with music'
+        ],
+        stylePrefixes: ['video of', 'cinematic shot of'],
+        avoidTerms: ['static', 'frozen', 'silent'],
+        recommendedSettings: {},
+        template: `{trigger_words} {subject_description}, {action_movement}, {sound_description}, {setting}, {style}`,
+        examples: [
+            {
+                input: 'thunderstorm over city',
+                output: 'ohwx_scene, dramatic thunderstorm over night city skyline, lightning illuminating skyscrapers, rain falling, thunder rumbling, cinematic quality, with sound effects',
+                notes: 'Vidu Q1 supports music and sound effect generation alongside video'
+            }
+        ]
+    },
+
+    'vidu-q2': {
+        id: 'vidu-q2',
+        name: 'Vidu Q2 Multi-Reference',
+        provider: 'fal',
+        type: 'video',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['character 1', 'character 2', 'same characters', 'consistent identity', 'multi-character'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: [
+            'cinematic', 'high quality', 'character consistent', 'smooth motion'
+        ],
+        stylePrefixes: ['video of', 'scene with'],
+        avoidTerms: ['inconsistent', 'morphing', 'wrong character'],
+        recommendedSettings: {},
+        template: `{characters_description}, {action_interaction}, {setting_background}, {style}`,
+        examples: [
+            {
+                input: 'two characters meeting (with 2 reference images)',
+                output: 'character 1 and character 2 from references meeting in coffee shop, shaking hands, friendly smiles, warm interior lighting, character consistent, cinematic quality',
+                notes: 'Vidu Q2 supports up to 7 reference images for multi-character consistency'
+            }
+        ]
+    },
+
+    'vidu-i2v': {
+        id: 'vidu-i2v',
+        name: 'Vidu I2V',
+        provider: 'fal',
+        type: 'video',
+        supportsAudio: true,
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['same image', 'animating', 'bringing to life'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: [
+            'smooth animation', 'high quality', 'natural motion', 'with sound'
+        ],
+        stylePrefixes: ['animate', 'bring to life'],
+        avoidTerms: ['static', 'frozen', 'morphing'],
+        recommendedSettings: {},
+        template: `animate {subject_from_image}, {motion_description}, {sound_description}, {style}`,
+        examples: [
+            {
+                input: 'animate portrait with subtle movement',
+                output: 'animate portrait from image, gentle head turn with natural eye movement, soft ambient sound, smooth high quality animation',
+                notes: 'Vidu I2V animates images with optional sound generation'
+            }
+        ]
+    },
+
+    'pixverse': {
+        id: 'pixverse',
+        name: 'Pixverse V4.5',
+        provider: 'fal',
+        type: 'video',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['same character', 'consistent appearance'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: [
+            'cinematic', 'high quality motion', 'smooth animation', '4k'
+        ],
+        stylePrefixes: ['video of', 'cinematic shot of'],
+        avoidTerms: ['static', 'frozen', 'jittery'],
+        recommendedSettings: {},
+        template: `{trigger_words} {subject_description}, {action_movement}, {camera_motion}, {setting}, {style}`,
+        examples: [
+            {
+                input: 'bird flying through forest',
+                output: 'ohwx_bird, colorful parrot flying through dense tropical forest, smooth wing motion, camera tracking alongside, dappled sunlight, cinematic quality, 4k',
+                notes: 'Pixverse V4.5 offers advanced motion generation with high quality results'
+            }
+        ]
+    },
+
+    'magi': {
+        id: 'magi',
+        name: 'Magi',
+        provider: 'fal',
+        type: 'video',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['artistic', 'stylized', 'creative'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: [
+            'artistic', 'creative style', 'stylized', 'unique aesthetic'
+        ],
+        stylePrefixes: ['artistic video of', 'stylized animation of'],
+        avoidTerms: ['realistic', 'photorealistic', 'static'],
+        recommendedSettings: {},
+        template: `{trigger_words} {subject_description}, {artistic_style}, {motion_description}, {creative_elements}`,
+        examples: [
+            {
+                input: 'abstract dance performance',
+                output: 'ohwx_dancer, abstract interpretation of dance performance, flowing geometric shapes following movement, surreal color palette, artistic style, creative animation',
+                notes: 'Magi excels at creative and artistic video generation with unique styles'
+            }
+        ]
+    },
+
+    'luma-ray-2': {
+        id: 'luma-ray-2',
+        name: 'Luma Ray 2',
+        provider: 'fal',
+        type: 'video',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['same character', 'consistent appearance', 'realistic'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: [
+            'realistic', 'natural motion', 'cinematic', 'smooth camera', 'high quality'
+        ],
+        stylePrefixes: ['cinematic video of', 'realistic shot of'],
+        avoidTerms: ['glitchy', 'morphing', 'static'],
+        recommendedSettings: {},
+        template: `{trigger_words} {subject_description}, {action_movement}, {camera_motion}, {setting}, {realistic_quality}`,
+        examples: [
+            {
+                input: 'car driving through mountains',
+                output: 'ohwx_car, sleek sports car driving through winding mountain road, smooth camera tracking, realistic motion blur, dramatic cliff views, cinematic quality, natural lighting',
+                notes: 'Luma Ray 2 offers the most realistic visuals with natural camera control'
+            }
+        ]
+    },
+
+    'luma-ray-2-i2v': {
+        id: 'luma-ray-2-i2v',
+        name: 'Luma Ray 2 I2V',
+        provider: 'fal',
+        type: 'video',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['from image', 'animating', 'bringing to life'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: [
+            'realistic motion', 'smooth animation', 'natural camera', 'high quality'
+        ],
+        stylePrefixes: ['animate', 'bring to life'],
+        avoidTerms: ['static', 'frozen', 'glitchy'],
+        recommendedSettings: {},
+        template: `animate {image_subject}, {motion_description}, {camera_movement}, {style}`,
+        examples: [
+            {
+                input: 'animate landscape photo',
+                output: 'animate scenic mountain landscape from image, gentle cloud movement, flowing water in stream, subtle camera push forward, realistic motion, high quality',
+                notes: 'Luma Ray 2 I2V provides realistic motion and camera control for image animation'
+            }
+        ]
+    },
+
+    'runway-gen3-turbo': {
+        id: 'runway-gen3-turbo',
+        name: 'Runway Gen3 Turbo I2V',
+        provider: 'fal',
+        type: 'video',
+        syntax: {
+            style: 'natural',
+            separator: '. ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['from image', 'animating', 'cinematic'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: ['cinematic', 'fast generation', 'smooth motion', 'high quality'],
+        stylePrefixes: ['cinematic animation of', 'bring to life'],
+        avoidTerms: ['morphing', 'static', 'blurry'],
+        recommendedSettings: {},
+        template: `Animate {image_subject}. {motion_description}. {camera_movement}. {style}.`,
+        examples: [
+            {
+                input: 'animate portrait with emotion',
+                output: 'Animate portrait from image. Subject turns head with subtle smile. Slow push in on face. Cinematic lighting, high quality, fast generation.',
+                notes: 'Runway Gen3 Turbo provides fast cinematic-style image animation'
+            }
+        ]
+    },
+
+    'hunyuan-i2v': {
+        id: 'hunyuan-i2v',
+        name: 'Hunyuan I2V',
+        provider: 'fal',
+        type: 'video',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['from image', 'animating', 'motion diversity'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: [
+            'diverse motion', 'open source quality', 'smooth animation'
+        ],
+        stylePrefixes: ['animate', 'add motion to'],
+        avoidTerms: ['static', 'frozen'],
+        recommendedSettings: {},
+        template: `animate {image_subject}, {motion_type}, {movement_style}, {quality}`,
+        examples: [
+            {
+                input: 'animate nature scene',
+                output: 'animate forest scene from image, leaves rustling in wind, butterflies fluttering, diverse natural motion, smooth animation quality',
+                notes: 'Hunyuan I2V is open-source with high visual quality and motion diversity'
+            }
+        ]
+    },
+
+    'creatify-aurora': {
+        id: 'creatify-aurora',
+        name: 'Creatify Aurora',
+        provider: 'fal',
+        type: 'video',
+        supportsAudio: true,
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['face preserved', 'natural expressions', 'high fidelity'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'high fidelity', 'natural expressions', 'realistic face', 'lip sync accurate'
+        ],
+        stylePrefixes: ['portrait animation of', 'talking head of'],
+        avoidTerms: ['distorted face', 'unnatural', 'out of sync'],
+        recommendedSettings: {},
+        template: `{subject_description}, {expression_movement}, {speech_style}, {quality}`,
+        examples: [
+            {
+                input: 'professional spokesperson',
+                output: 'professional business woman from portrait, natural speaking expressions, confident delivery, high fidelity face preservation, lip sync accurate, natural lighting',
+                notes: 'Creatify Aurora provides high-fidelity portrait animation with natural expressions'
+            }
+        ]
+    },
+
+    'one-to-all-animation': {
+        id: 'one-to-all-animation',
+        name: 'One-To-All Animation',
+        provider: 'fal',
+        type: 'video',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['pose transfer', 'motion transfer', 'driving video'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: [
+            'accurate pose transfer', 'smooth motion', 'character preserved'
+        ],
+        stylePrefixes: ['transfer motion to', 'animate with pose from'],
+        avoidTerms: ['distorted', 'wrong pose', 'identity change'],
+        recommendedSettings: {},
+        template: `{character_description}, transfer motion from driving video, {style_notes}, {quality}`,
+        examples: [
+            {
+                input: 'character dancing with reference motion',
+                output: 'anime character from image, transfer dance motion from driving video, maintain character appearance, accurate pose transfer, smooth motion',
+                notes: 'One-To-All Animation transfers pose and motion from a driving video to your character'
+            }
+        ]
+    },
+
+    'wan-animate-move': {
+        id: 'wan-animate-move',
+        name: 'Wan 2.2 Animate Move',
+        provider: 'fal',
+        type: 'video',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['motion transfer', 'driving video', 'character preserved'],
+            poseDescriptionStyle: 'action-based'
+        },
+        qualityBoosters: [
+            'motion transfer', 'character consistent', 'smooth animation'
+        ],
+        stylePrefixes: ['animate with', 'transfer motion to'],
+        avoidTerms: ['wrong motion', 'identity loss'],
+        recommendedSettings: {},
+        template: `{character_description}, motion from driving video, {motion_style}, {quality}`,
+        examples: [
+            {
+                input: 'character with walk cycle',
+                output: 'character from source image, walking motion transferred from driving video, maintain character identity, smooth walk cycle animation, high quality',
+                notes: 'Wan Animate Move transfers motion from a driving video to animate your character'
+            }
+        ]
+    },
+
+    'wan-vace-inpainting': {
+        id: 'wan-vace-inpainting',
+        name: 'Wan VACE Inpainting',
+        provider: 'fal',
+        type: 'video',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'middle',
+            triggerWordPlacement: 'start',
+            consistencyKeywords: ['seamless', 'mask guided', 'object removal'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'seamless blend', 'temporal consistency', 'natural fill'
+        ],
+        stylePrefixes: ['remove and fill', 'replace with'],
+        avoidTerms: ['visible seam', 'flickering', 'temporal inconsistency'],
+        recommendedSettings: {},
+        template: `in masked region: {replacement_description}, seamless blend, temporal consistency, {quality}`,
+        examples: [
+            {
+                input: 'remove person from video',
+                output: 'in masked region: continue background naturally, matching lighting and perspective, seamless blend across frames, temporal consistency, high quality',
+                notes: 'Wan VACE Inpainting removes objects from video with mask-guided seamless filling'
+            }
+        ]
+    },
+
+    'kling-o1-video-edit': {
+        id: 'kling-o1-video-edit',
+        name: 'Kling O1 Video Edit',
+        provider: 'fal',
+        type: 'video',
+        syntax: {
+            style: 'natural',
+            separator: ', ',
+            maxLength: 500,
+            supportsMarkdown: false
+        },
+        characterHandling: {
+            placementPriority: 'start',
+            triggerWordPlacement: 'before_subject',
+            consistencyKeywords: ['edited', 'transformed', 'style transfer'],
+            poseDescriptionStyle: 'detailed'
+        },
+        qualityBoosters: [
+            'high quality edit', 'consistent transformation', 'smooth transition'
+        ],
+        stylePrefixes: ['transform to', 'edit as', 'style transfer'],
+        avoidTerms: ['inconsistent', 'flickering', 'temporal artifacts'],
+        recommendedSettings: {},
+        template: `transform video: {edit_description}, {style_change}, {quality}`,
+        examples: [
+            {
+                input: 'convert video to anime style',
+                output: 'transform video to anime art style, maintain motion and composition, consistent style across all frames, smooth transformation, high quality',
+                notes: 'Kling O1 Video Edit provides state-of-the-art video editing and style transfer'
+            }
+        ]
+    },
+
     'sora': {
         id: 'sora',
         name: 'OpenAI Sora',
@@ -1228,10 +2358,282 @@ export function getModelGuide(modelId: string): ModelPromptGuide | null {
         return MODEL_PROMPTING_GUIDES[modelId];
     }
 
-    // Standardize Wan IDs (case-insensitive)
+    // Standardize IDs (case-insensitive)
     const lowerId = modelId.toLowerCase();
-    if (lowerId.includes('wan-25') || lowerId.includes('wan-2.5') || lowerId.includes('wan-2.1') || lowerId.includes('wan-21') || lowerId.includes('wan 2.5')) {
+
+    // === WAN MODELS ===
+    // Wan 2.6 R2V (Reference-to-Video)
+    if (lowerId.includes('wan') && lowerId.includes('2.6') && lowerId.includes('reference')) {
+        return MODEL_PROMPTING_GUIDES['wan-v2-6-r2v'];
+    }
+    // Wan 2.6 (T2V and I2V)
+    if (lowerId.includes('wan') && (lowerId.includes('v2.6') || lowerId.includes('2.6') || lowerId.includes('wan-2.6'))) {
+        return MODEL_PROMPTING_GUIDES['wan-v2-6'];
+    }
+    // Wan Pro
+    if (lowerId.includes('wan') && lowerId.includes('pro')) {
+        return MODEL_PROMPTING_GUIDES['wan-pro'];
+    }
+    // Wan 2.5
+    if (lowerId.includes('wan') && (lowerId.includes('25') || lowerId.includes('2.5'))) {
         return MODEL_PROMPTING_GUIDES['wan-v2-5'];
+    }
+    // Wan 2.2 / 2.1
+    if (lowerId.includes('wan') && (lowerId.includes('22') || lowerId.includes('2.2') || lowerId.includes('21') || lowerId.includes('2.1') || lowerId.includes('t2v') || lowerId.includes('i2v'))) {
+        // Animate Move variant
+        if (lowerId.includes('animate') || lowerId.includes('move')) {
+            return MODEL_PROMPTING_GUIDES['wan-animate-move'];
+        }
+        // VACE Inpainting variant
+        if (lowerId.includes('vace') || lowerId.includes('inpaint')) {
+            return MODEL_PROMPTING_GUIDES['wan-vace-inpainting'];
+        }
+        return MODEL_PROMPTING_GUIDES['wan-v2-2'];
+    }
+
+    // === FLUX MODELS ===
+    if (lowerId.includes('flux')) {
+        // Kontext variants
+        if (lowerId.includes('kontext')) {
+            return MODEL_PROMPTING_GUIDES['flux-kontext'];
+        }
+        // Fill (inpainting/outpainting)
+        if (lowerId.includes('fill')) {
+            return MODEL_PROMPTING_GUIDES['flux-fill'];
+        }
+        // Depth
+        if (lowerId.includes('depth')) {
+            return MODEL_PROMPTING_GUIDES['flux-depth'];
+        }
+        // Canny
+        if (lowerId.includes('canny')) {
+            return MODEL_PROMPTING_GUIDES['flux-canny'];
+        }
+        // Redux (variations)
+        if (lowerId.includes('redux')) {
+            return MODEL_PROMPTING_GUIDES['flux-redux'];
+        }
+        // Pro Ultra
+        if (lowerId.includes('ultra') || lowerId.includes('1.1')) {
+            return MODEL_PROMPTING_GUIDES['flux-pro-ultra'];
+        }
+        // Flux 2
+        if (lowerId.includes('flux-2') || lowerId.includes('flux2')) {
+            return MODEL_PROMPTING_GUIDES['flux-2'];
+        }
+        // Pro
+        if (lowerId.includes('pro')) {
+            return MODEL_PROMPTING_GUIDES['flux-pro'];
+        }
+        // Schnell
+        if (lowerId.includes('schnell')) {
+            return MODEL_PROMPTING_GUIDES['flux-schnell'];
+        }
+        // Default Flux Dev
+        return MODEL_PROMPTING_GUIDES['flux-dev'];
+    }
+
+    // === KLING MODELS ===
+    if (lowerId.includes('kling')) {
+        // Avatar models
+        if (lowerId.includes('avatar')) {
+            if (lowerId.includes('pro')) {
+                return MODEL_PROMPTING_GUIDES['kling-avatar-v2-pro'];
+            }
+            return MODEL_PROMPTING_GUIDES['kling-avatar-v2-standard'];
+        }
+        // O1 Image
+        if (lowerId.includes('image') && lowerId.includes('o1')) {
+            return MODEL_PROMPTING_GUIDES['fal-ai/kling-image/o1'];
+        }
+        // O1 Video (video editing)
+        if (lowerId.includes('o1')) {
+            if (lowerId.includes('edit')) {
+                return MODEL_PROMPTING_GUIDES['kling-o1-video-edit'];
+            }
+            return MODEL_PROMPTING_GUIDES['kling-video-o1'];
+        }
+        // 2.6
+        if (lowerId.includes('2.6')) {
+            return MODEL_PROMPTING_GUIDES['kling-video-v2-6'];
+        }
+        // 2.1
+        if (lowerId.includes('2.1')) {
+            return MODEL_PROMPTING_GUIDES['kling-video-v2-1'];
+        }
+        return MODEL_PROMPTING_GUIDES['kling-video-v2-1']; // Default Kling
+    }
+
+    // === VIDU MODELS ===
+    if (lowerId.includes('vidu')) {
+        if (lowerId.includes('q2') || lowerId.includes('reference')) {
+            return MODEL_PROMPTING_GUIDES['vidu-q2'];
+        }
+        if (lowerId.includes('i2v') || lowerId.includes('image-to-video')) {
+            return MODEL_PROMPTING_GUIDES['vidu-i2v'];
+        }
+        return MODEL_PROMPTING_GUIDES['vidu-q1'];
+    }
+
+    // === LUMA MODELS ===
+    if (lowerId.includes('luma')) {
+        if (lowerId.includes('ray-2') || lowerId.includes('ray2')) {
+            if (lowerId.includes('i2v') || lowerId.includes('image')) {
+                return MODEL_PROMPTING_GUIDES['luma-ray-2-i2v'];
+            }
+            return MODEL_PROMPTING_GUIDES['luma-ray-2'];
+        }
+        return MODEL_PROMPTING_GUIDES['luma-dream-machine'];
+    }
+
+    // === IDEOGRAM MODELS ===
+    if (lowerId.includes('ideogram')) {
+        if (lowerId.includes('character')) {
+            return MODEL_PROMPTING_GUIDES['ideogram-character'];
+        }
+        if (lowerId.includes('v3')) {
+            return MODEL_PROMPTING_GUIDES['ideogram-v3'];
+        }
+        return MODEL_PROMPTING_GUIDES['ideogram-v2'];
+    }
+
+    // === PIXVERSE ===
+    if (lowerId.includes('pixverse')) {
+        return MODEL_PROMPTING_GUIDES['pixverse'];
+    }
+
+    // === MAGI ===
+    if (lowerId.includes('magi')) {
+        return MODEL_PROMPTING_GUIDES['magi'];
+    }
+
+    // === RUNWAY MODELS ===
+    if (lowerId.includes('runway')) {
+        if (lowerId.includes('turbo') || lowerId.includes('gen3')) {
+            return MODEL_PROMPTING_GUIDES['runway-gen3-turbo'];
+        }
+        if (lowerId.includes('gen4')) {
+            return MODEL_PROMPTING_GUIDES['runway-gen4'];
+        }
+        return MODEL_PROMPTING_GUIDES['runway-gen3'];
+    }
+
+    // === HUNYUAN MODELS ===
+    if (lowerId.includes('hunyuan')) {
+        if (lowerId.includes('i2v') || lowerId.includes('image')) {
+            return MODEL_PROMPTING_GUIDES['hunyuan-i2v'];
+        }
+        return MODEL_PROMPTING_GUIDES['hunyuan-video'];
+    }
+
+    // === CREATIFY AURORA ===
+    if (lowerId.includes('creatify') || lowerId.includes('aurora')) {
+        return MODEL_PROMPTING_GUIDES['creatify-aurora'];
+    }
+
+    // === ONE-TO-ALL ANIMATION ===
+    if (lowerId.includes('one-to-all') || lowerId.includes('onetoall')) {
+        return MODEL_PROMPTING_GUIDES['one-to-all-animation'];
+    }
+
+    // === IP-ADAPTER ===
+    if (lowerId.includes('ip-adapter') || lowerId.includes('face-id') || lowerId.includes('faceid')) {
+        return MODEL_PROMPTING_GUIDES['ip-adapter-face-id'];
+    }
+
+    // === UPSCALERS ===
+    if (lowerId.includes('upscal')) {
+        if (lowerId.includes('creative')) {
+            return MODEL_PROMPTING_GUIDES['creative-upscaler'];
+        }
+        if (lowerId.includes('clarity')) {
+            return MODEL_PROMPTING_GUIDES['clarity-upscaler'];
+        }
+    }
+
+    // === GOOGLE MODELS ===
+    if (lowerId.includes('imagen')) {
+        if (lowerId.includes('4')) {
+            return MODEL_PROMPTING_GUIDES['imagen-4'];
+        }
+        return MODEL_PROMPTING_GUIDES['imagen-3'];
+    }
+    if (lowerId.includes('veo')) {
+        if (lowerId.includes('3')) {
+            return MODEL_PROMPTING_GUIDES['veo-3'];
+        }
+        return MODEL_PROMPTING_GUIDES['veo-2'];
+    }
+
+    // === GPT IMAGE ===
+    if (lowerId.includes('gpt') && lowerId.includes('image')) {
+        return MODEL_PROMPTING_GUIDES['gpt-image'];
+    }
+
+    // === HIDREAM ===
+    if (lowerId.includes('hidream')) {
+        return MODEL_PROMPTING_GUIDES['hidream'];
+    }
+
+    // === JANUS ===
+    if (lowerId.includes('janus')) {
+        return MODEL_PROMPTING_GUIDES['janus'];
+    }
+
+    // === RECRAFT ===
+    if (lowerId.includes('recraft')) {
+        return MODEL_PROMPTING_GUIDES['recraft-v3'];
+    }
+
+    // === STABLE DIFFUSION ===
+    if (lowerId.includes('stable') || lowerId.includes('sd')) {
+        if (lowerId.includes('3.5') || lowerId.includes('35')) {
+            return MODEL_PROMPTING_GUIDES['sd3-5-large'];
+        }
+        if (lowerId.includes('xl')) {
+            return MODEL_PROMPTING_GUIDES['sdxl'];
+        }
+        if (lowerId.includes('1.5') || lowerId.includes('15')) {
+            return MODEL_PROMPTING_GUIDES['sd15'];
+        }
+    }
+
+    // === LTX VIDEO ===
+    if (lowerId.includes('ltx')) {
+        return MODEL_PROMPTING_GUIDES['ltx-video'];
+    }
+
+    // === MINIMAX / HAILUO ===
+    if (lowerId.includes('minimax') || lowerId.includes('hailuo')) {
+        if (lowerId.includes('director')) {
+            return MODEL_PROMPTING_GUIDES['hailuo-director'];
+        }
+        return MODEL_PROMPTING_GUIDES['minimax-video'];
+    }
+
+    // === DALL-E ===
+    if (lowerId.includes('dall') || lowerId.includes('dalle')) {
+        return MODEL_PROMPTING_GUIDES['dall-e-3'];
+    }
+
+    // === SORA ===
+    if (lowerId.includes('sora')) {
+        return MODEL_PROMPTING_GUIDES['sora'];
+    }
+
+    // === ANIMATEDIFF ===
+    if (lowerId.includes('animatediff')) {
+        return MODEL_PROMPTING_GUIDES['animatediff'];
+    }
+
+    // === PONY DIFFUSION ===
+    if (lowerId.includes('pony')) {
+        return MODEL_PROMPTING_GUIDES['pony-diffusion'];
+    }
+
+    // === REALISTIC VISION ===
+    if (lowerId.includes('realistic') && lowerId.includes('vision')) {
+        return MODEL_PROMPTING_GUIDES['realistic-vision'];
     }
 
     // Fuzzy match for common variations
@@ -1273,6 +2675,8 @@ export const NEGATIVE_PROMPT_TEMPLATES: Record<string, string> = {
     // === VIDEO MODELS ===
     'wan-v2-2': 'static, frozen, blurry, low quality, distorted faces, morphing, flickering, jittery motion, bad anatomy, deformed',
     'wan-v2-5': 'static, frozen, blurry, low quality, distorted faces, morphing, flickering, jittery motion, bad anatomy, deformed, inconsistent character',
+    'wan-v2-6': 'static, frozen, blurry, low quality, distorted faces, morphing, flickering, jittery motion, bad anatomy, deformed, inconsistent character, audio desync',
+    'wan-v2-6-r2v': 'static, frozen, blurry, low quality, distorted faces, morphing, flickering, jittery motion, bad anatomy, deformed, inconsistent character, reference mismatch, audio desync',
     'kling-video-v2-1': 'static, blurry, low quality, distorted, flickering, jittery, morphing faces, bad anatomy, deformed',
     'kling-video-v2-6': 'static, blurry, low quality, distorted, flickering, jittery, morphing faces, bad anatomy, deformed, audio sync issues',
     'kling-video-o1': 'static, blurry, low quality, distorted, flickering, jittery, morphing faces, bad anatomy, deformed, inconsistent character',
@@ -1298,4 +2702,38 @@ export const NEGATIVE_PROMPT_TEMPLATES: Record<string, string> = {
     // === AVATAR MODELS ===
     'kling-avatar-v2-pro': 'blurry, distorted face, out of sync, unnatural mouth movements, frozen, static, glitchy audio',
     'kling-avatar-v2-standard': 'blurry, distorted face, out of sync, unnatural mouth movements, frozen, static',
+
+    // === ADDITIONAL VIDEO MODELS ===
+    'wan-pro': 'static, frozen, blurry, low quality, distorted faces, morphing, flickering, jittery motion, bad anatomy, deformed, inconsistent character',
+    'vidu-q1': 'static, frozen, blurry, low quality, distorted, flickering, morphing, bad audio, inconsistent character',
+    'vidu-q2': 'static, frozen, blurry, low quality, distorted, flickering, morphing, inconsistent characters, identity mixing',
+    'vidu-i2v': 'static, frozen, blurry, low quality, distorted, flickering, morphing, wrong animation, identity loss',
+    'pixverse': 'static, frozen, blurry, low quality, distorted, flickering, jittery motion, morphing, bad anatomy',
+    'magi': 'static, frozen, blurry, low quality, distorted, flickering, bad artistic style, inconsistent',
+    'luma-ray-2': 'static, frozen, blurry, low quality, distorted, flickering, glitchy, morphing, unrealistic motion',
+    'luma-ray-2-i2v': 'static, frozen, blurry, low quality, distorted, flickering, glitchy, morphing, wrong animation',
+    'runway-gen3-turbo': 'static, blurry, low quality, distorted, flickering, morphing, bad anatomy, deformed, jittery',
+    'hunyuan-i2v': 'static, frozen, blurry, low quality, distorted, flickering, morphing, wrong animation',
+    'creatify-aurora': 'blurry, distorted face, out of sync, unnatural expressions, frozen, static, identity change',
+    'one-to-all-animation': 'wrong pose, distorted, identity change, jittery motion, bad motion transfer, blurry',
+    'wan-animate-move': 'wrong motion, distorted, identity change, jittery, bad motion transfer, blurry',
+    'wan-vace-inpainting': 'visible seam, flickering, temporal inconsistency, blurry fill, mismatched lighting',
+    'kling-o1-video-edit': 'inconsistent style, flickering, temporal artifacts, wrong transformation, blurry',
+
+    // === ADDITIONAL IMAGE MODELS ===
+    'flux-pro-ultra': 'blurry, low quality, distorted, deformed, ugly, bad anatomy, watermark, signature, text, artifacts, low resolution',
+    'flux-kontext': 'blurry, low quality, distorted, deformed, different person, identity change, inconsistent features',
+    'flux-fill': 'visible seam, mismatched lighting, wrong perspective, blurry, inconsistent style',
+    'flux-depth': 'wrong structure, distorted depth, perspective errors, blurry, low quality',
+    'flux-canny': 'wrong edges, distorted outline, shape errors, blurry, low quality',
+    'flux-redux': 'exact copy, too different, blurry, low quality, identity loss',
+    'ip-adapter-face-id': 'different face, wrong identity, blurry, distorted features, bad anatomy',
+    'ideogram-v3': 'blurry, low quality, typos, misspellings, wrong text, bad typography, distorted letters',
+    'ideogram-character': 'inconsistent design, blurry, wrong poses, missing views, low quality',
+    'hidream': 'blurry, low resolution, low quality, distorted, deformed, bad anatomy',
+    'janus': 'blurry, low quality, distorted, incoherent, bad composition',
+    'imagen-4': 'blurry, low quality, distorted, deformed, bad anatomy, watermark, artifacts',
+    'gpt-image': 'blurry, low quality, distorted, deformed, bad anatomy, artifacts',
+    'creative-upscaler': 'blurry, artifacts, over-sharpened, noise, distortion',
+    'clarity-upscaler': 'blurry, altered details, artifacts, noise, color shift',
 };

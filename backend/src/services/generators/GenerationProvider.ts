@@ -45,6 +45,8 @@ export interface GenerationOptions {
     };
     elementReferences?: string[]; // URLs for character/element consistency (up to 4)
     audioUrl?: string; // URL for driving audio (Avatar models)
+    referenceVideos?: string[]; // URLs for video references (Wan 2.6 R2V - up to 3)
+    resolution?: string; // Video resolution (e.g., "720p", "1080p")
 
     // Engine Stacking / Workflows
     nextStage?: GenerationOptions; // Defines the next generation stage in a pipeline

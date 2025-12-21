@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 
 import * as fal from "@fal-ai/serverless-client";
 import axios from 'axios';
+import { getModelMetadataSyncService, civitaiToMetadata, fetchCivitaiModel, parseDescriptionSettings, settingsToRecommendedSettings, ParsedRecommendedSettings } from '../services/sync/ModelMetadataSync';
 
 const prisma = new PrismaClient();
 
@@ -232,6 +233,132 @@ export const deleteLoRA = async (req: Request, res: Response) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to delete LoRA' });
+    }
+};
+
+/**
+ * Fetch LoRA metadata from Civitai API with full prompt guide generation
+ * This endpoint fetches model info from Civitai and auto-generates:
+ * - Trigger words
+ * - Base model info
+ * - Recommended settings
+ * - Prompt guide (quality boosters, style, etc.)
+ */
+export const fetchCivitaiLoRAMetadata = async (req: Request, res: Response) => {
+    try {
+        const { modelId, versionId } = req.body;
+
+        if (!modelId) {
+            return res.status(400).json({ error: 'modelId is required' });
+        }
+
+        console.log(`[fetchCivitaiLoRAMetadata] Fetching metadata for model ${modelId}${versionId ? `@${versionId}` : ''}`);
+
+        // Fetch from Civitai API
+        const civitaiInfo = await fetchCivitaiModel(modelId);
+        if (!civitaiInfo) {
+            return res.status(404).json({ error: 'Model not found on Civitai' });
+        }
+
+        // Convert to our metadata format
+        const metadata = civitaiToMetadata(civitaiInfo, versionId) as any;
+
+        // Get the specific version
+        const version = versionId
+            ? civitaiInfo.modelVersions.find(v => v.id.toString() === versionId)
+            : civitaiInfo.modelVersions[0];
+
+        // Get parsed settings from the metadata (includes settings from description)
+        const parsedSettings: ParsedRecommendedSettings = metadata._parsedSettings || {};
+        const recommendedSettings = metadata._recommendedSettings || {};
+
+        // Build response with all useful info
+        const response = {
+            // Basic info
+            name: civitaiInfo.name,
+            civitaiModelId: civitaiInfo.id.toString(),
+            civitaiVersionId: version?.id?.toString(),
+            type: civitaiInfo.type.toLowerCase(),
+            nsfw: civitaiInfo.nsfw,
+            tags: civitaiInfo.tags,
+            creator: civitaiInfo.creator?.username,
+
+            // Version-specific info
+            baseModel: version?.baseModel || 'Unknown',
+            triggerWords: version?.trainedWords || [],
+            triggerWord: version?.trainedWords?.[0] || '',
+            downloadUrl: version?.files?.[0]?.downloadUrl,
+            fileSize: version?.files?.[0]?.sizeKB,
+
+            // Recommended settings parsed from description (Sampler, Steps, CFG, etc.)
+            recommendedSettings: {
+                ...recommendedSettings,
+                // Include pros/cons if available
+                ...(parsedSettings.pros && parsedSettings.pros.length > 0 && { pros: parsedSettings.pros }),
+                ...(parsedSettings.cons && parsedSettings.cons.length > 0 && { cons: parsedSettings.cons }),
+                ...(parsedSettings.notes && parsedSettings.notes.length > 0 && { notes: parsedSettings.notes }),
+            },
+
+            // Auto-generated prompt guide
+            promptGuide: {
+                style: metadata.promptGuide.style,
+                separator: metadata.promptGuide.separator,
+                qualityBoosters: metadata.promptGuide.qualityBoosters,
+                avoidTerms: metadata.promptGuide.avoidTerms,
+                stylePrefixes: metadata.promptGuide.stylePrefixes,
+                triggerWordPlacement: metadata.promptGuide.triggerWordPlacement,
+                template: metadata.promptGuide.template,
+                negativePromptTemplate: metadata.promptGuide.negativePromptTemplate,
+            },
+
+            // Constraints
+            constraints: metadata.constraints,
+
+            // Category inference
+            category: inferCategory(civitaiInfo.name, civitaiInfo.tags),
+
+            // Notes (includes recommended settings info)
+            notes: metadata.notes,
+
+            // Raw metadata for debugging
+            _metadata: metadata,
+        };
+
+        console.log(`[fetchCivitaiLoRAMetadata] Successfully fetched metadata for ${civitaiInfo.name}`);
+        res.json(response);
+
+    } catch (error: any) {
+        console.error('[fetchCivitaiLoRAMetadata] Error:', error);
+        res.status(500).json({ error: 'Failed to fetch Civitai metadata', details: error.message });
+    }
+};
+
+/**
+ * Sync model metadata and generate code snippets for adding to the codebase
+ * This is useful for developers adding new models to the registry
+ */
+export const syncModelMetadata = async (req: Request, res: Response) => {
+    try {
+        const { modelId } = req.body;
+
+        if (!modelId) {
+            return res.status(400).json({ error: 'modelId is required' });
+        }
+
+        console.log(`[syncModelMetadata] Syncing metadata for: ${modelId}`);
+
+        const syncService = getModelMetadataSyncService();
+        const code = await syncService.syncAndGenerateCode(modelId);
+
+        res.json({
+            modelId,
+            codeSnippets: code,
+            message: 'Copy the generated code snippets to the appropriate files'
+        });
+
+    } catch (error: any) {
+        console.error('[syncModelMetadata] Error:', error);
+        res.status(500).json({ error: 'Failed to sync model metadata', details: error.message });
     }
 };
 
