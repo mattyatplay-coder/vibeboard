@@ -9,21 +9,24 @@ interface AnimateModalProps {
     onClose: () => void;
     imageUrl: string;
     initialAspectRatio?: string;
-    onAnimate: (prompt: string, aspectRatio: string) => void;
+    initialPrompt?: string;
+    onAnimate: (prompt: string, aspectRatio: string, duration: number) => void;
     isGenerating: boolean;
 }
 
-export function AnimateModal({ isOpen, onClose, imageUrl, initialAspectRatio, onAnimate, isGenerating }: AnimateModalProps) {
-    const [prompt, setPrompt] = useState("");
+export function AnimateModal({ isOpen, onClose, imageUrl, initialAspectRatio, initialPrompt, onAnimate, isGenerating }: AnimateModalProps) {
+    const [prompt, setPrompt] = useState(initialPrompt || "");
     const [aspectRatio, setAspectRatio] = useState(initialAspectRatio || "16:9");
+    const [duration, setDuration] = useState(5);
 
     // Reset state when modal opens
     useEffect(() => {
         if (isOpen) {
-            setPrompt("");
+            setPrompt(initialPrompt || "");
             setAspectRatio(initialAspectRatio || "16:9");
+            setDuration(5);
         }
-    }, [isOpen, initialAspectRatio]);
+    }, [isOpen, initialAspectRatio, initialPrompt]);
 
     if (!isOpen) return null;
 
@@ -74,32 +77,61 @@ export function AnimateModal({ isOpen, onClose, imageUrl, initialAspectRatio, on
                         />
                     </div>
 
-                    {/* Aspect Ratio Selection */}
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-300">Target Aspect Ratio</label>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setAspectRatio("16:9")}
-                                className={clsx(
-                                    "flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-all",
-                                    aspectRatio === "16:9"
-                                        ? "bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/20"
-                                        : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white"
-                                )}
-                            >
-                                Landscape (16:9)
-                            </button>
-                            <button
-                                onClick={() => setAspectRatio("9:16")}
-                                className={clsx(
-                                    "flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-all",
-                                    aspectRatio === "9:16"
-                                        ? "bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/20"
-                                        : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white"
-                                )}
-                            >
-                                Portrait (9:16)
-                            </button>
+                    {/* Aspect Ratio & Duration */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-300">Aspect Ratio</label>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setAspectRatio("16:9")}
+                                    className={clsx(
+                                        "flex-1 py-2 px-2 rounded-lg border text-xs font-medium transition-all",
+                                        aspectRatio === "16:9"
+                                            ? "bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/20"
+                                            : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white"
+                                    )}
+                                >
+                                    16:9
+                                </button>
+                                <button
+                                    onClick={() => setAspectRatio("9:16")}
+                                    className={clsx(
+                                        "flex-1 py-2 px-2 rounded-lg border text-xs font-medium transition-all",
+                                        aspectRatio === "9:16"
+                                            ? "bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/20"
+                                            : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white"
+                                    )}
+                                >
+                                    9:16
+                                </button>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-300">Duration</label>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setDuration(5)}
+                                    className={clsx(
+                                        "flex-1 py-2 px-2 rounded-lg border text-xs font-medium transition-all",
+                                        duration === 5
+                                            ? "bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/20"
+                                            : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white"
+                                    )}
+                                >
+                                    5 sec
+                                </button>
+                                <button
+                                    onClick={() => setDuration(10)}
+                                    className={clsx(
+                                        "flex-1 py-2 px-2 rounded-lg border text-xs font-medium transition-all",
+                                        duration === 10
+                                            ? "bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/20"
+                                            : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white"
+                                    )}
+                                >
+                                    10 sec
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -112,7 +144,7 @@ export function AnimateModal({ isOpen, onClose, imageUrl, initialAspectRatio, on
                             Cancel
                         </button>
                         <button
-                            onClick={() => onAnimate(prompt, aspectRatio)}
+                            onClick={() => onAnimate(prompt, aspectRatio, duration)}
                             disabled={isGenerating || !prompt.trim()}
                             className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
                         >

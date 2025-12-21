@@ -14,8 +14,11 @@ export interface GenerationOptions {
     sampler?: { id: string; name: string; value: string };
     scheduler?: { id: string; name: string; value: string };
     loras?: {
-        path: string;
-        strength: number;
+        path: string;         // URL, file path, or Civitai model ID (e.g., "123456@789012")
+        strength: number;     // 0.0 - 1.0+ (some providers support up to 4.0)
+        triggerWord?: string; // Optional trigger word for the LoRA
+        civitaiId?: string;   // Civitai model ID (for AIR URN construction)
+        versionId?: string;   // Civitai version ID (for AIR URN construction)
     }[];
     sourceImages?: string[];
     maskUrl?: string; // Added for Inpainting/Retake
@@ -45,6 +48,18 @@ export interface GenerationOptions {
 
     // Engine Stacking / Workflows
     nextStage?: GenerationOptions; // Defines the next generation stage in a pipeline
+
+    // Character Consistency Options
+    characterConsistency?: {
+        method?: 'auto' | 'kontext' | 'ip-adapter' | 'face-id' | 'lora';
+        referenceImage?: string; // Primary character reference image URL
+        faceWeight?: number; // Face consistency strength (0.0-1.0)
+        styleWeight?: number; // Style/appearance consistency (0.0-1.0)
+        poseGuidance?: number; // How strictly to follow pose (0.0-1.0)
+        preserveIdentity?: boolean; // Prioritize facial identity preservation
+        sceneTransfer?: boolean; // Transfer character to entirely new scene (uses Kontext)
+        multipleReferences?: string[]; // Additional reference images for better consistency
+    };
 }
 
 export interface GenerationResult {

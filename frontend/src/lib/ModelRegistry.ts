@@ -17,6 +17,8 @@ export interface ModelInfo {
     cost?: string; // Estimated cost string e.g. "$0.003"
     type: 'image' | 'video'; // Underlying primitive type
     tier?: 'fast' | 'quality' | 'pro';
+    supportedDurations?: string[]; // e.g. ['5s', '10s']
+    supportedQuantities?: number[]; // e.g. [1, 2, 3, 4]
 }
 
 export interface ProviderDefinition {
@@ -41,7 +43,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
 export const ALL_MODELS: ModelInfo[] = [
     // === FAL.AI ===
     // Image Gen
-    { id: 'fal-ai/flux/dev', name: 'Flux Dev', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Best quality, great text & detail' },
+    { id: 'fal-ai/flux/dev', name: 'Flux Dev', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Best quality, great text & detail', supportedQuantities: [1, 2, 3, 4] },
     { id: 'fal-ai/flux/schnell', name: 'Flux Schnell', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Fast, good for drafts' },
     { id: 'fal-ai/flux-pro', name: 'Flux Pro', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Premium quality, commercial use' },
     { id: 'fal-ai/flux-pro/v1.1-ultra', name: 'Flux 1.1 Pro Ultra', provider: 'fal', capability: 'text-to-image', type: 'image', desc: '4K Ultra HD quality' },
@@ -49,13 +51,13 @@ export const ALL_MODELS: ModelInfo[] = [
     { id: 'fal-ai/flux-2-flex', name: 'Flux 2 Flex', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Flexible style control' },
     { id: 'fal-ai/nano-banana-pro/edit', name: 'Banana Pro Edit', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Experimental editor' },
     { id: 'fal-ai/gpt-image-1.5/edit', name: 'GPT Image 1.5 Edit', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Advanced prompt adherence' },
-    { id: 'fal-ai/recraft-v3', name: 'Recraft V3', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Vector art, logos, icons' },
-    { id: 'fal-ai/ideogram/v2', name: 'Ideogram V2', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Perfect text in images' },
+    { id: 'fal-ai/recraft-v3', name: 'Recraft V3', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Vector art, logos, icons', supportedQuantities: [1, 2, 3, 4, 5, 6] },
+    { id: 'fal-ai/ideogram/v2', name: 'Ideogram V2', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Perfect text in images', supportedQuantities: [1, 2, 3, 4] },
     { id: 'fal-ai/ideogram/character', name: 'Ideogram V3 Character', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Character sheets & turnarounds', tier: 'quality' },
     { id: 'fal-ai/flux-kontext/dev', name: 'Flux Kontext Dev', provider: 'fal', capability: 'image-editing', type: 'image', desc: 'Character-consistent editing' },
     { id: 'fal-ai/flux-kontext/pro', name: 'Flux Kontext Pro', provider: 'fal', capability: 'image-editing', type: 'image', desc: 'Premium character consistency', tier: 'pro' },
     { id: 'fal-ai/ip-adapter-face-id', name: 'IP-Adapter Face ID', provider: 'fal', capability: 'image-editing', type: 'image', desc: 'Face identity preservation' },
-    { id: 'fal-ai/stable-diffusion-v35-large', name: 'SD 3.5 Large', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Latest Stability AI model' },
+    { id: 'fal-ai/stable-diffusion-v35-large', name: 'SD 3.5 Large', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Latest Stability AI model', supportedQuantities: [1, 2, 3, 4] },
     { id: 'fal-ai/imagen3', name: 'Imagen 3', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Google photorealistic' },
     { id: 'fal-ai/imagen4/preview', name: 'Imagen 4 (Preview)', provider: 'fal', capability: 'text-to-image', type: 'image', desc: 'Latest Google quality' },
 
@@ -68,40 +70,40 @@ export const ALL_MODELS: ModelInfo[] = [
     { id: 'fal-ai/clarity-upscaler', name: 'Clarity Upscaler', provider: 'fal', capability: 'image-editing', type: 'image', desc: 'Sharp, faithful upscaling' },
 
     // Video T2V
-    { id: 'fal-ai/wan-t2v', name: 'Wan 2.2 T2V', provider: 'fal', capability: 'text-to-video', type: 'video', desc: 'Realistic motion, cinematic' },
-    { id: 'fal-ai/wan-25-preview/text-to-video', name: 'Wan 2.5 T2V', provider: 'fal', capability: 'text-to-video', type: 'video', desc: 'Latest Wan, best quality' },
-    { id: 'fal-ai/wan-2.1-t2v-1.3b', name: 'Wan 2.1 T2V (1.3B)', provider: 'fal', capability: 'text-to-video', type: 'video', desc: 'Fast, efficient video gen' },
-    { id: 'fal-ai/ltx-video', name: 'LTX-Video T2V', provider: 'fal', capability: 'text-to-video', type: 'video', desc: 'Fast, good for iteration' },
-    { id: 'fal-ai/kling-video/v2.6/pro/text-to-video', name: 'Kling 2.6 T2V', provider: 'fal', capability: 'text-to-video', type: 'video', desc: 'High quality, realistic' },
-    { id: 'fal-ai/vidu/v1/text-to-video', name: 'Vidu v1', provider: 'fal', capability: 'text-to-video', type: 'video', desc: 'Fast generation' },
-    { id: 'fal-ai/vidu/q2/reference-to-video', name: 'Vidu Q2 (Ref)', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Up to 7 character refs' },
-    { id: 'fal-ai/hunyuan-video', name: 'Hunyuan Video', provider: 'fal', capability: 'text-to-video', type: 'video', desc: 'High motion quality' },
-    { id: 'fal-ai/minimax-video', name: 'MiniMax Video', provider: 'fal', capability: 'text-to-video', type: 'video', desc: 'Fast, expressive motion' },
-    { id: 'fal-ai/luma-dream-machine', name: 'Luma Dream Machine', provider: 'fal', capability: 'text-to-video', type: 'video', desc: 'Smooth, dreamlike motion' },
+    { id: 'fal-ai/wan-t2v', name: 'Wan 2.2 T2V', provider: 'fal', capability: 'text-to-video', type: 'video', desc: 'Realistic motion, cinematic', supportedDurations: ['5s', '10s', '15s'] },
+    { id: 'fal-ai/wan-25-preview/text-to-video', name: 'Wan 2.5 T2V', provider: 'fal', capability: 'text-to-video', type: 'video', desc: 'Latest Wan, best quality', supportedDurations: ['5s', '10s', '15s'] },
+    { id: 'fal-ai/wan-2.1-t2v-1.3b', name: 'Wan 2.1 T2V (1.3B)', provider: 'fal', capability: 'text-to-video', type: 'video', desc: 'Fast, efficient video gen', supportedDurations: ['5s', '10s', '15s'] },
+    { id: 'fal-ai/ltx-video', name: 'LTX-Video T2V', provider: 'fal', capability: 'text-to-video', type: 'video', desc: 'Fast, good for iteration', supportedDurations: ['5s'] },
+    { id: 'fal-ai/kling-video/v2.6/pro/text-to-video', name: 'Kling 2.6 T2V', provider: 'fal', capability: 'text-to-video', type: 'video', desc: 'High quality, realistic', supportedDurations: ['5s', '10s'] },
+    { id: 'fal-ai/vidu/v1/text-to-video', name: 'Vidu v1', provider: 'fal', capability: 'text-to-video', type: 'video', desc: 'Fast generation', supportedDurations: ['4s', '8s'] },
+    { id: 'fal-ai/vidu/q2/reference-to-video', name: 'Vidu Q2 (Ref)', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Up to 7 character refs', supportedDurations: ['4s', '8s'] },
+    { id: 'fal-ai/hunyuan-video', name: 'Hunyuan Video', provider: 'fal', capability: 'text-to-video', type: 'video', desc: 'High motion quality', supportedDurations: ['4s'] },
+    { id: 'fal-ai/minimax-video', name: 'MiniMax Video', provider: 'fal', capability: 'text-to-video', type: 'video', desc: 'Fast, expressive motion', supportedDurations: ['6s'] },
+    { id: 'fal-ai/luma-dream-machine', name: 'Luma Dream Machine', provider: 'fal', capability: 'text-to-video', type: 'video', desc: 'Smooth, dreamlike motion', supportedDurations: ['5s', '9s'] },
 
     // Video I2V (Animation)
-    { id: 'fal-ai/wan/v2.2-a14b/image-to-video', name: 'Wan 2.2 I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Animate still images' },
-    { id: 'fal-ai/wan/v2.2-a14b/image-to-video/lora', name: 'Wan 2.2 (LoRA)', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Animation with trained characters' },
-    { id: 'fal-ai/wan-25-preview/image-to-video', name: 'Wan 2.5 I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Best image animation' },
-    { id: 'fal-ai/wan-2.1-i2v-14b', name: 'Wan 2.1 I2V (14B)', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'High quality image-to-video' },
-    { id: 'fal-ai/ltx-video/image-to-video', name: 'LTX-Video I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Quick image animation' },
-    { id: 'fal-ai/kling-video/v2.1/standard/image-to-video', name: 'Kling 2.1 I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Good balance' },
-    { id: 'fal-ai/kling-video/v2.6/pro/image-to-video', name: 'Kling 2.6 I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Pro-quality animation' },
-    { id: 'fal-ai/kling-video/o1/image-to-video', name: 'Kling O1 I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Premium image animation' },
-    { id: 'fal-ai/minimax-video/image-to-video', name: 'MiniMax I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Quick, lively animations' },
-    { id: 'fal-ai/luma-dream-machine/image-to-video', name: 'Luma I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Ethereal animations' },
-    { id: 'fal-ai/runway-gen3/turbo/image-to-video', name: 'Runway Gen3 Turbo', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Fast, cinematic style' },
+    { id: 'fal-ai/wan/v2.2-a14b/image-to-video', name: 'Wan 2.2 I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Animate still images', supportedDurations: ['5s', '10s', '15s'] },
+    { id: 'fal-ai/wan/v2.2-a14b/image-to-video/lora', name: 'Wan 2.2 (LoRA)', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Animation with trained characters', supportedDurations: ['5s', '10s', '15s'] },
+    { id: 'fal-ai/wan-25-preview/image-to-video', name: 'Wan 2.5 I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Best image animation', supportedDurations: ['5s', '10s', '15s'] },
+    { id: 'fal-ai/wan-2.1-i2v-14b', name: 'Wan 2.1 I2V (14B)', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'High quality image-to-video', supportedDurations: ['5s', '10s', '15s'] },
+    { id: 'fal-ai/ltx-video/image-to-video', name: 'LTX-Video I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Quick image animation', supportedDurations: ['5s'] },
+    { id: 'fal-ai/kling-video/v2.1/standard/image-to-video', name: 'Kling 2.1 I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Good balance', supportedDurations: ['5s', '10s'] },
+    { id: 'fal-ai/kling-video/v2.6/pro/image-to-video', name: 'Kling 2.6 I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Pro-quality animation', supportedDurations: ['5s', '10s'] },
+    { id: 'fal-ai/kling-video/o1/image-to-video', name: 'Kling O1 I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Premium image animation', supportedDurations: ['5s', '10s'] },
+    { id: 'fal-ai/minimax-video/image-to-video', name: 'MiniMax I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Quick, lively animations', supportedDurations: ['6s'] },
+    { id: 'fal-ai/luma-dream-machine/image-to-video', name: 'Luma I2V', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Ethereal animations', supportedDurations: ['5s', '9s'] },
+    { id: 'fal-ai/runway-gen3/turbo/image-to-video', name: 'Runway Gen3 Turbo', provider: 'fal', capability: 'image-to-video', type: 'video', desc: 'Fast, cinematic style', supportedDurations: ['5s', '10s'] },
 
     // Avatar / Character (Pose)
-    { id: 'fal-ai/one-to-all-animation/14b', name: 'One-To-All (14B)', provider: 'fal', capability: 'avatar', type: 'video', desc: 'Pose-driven character animation' },
-    { id: 'fal-ai/wan-video-2.2-animate-move', name: 'Wan 2.2 Animate Move', provider: 'fal', capability: 'avatar', type: 'video', desc: 'Character animation from video' },
-    { id: 'fal-ai/kling-video/ai-avatar/v2/pro', name: 'Kling Avatar Pro', provider: 'fal', capability: 'avatar', type: 'video', desc: 'Talking head (Pro)' },
-    { id: 'fal-ai/kling-video/ai-avatar/v2/standard', name: 'Kling Avatar Std', provider: 'fal', capability: 'avatar', type: 'video', desc: 'Talking head (Fast)' },
-    { id: 'fal-ai/creatify/aurora', name: 'Creatify Aurora', provider: 'fal', capability: 'avatar', type: 'video', desc: 'High-fidelity portrait animation' },
+    { id: 'fal-ai/one-to-all-animation/14b', name: 'One-To-All (14B)', provider: 'fal', capability: 'avatar', type: 'video', desc: 'Pose-driven character animation', supportedDurations: ['5s'] },
+    { id: 'fal-ai/wan-video-2.2-animate-move', name: 'Wan 2.2 Animate Move', provider: 'fal', capability: 'avatar', type: 'video', desc: 'Character animation from video', supportedDurations: ['5s'] },
+    { id: 'fal-ai/kling-video/ai-avatar/v2/pro', name: 'Kling Avatar Pro', provider: 'fal', capability: 'avatar', type: 'video', desc: 'Talking head (Pro)', supportedDurations: ['10s', '30s', '60s'] },
+    { id: 'fal-ai/kling-video/ai-avatar/v2/standard', name: 'Kling Avatar Std', provider: 'fal', capability: 'avatar', type: 'video', desc: 'Talking head (Fast)', supportedDurations: ['10s', '30s', '60s'] },
+    { id: 'fal-ai/creatify/aurora', name: 'Creatify Aurora', provider: 'fal', capability: 'avatar', type: 'video', desc: 'High-fidelity portrait animation', supportedDurations: ['10s', '60s'] },
 
     // Video Editing
-    { id: 'fal-ai/wan-vace-14b/inpainting', name: 'Wan VACE Inpaint', provider: 'fal', capability: 'video-editing', type: 'video', desc: 'Edit video regions' },
-    { id: 'fal-ai/kling-video/o1/video-to-video/edit', name: 'Kling O1 V2V Edit', provider: 'fal', capability: 'video-editing', type: 'video', desc: 'Edit existing videos' },
+    { id: 'fal-ai/wan-vace-14b/inpainting', name: 'Wan VACE Inpaint', provider: 'fal', capability: 'video-editing', type: 'video', desc: 'Edit video regions', supportedDurations: ['5s', '15s'] },
+    { id: 'fal-ai/kling-video/o1/video-to-video/edit', name: 'Kling O1 V2V Edit', provider: 'fal', capability: 'video-editing', type: 'video', desc: 'Edit existing videos', supportedDurations: ['5s', '10s'] },
 
     // === HUGGINGFACE ===
     // { id: 'starsfriday/Qwen-Image-Edit-Remove-Clothes', name: 'Qwen Image Edit', provider: 'huggingface', capability: 'image-editing', type: 'image', desc: 'Remove clothes/objects (Experimental)' },
@@ -111,29 +113,29 @@ export const ALL_MODELS: ModelInfo[] = [
 
     // === REPLICATE ===
     { id: 'fofr/consistent-character', name: 'Consistent Character', provider: 'replicate', capability: 'text-to-image', type: 'image', desc: 'Character poses & turnarounds', tier: 'quality' },
-    { id: 'black-forest-labs/flux-dev', name: 'Flux Dev', provider: 'replicate', capability: 'text-to-image', type: 'image', desc: 'Replicate Flux Dev' },
+    { id: 'black-forest-labs/flux-dev', name: 'Flux Dev', provider: 'replicate', capability: 'text-to-image', type: 'image', desc: 'Replicate Flux Dev', supportedQuantities: [1, 2, 3, 4] },
     { id: 'black-forest-labs/flux-schnell', name: 'Flux Schnell', provider: 'replicate', capability: 'text-to-image', type: 'image', desc: 'Replicate Flux Schnell' },
     { id: 'stability-ai/sdxl', name: 'SDXL', provider: 'replicate', capability: 'text-to-image', type: 'image', desc: 'Standard SDXL' },
     { id: 'realistic-vision', name: 'Realistic Vision', provider: 'replicate', capability: 'text-to-image', type: 'image', desc: 'Photorealistic' },
-    { id: 'wan-2.5-t2v', name: 'Wan 2.5 T2V', provider: 'replicate', capability: 'text-to-video', type: 'video', desc: 'Replicate Wan T2V' },
-    { id: 'wan-2.5-i2v', name: 'Wan 2.5 I2V', provider: 'replicate', capability: 'image-to-video', type: 'video', desc: 'Replicate Wan I2V' },
+    { id: 'wan-2.5-t2v', name: 'Wan 2.5 T2V', provider: 'replicate', capability: 'text-to-video', type: 'video', desc: 'Replicate Wan T2V', supportedDurations: ['5s', '10s', '15s'] },
+    { id: 'wan-2.5-i2v', name: 'Wan 2.5 I2V', provider: 'replicate', capability: 'image-to-video', type: 'video', desc: 'Replicate Wan I2V', supportedDurations: ['5s', '10s', '15s'] },
 
     // === GOOGLE ===
     { id: 'imagen-3', name: 'Imagen 3', provider: 'google', capability: 'text-to-image', type: 'image', desc: 'Google Photorealism' },
-    { id: 'veo-2', name: 'Veo 2', provider: 'google', capability: 'text-to-video', type: 'video', desc: 'Stable video' },
-    { id: 'veo-3.1', name: 'Veo 3.1', provider: 'google', capability: 'text-to-video', type: 'video', desc: 'Cinematic video' },
+    { id: 'veo-2', name: 'Veo 2', provider: 'google', capability: 'text-to-video', type: 'video', desc: 'Stable video', supportedDurations: ['4s', '8s'] },
+    { id: 'veo-3.1', name: 'Veo 3.1', provider: 'google', capability: 'text-to-video', type: 'video', desc: 'Cinematic video', supportedDurations: ['4s', '8s'] },
 
     // === OPENAI ===
     { id: 'dall-e-3', name: 'DALL-E 3', provider: 'openai', capability: 'text-to-image', type: 'image', desc: 'Creative concepts' },
-    { id: 'sora-2-pro', name: 'Sora 2.0 Pro', provider: 'openai', capability: 'text-to-video', type: 'video', desc: 'High-fidelity cinematic video' },
-    { id: 'sora-2', name: 'Sora 2.0', provider: 'openai', capability: 'text-to-video', type: 'video', desc: 'Standard video generation' },
-    { id: 'sora', name: 'Sora 1.0 (Alpha)', provider: 'openai', capability: 'text-to-video', type: 'video', desc: 'Legacy alpha' },
+    { id: 'sora-2-pro', name: 'Sora 2.0 Pro', provider: 'openai', capability: 'text-to-video', type: 'video', desc: 'High-fidelity cinematic video', supportedDurations: ['4s', '8s', '12s'] },
+    { id: 'sora-2', name: 'Sora 2.0', provider: 'openai', capability: 'text-to-video', type: 'video', desc: 'Standard video generation', supportedDurations: ['4s', '8s', '12s'] },
+    { id: 'sora', name: 'Sora 1.0 (Alpha)', provider: 'openai', capability: 'text-to-video', type: 'video', desc: 'Legacy alpha', supportedDurations: ['4s', '8s', '12s', '1M'] },
 
     // === COMFY (Local) ===
     { id: 'sdxl', name: 'SDXL (Local)', provider: 'comfy', capability: 'text-to-image', type: 'image', desc: 'Local SDXL' },
     { id: 'flux-dev', name: 'Flux Dev (Local)', provider: 'comfy', capability: 'text-to-image', type: 'image', desc: 'Local Flux' },
-    { id: 'ltx-video', name: 'LTX-Video (Local)', provider: 'comfy', capability: 'text-to-video', type: 'video', desc: 'Local Video' },
-    { id: 'wan-2.2', name: 'Wan 2.2 (Local)', provider: 'comfy', capability: 'image-to-video', type: 'video', desc: 'Local Animation' },
+    { id: 'ltx-video', name: 'LTX-Video (Local)', provider: 'comfy', capability: 'text-to-video', type: 'video', desc: 'Local Video', supportedDurations: ['5s'] },
+    { id: 'wan-2.2', name: 'Wan 2.2 (Local)', provider: 'comfy', capability: 'image-to-video', type: 'video', desc: 'Local Animation', supportedDurations: ['5s'] },
 ];
 
 export function getModelsByCapability(capability: ModelCapability): ModelInfo[] {

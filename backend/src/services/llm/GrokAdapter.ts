@@ -28,6 +28,9 @@ export class GrokAdapter implements LLMProvider {
                 console.warn('GrokAdapter: Failed to inject knowledge base context', kErr);
             }
 
+            console.log(`[GrokAdapter] Sending request to ${this.baseUrl}/chat/completions`);
+            console.log(`[GrokAdapter] Key present: ${this.apiKey ? 'Yes' : 'No'}`);
+
             const response = await axios.post(
                 `${this.baseUrl}/chat/completions`,
                 {
@@ -35,7 +38,7 @@ export class GrokAdapter implements LLMProvider {
                         ...(finalSystemPrompt ? [{ role: 'system', content: finalSystemPrompt }] : []),
                         { role: 'user', content: request.prompt }
                     ],
-                    model: request.model || 'grok-beta',
+                    model: request.model || 'grok-3',
                     temperature: request.temperature || 0.7,
                     max_tokens: request.maxTokens,
                     stream: false

@@ -1,8 +1,8 @@
- /* eslint-disable react-hooks/rules-of-hooks */
+/* eslint-disable react-hooks/rules-of-hooks */
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Search, X, Check, ChevronDown, ChevronRight } from "lucide-react";
+import { Search, X, Check, ChevronDown, ChevronRight, Film } from "lucide-react";
 import { clsx } from "clsx";
 import {
     ALL_CATEGORIES,
@@ -13,6 +13,8 @@ import {
     searchTags,
     getTagsForSubcategory
 } from "@/data/CinematicTags";
+import { GENRE_TEMPLATES, GenreTemplate } from "@/data/GenreTemplates";
+import { Genre } from "@/data/CameraPresets";
 
 interface CinematicTagsModalProps {
     isOpen: boolean;
@@ -35,6 +37,7 @@ export function CinematicTagsModal({
     const [activeSubcategory, setActiveSubcategory] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [expandedSubcategories, setExpandedSubcategories] = useState<Set<string>>(new Set());
+    const [selectedGenre, setSelectedGenre] = useState<Genre | null>(null);
 
     // Update active category when initialCategory changes
     useEffect(() => {
@@ -45,23 +48,46 @@ export function CinematicTagsModal({
     }, [initialCategory]);
 
     const category = activeCategory ? CATEGORY_MAP[activeCategory] : null;
+    const genreTemplate = selectedGenre ? GENRE_TEMPLATES[selectedGenre] : null;
 
     // Filter tags based on search and subcategory
     const filteredTags = useMemo(() => {
+        let tags: CinematicTag[] = [];
+
         if (searchQuery) {
             return searchTags(searchQuery);
         }
 
         if (!category) {
-            return [];
+            tags = [];
+        } else if (activeSubcategory) {
+            tags = getTagsForSubcategory(activeCategory!, activeSubcategory);
+        } else {
+            tags = category.tags;
         }
 
-        if (activeSubcategory) {
-            return getTagsForSubcategory(activeCategory!, activeSubcategory);
+        // Apply Genre Sorting if active
+        if (genreTemplate && tags.length > 0) {
+            return [...tags].sort((a, b) => {
+                const aRec = genreTemplate.recommendedTags.includes(a.id);
+                const bRec = genreTemplate.recommendedTags.includes(b.id);
+                const aAvoid = genreTemplate.avoidedTags.includes(a.id);
+                const bAvoid = genreTemplate.avoidedTags.includes(b.id);
+
+                // Recommended first
+                if (aRec && !bRec) return -1;
+                if (!aRec && bRec) return 1;
+
+                // Avoided last
+                if (aAvoid && !bAvoid) return 1;
+                if (!aAvoid && bAvoid) return -1;
+
+                return 0;
+            });
         }
 
-        return category.tags;
-    }, [searchQuery, category, activeCategory, activeSubcategory]);
+        return tags;
+    }, [searchQuery, category, activeCategory, activeSubcategory, genreTemplate]);
 
     const toggleSubcategory = (subcategoryId: string) => {
         setExpandedSubcategories(prev => {
@@ -98,16 +124,57 @@ export function CinematicTagsModal({
         )}>
             {/* Header */}
             <div className="flex justify-between items-center p-4 border-b border-white/10">
-                <h2 className="text-lg font-bold text-white">
-                    {category ? (
-                        <span className="flex items-center gap-2">
-                            <span>{category.icon}</span>
-                            {category.label}
-                        </span>
-                    ) : (
-                        "Cinematic Tags"
-                    )}
-                </h2>
+                <div className="flex items-center gap-4">
+                    <h2 className="text-lg font-bold text-white">
+                        {category ? (
+                            <span className="flex items-center gap-2">
+                                <span>{category.icon}</span>
+                                {category.label}
+                            </span>
+                        ) : (
+                            "Cinematic Tags"
+                        )}
+                    </h2>
+
+                    {/* Genre Selector */}
+                    <div className="relative group">
+                        <button className="flex items-center gap-2 px-3 py-1.5 bg-purple-500/10 border border-purple-500/30 rounded-lg text-xs font-medium text-purple-300 hover:bg-purple-500/20 transition-colors">
+                            <Film className="w-3 h-3" />
+                            {selectedGenre ? (
+                                <span className="flex items-center gap-2">
+                                    <span>{GENRE_TEMPLATES[selectedGenre].icon}</span>
+                                    <span>{GENRE_TEMPLATES[selectedGenre].name}</span>
+                                </span>
+                            ) : "AI Director: Genre"}
+                            <ChevronDown className="w-3 h-3 opacity-50" />
+                        </button>
+
+                        <div className="absolute top-full left-0 mt-2 w-48 bg-[#1a1a1a] border border-white/20 rounded-lg shadow-xl z-50 hidden group-hover:block max-h-64 overflow-y-auto">
+                            <button
+                                onClick={() => setSelectedGenre(null)}
+                                className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-white/5 hover:text-white"
+                            >
+                                No Genre Filter
+                            </button>
+                            {Object.values(GENRE_TEMPLATES).map(template => (
+                                <button
+                                    key={template.id}
+                                    onClick={() => setSelectedGenre(template.id)}
+                                    className={clsx(
+                                        "w-full text-left px-3 py-2 text-xs hover:bg-white/5 transition-colors flex items-center justify-between",
+                                        selectedGenre === template.id ? "text-purple-400 bg-purple-500/10" : "text-gray-300 hover:text-white"
+                                    )}
+                                >
+                                    <span className="flex items-center gap-2">
+                                        <span>{template.icon}</span>
+                                        <span>{template.name}</span>
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
                 <button onClick={onClose} className="text-gray-400 hover:text-white">
                     <X className="w-5 h-5" />
                 </button>
@@ -153,7 +220,7 @@ export function CinematicTagsModal({
             </div>
 
             {/* Search */}
-            <div className="p-4 border-b border-white/5">
+            <div className="p-4 border-b border-white/5 bg-black/20">
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                     <input
@@ -164,13 +231,19 @@ export function CinematicTagsModal({
                         className="w-full pl-9 pr-3 py-2 bg-black/30 border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-white/30"
                     />
                 </div>
+                {selectedGenre && (
+                    <div className="mt-2 text-[10px] text-purple-400 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+                        AI Director active: Prioritizing {GENRE_TEMPLATES[selectedGenre].name} style
+                    </div>
+                )}
             </div>
 
             {/* Content Area */}
             <div className="flex-1 overflow-hidden flex">
                 {/* Subcategory Sidebar (if category selected) */}
                 {category?.subcategories && !searchQuery && (
-                    <div className="w-48 border-r border-white/10 overflow-y-auto">
+                    <div className="w-48 border-r border-white/10 overflow-y-auto bg-black/10">
                         <div className="p-2 space-y-1">
                             <button
                                 onClick={() => setActiveSubcategory(null)}
@@ -203,7 +276,7 @@ export function CinematicTagsModal({
                 )}
 
                 {/* Tags Grid */}
-                <div className="flex-1 overflow-y-auto p-4">
+                <div className="flex-1 overflow-y-auto p-4 scroller">
                     {searchQuery ? (
                         // Search Results
                         <div className="space-y-2">
@@ -215,6 +288,7 @@ export function CinematicTagsModal({
                                     key={tag.id}
                                     tag={tag}
                                     isSelected={selectedTags.includes(tag.id)}
+                                    isRecommended={selectedGenre ? GENRE_TEMPLATES[selectedGenre].recommendedTags.includes(tag.id) : false}
                                     onClick={() => handleSelectTag(tag)}
                                 />
                             ))}
@@ -229,15 +303,30 @@ export function CinematicTagsModal({
                                         key={tag.id}
                                         tag={tag}
                                         isSelected={selectedTags.includes(tag.id)}
+                                        isRecommended={selectedGenre ? GENRE_TEMPLATES[selectedGenre].recommendedTags.includes(tag.id) : false}
                                         onClick={() => handleSelectTag(tag)}
                                     />
                                 ))}
                             </div>
                         ) : (
                             // All tags in category, grouped by subcategory
-                            <div className="space-y-4">
+                            <div className="space-y-6">
                                 {category.subcategories?.map(sub => {
+                                    // Use the helper but filter by genre if needed
                                     const subTags = getTagsForSubcategory(category.id, sub.id);
+
+                                    // Manually sort subcategory tags because standard getTagsFor... returns default order
+                                    let displayTags = subTags;
+                                    if (genreTemplate) {
+                                        displayTags = [...subTags].sort((a, b) => {
+                                            const aRec = genreTemplate.recommendedTags.includes(a.id);
+                                            const bRec = genreTemplate.recommendedTags.includes(b.id);
+                                            if (aRec && !bRec) return -1;
+                                            if (!aRec && bRec) return 1;
+                                            return 0;
+                                        });
+                                    }
+
                                     const isExpanded = expandedSubcategories.has(sub.id);
 
                                     return (
@@ -257,11 +346,12 @@ export function CinematicTagsModal({
 
                                             {isExpanded && (
                                                 <div className="grid grid-cols-2 gap-2 pl-5">
-                                                    {subTags.map(tag => (
+                                                    {displayTags.map(tag => (
                                                         <TagItem
                                                             key={tag.id}
                                                             tag={tag}
                                                             isSelected={selectedTags.includes(tag.id)}
+                                                            isRecommended={selectedGenre ? GENRE_TEMPLATES[selectedGenre].recommendedTags.includes(tag.id) : false}
                                                             onClick={() => handleSelectTag(tag)}
                                                             compact
                                                         />
@@ -290,17 +380,34 @@ export function CinematicTagsModal({
                                     </button>
                                     <p className="text-xs text-gray-500 pl-6">{cat.description}</p>
 
-                                    {/* Preview of first few tags */}
+                                    {/* Preview tags - if genre sorted, show recommended first */}
                                     <div className="flex flex-wrap gap-1 pl-6">
-                                        {cat.tags.slice(0, 5).map(tag => (
-                                            <button
-                                                key={tag.id}
-                                                onClick={() => handleSelectTag(tag)}
-                                                className="px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] text-gray-400 hover:text-white transition-colors"
-                                            >
-                                                {tag.name}
-                                            </button>
-                                        ))}
+                                        {(() => {
+                                            let previewTags = [...cat.tags];
+                                            if (genreTemplate) {
+                                                previewTags.sort((a, b) => {
+                                                    const aRec = genreTemplate.recommendedTags.includes(a.id);
+                                                    const bRec = genreTemplate.recommendedTags.includes(b.id);
+                                                    return (aRec === bRec) ? 0 : aRec ? -1 : 1;
+                                                });
+                                            }
+                                            return previewTags.slice(0, 5).map(tag => (
+                                                <div key={tag.id} className="relative">
+                                                    <button
+                                                        onClick={() => handleSelectTag(tag)}
+                                                        className={clsx(
+                                                            "px-2 py-1 border rounded text-[10px] transition-colors",
+                                                            genreTemplate?.recommendedTags.includes(tag.id)
+                                                                ? "bg-purple-500/10 border-purple-500/30 text-purple-300 hover:bg-purple-500/20"
+                                                                : "bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10"
+                                                        )}
+                                                    >
+                                                        {tag.name}
+                                                    </button>
+                                                </div>
+
+                                            ));
+                                        })()}
                                         {cat.tags.length > 5 && (
                                             <button
                                                 onClick={() => setActiveCategory(cat.id)}
@@ -342,11 +449,13 @@ export function CinematicTagsModal({
 function TagItem({
     tag,
     isSelected,
+    isRecommended,
     onClick,
     compact = false
 }: {
     tag: CinematicTag;
     isSelected: boolean;
+    isRecommended?: boolean;
     onClick: () => void;
     compact?: boolean;
 }) {
@@ -354,32 +463,51 @@ function TagItem({
         <button
             onClick={onClick}
             className={clsx(
-                "flex items-center gap-3 rounded-lg border transition-colors text-left",
+                "flex items-center gap-3 rounded-lg border transition-all text-left group relative",
                 compact ? "p-2" : "p-3",
                 isSelected
                     ? "bg-blue-500/10 border-blue-500/50"
-                    : "bg-white/5 border-white/5 hover:border-white/10 hover:bg-white/10"
+                    : isRecommended
+                        ? "bg-purple-500/5 border-purple-500/20 hover:bg-purple-500/10 hover:border-purple-500/40"
+                        : "bg-white/5 border-white/5 hover:border-white/10 hover:bg-white/10"
             )}
         >
             <div className={clsx(
-                "flex-shrink-0 rounded flex items-center justify-center border",
+                "flex-shrink-0 rounded flex items-center justify-center border transition-colors",
                 compact ? "w-5 h-5" : "w-6 h-6",
                 isSelected
                     ? "bg-blue-500 border-blue-400 text-white"
-                    : "bg-white/5 border-white/10 text-gray-500"
+                    : isRecommended
+                        ? "bg-purple-500/10 border-purple-500/30 text-purple-400"
+                        : "bg-white/5 border-white/10 text-gray-500"
             )}>
                 {isSelected && <Check className={compact ? "w-3 h-3" : "w-4 h-4"} />}
+                {!isSelected && isRecommended && <Film className={compact ? "w-3 h-3" : "w-4 h-4"} />}
             </div>
             <div className="min-w-0 flex-1">
-                <h4 className={clsx(
-                    "font-medium",
-                    compact ? "text-xs" : "text-sm truncate",
-                    isSelected ? "text-blue-200" : "text-white"
-                )}>
-                    {tag.name}
-                </h4>
+                <div className="flex items-center gap-2">
+                    <h4 className={clsx(
+                        "font-medium transition-colors",
+                        compact ? "text-xs" : "text-sm truncate",
+                        isSelected
+                            ? "text-blue-200"
+                            : isRecommended
+                                ? "text-purple-300 group-hover:text-purple-200"
+                                : "text-white"
+                    )}>
+                        {tag.name}
+                    </h4>
+                    {isRecommended && !compact && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-500/20 text-purple-300 uppercase tracking-wider">
+                            AI Pick
+                        </span>
+                    )}
+                </div>
                 {!compact && tag.description && (
-                    <p className="text-[10px] text-gray-500 truncate">{tag.description}</p>
+                    <p className={clsx(
+                        "text-[10px] truncate transition-colors",
+                        isRecommended ? "text-purple-400/70" : "text-gray-500"
+                    )}>{tag.description}</p>
                 )}
             </div>
         </button>

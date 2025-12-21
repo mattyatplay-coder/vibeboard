@@ -1,57 +1,83 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  /* Core Palette - Midnight & Neon */
+  --background: #050505; /* Deep Black */
+  --foreground: #ffffff;
+  
+  --accent-primary: #6366f1; /* Indigo 500 */
+  --accent-secondary: #a855f7; /* Purple 500 */
+  --accent-glow: rgba(99, 102, 241, 0.3);
+
+  /* Glassmorphism System */
+  --glass-bg: rgba(20, 20, 25, 0.6);
+  --glass-bg-hover: rgba(40, 40, 45, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-hover: rgba(255, 255, 255, 0.15);
+  --glass-shine: rgba(255, 255, 255, 0.03);
+  --backdrop-blur: 16px;
+  
+  /* Semantic Colors */
+  --status-success: #22c55e;
+  --status-error: #ef4444;
+  --status-warning: #f59e0b;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), sans-serif; /* Utilizing Next.js font var */
   overflow-x: hidden;
+  /* Cinematic Grain (Optional - subtle texture) */
+  background-image: 
+    radial-gradient(circle at 15% 50%, rgba(76, 29, 149, 0.08), transparent 25%), 
+    radial-gradient(circle at 85% 30%, rgba(59, 130, 246, 0.08), transparent 25%);
+  background-attachment: fixed;
 }
 
-/* Hide scrollbars globally while maintaining scroll functionality */
-html,
-body,
-*,
-*::before,
-*::after {
-  scrollbar-width: none !important; /* Firefox */
-  -ms-overflow-style: none !important; /* IE and Edge */
+/* Glass Utilities */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--backdrop-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
 }
 
-html::-webkit-scrollbar,
-body::-webkit-scrollbar,
-*::-webkit-scrollbar {
-  display: none !important; /* Chrome, Safari, Opera */
-  width: 0 !important;
-  height: 0 !important;
-  background: transparent !important;
+.glass-button {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Optional: Show thin scrollbars on hover for specific containers */
-.show-scrollbar-on-hover {
-  scrollbar-width: thin;
-  -ms-overflow-style: auto;
+.glass-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--glass-border-hover);
+  box-shadow: 0 0 15px var(--accent-glow);
 }
 
-.show-scrollbar-on-hover::-webkit-scrollbar {
-  display: block;
+/* Custom Scrollbar */
+::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
-.show-scrollbar-on-hover::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.show-scrollbar-on-hover::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 3px;
 }
 
-.show-scrollbar-on-hover::-webkit-scrollbar-thumb:hover {
+::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+/* Selection */
+::selection {
+  background: var(--accent-primary);
+  color: white;
 }

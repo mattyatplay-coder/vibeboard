@@ -250,35 +250,149 @@ router.get('/models/:id', (req: Request, res: Response) => {
 
 /**
  * GET /api/prompts/loras
- * 
- * List registered LoRAs
+ *
+ * List registered LoRAs - now searches database first (project + global), then falls back to registry
  */
-router.get('/loras', (req: Request, res: Response) => {
+router.get('/loras', async (req: Request, res: Response) => {
     const type = req.query.type as string | undefined;
     const search = req.query.search as string | undefined;
+    const projectId = req.query.projectId as string | undefined;
+    const baseModel = req.query.baseModel as string | undefined;
 
-    let loras;
+    try {
+        // First, search the database (project + global LoRAs)
+        const { KnowledgeBaseService } = require('../services/knowledge/KnowledgeBaseService');
+        const kb = KnowledgeBaseService.getInstance();
 
-    if (search) {
-        loras = loraRegistry.search(search, type as any);
-    } else {
-        loras = loraRegistry.getAll(type as any);
-    }
+        const dbLoras = await kb.searchLoRAs({
+            query: search,
+            projectId,
+            baseModel,
+            category: type,
+            limit: 50
+        });
 
-    res.json({
-        loras: loras.map(l => ({
+        // Convert to response format
+        const dbResults = dbLoras.map((l: any) => ({
             id: l.id,
             name: l.name,
-            version: l.version,
-            type: l.type,
+            type: l.category || 'concept',
             baseModel: l.baseModel,
             triggerWords: l.triggerWords,
-            activationText: l.activationText,
-            recommendedStrength: l.recommendedStrength,
-            thumbnailUrl: l.thumbnailUrl,
-            useCount: l.useCount
-        }))
-    });
+            activationText: l.triggerWords[0],
+            recommendedStrength: l.strength || 0.8,
+            thumbnailUrl: l.imageUrl,
+            useCount: 0,
+            source: l.source // 'project' or 'global'
+        }));
+
+        // If database has results, return them
+        if (dbResults.length > 0) {
+            return res.json({ loras: dbResults, source: 'database' });
+        }
+
+        // Fallback to static registry if no database results
+        let loras;
+        if (search) {
+            loras = loraRegistry.search(search, type as any);
+        } else {
+            loras = loraRegistry.getAll(type as any);
+        }
+
+        res.json({
+            loras: loras.map(l => ({
+                id: l.id,
+                name: l.name,
+                version: l.version,
+                type: l.type,
+                baseModel: l.baseModel,
+                triggerWords: l.triggerWords,
+                activationText: l.activationText,
+                recommendedStrength: l.recommendedStrength,
+                thumbnailUrl: l.thumbnailUrl,
+                useCount: l.useCount,
+                source: 'registry'
+            })),
+            source: 'registry'
+        });
+    } catch (error) {
+        console.error('LoRA search failed:', error);
+        // Fallback to registry on error
+        let loras;
+        if (search) {
+            loras = loraRegistry.search(search, type as any);
+        } else {
+            loras = loraRegistry.getAll(type as any);
+        }
+
+        res.json({
+            loras: loras.map(l => ({
+                id: l.id,
+                name: l.name,
+                version: l.version,
+                type: l.type,
+                baseModel: l.baseModel,
+                triggerWords: l.triggerWords,
+                activationText: l.activationText,
+                recommendedStrength: l.recommendedStrength,
+                thumbnailUrl: l.thumbnailUrl,
+                useCount: l.useCount,
+                source: 'registry'
+            })),
+            source: 'registry'
+        });
+    }
+});
+
+/**
+ * POST /api/prompts/loras/match-suggestions
+ *
+ * Match AI-suggested LoRA styles to actual installed LoRAs
+ * This is called after prompt enhancement to find local LoRAs that match the AI recommendations
+ */
+router.post('/loras/match-suggestions', async (req: Request, res: Response) => {
+    try {
+        const { suggestions, projectId, baseModel, limit = 3 } = req.body;
+
+        if (!suggestions || !Array.isArray(suggestions)) {
+            return res.status(400).json({ error: 'suggestions array is required' });
+        }
+
+        const { KnowledgeBaseService } = require('../services/knowledge/KnowledgeBaseService');
+        const kb = KnowledgeBaseService.getInstance();
+
+        const results = await kb.matchLoRAsToSuggestions(suggestions, {
+            projectId,
+            baseModel,
+            limit
+        });
+
+        // Format results: show which suggestions have local matches
+        const formattedResults = results.map((result: any) => ({
+            suggestion: result.suggestion,
+            hasLocalMatches: result.matches.length > 0,
+            localMatches: result.matches.map((m: any) => ({
+                id: m.id,
+                name: m.name,
+                baseModel: m.baseModel,
+                triggerWords: m.triggerWords,
+                thumbnailUrl: m.imageUrl,
+                source: m.source
+            })),
+            // Provide CivitAI search link as fallback
+            civitaiSearchUrl: `https://civitai.com/search/models?query=${encodeURIComponent(result.suggestion)}&types=LORA`
+        }));
+
+        res.json({
+            matches: formattedResults,
+            totalSuggestions: suggestions.length,
+            suggestionsWithLocalMatches: formattedResults.filter((r: any) => r.hasLocalMatches).length
+        });
+
+    } catch (error: any) {
+        console.error('LoRA suggestion matching failed:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 /**

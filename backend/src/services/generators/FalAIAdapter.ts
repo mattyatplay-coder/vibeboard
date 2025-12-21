@@ -250,7 +250,18 @@ export class FalAIAdapter implements GenerationProvider {
             };
 
         } catch (error: any) {
-            console.error("Fal.ai generation failed:", error);
+            console.error("Fal.ai generation failed (Full Error):");
+            console.dir(error, { depth: null, colors: true });
+
+            if (error.body) {
+                console.error("Fal.ai Error Body (Explicit):", JSON.stringify(error.body, null, 2));
+            } else if (error.message && error.message.includes('{')) {
+                try {
+                    const parsed = JSON.parse(error.message);
+                    console.error("Fal.ai Error Message Parsed:", JSON.stringify(parsed, null, 2));
+                } catch (e) { /* ignore */ }
+            }
+
             return {
                 id: Date.now().toString(),
                 status: 'failed',
@@ -758,6 +769,9 @@ export class FalAIAdapter implements GenerationProvider {
                     delete input.duration;
                     delete input.negative_prompt; // Not supported
                     delete input.enable_safety_checker; // Not supported
+                    delete input.prompt; // Not supported by audio-driven avatar
+                    delete input.strength; // Not supported
+                    delete input.referenceCreativity; // Not supported
                 }
             } else if (options.sourceVideoUrl && options.maskUrl) {
                 // Video Inpainting / Retake Mode

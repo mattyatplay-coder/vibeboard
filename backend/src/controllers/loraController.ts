@@ -24,7 +24,10 @@ export const getLoRAs = async (req: Request, res: Response) => {
         // Parse recommendedSettings JSON for each LoRA
         const lorasWithParsedSettings = loras.map(lora => ({
             ...lora,
-            settings: lora.recommendedSettings ? JSON.parse(lora.recommendedSettings) : null
+            settings: lora.recommendedSettings ? JSON.parse(lora.recommendedSettings) : null,
+            triggerWords: lora.triggerWords ? JSON.parse(lora.triggerWords) : (lora.triggerWord ? [lora.triggerWord] : []),
+            tags: [], // Placeholder since LoRA schema doesn't have a direct tags JSON column like GlobalLoRA yet, or it's handled differently
+            characterAttributes: lora.characterAttributes ? JSON.parse(lora.characterAttributes) : null
         }));
 
         res.json(lorasWithParsedSettings);
@@ -62,7 +65,7 @@ function inferCategory(name: string, tags?: string[]): string {
 export const createLoRA = async (req: Request, res: Response) => {
     try {
         const { projectId } = req.params;
-        const { name, triggerWord, fileUrl, baseModel, strength, imageUrl, type, category, settings, addToGlobalLibrary, civitaiModelId, civitaiVersionId, description, tags } = req.body;
+        const { name, triggerWord, triggerWords, fileUrl, baseModel, strength, imageUrl, type, category, settings, addToGlobalLibrary, civitaiModelId, civitaiVersionId, description, tags, characterAttributes } = req.body;
 
         console.log(`[createLoRA] Creating LoRA for project ${projectId}`);
         console.log(`[createLoRA] Data:`, { name, triggerWord, fileUrl, baseModel, strength, imageUrl, type, addToGlobalLibrary });
@@ -170,6 +173,7 @@ export const createLoRA = async (req: Request, res: Response) => {
                 projectId,
                 name,
                 triggerWord,
+                triggerWords: triggerWords ? JSON.stringify(triggerWords) : (triggerWord ? JSON.stringify([triggerWord]) : null),
                 fileUrl: finalUrl,
                 baseModel,
                 type: type || 'lora',
@@ -177,6 +181,7 @@ export const createLoRA = async (req: Request, res: Response) => {
                 strength: strength || 1.0,
                 imageUrl,
                 recommendedSettings: settings ? JSON.stringify(settings) : null,
+                characterAttributes: characterAttributes ? JSON.stringify(characterAttributes) : null,
                 globalLoRAId
             }
         });
@@ -191,7 +196,7 @@ export const createLoRA = async (req: Request, res: Response) => {
 export const updateLoRA = async (req: Request, res: Response) => {
     try {
         const { projectId, loraId } = req.params;
-        const { name, triggerWord, baseModel, category, strength } = req.body;
+        const { name, triggerWord, triggerWords, baseModel, category, strength, characterAttributes } = req.body;
 
         console.log(`[updateLoRA] Updating LoRA ${loraId} for project ${projectId}`);
         console.log(`[updateLoRA] Data:`, { name, triggerWord, baseModel, category, strength });
@@ -201,9 +206,11 @@ export const updateLoRA = async (req: Request, res: Response) => {
             data: {
                 name,
                 triggerWord,
+                triggerWords: triggerWords ? JSON.stringify(triggerWords) : undefined,
                 baseModel,
                 category,
-                strength: strength || 1.0
+                strength: strength || 1.0,
+                characterAttributes: characterAttributes ? JSON.stringify(characterAttributes) : undefined
             }
         });
 

@@ -415,9 +415,14 @@ export class GenerationService {
         const errors: string[] = [];
         let providersToTry = [...this.availableProviders];
 
-        // CRITICAL: If LoRAs are present, restrict to providers that support them (Fal.ai and ComfyUI)
+        // CRITICAL: If LoRAs are present, restrict to providers that support them
+        // Supported providers:
+        // - fal: fal-ai/flux-lora endpoint with uploaded safetensors
+        // - comfy: Local ComfyUI with LoRA nodes
+        // - civitai: LoRA syntax in prompt (<lora:name:strength>)
+        // - replicate: Custom trained Flux LoRA models (mattyatplay-coder/*)
         if (options.loras && options.loras.length > 0) {
-            const loraProviders: ProviderType[] = ['fal', 'comfy'];
+            const loraProviders: ProviderType[] = ['fal', 'comfy', 'civitai', 'replicate'];
             console.log(`LoRAs detected. Restricting to providers with LoRA support: ${loraProviders.join(', ')}`);
             providersToTry = providersToTry.filter(p => loraProviders.includes(p));
 
@@ -425,7 +430,7 @@ export class GenerationService {
                 return {
                     id: Date.now().toString(),
                     status: 'failed',
-                    error: "LoRAs are supported by Fal.ai and ComfyUI, but neither is available. Please check your configuration."
+                    error: "LoRAs are supported by Fal.ai, ComfyUI, Civitai, and Replicate, but none are available. Please check your configuration."
                 };
             }
         }
@@ -691,6 +696,10 @@ export class GenerationService {
                     if (isSDXL) return 'sdxl';
                     return 'flux-schnell'; // Default fallback
                 case 'replicate':
+                    // Preserve custom Replicate models (owner/model format) - pass through unchanged
+                    if (model.includes('/') && !model.startsWith('fal-ai/') && !model.startsWith('black-forest-labs/')) {
+                        return model; // Custom trained model like mattyatplay-coder/angelicatraining
+                    }
                     if (isFluxDev) return 'flux-dev';
                     if (isFluxSchnell) return 'flux-schnell';
                     if (isSDXL) return 'sdxl';
@@ -847,6 +856,12 @@ export class GenerationService {
             'fal-ai/flux-kontext/pro': 'fal',
             'fal-ai/ip-adapter-face-id': 'fal',
             'fofr/consistent-character': 'replicate',
+
+            // Custom trained Replicate LoRA models (with version hash for specific version)
+            'mattyatplay-coder/angelicatraining': 'replicate',
+            'mattyatplay-coder/angelicatraining:d91b41c61d99d36b8649563cd79d8c2d83facd008199030c51952c5f13ea705a': 'replicate',
+            'mattyatplay-coder/angelica': 'replicate',
+            'mattyatplay-coder/angelica:85fb8091d11fb467f36038529afdd2a5f34aff892861d27d580d1241549eb7bf': 'replicate',
 
             // Image models - Civitai
             'auraflow': 'civitai',

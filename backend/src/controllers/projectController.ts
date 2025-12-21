@@ -23,6 +23,14 @@ export const getProjects = async (req: Request, res: Response) => {
     try {
         const projects = await prisma.project.findMany({
             orderBy: { updatedAt: 'desc' },
+            include: {
+                generations: {
+                    where: { status: 'succeeded' },
+                    orderBy: { createdAt: 'desc' },
+                    take: 4,
+                    select: { outputs: true }
+                }
+            }
         });
         res.json(projects);
     } catch (error: any) {

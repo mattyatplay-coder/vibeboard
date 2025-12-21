@@ -18,9 +18,10 @@ interface SortFilterHeaderProps {
     onChange: (newState: SortFilterState) => void;
     availableTags: string[];
     availableSessions: { id: string; name: string }[];
+    hideElementType?: boolean;
 }
 
-export function SortFilterHeader({ state, onChange, availableTags, availableSessions }: SortFilterHeaderProps) {
+export function SortFilterHeader({ state, onChange, availableTags, availableSessions, hideElementType }: SortFilterHeaderProps) {
     const [isSortOpen, setIsSortOpen] = useState(false);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
 
@@ -183,28 +184,30 @@ export function SortFilterHeader({ state, onChange, availableTags, availableSess
                                     )}
 
                                     {/* Element Type */}
-                                    <div>
-                                        <div className="px-2 py-1 text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Element Type</div>
-                                        <div className="space-y-1">
-                                            {[
-                                                { value: 'character', label: 'Character' },
-                                                { value: 'prop', label: 'Object' },
-                                                { value: 'place', label: 'Location' },
-                                                { value: 'image', label: 'Image' },
-                                                { value: 'video', label: 'Video' }
-                                            ].map(opt => (
-                                                <label key={opt.value} className="flex items-center gap-2 px-2 py-1.5 hover:bg-white/5 rounded-lg cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={state.filterType.includes(opt.value)}
-                                                        onChange={() => toggleFilter('filterType', opt.value)}
-                                                        className="rounded border-white/20 bg-black/50 text-blue-500 focus:ring-blue-500/50"
-                                                    />
-                                                    <span className="text-sm text-gray-300 capitalize">{opt.label}</span>
-                                                </label>
-                                            ))}
+                                    {!hideElementType && (
+                                        <div>
+                                            <div className="px-2 py-1 text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Element Type</div>
+                                            <div className="space-y-1">
+                                                {[
+                                                    { value: 'character', label: 'Character' },
+                                                    { value: 'prop', label: 'Object' },
+                                                    { value: 'place', label: 'Location' },
+                                                    { value: 'image', label: 'Image' },
+                                                    { value: 'video', label: 'Video' }
+                                                ].map(opt => (
+                                                    <label key={opt.value} className="flex items-center gap-2 px-2 py-1.5 hover:bg-white/5 rounded-lg cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={state.filterType.includes(opt.value)}
+                                                            onChange={() => toggleFilter('filterType', opt.value)}
+                                                            className="rounded border-white/20 bg-black/50 text-blue-500 focus:ring-blue-500/50"
+                                                        />
+                                                        <span className="text-sm text-gray-300 capitalize">{opt.label}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
 
                                     {/* Media Type */}
                                     <div>

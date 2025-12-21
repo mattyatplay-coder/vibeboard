@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import multer from 'multer';
 import { processingController } from '../controllers/processingController';
 import { frameExtractor } from '../services/FrameExtractor';
+import { AIFeedbackStore } from '../services/learning/AIFeedbackStore';
 import fs from 'fs';
 import path from 'path';
 
@@ -26,6 +27,16 @@ router.post(
         { name: 'mask_image', maxCount: 1 }
     ]),
     processingController.compositeTattoo
+);
+
+// Route: POST /api/process/tattoo-ai-generate
+// AI-powered tattoo generation directly on skin
+router.post(
+    '/tattoo-ai-generate',
+    upload.fields([
+        { name: 'base_image', maxCount: 1 }
+    ]),
+    processingController.aiTattooGenerate
 );
 
 // Route: GET /api/process/inpainting-models
@@ -331,6 +342,87 @@ router.get('/session/:sessionId', (req: Request, res: Response) => {
         totalFrames: session.totalFrames,
         createdAt: session.createdAt
     });
+});
+
+// ============================================
+// AI FEEDBACK LEARNING ENDPOINTS
+// ============================================
+
+/**
+ * POST /api/process/feedback
+ * Submit feedback about AI recommendations (thumbs up/down)
+ * Used by Magic Eraser AI Assist and Generation Analysis
+ */
+router.post('/feedback', async (req: Request, res: Response) => {
+    try {
+        const { context, isHelpful, aiReasoning, userCorrection, objectType, maskPosition, imageDescription } = req.body;
+
+        if (!context || typeof isHelpful !== 'boolean') {
+            return res.status(400).json({ error: 'Missing required fields: context, isHelpful' });
+        }
+
+        const feedbackStore = AIFeedbackStore.getInstance();
+        const entry = feedbackStore.addFeedback({
+            context,
+            isHelpful,
+            aiReasoning: aiReasoning || '',
+            userCorrection,
+            objectType,
+            maskPosition,
+            imageDescription
+        });
+
+        console.log(`[Feedback] Received ${isHelpful ? 'positive' : 'negative'} feedback for ${context}`);
+
+        res.json({
+            success: true,
+            feedbackId: entry.id,
+            message: isHelpful ? 'Thank you for the feedback!' : 'We will learn from this correction.'
+        });
+
+    } catch (error: any) {
+        console.error('[Feedback] Error:', error);
+        res.status(500).json({ error: error.message || 'Failed to save feedback' });
+    }
+});
+
+/**
+ * GET /api/process/feedback/stats
+ * Get feedback statistics and learned patterns
+ */
+router.get('/feedback/stats', async (req: Request, res: Response) => {
+    try {
+        const feedbackStore = AIFeedbackStore.getInstance();
+        const stats = feedbackStore.getStats();
+
+        res.json(stats);
+    } catch (error: any) {
+        console.error('[Feedback] Error getting stats:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * GET /api/process/feedback/hints/:context
+ * Get learned hints for a specific context (to inject into AI prompts)
+ */
+router.get('/feedback/hints/:context', async (req: Request, res: Response) => {
+    try {
+        const { context } = req.params;
+        const feedbackStore = AIFeedbackStore.getInstance();
+
+        const validContexts = ['generation-analysis', 'magic-eraser', 'prompt-enhancement'];
+        if (!validContexts.includes(context)) {
+            return res.status(400).json({ error: `Invalid context. Must be one of: ${validContexts.join(', ')}` });
+        }
+
+        const hints = feedbackStore.getLearnedHints(context as any);
+
+        res.json({ context, hints });
+    } catch (error: any) {
+        console.error('[Feedback] Error getting hints:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Cleanup old sessions periodically (every hour)

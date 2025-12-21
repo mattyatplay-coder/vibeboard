@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Loader2, Upload, Eraser, Brush, Save, Undo2, Check, X, ZoomIn, ZoomOut, Maximize2, Sparkles, Zap, Crown, Wand2, ChevronDown, ChevronUp, Settings2 } from 'lucide-react';
+import { Loader2, Upload, Eraser, Brush, Save, Undo2, Check, X, ZoomIn, ZoomOut, Maximize2, Sparkles, Zap, Crown, Wand2, ChevronDown, ChevronUp, Settings2, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
 
 const MAX_HISTORY = 10;
@@ -63,6 +63,9 @@ export function MagicEraserPanel({ initialImageUrl }: MagicEraserPanelProps) {
 
     // AI Assist
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [lastAIReasoning, setLastAIReasoning] = useState<string | null>(null);
+    const [showFeedbackInput, setShowFeedbackInput] = useState(false);
+    const [feedbackCorrection, setFeedbackCorrection] = useState('');
 
     // Undo history stack
     const [history, setHistory] = useState<File[]>([]);
@@ -526,24 +529,81 @@ export function MagicEraserPanel({ initialImageUrl }: MagicEraserPanelProps) {
             }
 
             const data = await res.json();
+            console.log("[MagicEraser] AI Assist response:", data);
 
-            // Apply recommended settings
-            if (data.prompt) setPrompt(data.prompt);
-            if (data.negativePrompt) setNegativePrompt(data.negativePrompt);
-            if (data.strength) setStrength(data.strength);
-            if (data.inferenceSteps) setInferenceSteps(data.inferenceSteps);
-            if (data.guidanceScale) setGuidanceScale(data.guidanceScale);
-            if (data.maskExpansion !== undefined) setMaskExpansion(data.maskExpansion);
+            // Check if we got default/fallback response
+            const isDefault = data.reasoning?.includes("Default settings applied") ||
+                              data.reasoning?.includes("AI response parsing failed");
+
+            if (isDefault) {
+                toast.error("AI analysis failed - using default settings. Please try again.", {
+                    duration: 4000
+                });
+            }
+
+            // Apply recommended settings - NEVER override user's custom prompt
+            if (data.prompt) {
+                const defaultPrompts = [
+                    'clean skin, high quality, natural texture',
+                    'clean skin',
+                    ''
+                ];
+                const isDefaultPrompt = defaultPrompts.some(d =>
+                    prompt.trim().toLowerCase() === d.toLowerCase()
+                );
+
+                if (isDefaultPrompt) {
+                    // User hasn't customized prompt - use AI suggestion
+                    setPrompt(data.prompt);
+                } else {
+                    // User has a custom prompt - keep it, but show AI suggestion in toast
+                    console.log(`[AI Assist] Keeping user prompt: "${prompt}", AI suggested: "${data.prompt}"`);
+                    toast.info(`AI suggested: "${data.prompt.substring(0, 60)}..." - Your prompt was kept.`, {
+                        duration: 4000
+                    });
+                }
+            }
+
+            if (data.negativePrompt) {
+                // Merge negative prompts if user has one
+                if (negativePrompt && negativePrompt.trim()) {
+                    // Combine both, avoiding duplicates
+                    const existingTerms = negativePrompt.toLowerCase().split(',').map(t => t.trim());
+                    const newTerms = data.negativePrompt.split(',').map((t: string) => t.trim());
+                    const uniqueNew = newTerms.filter((t: string) => !existingTerms.includes(t.toLowerCase()));
+                    if (uniqueNew.length > 0) {
+                        setNegativePrompt(`${negativePrompt}, ${uniqueNew.join(', ')}`);
+                    }
+                } else {
+                    setNegativePrompt(data.negativePrompt);
+                }
+            }
+
+            // Only update numeric settings if AI actually analyzed (not defaults)
+            if (!isDefault) {
+                if (data.strength) setStrength(data.strength);
+                if (data.inferenceSteps) setInferenceSteps(data.inferenceSteps);
+                if (data.guidanceScale) setGuidanceScale(data.guidanceScale);
+                if (data.maskExpansion !== undefined) setMaskExpansion(data.maskExpansion);
+            }
 
             // Show advanced panel if we got advanced recommendations
             if (data.negativePrompt || data.inferenceSteps || data.guidanceScale || data.maskExpansion) {
                 setShowAdvanced(true);
             }
 
-            // Show reasoning if available
+            // Store reasoning for feedback
             if (data.reasoning) {
-                toast.success(`AI: ${data.reasoning.substring(0, 100)}${data.reasoning.length > 100 ? '...' : ''}`);
-            } else {
+                setLastAIReasoning(data.reasoning);
+            }
+
+            // Show reasoning if available (and not a default response)
+            if (data.reasoning && !isDefault) {
+                toast.success(`AI: ${data.reasoning}`, {
+                    duration: 5000,
+                    style: { maxWidth: '450px' }
+                });
+            } else if (!isDefault) {
                 toast.success("AI recommendations applied!");
             }
 
@@ -552,6 +612,42 @@ export function MagicEraserPanel({ initialImageUrl }: MagicEraserPanelProps) {
             toast.error(err.message || "AI analysis failed");
         } finally {
             setIsAnalyzing(false);
+        }
+    };
+
+    // Submit feedback about AI Assist
+    const handleFeedback = async (isHelpful: boolean) => {
+        try {
+            const payload: any = {
+                context: 'magic-eraser',
+                isHelpful,
+                aiReasoning: lastAIReasoning || prompt
+            };
+
+            // If negative feedback with correction, include it
+            if (!isHelpful && feedbackCorrection.trim()) {
+                payload.userCorrection = feedbackCorrection.trim();
+            }
+
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/process/feedback`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) throw new Error('Failed to submit feedback');
+
+            const data = await res.json();
+            toast.success(data.message);
+
+            // Reset feedback state
+            setShowFeedbackInput(false);
+            setFeedbackCorrection('');
+            setLastAIReasoning(null);
+
+        } catch (err: any) {
+            console.error('Feedback submission failed:', err);
+            toast.error('Failed to submit feedback');
         }
     };
 
@@ -783,6 +879,64 @@ export function MagicEraserPanel({ initialImageUrl }: MagicEraserPanelProps) {
                                         </>
                                     )}
                                 </button>
+                            )}
+
+                            {/* AI Assist Feedback - shown after AI has made recommendations */}
+                            {selectedModel !== 'fast' && lastAIReasoning && !previewResult && (
+                                <div className="p-2 bg-purple-900/20 rounded-lg border border-purple-500/20 space-y-2">
+                                    <div className="max-h-24 overflow-y-auto">
+                                        <p className="text-[10px] text-purple-300 whitespace-pre-wrap break-words">
+                                            AI: {lastAIReasoning}
+                                        </p>
+                                    </div>
+                                    {!showFeedbackInput ? (
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] text-gray-400">Was this helpful?</span>
+                                            <button
+                                                onClick={() => handleFeedback(true)}
+                                                className="p-1 rounded hover:bg-green-500/20 text-green-400 transition-colors"
+                                                title="Yes, this was helpful"
+                                            >
+                                                <ThumbsUp className="w-3 h-3" />
+                                            </button>
+                                            <button
+                                                onClick={() => setShowFeedbackInput(true)}
+                                                className="p-1 rounded hover:bg-red-500/20 text-red-400 transition-colors"
+                                                title="No, AI got it wrong"
+                                            >
+                                                <ThumbsDown className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] text-yellow-400">What should it have been?</p>
+                                            <input
+                                                type="text"
+                                                value={feedbackCorrection}
+                                                onChange={(e) => setFeedbackCorrection(e.target.value)}
+                                                placeholder="e.g., dark spot / artifact / tattoo residue"
+                                                className="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-white placeholder:text-gray-600"
+                                            />
+                                            <div className="flex gap-1">
+                                                <button
+                                                    onClick={() => handleFeedback(false)}
+                                                    className="flex-1 py-1 rounded text-[10px] bg-red-600 hover:bg-red-500 text-white"
+                                                >
+                                                    Submit
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setShowFeedbackInput(false);
+                                                        setFeedbackCorrection('');
+                                                    }}
+                                                    className="px-2 py-1 rounded text-[10px] bg-gray-700 hover:bg-gray-600 text-white"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             )}
 
                             {/* Advanced Settings Toggle */}
