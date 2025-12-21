@@ -221,6 +221,39 @@ export const MODEL_CONSTRAINTS: Record<string, Partial<ModelConstraints>> = {
         notes: ['Very strict NSFW filter', 'Dreamlike/ethereal style'],
     },
 
+    // === WAN 2.6 MODELS ===
+    'fal-ai/wan/v2.6/text-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        nsfwFiltered: false,
+        nsfwStrength: 'permissive',
+        notes: ['Multi-shot video generation', 'Native audio sync', '5-15s duration', '1080p support'],
+    },
+    'fal-ai/wan/v2.6/image-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: false,
+        nsfwStrength: 'permissive',
+        notes: ['Multi-shot with source image', 'Native audio sync', '5-15s duration', '1080p support'],
+    },
+    'fal-ai/wan/v2.6/reference-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 3, // Up to 3 reference videos
+        minReferences: 1,
+        nsfwFiltered: false,
+        nsfwStrength: 'permissive',
+        notes: [
+            'Use @Video1, @Video2, @Video3 in prompts to reference uploaded videos',
+            'Supports 1-3 reference videos for character consistency',
+            'Native audio sync',
+            '5-15s duration',
+            '1080p support'
+        ],
+    },
+
     // === REPLICATE MODELS ===
     'fofr/consistent-character': {
         supportsLoRA: false,
@@ -279,6 +312,391 @@ export const MODEL_CONSTRAINTS: Record<string, Partial<ModelConstraints>> = {
         nsfwFiltered: false,
         nsfwStrength: 'permissive',
         notes: ['Local Flux with full LoRA support'],
+    },
+
+    // === ADDITIONAL FAL.AI MODELS ===
+    'fal-ai/flux-2-pro': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 8,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Up to 8 reference images for character consistency'],
+    },
+    'fal-ai/flux-2-flex': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 10,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Up to 10 reference images for maximum control'],
+    },
+    'fal-ai/flux-pro/kontext': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Premium character consistency', 'Requires exactly 1 reference'],
+    },
+    'fal-ai/flux-kontext-max': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Premium text-based editing with typography support'],
+    },
+    'fal-ai/flux-fill-pro': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        supportsNegativePrompt: false,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Inpainting and outpainting', 'Requires mask input'],
+    },
+    'fal-ai/flux-depth-pro': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Depth-guided generation', 'Requires source image for depth map'],
+    },
+    'fal-ai/flux-canny-pro': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Edge-guided generation using Canny detection'],
+    },
+    'fal-ai/flux-redux-dev': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: false,
+        nsfwStrength: 'permissive',
+        notes: ['Image variations', 'Requires source image'],
+    },
+    'fal-ai/ip-adapter-face-id': {
+        supportsLoRA: false,
+        supportsIPAdapter: true, // This IS the IP-Adapter
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: false,
+        nsfwStrength: 'permissive',
+        notes: ['Face identity preservation', 'Requires face reference image'],
+    },
+    'fal-ai/ideogram/v3': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        supportsNegativePrompt: true,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Advanced typography', 'Best for text in images'],
+    },
+    'fal-ai/ideogram/character': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        supportsNegativePrompt: true,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Character sheets and turnarounds', 'Best for reference poses'],
+    },
+    'fal-ai/hidream-i1-full': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['High-resolution generation', 'Exceptional detail'],
+    },
+    'fal-ai/janus': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Multimodal understanding', 'Creative generation'],
+    },
+    'fal-ai/gpt-image-1.5/edit': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        nsfwFiltered: true,
+        nsfwStrength: 'strict',
+        notes: ['Advanced prompt understanding', 'Supports editing'],
+    },
+    'fal-ai/creative-upscaler': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: false,
+        nsfwStrength: 'permissive',
+        notes: ['4x upscaling with AI enhancement', 'Adds detail'],
+    },
+    'fal-ai/clarity-upscaler': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: false,
+        nsfwStrength: 'permissive',
+        notes: ['Sharp faithful upscaling', 'Preserves original'],
+    },
+
+    // === ADDITIONAL VIDEO MODELS ===
+    'fal-ai/wan-25-preview/text-to-video': {
+        supportsLoRA: false, // Wan 2.5 does NOT support LoRAs
+        supportsIPAdapter: false,
+        nsfwFiltered: false,
+        nsfwStrength: 'permissive',
+        notes: ['Text-to-video only', 'No LoRA support', '5s or 10s duration'],
+    },
+    'fal-ai/wan-25-preview/image-to-video': {
+        supportsLoRA: false, // Wan 2.5 does NOT support LoRAs
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: false,
+        nsfwStrength: 'permissive',
+        notes: ['No LoRA support', 'Requires source image', '5s or 10s duration'],
+    },
+    'fal-ai/wan-pro/text-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        nsfwFiltered: false,
+        nsfwStrength: 'permissive',
+        notes: ['Professional video quality', '5-15s duration'],
+    },
+    'fal-ai/wan-pro/image-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: false,
+        nsfwStrength: 'permissive',
+        notes: ['Professional animation quality', 'Requires source image'],
+    },
+    'fal-ai/ltx-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Fast video generation', '5s duration'],
+    },
+    'fal-ai/ltx-video/image-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Fast image animation', 'Requires source image'],
+    },
+    'fal-ai/kling-video/v2.1/master/text-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        nsfwFiltered: true,
+        nsfwStrength: 'strict',
+        notes: ['Premium quality', 'Strict content filter'],
+    },
+    'fal-ai/kling-video/v2.1/standard/image-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: true,
+        nsfwStrength: 'strict',
+        notes: ['Balanced quality/speed', 'Requires source image'],
+    },
+    'fal-ai/kling-video/v2.1/master/image-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: true,
+        nsfwStrength: 'strict',
+        notes: ['Premium image animation', 'Requires source image'],
+    },
+    'fal-ai/kling-video/o1/image-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: true,
+        nsfwStrength: 'strict',
+        notes: ['State-of-the-art animation', 'Requires source image'],
+    },
+    'fal-ai/vidu/q1/text-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Supports music and sound effects', '4s or 8s duration'],
+    },
+    'fal-ai/vidu/image-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Image animation with sound', 'Requires source image'],
+    },
+    'fal-ai/hunyuan-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        nsfwFiltered: false,
+        nsfwStrength: 'permissive',
+        notes: ['Open-source model', 'High motion diversity', '4s duration'],
+    },
+    'fal-ai/hunyuan-video-image-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: false,
+        nsfwStrength: 'permissive',
+        notes: ['Open-source image animation', 'Requires source image'],
+    },
+    'fal-ai/minimax-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Natural physics and motion', '6s duration'],
+    },
+    'fal-ai/minimax-video/image-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Natural animation', 'Requires source image'],
+    },
+    'fal-ai/luma-dream-machine/image-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: true,
+        nsfwStrength: 'strict',
+        notes: ['Dreamlike animation', 'Requires source image', 'Strict filter'],
+    },
+    'fal-ai/luma-dream-machine/ray-2': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        nsfwFiltered: true,
+        nsfwStrength: 'strict',
+        notes: ['Realistic visuals', 'Natural camera control'],
+    },
+    'fal-ai/luma-dream-machine/ray-2/image-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: true,
+        nsfwStrength: 'strict',
+        notes: ['Realistic image animation', 'Requires source image'],
+    },
+    'fal-ai/veo3': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        nsfwFiltered: true,
+        nsfwStrength: 'strict',
+        notes: ['Google DeepMind', 'Native audio support', 'Strict filter'],
+    },
+    'fal-ai/pixverse/v4.5/text-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['High quality motion', '5s or 10s duration'],
+    },
+    'fal-ai/pixverse/v4.5/image-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['High quality animation', 'Requires source image'],
+    },
+    'fal-ai/magi': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Artistic video generation', 'Creative styles'],
+    },
+    'fal-ai/runway-gen3/turbo/image-to-video': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: true,
+        nsfwStrength: 'strict',
+        notes: ['Fast cinematic animation', 'Requires source image'],
+    },
+    'fal-ai/one-to-all-animation/14b': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 2, // Character image + motion video
+        minReferences: 2,
+        nsfwFiltered: false,
+        nsfwStrength: 'permissive',
+        notes: ['Pose-driven animation', 'Requires character image + driving video'],
+    },
+    'fal-ai/wan-video-2.2-animate-move': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 2, // Character image + motion video
+        minReferences: 2,
+        nsfwFiltered: false,
+        nsfwStrength: 'permissive',
+        notes: ['Motion transfer', 'Requires character image + driving video'],
+    },
+    'fal-ai/creatify/aurora': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 2, // Portrait + audio
+        minReferences: 2,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Portrait animation', 'Requires portrait image + audio'],
+    },
+    'fal-ai/wan-vace-14b/inpainting': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 2, // Video + mask
+        minReferences: 2,
+        nsfwFiltered: false,
+        nsfwStrength: 'permissive',
+        notes: ['Video inpainting', 'Requires video + mask'],
+    },
+    'fal-ai/kling-video/o1/video-to-video/edit': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: true,
+        nsfwStrength: 'strict',
+        notes: ['Video editing and style transfer', 'Requires source video'],
+    },
+    'fal-ai/qwen-image/edit-plus': {
+        supportsLoRA: false,
+        supportsIPAdapter: false,
+        maxReferences: 1,
+        minReferences: 1,
+        nsfwFiltered: true,
+        nsfwStrength: 'moderate',
+        notes: ['Advanced object removal', 'Requires source image'],
     },
 };
 
@@ -469,6 +887,20 @@ export const MODEL_REQUIREMENTS: ModelRequirements[] = [
         ]
     },
 
+    // Wan 2.6 I2V and R2V
+    {
+        modelId: 'fal-ai/wan/v2.6/image-to-video',
+        requirements: [
+            { input: 'image', label: 'Source Image', description: 'Image to animate (1080p supported)', accept: 'image/*' }
+        ]
+    },
+    {
+        modelId: 'fal-ai/wan/v2.6/reference-to-video',
+        requirements: [
+            { input: 'sourceVideo', label: 'Reference Video(s)', description: 'Up to 3 reference videos for character consistency. Use @Video1, @Video2, @Video3 in prompt.', accept: 'video/*' }
+        ]
+    },
+
     // Motion-driven animation
     {
         modelId: 'fal-ai/one-to-all-animation/14b',
@@ -504,6 +936,143 @@ export const MODEL_REQUIREMENTS: ModelRequirements[] = [
         modelId: 'fal-ai/ip-adapter-face-id',
         requirements: [
             { input: 'faceReference', label: 'Face Reference', description: 'Face image for identity preservation', accept: 'image/*' }
+        ]
+    },
+
+    // === ADDITIONAL I2V MODELS ===
+    {
+        modelId: 'fal-ai/ltx-video/image-to-video',
+        requirements: [
+            { input: 'image', label: 'Source Image', description: 'Image to animate', accept: 'image/*' }
+        ]
+    },
+    {
+        modelId: 'fal-ai/ltx-video-13b-distilled/image-to-video',
+        requirements: [
+            { input: 'image', label: 'Source Image', description: 'Image to animate', accept: 'image/*' }
+        ]
+    },
+    {
+        modelId: 'fal-ai/wan-pro/image-to-video',
+        requirements: [
+            { input: 'image', label: 'Source Image', description: 'Image to animate with professional quality', accept: 'image/*' }
+        ]
+    },
+    {
+        modelId: 'fal-ai/luma-dream-machine/ray-2/image-to-video',
+        requirements: [
+            { input: 'image', label: 'Source Image', description: 'Image to animate with realistic motion', accept: 'image/*' }
+        ]
+    },
+    {
+        modelId: 'fal-ai/hunyuan-video-image-to-video',
+        requirements: [
+            { input: 'image', label: 'Source Image', description: 'Image to animate with diverse motion', accept: 'image/*' }
+        ]
+    },
+    {
+        modelId: 'fal-ai/vidu/image-to-video',
+        requirements: [
+            { input: 'image', label: 'Source Image', description: 'Image to animate with optional sound', accept: 'image/*' }
+        ]
+    },
+    {
+        modelId: 'fal-ai/pixverse/v4.5/image-to-video',
+        requirements: [
+            { input: 'image', label: 'Source Image', description: 'Image to animate', accept: 'image/*' }
+        ]
+    },
+
+    // === FLUX EDITING MODELS ===
+    {
+        modelId: 'fal-ai/flux-pro/kontext',
+        requirements: [
+            { input: 'image', label: 'Reference Image', description: 'Character reference for consistency', accept: 'image/*' }
+        ]
+    },
+    {
+        modelId: 'fal-ai/flux-kontext-max',
+        requirements: [
+            { input: 'image', label: 'Reference Image', description: 'Image to edit with text guidance', accept: 'image/*' }
+        ]
+    },
+    {
+        modelId: 'fal-ai/flux-fill-pro',
+        requirements: [
+            { input: 'image', label: 'Source Image', description: 'Image for inpainting/outpainting', accept: 'image/*' },
+            { input: 'mask', label: 'Mask', description: 'Mask defining area to fill', accept: 'image/*' }
+        ]
+    },
+    {
+        modelId: 'fal-ai/flux-depth-pro',
+        requirements: [
+            { input: 'image', label: 'Source Image', description: 'Image for depth-guided generation', accept: 'image/*' }
+        ]
+    },
+    {
+        modelId: 'fal-ai/flux-canny-pro',
+        requirements: [
+            { input: 'image', label: 'Source Image', description: 'Image for edge-guided generation', accept: 'image/*' }
+        ]
+    },
+    {
+        modelId: 'fal-ai/flux-redux-dev',
+        requirements: [
+            { input: 'image', label: 'Source Image', description: 'Image to create variations from', accept: 'image/*' }
+        ]
+    },
+    {
+        modelId: 'fal-ai/flux/dev/image-to-image',
+        requirements: [
+            { input: 'image', label: 'Source Image', description: 'Image to transform', accept: 'image/*' }
+        ]
+    },
+    {
+        modelId: 'fal-ai/flux/dev/inpainting',
+        requirements: [
+            { input: 'image', label: 'Source Image', description: 'Image for inpainting', accept: 'image/*' },
+            { input: 'mask', label: 'Mask', description: 'Mask defining area to edit', accept: 'image/*' }
+        ]
+    },
+    {
+        modelId: 'fal-ai/flux-2-flex/edit',
+        requirements: [
+            { input: 'image', label: 'Reference Image(s)', description: 'Up to 10 reference images for editing', accept: 'image/*' }
+        ]
+    },
+
+    // === UPSCALERS ===
+    {
+        modelId: 'fal-ai/creative-upscaler',
+        requirements: [
+            { input: 'image', label: 'Source Image', description: 'Image to upscale with AI enhancement', accept: 'image/*' }
+        ]
+    },
+    {
+        modelId: 'fal-ai/clarity-upscaler',
+        requirements: [
+            { input: 'image', label: 'Source Image', description: 'Image to upscale faithfully', accept: 'image/*' }
+        ]
+    },
+    {
+        modelId: 'fal-ai/qwen-image/edit-plus',
+        requirements: [
+            { input: 'image', label: 'Source Image', description: 'Image for object removal/editing', accept: 'image/*' }
+        ]
+    },
+
+    // === VIDEO EDITING ===
+    {
+        modelId: 'fal-ai/wan-vace-14b/inpainting',
+        requirements: [
+            { input: 'sourceVideo', label: 'Source Video', description: 'Video for inpainting', accept: 'video/*' },
+            { input: 'mask', label: 'Mask', description: 'Mask defining area to fill', accept: 'image/*' }
+        ]
+    },
+    {
+        modelId: 'fal-ai/kling-video/o1/video-to-video/edit',
+        requirements: [
+            { input: 'sourceVideo', label: 'Source Video', description: 'Video to edit/transform', accept: 'video/*' }
         ]
     }
 ];

@@ -1,8 +1,10 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { X, Search, Image as ImageIcon, Video, User, Crown, Sparkles, Check, Film, Upload, Mic, Music } from 'lucide-react';
+import { X, Search, Image as ImageIcon, Video, User, Crown, Sparkles, Check, Film, Upload, Mic, Music, Wand2 } from 'lucide-react';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ALL_MODELS, ModelInfo, ModelCapability, PROVIDER_DEFINITIONS } from '@/lib/ModelRegistry';
+import { getModelPriceString } from '@/lib/ModelPricing';
+import { getModelConstraints } from '@/lib/ModelConstraints';
 import { AudioInput } from './AudioInput';
 
 interface EngineLibraryModalProps {
@@ -64,6 +66,7 @@ export function EngineLibraryModal({
 
     const [selectedCategory, setSelectedCategory] = useState<ModelCapability | 'all' | 'favorites'>('all');
     const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
+    const [loraOnly, setLoraOnly] = useState(false);
 
     // Update selected category when modal opens or initialCategory changes
     React.useEffect(() => {
@@ -108,11 +111,19 @@ export function EngineLibraryModal({
             // Filter by selected providers (if any)
             const matchesProvider = selectedProviders.length === 0 || selectedProviders.includes(model.provider);
 
+            // Filter by LoRA capability
+            const matchesLoRA = !loraOnly || getModelConstraints(model.id).supportsLoRA;
+
             const matchesSearch = model.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 model.provider.toLowerCase().includes(searchQuery.toLowerCase());
-            return matchesCategory && matchesProvider && matchesSearch;
+            return matchesCategory && matchesProvider && matchesLoRA && matchesSearch;
         });
-    }, [selectedCategory, searchQuery, favorites, selectedProviders]);
+    }, [selectedCategory, searchQuery, favorites, selectedProviders, loraOnly]);
+
+    // Count models that support LoRA
+    const loraModelCount = useMemo(() => {
+        return ALL_MODELS.filter(model => getModelConstraints(model.id).supportsLoRA).length;
+    }, []);
 
     // Show all categories always
     const displayedCategories = CATEGORIES;
@@ -255,6 +266,22 @@ export function EngineLibraryModal({
                                 </div>
                             </div>
 
+                            {/* LoRA Capability Filter */}
+                            <button
+                                onClick={() => setLoraOnly(!loraOnly)}
+                                className={clsx(
+                                    "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all text-left mb-2",
+                                    loraOnly
+                                        ? "bg-purple-500 text-white shadow-lg shadow-purple-500/20"
+                                        : "text-gray-400 hover:text-white hover:bg-white/5"
+                                )}
+                            >
+                                <Wand2 className={clsx("w-4 h-4", loraOnly ? "text-white" : "text-gray-500")} />
+                                <span>LoRA Support</span>
+                                <span className="ml-auto text-xs opacity-60">{loraModelCount}</span>
+                                {loraOnly && <Check className="w-3 h-3 text-white" />}
+                            </button>
+
                             <div className="my-3 border-t border-white/10" />
 
                             {/* MAKER Section */}
@@ -354,18 +381,29 @@ export function EngineLibraryModal({
                                                 </div>
 
                                                 <h3 className="text-base font-bold text-white mb-1 group-hover:text-blue-400 transition-colors">{model.name}</h3>
-                                                <p className="text-xs text-gray-400 line-clamp-2 mb-4 h-8">{model.desc || "No description available."}</p>
+                                                <p className="text-xs text-gray-400 mb-4">{model.desc || "No description available."}</p>
 
-                                                <div className="mt-auto flex items-center gap-2 pt-3 border-t border-white/5">
-                                                    <span className={clsx(
-                                                        "text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded",
-                                                        model.type === 'video' ? "bg-purple-500/20 text-purple-300" : "bg-emerald-500/20 text-emerald-300"
-                                                    )}>
-                                                        {model.type === 'video' ? 'Video' : 'Image'}
+                                                <div className="mt-auto flex items-center justify-between pt-3 border-t border-white/5">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className={clsx(
+                                                            "text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded",
+                                                            model.type === 'video' ? "bg-purple-500/20 text-purple-300" : "bg-emerald-500/20 text-emerald-300"
+                                                        )}>
+                                                            {model.type === 'video' ? 'Video' : 'Image'}
+                                                        </span>
+                                                        {model.capability === 'avatar' && (
+                                                            <span className="text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300">Avatar</span>
+                                                        )}
+                                                        {getModelConstraints(model.id).supportsLoRA && (
+                                                            <span className="text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 flex items-center gap-1">
+                                                                <Wand2 className="w-2.5 h-2.5" />
+                                                                LoRA
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-xs font-medium text-emerald-400">
+                                                        {getModelPriceString(model.id)}
                                                     </span>
-                                                    {model.capability === 'avatar' && (
-                                                        <span className="text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300">Avatar</span>
-                                                    )}
                                                 </div>
 
                                                 {/* Hover Effect Gradient */}

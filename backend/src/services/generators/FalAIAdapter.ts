@@ -579,7 +579,44 @@ export class FalAIAdapter implements GenerationProvider {
             };
 
             // Model-specific parameters
-            if (model.includes("wan-2.5") || model.includes("wan-25")) {
+            if (model.includes("wan") && model.includes("v2.6")) {
+                // Wan 2.6 supports 5, 10, or 15 seconds duration
+                const durationSec = parseInt(String(options.duration || "5"), 10);
+                if (durationSec >= 12) {
+                    input.duration = "15";
+                } else if (durationSec >= 8) {
+                    input.duration = "10";
+                } else {
+                    input.duration = "5";
+                }
+                console.log(`[FalAI] Wan 2.6 duration set to: ${input.duration} (requested: ${options.duration})`);
+
+                // Wan 2.6 supports 720p and 1080p resolution
+                input.resolution = options.resolution || "1080p";
+
+                // Aspect ratio for T2V
+                if (!model.includes("image-to-video") && !model.includes("i2v") && !model.includes("reference-to-video")) {
+                    input.aspect_ratio = options.aspectRatio || "16:9";
+                }
+
+                // Native audio support
+                if (options.audioUrl) {
+                    input.audio = await this.uploadToFal(options.audioUrl);
+                }
+
+                // Reference-to-Video specific handling
+                if (model.includes("reference-to-video")) {
+                    // R2V accepts reference_videos: [{ url: "..." }, ...] for up to 3 reference videos
+                    // Reference in prompt as @Video1, @Video2, @Video3
+                    if (options.referenceVideos && options.referenceVideos.length > 0) {
+                        const uploadedRefs = await Promise.all(
+                            options.referenceVideos.slice(0, 3).map(ref => this.uploadToFal(ref))
+                        );
+                        input.reference_videos = uploadedRefs.map(url => ({ url }));
+                        console.log(`[FalAI] Wan 2.6 R2V references prepared: ${input.reference_videos.length} videos`);
+                    }
+                }
+            } else if (model.includes("wan-2.5") || model.includes("wan-25")) {
                 // Wan 2.5 uses duration parameter directly
                 // According to Fal.ai docs, duration accepts "5" or "10" as strings
                 const durationSec = parseInt(String(options.duration || "5"), 10);
@@ -745,6 +782,9 @@ export class FalAIAdapter implements GenerationProvider {
                 if (model === "fal-ai/wan-t2v" || (model.includes("wan") && model.includes("t2v"))) {
                     console.log("Switching to Wan I2V model because image was provided");
                     model = "fal-ai/wan/v2.2-a14b/image-to-video";
+                } else if (model.includes("wan") && model.includes("v2.6") && model.includes("text-to-video")) {
+                    console.log("Switching to Wan 2.6 I2V model because image was provided");
+                    model = "fal-ai/wan/v2.6/image-to-video";
                 } else if (model === "wan-2.5" || (model.includes("wan") && model.includes("2.5"))) {
                     console.log("Switching to Wan 2.5 I2V model");
                     model = "fal-ai/wan-25-preview/image-to-video";
