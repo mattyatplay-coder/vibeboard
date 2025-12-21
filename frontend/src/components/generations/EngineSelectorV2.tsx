@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, Video, Image as ImageIcon, Sparkles } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { ChevronDown, Video, Image as ImageIcon, Sparkles, Clock, Layers, Music, Mic } from "lucide-react";
 import { clsx } from "clsx";
 import { EngineLibraryModal } from "./EngineLibraryModal";
 import { ALL_MODELS, PROVIDER_DEFINITIONS, getModelsByCapability } from "@/lib/ModelRegistry";
@@ -13,9 +13,22 @@ interface EngineSelectorProps {
     className?: string; // Support custom class names
     mode?: 'image' | 'video';
     variant?: 'default' | 'compact';
+
+    // New Props for internal controls
+    quantity?: number;
+    onQuantityChange?: (q: number) => void;
+    duration?: string;
+    onDurationChange?: (d: string) => void;
+    audioFile?: File | null;
+    onAudioChange?: (f: File | null) => void;
 }
 
-export function EngineSelectorV2({ selectedProvider, selectedModel, onSelect, className, mode, variant = 'default' }: EngineSelectorProps) {
+export function EngineSelectorV2({
+    selectedProvider, selectedModel, onSelect, className, mode, variant = 'default',
+    quantity, onQuantityChange,
+    duration, onDurationChange,
+    audioFile, onAudioChange
+}: EngineSelectorProps) {
     const [isLibraryOpen, setIsLibraryOpen] = useState(false);
 
     // Find current model info
@@ -25,8 +38,13 @@ export function EngineSelectorV2({ selectedProvider, selectedModel, onSelect, cl
         ? PROVIDER_DEFINITIONS[currentModel.provider]
         : PROVIDER_DEFINITIONS[selectedProvider] || PROVIDER_DEFINITIONS['fal'];
 
+    // Capabilities
+    const isVideo = currentModel?.type === 'video';
+    const supportsAudio = currentModel?.capability === 'avatar' || currentModel?.capability === 'text-to-video' || currentModel?.capability === 'image-to-video';
+    const supportedDurations = ['5', '10'];
+
     return (
-        <div className={className}>
+        <div className={clsx("relative", className)}>
             <div className="flex flex-col gap-1.5">
                 {variant === 'default' && (
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider px-1">
@@ -34,57 +52,57 @@ export function EngineSelectorV2({ selectedProvider, selectedModel, onSelect, cl
                     </label>
                 )}
 
-                <button
-                    onClick={() => setIsLibraryOpen(true)}
-                    className={clsx(
-                        "group relative w-full flex items-center justify-between bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-xl transition-all text-left",
-                        variant === 'compact' ? "h-10 px-2" : "p-3"
-                    )}
-                >
-                    <div className="flex items-center gap-3">
-                        {/* Icon */}
-                        <div className={clsx(
-                            "rounded-lg flex items-center justify-center transition-colors flex-shrink-0",
-                            providerDef?.bgColor || "bg-gray-800",
-                            variant === 'compact' ? "w-6 h-6" : "w-10 h-10"
-                        )}>
-                            {providerDef?.icon && <providerDef.icon className={clsx(variant === 'compact' ? "w-3.5 h-3.5" : "w-5 h-5", providerDef.color)} />}
-                        </div>
-
-                        {/* Text */}
-                        <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                                <span className={clsx(
-                                    "font-bold text-white group-hover:text-blue-400 transition-colors truncate",
-                                    variant === 'compact' ? "text-xs" : "text-sm"
-                                )}>
-                                    {currentModel?.name || "Select Model"}
-                                </span>
-                                {currentModel?.type === 'video' && (
-                                    <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-medium uppercase whitespace-nowrap">
-                                        Video
-                                    </span>
-                                )}
+                <div className="flex items-center gap-2">
+                    {/* Main Selector */}
+                    <button
+                        onClick={() => setIsLibraryOpen(true)}
+                        className={clsx(
+                            "group relative flex-1 flex items-center justify-between bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-xl transition-all text-left",
+                            variant === 'compact' ? "h-10 px-2" : "p-3"
+                        )}
+                        title="Change Model"
+                    >
+                        <div className="flex items-center gap-3">
+                            {/* Icon */}
+                            <div className={clsx(
+                                "rounded-lg flex items-center justify-center transition-colors flex-shrink-0",
+                                providerDef?.bgColor || "bg-gray-800",
+                                variant === 'compact' ? "w-6 h-6" : "w-10 h-10"
+                            )}>
+                                {providerDef?.icon && <providerDef.icon className={clsx(variant === 'compact' ? "w-3.5 h-3.5" : "w-5 h-5", providerDef.color)} />}
                             </div>
-                            {variant === 'default' && (
-                                <div className="flex items-center gap-2 mt-0.5">
-                                    <span className={clsx("text-xs", providerDef?.color || "text-gray-400")}>
-                                        {providerDef?.name || "Unknown Provider"}
-                                    </span>
-                                    <span className="text-xs text-gray-600">•</span>
-                                    <span className="text-xs text-gray-500 line-clamp-1 w-32 md:w-auto">
-                                        {currentModel?.desc || "AI Generation Model"}
+
+                            {/* Text */}
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <span className={clsx(
+                                        "font-bold text-white group-hover:text-blue-400 transition-colors truncate block max-w-[100px] sm:max-w-none",
+                                        variant === 'compact' ? "text-xs" : "text-sm"
+                                    )}>
+                                        {currentModel?.name || "Select Model"}
                                     </span>
                                 </div>
-                            )}
+                                {variant === 'default' && (
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                        <span className={clsx("text-xs", providerDef?.color || "text-gray-400")}>
+                                            {providerDef?.name || "Unknown Provider"}
+                                        </span>
+                                        <span className="text-xs text-gray-600">•</span>
+                                        <span className="text-xs text-gray-500 line-clamp-1 w-32 md:w-auto">
+                                            {currentModel?.desc || "AI Generation Model"}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    </div>
 
-                    <ChevronDown className={clsx(
-                        "text-gray-500 group-hover:text-white transition-colors flex-shrink-0 ml-2",
-                        variant === 'compact' ? "w-4 h-4" : "w-5 h-5"
-                    )} />
-                </button>
+                        <ChevronDown className={clsx(
+                            "text-gray-500 group-hover:text-white transition-colors flex-shrink-0 ml-2",
+                            variant === 'compact' ? "w-4 h-4" : "w-5 h-5"
+                        )} />
+                    </button>
+
+                </div>
             </div>
 
             <EngineLibraryModal
@@ -93,8 +111,14 @@ export function EngineSelectorV2({ selectedProvider, selectedModel, onSelect, cl
                 currentModelId={selectedModel}
                 onSelect={(model) => onSelect(model.provider, model.id)}
                 initialCategory={mode === 'video' ? 'text-to-video' : mode === 'image' ? 'text-to-image' : 'all'}
+                quantity={quantity}
+                onQuantityChange={onQuantityChange}
+                duration={duration}
+                onDurationChange={onDurationChange}
+                audioFile={audioFile}
+                onAudioChange={onAudioChange}
             />
-        </div>
+        </div >
     );
 }
 

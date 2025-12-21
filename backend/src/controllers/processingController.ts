@@ -4,6 +4,8 @@ import fs from 'fs';
 import { tattooCompositingService } from '../services/processing/TattooCompositingService';
 import { inpaintingService, InpaintingModel } from '../services/processing/InpaintingService';
 import { GrokAdapter } from '../services/llm/GrokAdapter';
+import { AIFeedbackStore } from '../services/learning/AIFeedbackStore';
+import * as fal from '@fal-ai/serverless-client';
 
 export const processingController = {
 
@@ -12,10 +14,15 @@ export const processingController = {
      * Expected FormData:
      * - base_image: File
      * - tattoo_image: File
-     * - xOffset: number (default 60)
+     * - xOffset: number (default 0)
+     * - yOffset: number (default 0)
      * - widthRatio: number (default 0.4)
      * - opacity: number (default 0.85)
      * - blur: number (default 0.8)
+     * - rotation: number (default 0) - degrees
+     * - warpMode: 'none' | 'mesh' | 'cylindrical' (default 'none')
+     * - cylindricalBend: number (default 0.3) - for cylindrical mode
+     * - meshPoints: JSON string of 3x3 point grid - for mesh mode
      */
     compositeTattoo: async (req: Request, res: Response) => {
         try {
@@ -29,20 +36,37 @@ export const processingController = {
                 return;
             }
 
-            const xOffset = parseInt(req.body.xOffset) || 60;
+            const xOffset = parseInt(req.body.xOffset) || 0;
             const yOffset = parseInt(req.body.yOffset) || 0;
             const widthRatio = parseFloat(req.body.widthRatio) || 0.4;
-            const opacity = parseFloat(req.body.opacity) || 0.85; // User requested slider control
+            const opacity = parseFloat(req.body.opacity) || 0.85;
             const blur = parseFloat(req.body.blur) || 0.8;
-            const removeBackground = req.body.removeBackground === 'true'; // New Checkbox
+            const removeBackground = req.body.removeBackground === 'true';
+            const rotation = parseFloat(req.body.rotation) || 0;
+            const warpMode = (req.body.warpMode || 'none') as 'none' | 'mesh' | 'cylindrical';
+            const cylindricalBend = parseFloat(req.body.cylindricalBend) || 0.3;
 
-            console.log(`[Processing] Compositing Tattoo: OffsetX=${xOffset}, OffsetY=${yOffset} Opacity=${opacity}, RemoveBG=${removeBackground}`);
+            // Parse mesh points if provided
+            let meshPoints: Array<Array<{ x: number; y: number }>> | undefined;
+            if (req.body.meshPoints) {
+                try {
+                    meshPoints = JSON.parse(req.body.meshPoints);
+                } catch (e) {
+                    console.warn('[Processing] Invalid meshPoints JSON, ignoring');
+                }
+            }
+
+            console.log(`[Processing] Compositing Tattoo: OffsetX=${xOffset}, OffsetY=${yOffset}, Rotation=${rotation}°, Warp=${warpMode}, Opacity=${opacity}, RemoveBG=${removeBackground}`);
 
             const resultBuffer = await tattooCompositingService.compositeTattoo(
                 fs.readFileSync(baseFile.path),
                 fs.readFileSync(tattooFile.path),
                 {
                     xOffset, yOffset, widthRatio, opacity, blur, removeBackground,
+                    rotation,
+                    warpMode,
+                    cylindricalBend,
+                    meshPoints,
                     maskBuffer: maskFile ? fs.readFileSync(maskFile.path) : undefined
                 }
             );
@@ -178,11 +202,18 @@ export const processingController = {
             // Initialize Grok adapter
             const grok = new GrokAdapter();
 
+            // Get learned hints from feedback store
+            const feedbackStore = AIFeedbackStore.getInstance();
+            const learnedHints = feedbackStore.getLearnedHints('magic-eraser');
+            console.log(`[Processing] Loaded ${learnedHints.length} learned hints from feedback`);
+
             let analysisResult: string;
 
             if (originalFile && maskedFile) {
                 // NEW: Dual-image mode - send both for better analysis
                 console.log(`[Processing] Using dual-image analysis mode`);
+                console.log(`[Processing] Original image: ${originalFile.path} (${fs.statSync(originalFile.path).size} bytes)`);
+                console.log(`[Processing] Masked image: ${maskedFile.path} (${fs.statSync(maskedFile.path).size} bytes)`);
 
                 const originalBuffer = fs.readFileSync(originalFile.path);
                 const maskedBuffer = fs.readFileSync(maskedFile.path);
@@ -190,45 +221,66 @@ export const processingController = {
                 const base64Original = `data:image/jpeg;base64,${originalBuffer.toString('base64')}`;
                 const base64Masked = `data:image/jpeg;base64,${maskedBuffer.toString('base64')}`;
 
+                // Build learned hints section if we have any
+                const learnedHintsSection = learnedHints.length > 0
+                    ? `\n\nLEARNED FROM PAST MISTAKES (APPLY THESE LESSONS):
+${learnedHints.map((h, i) => `${i + 1}. ${h}`).join('\n')}`
+                    : '';
+
                 const dualImagePrompt = `You are an expert image editor analyzing images for AI inpainting/object removal.
 
 I'm providing TWO images:
 1. [ORIGINAL]: The clean photo showing what's currently in the masked area
-2. [MASKED]: The same photo with a RED semi-transparent overlay showing exactly which area the user wants to remove/modify
+2. [MASKED]: The same photo with a RED/PINK semi-transparent overlay showing EXACTLY which area the user wants to remove/modify
 
-IMPORTANT: Compare both images to understand:
-- WHAT is in the masked area (tattoo, birthmark, scar, background object, text, etc.)
-- The CONTEXT around it (skin tone, texture, lighting, background pattern)
-- What should REPLACE it (clean skin, seamless background, etc.)
+CRITICAL RULES:
+1. Focus ONLY on what is DIRECTLY UNDER the RED MASKED AREA - that is the ONLY thing being removed
+2. The mask is typically a small brush stroke, NOT the entire clothing item
+3. Do NOT assume the user wants to remove nearby clothing (bikini, bra, underwear) - they may just be removing a spot ON the clothing or near it
+4. Common scenarios:
+   - Small dark spot/shadow = residual artifact from previous edit, NOT clothing
+   - Thin line along skin = could be a scar, stretch mark, or shadow
+   - Discoloration patch = skin blemish, bruise, or editing artifact
+   - Actual bikini string = only if the red mask CLEARLY follows an entire string/strap
+
+Look at the SHAPE of the masked area:
+- Small blob/circle = blemish, spot, or artifact - use skin-matching prompt
+- Long thin line following a strap = actual clothing removal
+- Irregular patch = discoloration or editing residue
 
 Based on your analysis, provide optimal inpainting settings in JSON format:
 
 {
-    "prompt": "a detailed prompt describing what should fill the masked area - be SPECIFIC about texture, color, lighting, and context",
-    "negativePrompt": "things to avoid - include what you saw in the masked area that needs removal",
-    "strength": 0.85-0.98 (higher for complete removal like tattoos, lower for subtle fixes),
-    "inferenceSteps": 28-45 (higher for complex textures like skin or detailed backgrounds),
+    "prompt": "a detailed prompt describing what should REPLACE the masked area - match surrounding skin tone, texture, lighting",
+    "negativePrompt": "things to avoid generating - only include what you actually see IN the mask",
+    "strength": 0.85-0.98 (higher for complete removal, lower for subtle fixes),
+    "inferenceSteps": 28-45 (higher for complex textures like skin),
     "guidanceScale": 3.0-7.0 (higher for strict prompt following, lower for natural blending),
-    "maskExpansion": 5-40 (pixels to expand mask edges - higher for thin objects like chains/jewelry that cause ghosting),
-    "reasoning": "brief explanation of what you detected and why you chose these settings"
+    "maskExpansion": 5-40 (pixels to expand mask - higher for thin objects),
+    "reasoning": "Brief: What is ACTUALLY masked, why these settings"
 }
 
-Guidelines:
-- TATTOO removal: strength 0.95+, steps 35+, negative must include "tattoo, ink, marks, design"
-- SKIN blemishes: match exact skin tone in prompt, strength 0.90, steps 30
-- BACKGROUND objects: describe surrounding texture/pattern, strength 0.95
-- HANDS/FINGERS in mask: steps 40+, guidance 5+, negative "extra fingers, bad anatomy, distorted"
-- TEXT/WATERMARK: strength 0.98, describe replacement background
-- JEWELRY/NECKLACE/CHAINS: maskExpansion 25-35 (thin objects cause edge ghosting), negative "necklace, chain, jewelry, pendant, metallic, reflection"
-- GLASSES/FRAMES: maskExpansion 20-30, account for shadows and reflections
-
+Guidelines by what's IN the mask:
+- DARK SPOT/ARTIFACT/RESIDUE: prompt="smooth skin matching surrounding area", strength 0.90, steps 30, maskExpansion 10, negative="dark marks, spots, discoloration, shadows"
+- SKIN BLEMISH: match exact skin tone in prompt, strength 0.90, steps 30, maskExpansion 10
+- TATTOO: strength 0.95+, steps 35+, negative "tattoo, ink, marks, design"
+- ACTUAL CLOTHING STRAP (full strap masked): strength 0.95+, maskExpansion 20-30, negative includes clothing type
+- JEWELRY: maskExpansion 25-35, negative "jewelry, chain, metallic"
+${learnedHintsSection}
 Respond ONLY with valid JSON, no markdown or code blocks.`;
 
                 // Send both images with labels
-                analysisResult = await grok.analyzeImage([
-                    { url: base64Original, label: '[ORIGINAL - Clean image showing content to be removed]' },
-                    { url: base64Masked, label: '[MASKED - Red overlay shows the target area]' }
-                ], dualImagePrompt);
+                console.log(`[Processing] Calling Grok Vision API...`);
+                try {
+                    analysisResult = await grok.analyzeImage([
+                        { url: base64Original, label: '[ORIGINAL - Clean image showing content to be removed]' },
+                        { url: base64Masked, label: '[MASKED - Red overlay shows the target area]' }
+                    ], dualImagePrompt);
+                    console.log(`[Processing] Grok Vision API returned successfully`);
+                } catch (grokError: any) {
+                    console.error(`[Processing] Grok Vision API failed:`, grokError.message);
+                    throw grokError;
+                }
 
             } else {
                 // LEGACY: Single image mode (fallback)
@@ -260,16 +312,23 @@ Respond ONLY with valid JSON.`;
 
             // Parse the JSON response
             let recommendations;
+            console.log(`[Processing] Raw AI response (first 500 chars):`, analysisResult?.substring(0, 500));
+            console.log(`[Processing] Raw AI response length: ${analysisResult?.length || 0} chars`);
+
             try {
                 // Try to extract JSON from the response (in case there's extra text)
                 const jsonMatch = analysisResult.match(/\{[\s\S]*\}/);
                 if (jsonMatch) {
+                    console.log(`[Processing] Found JSON in response, parsing...`);
                     recommendations = JSON.parse(jsonMatch[0]);
+                    console.log(`[Processing] Successfully parsed AI recommendations`);
                 } else {
+                    console.error(`[Processing] No JSON object found in AI response`);
                     throw new Error("No JSON found in response");
                 }
-            } catch (parseError) {
-                console.error('[Processing] Failed to parse AI response:', analysisResult);
+            } catch (parseError: any) {
+                console.error('[Processing] Failed to parse AI response:', parseError.message);
+                console.error('[Processing] Full AI response:', analysisResult);
                 // Return default recommendations on parse failure
                 recommendations = {
                     prompt: "clean skin, high quality, natural texture, matching skin tone",
@@ -289,6 +348,70 @@ Respond ONLY with valid JSON.`;
         } catch (error: any) {
             console.error('AI Analysis failed:', error);
             res.status(500).json({ error: error.message || "AI analysis failed" });
+        }
+    },
+
+    /**
+     * AI Tattoo Generation
+     * Generates a tattoo directly on skin using img2img with inpainting
+     * Expected FormData:
+     * - base_image: File (the skin/body photo)
+     * - prompt: string (tattoo description)
+     * - projectId: string (optional)
+     */
+    aiTattooGenerate: async (req: Request, res: Response) => {
+        try {
+            const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+            const baseFile = files['base_image']?.[0];
+
+            if (!baseFile) {
+                res.status(400).json({ error: 'Missing base_image' });
+                return;
+            }
+
+            const prompt = req.body.prompt || 'black ink tattoo design on skin';
+            const projectId = req.body.projectId;
+
+            console.log(`[Processing] AI Tattoo Generation: prompt="${prompt}"`);
+
+            // Upload base image to Fal storage
+            const imageBuffer = fs.readFileSync(baseFile.path);
+            const blob = new Blob([imageBuffer], { type: 'image/png' });
+            const imageUrl = await fal.storage.upload(blob as any);
+
+            // Use FLUX inpainting model for realistic tattoo generation
+            // This generates the tattoo directly integrated with the skin
+            const result: any = await fal.subscribe('fal-ai/flux/dev/image-to-image', {
+                input: {
+                    image_url: imageUrl,
+                    prompt: `${prompt}, realistic black ink tattoo on human skin, professional tattoo art, crisp lines, skin texture visible, photorealistic`,
+                    strength: 0.75, // Preserve most of the original while adding tattoo
+                    num_inference_steps: 28,
+                    guidance_scale: 7.5,
+                    seed: Math.floor(Math.random() * 1000000)
+                },
+                logs: true,
+                onQueueUpdate: (update) => {
+                    if (update.status === 'IN_PROGRESS') {
+                        update.logs?.map((log) => log.message).forEach(console.log);
+                    }
+                }
+            });
+
+            if (!result.images?.[0]?.url) {
+                throw new Error('No image returned from AI generation');
+            }
+
+            console.log(`[Processing] AI Tattoo generated: ${result.images[0].url}`);
+
+            res.json({
+                imageUrl: result.images[0].url,
+                seed: result.seed
+            });
+
+        } catch (error: any) {
+            console.error('AI Tattoo Generation failed:', error);
+            res.status(500).json({ error: error.message || "AI tattoo generation failed" });
         }
     }
 };

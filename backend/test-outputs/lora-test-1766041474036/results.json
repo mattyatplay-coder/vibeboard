@@ -1,0 +1,75 @@
+{
+  "timestamp": "2025-12-18T07:04:53.970Z",
+  "prompt": "ohwx_angelica, sitting on her couch listening to music in a small fitted white half cut babydoll t-shirt that shows her midriff and belly button ring",
+  "lora": {
+    "path": "https://huggingface.co/MikoMurra/angelica-lora/resolve/main/angelica-v4.safetensors",
+    "strength": 1,
+    "triggerWord": "ohwx_angelica"
+  },
+  "results": [
+    {
+      "engine": "fal",
+      "model": "fal-ai/flux-lora",
+      "loraType": "safetensors",
+      "status": "failed",
+      "error": "Unauthorized",
+      "duration": 373
+    },
+    {
+      "engine": "fal",
+      "model": "fal-ai/flux/dev",
+      "loraType": "safetensors",
+      "status": "failed",
+      "error": "Unauthorized",
+      "duration": 200
+    },
+    {
+      "engine": "replicate",
+      "model": "mattyatplay-coder/angelicatraining",
+      "loraType": "replicate-trained",
+      "status": "success",
+      "outputUrl": "http://localhost:3001/uploads/flux-lora-ea482e9b-215e-4c7c-b6ed-42ab9dca5545.png",
+      "duration": 10411
+    },
+    {
+      "engine": "replicate",
+      "model": "black-forest-labs/flux-dev-lora",
+      "loraType": "safetensors",
+      "status": "success",
+      "outputUrl": "http://localhost:3001/uploads/flux-lora-2c7dbcf6-9bc5-40a3-adda-195a9521fd36.png",
+      "duration": 6540
+    },
+    {
+      "engine": "civitai",
+      "model": "SDXL 1.0",
+      "loraType": "civitai-syntax",
+      "status": "failed",
+      "error": "Request failed with status code 500",
+      "duration": 1962
+    },
+    {
+      "engine": "civitai",
+      "model": "Flux.1 D",
+      "loraType": "civitai-syntax",
+      "status": "failed",
+      "error": "Request failed with status code 500",
+      "duration": 114
+    },
+    {
+      "engine": "fal",
+      "model": "fal-ai/wan-lora-video",
+      "loraType": "safetensors",
+      "status": "failed",
+      "error": "Unauthorized",
+      "duration": 223
+    },
+    {
+      "engine": "civitai",
+      "model": "Wan Video 2.5 T2V",
+      "loraType": "civitai-syntax",
+      "status": "failed",
+      "error": "Civitai video generation failed: Request failed with status code 500",
+      "duration": 109
+    }
+  ]
+}

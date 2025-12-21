@@ -12,11 +12,15 @@ if (typeof window !== 'undefined') {
   initVideoConsole();
 }
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
-  title: "VibeBoard",
-  description: "AI Video Generation Platform",
+  title: "VibeBoard Studio",
+  description: "AI-Powered Cinematic Production Suite",
 };
 
 export default function RootLayout({
@@ -26,7 +30,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
-      <body className={inter.className} suppressHydrationWarning>
+      <body className={`${inter.className} ${inter.variable}`} suppressHydrationWarning>
         <SessionProvider>
           <div className="min-h-screen relative">
             <main id="main-content">

@@ -1,53 +1,43 @@
 import { GenerationProvider, GenerationOptions, GenerationResult } from './GenerationProvider';
-import axios from 'axios';
+import { Civitai, Scheduler } from 'civitai';
 
 /**
  * Civitai Adapter - Community models and video generation
+ * Uses the official Civitai JavaScript SDK for reliable generation
  *
  * IMAGE MODELS:
- * - AuraFlow
- * - Chroma
- * - Flux: Flux.1 D, Flux.1 S, Flux.1 Krea, Flux.1 Kontext, Flux.2 D
- * - HiDream
- * - Hunyuan 1
- * - Illustrious
- * - Kolors
- * - Lumina
- * - NoobAI
- * - PixArt: PixArt a, PixArt E
- * - Pony: Pony, Pony V7
- * - Qwen
- * - Stable Diffusion: SD 1.4, SD 1.5, SD 1.5 LCM, SD 1.5 Hyper, SD 2.0, SD 2.1
- * - SDXL: SDXL 1.0, SDXL Lightning, SDXL Hyper
- * - ZImageTurbo
+ * - AuraFlow, Chroma, Flux family, HiDream, Hunyuan 1
+ * - Illustrious, Kolors, Lumina, NoobAI, PixArt family
+ * - Pony, Qwen, Stable Diffusion family, SDXL family, ZImageTurbo
  *
  * VIDEO MODELS:
- * - CogVideoX
- * - Hunyuan Video
- * - LTXV
- * - Mochi
- * - Wan Video 1.3B t2v
- * - Wan Video 14B t2v
- * - Wan Video 14B i2v 480p
- * - Wan Video 14B i2v 720p
- * - Wan Video 2.2 TI2V-5B
- * - Wan Video 2.2 I2V-A14B
- * - Wan Video 2.2 T2V-A14B
- * - Wan Video 2.5 T2V
- * - Wan Video 2.5 I2V
+ * - CogVideoX, Hunyuan Video, LTXV, Mochi
+ * - Wan Video family (1.3B, 14B, 2.2, 2.5)
  */
 export class CivitaiAdapter implements GenerationProvider {
+    private civitai: any; // Civitai SDK instance
     private apiKey: string;
-    private baseUrl: string = 'https://civitai.com/api/v1';
 
-    // Model mappings for Civitai - Complete list from Civitai UI
+    // Model URN mappings for Civitai
+    // Format: urn:air:{ecosystem}:{type}:civitai:{modelId}@{versionId}
     private readonly imageModelMap: Record<string, { baseModel: string; urn?: string }> = {
         // Flux models
-        'flux-1-d': { baseModel: 'Flux.1 D' },
+        'flux-1-d': { baseModel: 'Flux.1 D', urn: 'urn:air:flux1:checkpoint:civitai:618692@691639' },
         'flux-1-s': { baseModel: 'Flux.1 S' },
         'flux-1-krea': { baseModel: 'Flux.1 Krea' },
         'flux-1-kontext': { baseModel: 'Flux.1 Kontext' },
         'flux-2-d': { baseModel: 'Flux.2 D' },
+        // SDXL - using a popular SDXL model
+        'sdxl-1-0': { baseModel: 'SDXL 1.0', urn: 'urn:air:sdxl:checkpoint:civitai:133005@348913' },
+        'sdxl-lightning': { baseModel: 'SDXL Lightning' },
+        'sdxl-hyper': { baseModel: 'SDXL Hyper' },
+        // Stable Diffusion versions
+        'sd-1-5': { baseModel: 'SD 1.5', urn: 'urn:air:sd1:checkpoint:civitai:4201@130072' },
+        'sd-1-4': { baseModel: 'SD 1.4' },
+        'sd-1-5-lcm': { baseModel: 'SD 1.5 LCM' },
+        'sd-1-5-hyper': { baseModel: 'SD 1.5 Hyper' },
+        'sd-2-0': { baseModel: 'SD 2.0' },
+        'sd-2-1': { baseModel: 'SD 2.1' },
         // AuraFlow
         'auraflow': { baseModel: 'AuraFlow' },
         // Chroma
@@ -64,8 +54,6 @@ export class CivitaiAdapter implements GenerationProvider {
         'lumina': { baseModel: 'Lumina' },
         // NoobAI
         'noobai': { baseModel: 'NoobAI' },
-        // Other
-        'other': { baseModel: 'Other' },
         // PixArt
         'pixart-a': { baseModel: 'PixArt a' },
         'pixart-e': { baseModel: 'PixArt E' },
@@ -74,32 +62,18 @@ export class CivitaiAdapter implements GenerationProvider {
         'pony-v7': { baseModel: 'Pony V7' },
         // Qwen
         'qwen': { baseModel: 'Qwen' },
-        // Stable Diffusion versions
-        'sd-1-4': { baseModel: 'SD 1.4' },
-        'sd-1-5': { baseModel: 'SD 1.5' },
-        'sd-1-5-lcm': { baseModel: 'SD 1.5 LCM' },
-        'sd-1-5-hyper': { baseModel: 'SD 1.5 Hyper' },
-        'sd-2-0': { baseModel: 'SD 2.0' },
-        'sd-2-1': { baseModel: 'SD 2.1' },
-        // SDXL
-        'sdxl-1-0': { baseModel: 'SDXL 1.0' },
-        'sdxl-lightning': { baseModel: 'SDXL Lightning' },
-        'sdxl-hyper': { baseModel: 'SDXL Hyper' },
         // ZImageTurbo
         'zimage-turbo': { baseModel: 'ZImageTurbo' },
+        // Other
+        'other': { baseModel: 'Other' },
     };
 
-    // Video models - Complete list from Civitai UI
+    // Video models mapping
     private readonly videoModelMap: Record<string, string> = {
-        // CogVideoX
         'cogvideox': 'CogVideoX',
-        // Hunyuan Video
         'hunyuan-video': 'Hunyuan Video',
-        // LTXV
         'ltxv': 'LTXV',
-        // Mochi
         'mochi': 'Mochi',
-        // Wan Video models (multiple variants)
         'wan-video-1-3b-t2v': 'Wan Video 1.3B t2v',
         'wan-video-14b-t2v': 'Wan Video 14B t2v',
         'wan-video-14b-i2v-480p': 'Wan Video 14B i2v 480p',
@@ -116,28 +90,20 @@ export class CivitaiAdapter implements GenerationProvider {
         if (!this.apiKey) {
             console.warn("WARNING: CIVITAI_API_TOKEN is not set. Civitai generations will fail.");
         }
+        this.civitai = new Civitai({ auth: this.apiKey });
     }
 
     private formatPrompt(prompt: string): string {
-        // Civitai Best Practices: Subject -> Style -> Composition
-        // We can't easily reorder user input without NLP, but we can append quality tags.
-
         let formatted = prompt.trim();
-
-        // Append quality tags if not present
         const qualityTags = ["best quality", "masterpiece"];
         const missingTags = qualityTags.filter(tag => !formatted.toLowerCase().includes(tag));
-
         if (missingTags.length > 0) {
             formatted += `, ${missingTags.join(", ")}`;
         }
-
         return formatted;
     }
 
     private getDefaultNegativePrompt(): string {
-        // Standard negative prompt for high quality generation
-        // NOTE: Removed "nsfw" to allow unrestricted content generation
         return "lowres, (bad), text, error, fewer, extra, missing, worst quality, jpeg artifacts, low quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract]";
     }
 
@@ -145,116 +111,144 @@ export class CivitaiAdapter implements GenerationProvider {
         try {
             if (!this.apiKey) throw new Error("Civitai API key not configured");
 
-            // Resolve model from our mapping or use as-is if it's a URN
-            let baseModel = "Stable Diffusion XL";
+            // Resolve model URN
             let modelUrn: string | undefined;
+            let baseModel = "SDXL 1.0";
 
             if (options.model) {
                 if (options.model.includes('urn:air')) {
-                    // Direct URN passed
                     modelUrn = options.model;
                 } else if (this.imageModelMap[options.model]) {
-                    // Mapped model name
                     const mapping = this.imageModelMap[options.model];
                     baseModel = mapping.baseModel;
                     modelUrn = mapping.urn;
                 } else {
-                    // Use as baseModel directly
                     baseModel = options.model;
                 }
             }
 
-            console.log(`[Civitai] Using baseModel: ${baseModel}, URN: ${modelUrn || 'none'}`);
-
-            // Handle LoRAs by appending to prompt (standard A1111/Civitai syntax)
-            let finalPrompt = this.formatPrompt(options.prompt);
-            if (options.loras && options.loras.length > 0) {
-                const loraTags = options.loras.map(lora => `<lora:${lora.path}:${lora.strength}>`).join(" ");
-                finalPrompt += ` ${loraTags}`;
+            // Default to SDXL if no URN available
+            if (!modelUrn) {
+                modelUrn = 'urn:air:sdxl:checkpoint:civitai:133005@348913'; // Juggernaut XL
             }
 
+            console.log(`[Civitai] Using model: ${modelUrn} (base: ${baseModel})`);
+
+            // Handle LoRAs using additionalNetworks parameter (official SDK method)
+            // LoRAs can be specified as:
+            // - Civitai model ID: "123456" or "123456@789012"
+            // - Full AIR URN: "urn:air:sdxl:lora:civitai:123456@789012"
+            // - HuggingFace URL (limited support)
+            const additionalNetworks: Record<string, { strength: number; triggerWord?: string }> = {};
+
+            if (options.loras && options.loras.length > 0) {
+                for (const lora of options.loras) {
+                    let loraUrn: string;
+                    const loraPath = lora.path.trim();
+
+                    if (loraPath.startsWith('urn:air:')) {
+                        // Already a full AIR URN
+                        loraUrn = loraPath;
+                    } else if (loraPath.match(/^\d+(@\d+)?$/)) {
+                        // Civitai model ID format: "123456" or "123456@789012"
+                        // Determine ecosystem from base model
+                        const ecosystem = baseModel.toLowerCase().includes('flux') ? 'flux1' :
+                                         baseModel.toLowerCase().includes('sdxl') ? 'sdxl' :
+                                         baseModel.toLowerCase().includes('pony') ? 'pony' : 'sd1';
+                        loraUrn = `urn:air:${ecosystem}:lora:civitai:${loraPath}`;
+                    } else if (loraPath.startsWith('http')) {
+                        // URL-based LoRA (HuggingFace, etc.) - use as-is
+                        // Note: Civitai SDK may have limited support for external URLs
+                        loraUrn = loraPath;
+                        console.warn(`[Civitai] External URL LoRA may have limited support: ${loraPath}`);
+                    } else {
+                        // Assume it's a Civitai model ID without version
+                        const ecosystem = baseModel.toLowerCase().includes('flux') ? 'flux1' :
+                                         baseModel.toLowerCase().includes('sdxl') ? 'sdxl' : 'sd1';
+                        loraUrn = `urn:air:${ecosystem}:lora:civitai:${loraPath}`;
+                    }
+
+                    additionalNetworks[loraUrn] = {
+                        strength: lora.strength || 1.0,
+                        ...(lora.triggerWord ? { triggerWord: lora.triggerWord } : {})
+                    };
+                    console.log(`[Civitai] Added LoRA: ${loraUrn} (strength: ${lora.strength})`);
+                }
+            }
+
+            const finalPrompt = this.formatPrompt(options.prompt);
             const finalNegativePrompt = options.negativePrompt || this.getDefaultNegativePrompt();
 
-            const payload: any = {
-                baseModel: baseModel,
+            // Build the generation request using SDK
+            const input: any = {
+                model: modelUrn,
                 params: {
                     prompt: finalPrompt,
                     negativePrompt: finalNegativePrompt,
-                    cfgScale: options.guidanceScale || 7,
+                    scheduler: (options.scheduler?.value as Scheduler) || Scheduler.EULER_A,
                     steps: options.steps || 25,
-                    seed: options.seed,
+                    cfgScale: options.guidanceScale || 7,
                     width: options.width || 1024,
                     height: options.height || 1024,
+                    seed: options.seed,
                     clipSkip: 2,
-                    quantity: options.count || 1,
-                    sampler: options.sampler?.value || "Euler a",
-                    scheduler: options.scheduler?.value
                 },
-                // Additional params for img2img if needed
-                ...(options.sourceImages?.length ? {
-                    image: options.sourceImages[0],
-                    denoisingStrength: options.strength
-                } : {})
             };
 
-            // Add model URN if we have one
-            if (modelUrn) {
-                payload.model = modelUrn;
+            // Add LoRAs via additionalNetworks if any
+            if (Object.keys(additionalNetworks).length > 0) {
+                input.additionalNetworks = additionalNetworks;
             }
 
-            console.log("Sending to Civitai:", JSON.stringify(payload, null, 2));
+            console.log("[Civitai] Sending generation request:", JSON.stringify(input, null, 2));
 
-            // 1. Create Generation Request
-            const response = await axios.post(`${this.baseUrl}/generation/image`, payload, {
-                headers: {
-                    'Authorization': `Bearer ${this.apiKey}`,
-                    'Content-Type': 'application/json'
+            // Use SDK to generate
+            const response = await this.civitai.image.fromText(input, true); // true = wait for completion
+
+            console.log("[Civitai] Generation response:", JSON.stringify(response, null, 2));
+
+            // Extract image URLs from response
+            const outputs: string[] = [];
+            if (response.jobs && response.jobs.length > 0) {
+                for (const job of response.jobs) {
+                    if (job.result && job.result.blobUrl) {
+                        outputs.push(job.result.blobUrl);
+                    }
                 }
-            });
+            }
 
-            const token = response.data.token; // Job token
-            console.log("Civitai Job Token:", token);
-
-            // 2. Poll for completion
-            const images = await this.pollForCompletion(token);
+            if (outputs.length === 0) {
+                throw new Error("No images returned from Civitai");
+            }
 
             return {
-                id: token,
+                id: response.token || Date.now().toString(),
                 status: 'succeeded',
-                outputs: images,
-                seed: options.seed // Civitai might return the actual seed used
+                outputs,
+                seed: options.seed
             };
 
         } catch (error: any) {
-            console.error("Civitai generation failed:", error.response?.data || error.message);
+            console.error("Civitai generation failed:", error.message || error);
             return {
                 id: Date.now().toString(),
                 status: 'failed',
-                error: error.response?.data?.error || error.message || "Unknown Civitai error"
+                error: error.message || "Unknown Civitai error"
             };
         }
     }
 
     private formatVideoPrompt(prompt: string): string {
-        // Civitai Video Guide: Rich detail, clear camera movement, lighting, context.
-        // We append video-specific quality tags to ensure better results.
-
         let formatted = prompt.trim();
-
-        // Video specific quality tags
         const videoQualityTags = ["cinematic", "4k", "high quality", "smooth motion"];
         const missingTags = videoQualityTags.filter(tag => !formatted.toLowerCase().includes(tag));
-
         if (missingTags.length > 0) {
             formatted += `, ${missingTags.join(", ")}`;
         }
-
         return formatted;
     }
 
     private getDefaultVideoNegativePrompt(): string {
-        // Video specific negative prompt to reduce common artifacts
-        // NOTE: Removed "nsfw" to allow unrestricted content generation
         return "lowres, (bad), text, error, fewer, extra, missing, worst quality, jpeg artifacts, low quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract], flicker, jitter, morphing, distorted, shaky";
     }
 
@@ -264,64 +258,77 @@ export class CivitaiAdapter implements GenerationProvider {
         }
 
         try {
-            // Resolve video model from our mapping
-            let videoModel = 'Kling'; // Default video model
-
-            if (options.model) {
-                if (this.videoModelMap[options.model]) {
-                    videoModel = this.videoModelMap[options.model];
-                } else {
-                    // Use as-is if not in map
-                    videoModel = options.model;
-                }
+            // Resolve video model
+            let videoModel = 'Wan Video 2.5 T2V';
+            if (options.model && this.videoModelMap[options.model]) {
+                videoModel = this.videoModelMap[options.model];
+            } else if (options.model) {
+                videoModel = options.model;
             }
 
             console.log(`[Civitai] Using video model: ${videoModel}`);
 
+            // Handle LoRAs using additionalNetworks format for REST API
+            const additionalNetworks: Record<string, { strength: number }> = {};
+
+            if (options.loras && options.loras.length > 0) {
+                for (const lora of options.loras) {
+                    let loraUrn: string;
+                    const loraPath = lora.path.trim();
+
+                    if (loraPath.startsWith('urn:air:')) {
+                        loraUrn = loraPath;
+                    } else if (loraPath.match(/^\d+(@\d+)?$/)) {
+                        // Civitai model ID format - default to flux1 for video models
+                        loraUrn = `urn:air:flux1:lora:civitai:${loraPath}`;
+                    } else if (loraPath.startsWith('http')) {
+                        loraUrn = loraPath;
+                        console.warn(`[Civitai Video] External URL LoRA may have limited support: ${loraPath}`);
+                    } else {
+                        loraUrn = `urn:air:flux1:lora:civitai:${loraPath}`;
+                    }
+
+                    additionalNetworks[loraUrn] = { strength: lora.strength || 1.0 };
+                    console.log(`[Civitai Video] Added LoRA: ${loraUrn} (strength: ${lora.strength})`);
+                }
+            }
+
             const finalPrompt = this.formatVideoPrompt(options.prompt);
             const finalNegativePrompt = options.negativePrompt || this.getDefaultVideoNegativePrompt();
 
-            // Duration handling based on model type
+            // Note: Civitai SDK currently doesn't have official video generation support
+            // Falling back to REST API for video
+            const axios = (await import('axios')).default;
+            const baseUrl = 'https://civitai.com/api/v1';
+
             const durationSec = parseInt(String(options.duration || "5"), 10);
-            let numFrames = 121; // Default 5 seconds at 24fps
+            let numFrames = durationSec >= 8 ? 241 : 121;
 
-            // Wan Video models use num_frames
-            if (videoModel.includes('Wan Video')) {
-                // Wan 2.5 models might support direct duration
-                if (videoModel.includes('2.5')) {
-                    numFrames = durationSec >= 8 ? 241 : 121; // 10s or 5s at 24fps
-                    console.log(`[Civitai] Wan 2.5 numFrames set to: ${numFrames} (requested: ${options.duration})`);
-                } else {
-                    // Wan 2.1/2.2/14B models
-                    numFrames = durationSec >= 8 ? 241 : 121;
-                    console.log(`[Civitai] Wan numFrames set to: ${numFrames} (requested: ${options.duration})`);
-                }
-            } else if (videoModel.includes('LTXV')) {
-                // LTX Video typically uses duration seconds
-                numFrames = durationSec >= 8 ? 240 : 144; // ~10s or ~6s at 24fps
-                console.log(`[Civitai] LTX numFrames set to: ${numFrames} (requested: ${options.duration})`);
-            }
-
-            const payload = {
+            const payload: any = {
                 baseModel: videoModel,
                 params: {
                     prompt: finalPrompt,
                     negativePrompt: finalNegativePrompt,
                     width: options.width || 1024,
-                    height: options.height || 576, // 16:9 aspect ratio default for video
+                    height: options.height || 576,
                     steps: options.steps || 30,
                     cfgScale: options.guidanceScale || 7,
                     seed: options.seed || -1,
                     quantity: 1,
                     numFrames: numFrames,
                     fps: 24,
-                    // Pass source image for img2vid if provided
-                    ...(image ? { image: image } : {})
+                    ...(image ? { image } : {})
                 }
             };
 
-            // Using video generation endpoint
-            const response = await axios.post(`${this.baseUrl}/generation/video`, payload, {
+            // Add LoRAs via additionalNetworks if any
+            if (Object.keys(additionalNetworks).length > 0) {
+                payload.additionalNetworks = additionalNetworks;
+            }
+
+            console.log("[Civitai] Sending video request:", JSON.stringify(payload, null, 2));
+
+            const response = await axios.post(`${baseUrl}/generation/video`, payload, {
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
                     'Content-Type': 'application/json'
@@ -329,7 +336,7 @@ export class CivitaiAdapter implements GenerationProvider {
             });
 
             const jobToken = response.data.token;
-            console.log(`Civitai video job started: ${jobToken}`);
+            console.log(`[Civitai] Video job started: ${jobToken}`);
 
             // Poll for completion
             const urls = await this.pollForCompletion(jobToken);
@@ -342,31 +349,55 @@ export class CivitaiAdapter implements GenerationProvider {
             };
 
         } catch (error: any) {
-            console.error("Civitai video generation error:", error.response?.data || error.message);
+            console.error("Civitai video generation error:", error.message || error);
             throw new Error(`Civitai video generation failed: ${error.message}`);
         }
     }
 
     async checkStatus(id: string): Promise<GenerationResult> {
-        // Re-using poll logic or implementing a single check
-        // For now, we rely on the polling inside generateImage/Video
-        throw new Error("Method not implemented.");
+        try {
+            const job = await this.civitai.jobs.getByToken(id);
+            const outputs: string[] = [];
+
+            if (job.jobs) {
+                for (const j of job.jobs as any[]) {
+                    if (j.result && j.result.available && j.result.blobUrl) {
+                        outputs.push(j.result.blobUrl);
+                    }
+                }
+            }
+
+            const allComplete = (job.jobs as any[])?.every((j: any) => j.result?.available) || false;
+
+            return {
+                id,
+                status: allComplete ? 'succeeded' : 'running',
+                outputs
+            };
+        } catch (error: any) {
+            return {
+                id,
+                status: 'failed',
+                error: error.message
+            };
+        }
     }
 
     private async pollForCompletion(token: string): Promise<string[]> {
         let attempts = 0;
-        const maxAttempts = 60; // 2 minutes (assuming 2s interval)
+        const maxAttempts = 120; // 4 minutes for video
         const interval = 2000;
 
         while (attempts < maxAttempts) {
             try {
-                const response = await axios.get(`${this.baseUrl}/generation/image/${token}`, {
+                const axios = (await import('axios')).default;
+                const response = await axios.get(`https://civitai.com/api/v1/generation/video/${token}`, {
                     headers: {
                         'Authorization': `Bearer ${this.apiKey}`
                     }
                 });
 
-                const status = response.data.status; // e.g., 'Scheduled', 'Processing', 'Succeeded', 'Failed'
+                const status = response.data.status;
 
                 if (status === 'Succeeded') {
                     const result = response.data.result;
@@ -376,12 +407,13 @@ export class CivitaiAdapter implements GenerationProvider {
                     throw new Error(`Civitai generation failed: ${JSON.stringify(response.data)}`);
                 }
 
-                // Wait before next poll
                 await new Promise(resolve => setTimeout(resolve, interval));
                 attempts++;
             } catch (error: any) {
+                if (error.message.includes('Civitai generation failed')) {
+                    throw error;
+                }
                 console.error("Error polling Civitai status:", error.message);
-                // Don't throw immediately on poll error, retry
                 await new Promise(resolve => setTimeout(resolve, interval));
                 attempts++;
             }

@@ -35,6 +35,10 @@ export interface RecommendedSettings {
     notes?: string;
     triggerWords?: string[]; // Added
     tagDefinitions?: Record<string, string>; // tag -> description mapping
+    // LoRA-specific settings
+    strength?: number;           // Recommended LoRA strength
+    strengthRange?: [number, number]; // Range of recommended strengths
+    clipSkip?: number;           // Recommended CLIP skip
 }
 
 export async function fetchCivitaiModelVersion(versionId: string): Promise<CivitaiModelVersion | null> {
@@ -121,6 +125,24 @@ export function extractRecommendedSettings(description: string | null, trainedWo
     const foundKeywords = keywords.filter(k => lowerDesc.includes(k));
     if (foundKeywords.length > 0) {
         settings.notes = `Recommended: ${foundKeywords.join(", ")}`;
+    }
+
+    // LoRA Strength - look for patterns like "strength: 0.7", "weight: 0.8", "recommended strength 0.6-0.9"
+    const strengthRangeMatch = lowerDesc.match(/(?:strength|weight|lora\s*weight):?\s*([\d.]+)\s*[-–to]\s*([\d.]+)/i);
+    const strengthSingleMatch = lowerDesc.match(/(?:strength|weight|lora\s*weight):?\s*([\d.]+)(?!\s*[-–to])/i);
+    if (strengthRangeMatch) {
+        const min = parseFloat(strengthRangeMatch[1]);
+        const max = parseFloat(strengthRangeMatch[2]);
+        settings.strengthRange = [min, max];
+        settings.strength = (min + max) / 2;
+    } else if (strengthSingleMatch) {
+        settings.strength = parseFloat(strengthSingleMatch[1]);
+    }
+
+    // CLIP Skip
+    const clipSkipMatch = lowerDesc.match(/clip\s*skip:?\s*(\d+)/i);
+    if (clipSkipMatch) {
+        settings.clipSkip = parseInt(clipSkipMatch[1]);
     }
 
     // Extract Tag Definitions (e.g., "tag_name - Description")

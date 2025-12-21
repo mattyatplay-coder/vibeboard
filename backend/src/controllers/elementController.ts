@@ -202,12 +202,37 @@ export const createElementFromGeneration = async (req: Request, res: Response) =
             }
         }
 
+        // Download the file locally to prevent expiry
+        let fileUrl = url;
+        try {
+            if (url.startsWith('http')) {
+                const response = await fetch(url);
+                if (response.ok) {
+                    const buffer = await response.arrayBuffer();
+                    // Determine extension from content-type or url
+                    const ext = url.split('.').pop()?.split('?')[0] || (type === 'video' ? 'mp4' : 'png');
+                    const filename = `${Date.now()}-${Math.floor(Math.random() * 10000)}.${ext}`;
+                    const uploadPath = path.join(process.cwd(), 'uploads', filename);
+
+                    // Utilize fs/promises to import locally if not available globally, assuming node env
+                    const fs = require('fs');
+                    await fs.promises.writeFile(uploadPath, Buffer.from(buffer));
+
+                    fileUrl = `/uploads/${filename}`;
+                    console.log(`Downloaded element to ${fileUrl}`);
+                }
+            }
+        } catch (downloadErr) {
+            console.error("Failed to download generation asset, using original URL", downloadErr);
+            // Fallback to original URL
+        }
+
         const element = await prisma.element.create({
             data: {
                 projectId,
                 name: finalName,
                 type,
-                fileUrl: url, // Use provided URL directly
+                fileUrl: fileUrl,
                 metadata: JSON.stringify(parsedMetadata),
                 tags: JSON.stringify(parsedTags),
                 sessionId: sessionId || null,

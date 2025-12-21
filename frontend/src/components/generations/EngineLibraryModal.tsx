@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
-import { X, Search, Image as ImageIcon, Video, User, Crown, Wand2, Sparkles, Filter, Check } from 'lucide-react';
+import React, { useState, useMemo, useRef } from 'react';
+import { X, Search, Image as ImageIcon, Video, User, Crown, Sparkles, Check, Film, Upload, Mic, Music } from 'lucide-react';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ALL_MODELS, ModelInfo, ModelCapability, PROVIDER_DEFINITIONS } from '@/lib/ModelRegistry';
+import { AudioInput } from './AudioInput';
 
 interface EngineLibraryModalProps {
     isOpen: boolean;
@@ -10,19 +11,37 @@ interface EngineLibraryModalProps {
     currentModelId: string;
     onSelect: (model: ModelInfo) => void;
     initialCategory?: ModelCapability | 'all';
+    // Generation parameters
+    quantity?: number;
+    onQuantityChange?: (quantity: number) => void;
+    duration?: string;
+    onDurationChange?: (d: string) => void;
+    // Audio support for avatar models
+    audioFile?: File | null;
+    onAudioChange?: (file: File | null) => void;
 }
 
-const CATEGORIES: { id: ModelCapability | 'all'; label: string; icon: any }[] = [
-    { id: 'all', label: 'All Engines', icon: Sparkles },
+const CATEGORIES: { id: ModelCapability | 'all'; label: string; icon: React.ElementType }[] = [
+    { id: 'all', label: 'All Uses', icon: Sparkles },
     { id: 'text-to-image', label: 'Image Generation', icon: ImageIcon },
     { id: 'text-to-video', label: 'Text to Video', icon: Video },
-    { id: 'image-to-video', label: 'Animation (I2V)', icon: Video },
+    { id: 'image-to-video', label: 'Animation (I2V)', icon: Film },
     { id: 'avatar', label: 'Character & Avatar', icon: User },
-    // { id: 'image-editing', label: 'Image Edit/Upscale', icon: Wand2 },
-    // { id: 'video-editing', label: 'Video Edit/Inpaint', icon: Wand2 },
 ];
 
-export function EngineLibraryModal({ isOpen, onClose, currentModelId, onSelect, initialCategory = 'all' }: EngineLibraryModalProps) {
+export function EngineLibraryModal({
+    isOpen,
+    onClose,
+    currentModelId,
+    onSelect,
+    initialCategory = 'all',
+    quantity = 1,
+    onQuantityChange,
+    duration,
+    onDurationChange,
+    audioFile,
+    onAudioChange
+}: EngineLibraryModalProps) {
     const [favorites, setFavorites] = useState<string[]>(() => {
         // Load favorites from local storage
         if (typeof window !== 'undefined') {
@@ -44,6 +63,7 @@ export function EngineLibraryModal({ isOpen, onClose, currentModelId, onSelect, 
     };
 
     const [selectedCategory, setSelectedCategory] = useState<ModelCapability | 'all' | 'favorites'>('all');
+    const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
 
     // Update selected category when modal opens or initialCategory changes
     React.useEffect(() => {
@@ -53,51 +73,73 @@ export function EngineLibraryModal({ isOpen, onClose, currentModelId, onSelect, 
     }, [isOpen, initialCategory]);
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Infer mode from initialCategory
-    const isVideoMode = initialCategory === 'text-to-video' || initialCategory === 'image-to-video';
-    const isImageMode = initialCategory === 'text-to-image';
+    // Get provider counts for MAKER filter
+    const providerCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        ALL_MODELS.forEach(model => {
+            counts[model.provider] = (counts[model.provider] || 0) + 1;
+        });
+        return counts;
+    }, []);
+
+    const toggleProvider = (provider: string) => {
+        setSelectedProviders(prev =>
+            prev.includes(provider)
+                ? prev.filter(p => p !== provider)
+                : [...prev, provider]
+        );
+    };
 
     const filteredModels = useMemo(() => {
         return ALL_MODELS.filter(model => {
             let matchesCategory = false;
 
-            // Handle "All" - respect mode restrictions
+            // Handle "All" - show all models
             if (selectedCategory === 'all') {
-                if (isVideoMode) matchesCategory = model.type === 'video';
-                else if (isImageMode) matchesCategory = model.type === 'image';
-                else matchesCategory = true;
+                matchesCategory = true;
             }
             else if (selectedCategory === 'favorites') {
                 matchesCategory = favorites.includes(model.id);
-                // Verify favorite matches mode too? Maybe safer to show all favorites or filter them too.
-                // Let's filter favorites by mode too for consistency.
-                if (matchesCategory) {
-                    if (isVideoMode && model.type !== 'video') matchesCategory = false;
-                    if (isImageMode && model.type !== 'image') matchesCategory = false;
-                }
             }
-            else matchesCategory = model.capability === selectedCategory;
+            else {
+                matchesCategory = model.capability === selectedCategory;
+            }
+
+            // Filter by selected providers (if any)
+            const matchesProvider = selectedProviders.length === 0 || selectedProviders.includes(model.provider);
 
             const matchesSearch = model.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 model.provider.toLowerCase().includes(searchQuery.toLowerCase());
-            return matchesCategory && matchesSearch;
+            return matchesCategory && matchesProvider && matchesSearch;
         });
-    }, [selectedCategory, searchQuery, favorites, isVideoMode, isImageMode]);
+    }, [selectedCategory, searchQuery, favorites, selectedProviders]);
 
-    // Filter categories for sidebar
-    const displayedCategories = CATEGORIES.filter(cat => {
-        if (cat.id === 'all') return true;
-        if (isVideoMode) return ['text-to-video', 'image-to-video', 'video-editing'].includes(cat.id);
-        if (isImageMode) return ['text-to-image', 'avatar', 'image-editing'].includes(cat.id);
-        return true;
-    });
+    // Show all categories always
+    const displayedCategories = CATEGORIES;
+
+    // Check if current model is an Avatar model (needs audio)
+    const isAvatarModel = useMemo(() => {
+        // Not used for logic anymore, but kept if needed
+        const model = ALL_MODELS.find(m => m.id === currentModelId);
+        return model?.capability === 'avatar';
+    }, [currentModelId]);
+
+    const isVideoModel = useMemo(() => {
+        const model = ALL_MODELS.find(m => m.id === currentModelId);
+        return model?.type === 'video';
+    }, [currentModelId]);
+
+    const supportedDurations = useMemo(() => {
+        const model = ALL_MODELS.find(m => m.id === currentModelId);
+        return model?.supportedDurations || ['5s', '10s'];
+    }, [currentModelId]);
 
     // Group by Capability if 'all' is selected, or just list
     // Actually, simple grid is better for now.
 
     const handleSelect = (model: ModelInfo) => {
         onSelect(model);
-        onClose();
+        // onClose(); // Keep open to allow parameter adjustment
     };
 
     return (
@@ -122,64 +164,131 @@ export function EngineLibraryModal({ isOpen, onClose, currentModelId, onSelect, 
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Sidebar */}
-                        <div className="w-64 bg-black/40 border-r border-white/5 flex flex-col p-4">
-                            <div className="flex items-center gap-2 mb-8 px-2">
+                        <div className="w-64 bg-black/40 border-r border-white/5 flex flex-col p-4 overflow-y-auto">
+                            <div className="flex items-center gap-2 mb-6 px-2">
                                 <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
                                     <Sparkles className="w-5 h-5 text-blue-400" />
                                 </div>
-                                <h2 className="text-lg font-bold text-white">Model Library</h2>
+                                <h2 className="text-lg font-bold text-white">Models</h2>
                             </div>
 
-                            <div className="space-y-1">
-                                <button
-                                    onClick={() => setSelectedCategory('all')}
-                                    className={clsx(
-                                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all text-left",
-                                        selectedCategory === 'all'
-                                            ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
-                                            : "text-gray-400 hover:text-white hover:bg-white/5"
-                                    )}
-                                >
-                                    <Sparkles className={clsx("w-4 h-4", selectedCategory === 'all' ? "text-white" : "text-gray-500")} />
-                                    <span>All Engines</span>
-                                </button>
-
-                                <button
-                                    onClick={() => setSelectedCategory('favorites')}
-                                    className={clsx(
-                                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all text-left",
-                                        selectedCategory === 'favorites'
-                                            ? "bg-yellow-500 text-white shadow-lg shadow-yellow-500/20"
-                                            : "text-gray-400 hover:text-white hover:bg-white/5"
-                                    )}
-                                >
-                                    <Crown className={clsx("w-4 h-4", selectedCategory === 'favorites' ? "text-white fill-current" : "text-gray-500")} />
-                                    <span>Favorites</span>
-                                </button>
-
-                                <div className="my-2 border-t border-white/10" />
-
-                                {displayedCategories.filter(c => c.id !== 'all').map(cat => (
-                                    <button
-                                        key={cat.id}
-                                        onClick={() => setSelectedCategory(cat.id)}
-                                        className={clsx(
-                                            "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all text-left",
-                                            selectedCategory === cat.id
-                                                ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
-                                                : "text-gray-400 hover:text-white hover:bg-white/5"
-                                        )}
-                                    >
-                                        <cat.icon className={clsx("w-4 h-4", selectedCategory === cat.id ? "text-white" : "text-gray-500 group-hover:text-white")} />
-                                        <span>{cat.label}</span>
-                                    </button>
-                                ))}
+                            {/* Audio Source Section - Always visible per design */}
+                            <div className="mb-4">
+                                {onAudioChange && (
+                                    <AudioInput
+                                        file={audioFile}
+                                        onAudioChange={onAudioChange}
+                                        className="bg-white/5 border border-white/10"
+                                    />
+                                )}
                             </div>
 
-                            <div className="mt-auto pt-6 border-t border-white/5">
+                            {/* Quantity & Duration Row - Grid for fixed layout */}
+                            <div className="grid grid-cols-2 gap-2 mb-4 px-2">
+                                {/* Quantity */}
+                                {onQuantityChange && (
+                                    <div className="w-full">
+                                        <label className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-2 block">Quantity</label>
+                                        <select
+                                            value={quantity}
+                                            onChange={(e) => onQuantityChange(parseInt(e.target.value))}
+                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                                        >
+                                            {[1, 2, 3, 4].map(n => (
+                                                <option key={n} value={n} className="bg-[#1a1a1a]">{n}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {/* Duration (Video Only) */}
+                                {isVideoModel && onDurationChange && (
+                                    <div className="w-full animate-in fade-in slide-in-from-left-2">
+                                        <label className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-2 block">Duration</label>
+                                        <select
+                                            value={duration}
+                                            onChange={(e) => onDurationChange(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none"
+                                        >
+                                            {supportedDurations.map((d: string) => (
+                                                <option key={d} value={d} className="bg-[#1a1a1a]">{d}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Favorites */}
+                            <button
+                                onClick={() => setSelectedCategory('favorites')}
+                                className={clsx(
+                                    "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all text-left mb-2",
+                                    selectedCategory === 'favorites'
+                                        ? "bg-yellow-500 text-white shadow-lg shadow-yellow-500/20"
+                                        : "text-gray-400 hover:text-white hover:bg-white/5"
+                                )}
+                            >
+                                <Crown className={clsx("w-4 h-4", selectedCategory === 'favorites' ? "text-white fill-current" : "text-gray-500")} />
+                                <span>My Favorites</span>
+                                <span className="ml-auto text-xs opacity-60">{favorites.length}</span>
+                            </button>
+
+                            {/* USE CASE Section */}
+                            <div className="mb-4">
+                                <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold px-3 mb-2">Use Case</p>
+                                <div className="space-y-1">
+                                    {displayedCategories.map(cat => (
+                                        <button
+                                            key={cat.id}
+                                            onClick={() => setSelectedCategory(cat.id)}
+                                            className={clsx(
+                                                "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all text-left",
+                                                selectedCategory === cat.id
+                                                    ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
+                                                    : "text-gray-400 hover:text-white hover:bg-white/5"
+                                            )}
+                                        >
+                                            <cat.icon className={clsx("w-4 h-4", selectedCategory === cat.id ? "text-white" : "text-gray-500")} />
+                                            <span>{cat.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="my-3 border-t border-white/10" />
+
+                            {/* MAKER Section */}
+                            <div className="mb-4">
+                                <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold px-3 mb-2">Maker</p>
+                                <div className="space-y-1">
+                                    {Object.entries(providerCounts).sort((a, b) => b[1] - a[1]).map(([provider, count]) => {
+                                        const providerDef = PROVIDER_DEFINITIONS[provider];
+                                        const isSelected = selectedProviders.includes(provider);
+                                        return (
+                                            <button
+                                                key={provider}
+                                                onClick={() => toggleProvider(provider)}
+                                                className={clsx(
+                                                    "w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all text-left",
+                                                    isSelected
+                                                        ? "bg-white/10 text-white"
+                                                        : "text-gray-400 hover:text-white hover:bg-white/5"
+                                                )}
+                                            >
+                                                {providerDef?.icon && <providerDef.icon className={clsx("w-3.5 h-3.5", providerDef.color)} />}
+                                                <span className="flex-1 truncate">{providerDef?.name || provider}</span>
+                                                <span className="text-xs opacity-60">{count}</span>
+                                                {isSelected && <Check className="w-3 h-3 text-blue-400" />}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="mt-auto pt-4 border-t border-white/5">
                                 <div className="px-3 py-2 bg-blue-500/10 rounded-lg border border-blue-500/20">
-                                    <p className="text-xs text-blue-300 font-medium mb-1">Total Models</p>
-                                    <p className="text-2xl font-bold text-blue-100">{ALL_MODELS.length}</p>
+                                    <p className="text-xs text-blue-300 font-medium mb-1">Showing</p>
+                                    <p className="text-xl font-bold text-blue-100">{filteredModels.length} <span className="text-sm font-normal text-blue-300">of {ALL_MODELS.length}</span></p>
                                 </div>
                             </div>
                         </div>

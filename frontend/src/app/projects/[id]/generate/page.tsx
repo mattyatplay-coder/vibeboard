@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { fetchAPI } from "@/lib/api";
 import { useParams } from "next/navigation";
 import { EngineSelectorV2 } from '@/components/generations/EngineSelectorV2';
@@ -9,7 +9,7 @@ import {
     Loader2, Image as ImageIcon, Video,
     Wand2, Sparkles, Layers, X,
     ChevronDown, SlidersHorizontal, Users, Trash2, Copy, CheckSquare,
-    Database, Music, FilePlus
+    Database, Music, FilePlus, Tag as TagIcon
 } from 'lucide-react';
 import { Element, Generation, Scene } from "@/lib/store";
 import { clsx } from "clsx";
@@ -36,6 +36,11 @@ import { VideoMaskEditor } from "@/components/generations/VideoMaskEditor";
 import { ImageMaskEditor } from "@/components/generations/ImageMaskEditor";
 import { AudioInputModal } from "@/components/generations/AudioInputModal";
 import { DataBackupModal } from "@/components/settings/DataBackupModal";
+import { TagSelectorModal } from "@/components/generation/TagSelectorModal";
+import { CompactMotionSlider } from "@/components/generation/CompactMotionSlider";
+import { Tag } from "@/components/tag-system";
+import { getModelRequirements } from "@/lib/ModelConstraints";
+import { ALL_MODELS } from "@/lib/ModelRegistry";
 
 interface PipelineStage {
     id: string;
@@ -70,6 +75,7 @@ export default function GeneratePage() {
     const [selectedGenerationIds, setSelectedGenerationIds] = useState<string[]>([]); // Added missing state
     const [referenceCreativity, setReferenceCreativity] = useState(0.6); // Default reference strength
     const [elementStrengths, setElementStrengths] = useState<Record<string, number>>({}); // Per-element strength
+    const [motionScale, setMotionScale] = useState(0.5); // Motion scale for video models (0-1)
     const { selectedSessionId, sessions } = useSession();
 
     // Audio State for Avatar Models
@@ -108,6 +114,7 @@ export default function GeneratePage() {
     const [selectedGeneration, setSelectedGeneration] = useState<Generation | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isPromptBuilderOpen, setIsPromptBuilderOpen] = useState(false);
+    const [isTagSelectorOpen, setIsTagSelectorOpen] = useState(false);
 
     // Engine State
     const [engineConfig, setEngineConfig] = useState<{ provider: string, model: string }>({
@@ -117,6 +124,25 @@ export default function GeneratePage() {
 
     // Engine Stacking
     const [enableMotionStacking, setEnableMotionStacking] = useState(false);
+
+    // Model Requirements - computed from current model
+    const modelRequirements = React.useMemo(() => {
+        const requirements = getModelRequirements(engineConfig.model);
+        const needsImage = requirements.some(r => r.input === 'image' || r.input === 'faceReference');
+        const needsAudio = requirements.some(r => r.input === 'audio');
+        const needsMotionVideo = requirements.some(r => r.input === 'motionVideo');
+        const currentModel = ALL_MODELS.find(m => m.id === engineConfig.model);
+        const isVideo = currentModel?.type === 'video';
+        return { needsImage, needsAudio, needsMotionVideo, isVideo, requirements };
+    }, [engineConfig.model]);
+
+    // Auto-update mode when model changes
+    React.useEffect(() => {
+        const currentModel = ALL_MODELS.find(m => m.id === engineConfig.model);
+        if (currentModel) {
+            setMode(currentModel.type === 'video' ? 'video' : 'image');
+        }
+    }, [engineConfig.model]);
 
     const handleAddTag = (tag: string, category: string) => {
         const prefix = prompt ? `${prompt}, ` : "";
@@ -192,7 +218,12 @@ export default function GeneratePage() {
                 tags: e.tags || [],
                 metadata: e.metadata,
                 session: e.session,
-                url: `http://localhost:3001${e.fileUrl}`,
+                url: (() => {
+                    const u = e.fileUrl as string;
+                    if (!u) return '';
+                    if (u.startsWith('http') || u.startsWith('data:')) return u;
+                    return `http://localhost:3001${u.startsWith('/') ? '' : '/'}${u}`;
+                })(),
                 projectId: e.projectId
             }));
             setElements(mapped);
@@ -254,7 +285,7 @@ export default function GeneratePage() {
                         });
                         if (res.ok) {
                             const data = await res.json();
-                            sourceImageUrl = data.url;
+                            sourceImageUrl = data.fileUrl || data.url;
                         }
                     } catch (e) {
                         console.error("Failed to upload source image", e);
@@ -262,6 +293,39 @@ export default function GeneratePage() {
                 } else if (typeof styleConfig.referenceImage === 'string') {
                     sourceImageUrl = styleConfig.referenceImage;
                 }
+            }
+
+            // Handle Audio Upload (for Avatar models)
+            let finalAudioUrl = audioUrl;
+            console.log("[GeneratePage] debug - audioFile:", audioFile);
+            console.log("[GeneratePage] debug - current audioUrl state:", audioUrl);
+
+            if (audioFile) {
+                console.log("[GeneratePage] Uploading audio file...");
+                const formData = new FormData();
+                formData.append('file', audioFile);
+                formData.append('name', 'Audio Source');
+                formData.append('type', 'audio');
+
+                try {
+                    const res = await fetch(`http://localhost:3001/api/projects/${projectId}/elements`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        finalAudioUrl = data.fileUrl || data.url;
+                        console.log("[GeneratePage] Audio uploaded successfully:", finalAudioUrl);
+                        // Update state so we don't re-upload if retrying without changing file
+                        setAudioUrl(finalAudioUrl);
+                    } else {
+                        console.error("[GeneratePage] Audio upload failed with status:", res.status);
+                    }
+                } catch (e) {
+                    console.error("Failed to upload audio file", e);
+                }
+            } else {
+                console.log("[GeneratePage] No audioFile to upload.");
             }
 
             // Handle Pipeline Assets Upload
@@ -374,9 +438,10 @@ export default function GeneratePage() {
                     steps: styleConfig?.steps || steps, // Pass selected Steps
                     duration: duration, // Pass selected Duration
                     negativePrompt: styleConfig?.negativePrompt, // Pass Negative Prompt
-                    audioUrl: audioUrl, // Pass audio URL for avatar models
+                    audioUrl: finalAudioUrl, // Pass audio URL for avatar models
                     referenceStrengths: elementStrengths, // Pass per-element strengths
                     referenceCreativity: referenceCreativity, // Pass global creativity fallback
+                    motionScale: motionScale, // Motion scale for video models (dedicated state)
                     // inputVideo: inputVideoUrl, // Only needed for standalone motion mode, if supported handling existed.
 
                     // Engine Stacking (Pipeline)
@@ -759,7 +824,7 @@ export default function GeneratePage() {
 
 
     const filteredElements = elements.filter(el =>
-        el.name.toLowerCase().includes(suggestionQuery.toLowerCase())
+        el.projectId === projectId && el.name.toLowerCase().includes(suggestionQuery.toLowerCase())
     );
 
     const sensors = useSensors(
@@ -1134,7 +1199,53 @@ export default function GeneratePage() {
                         {/* Fixed Bottom Bar */}
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/95 to-transparent pt-12 pb-8 px-8 z-50 pointer-events-none">
                             <div className="w-full mx-auto pointer-events-auto">
-                                <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-2 shadow-2xl flex flex-col gap-2">
+                                <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-2 shadow-2xl flex flex-col gap-2 relative">
+                                    {/* @ Reference Suggestions Dropdown (Horizontal) - Moved here to span full width */}
+                                    {showSuggestions && filteredElements.length > 0 && (
+                                        <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#1a1a1a] border border-white/20 rounded-xl shadow-2xl z-50 animate-in slide-in-from-bottom-2 fade-in duration-200">
+                                            <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between bg-white/5">
+                                                <div className="flex items-center gap-2">
+                                                    <Users className="w-3 h-3 text-blue-400" />
+                                                    <span className="text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                                        Filtering: "{suggestionQuery}"
+                                                    </span>
+                                                </div>
+                                                <span className="text-[10px] text-gray-500">
+                                                    {filteredElements.length} match{filteredElements.length !== 1 ? 'es' : ''}
+                                                </span>
+                                            </div>
+                                            <div className="p-2 flex gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                                                {filteredElements.map((el, idx) => (
+                                                    <button
+                                                        key={el.id || `suggestion-${idx}`}
+                                                        onMouseDown={(e) => {
+                                                            e.preventDefault(); // Prevent textarea blur
+                                                            selectSuggestion(el);
+                                                        }}
+                                                        className="relative w-16 h-16 rounded-lg overflow-hidden border border-white/10 flex-shrink-0 group hover:border-blue-500 hover:scale-105 transition-all"
+                                                        title={el.name}
+                                                    >
+                                                        {el.url ? (
+                                                            el.type === 'video' ? (
+                                                                <video src={el.url} className="w-full h-full object-cover" muted />
+                                                            ) : (
+                                                                <img src={el.url} alt={el.name} className="w-full h-full object-cover" />
+                                                            )
+                                                        ) : (
+                                                            <div className="w-full h-full bg-white/5 flex items-center justify-center">
+                                                                <Users className="w-6 h-6 text-gray-600" />
+                                                            </div>
+                                                        )}
+                                                        <div className="absolute inset-0 flex items-end p-1 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <span className="text-[9px] text-white truncate w-full text-center leading-tight">
+                                                                {el.name}
+                                                            </span>
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                     {/* Elements Drawer */}
                                     {isElementPickerOpen && (
                                         <div className="px-2 pt-2 pb-1 border-b border-white/5 animate-in slide-in-from-bottom-2 duration-200">
@@ -1195,11 +1306,28 @@ export default function GeneratePage() {
                                                 )}
                                                 rows={1}
                                             />
+
+
+
                                             {/* Selected Elements Display */}
-                                            {selectedElementIds.length > 0 && (
+                                            {(selectedElementIds.length > 0 || audioFile) && (
                                                 <div className="px-4 pb-2 flex gap-2 overflow-x-auto scrollbar-none">
+                                                    {/* Audio Pill */}
+                                                    {audioFile && (
+                                                        <div className="flex items-center gap-1.5 bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full text-xs border border-purple-500/30 flex-shrink-0 animate-in fade-in zoom-in duration-200">
+                                                            <Music className="w-3 h-3" />
+                                                            <span className="max-w-[100px] truncate">{audioFile.name}</span>
+                                                            <button
+                                                                onClick={() => setAudioFile(null)}
+                                                                className="hover:text-white transition-colors"
+                                                            >
+                                                                <X className="w-3 h-3" />
+                                                            </button>
+                                                        </div>
+                                                    )}
+
                                                     {elements.filter(e => selectedElementIds.includes(e.id)).map((el, idx) => (
-                                                        <div key={el.id || `selected-${idx}`} className="flex items-center gap-1.5 bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full text-xs border border-blue-500/30">
+                                                        <div key={el.id || `selected-${idx}`} className="flex items-center gap-1.5 bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full text-xs border border-blue-500/30 shrink-0">
                                                             <span className="max-w-[100px] truncate">@{el.name}</span>
                                                             <button
                                                                 onClick={() => toggleElement(el)}
@@ -1213,38 +1341,45 @@ export default function GeneratePage() {
                                             )}
                                         </div>
 
-                                        <div className="flex items-center gap-2 shrink-0 h-10 relative">
+                                        <div className="flex items-center gap-1.5 shrink-0 h-10 relative">
+                                            {/* 1. Smart Prompt (Wand) */}
                                             <button
                                                 onClick={() => setIsPromptBuilderOpen(true)}
-                                                className="h-10 w-10 flex items-center justify-center bg-gradient-to-br from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border border-purple-500/30 rounded-xl text-purple-300 transition-all hover:scale-105 hover:shadow-lg hover:shadow-purple-500/10"
-                                                title="Open Smart Prompt Builder"
+                                                className="h-10 w-10 flex items-center justify-center bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 rounded-xl text-purple-400 transition-all hover:scale-105"
+                                                title="Smart Prompt Builder"
                                             >
                                                 <Wand2 className="w-5 h-5" />
                                             </button>
 
-                                            {/* Style Tools Button */}
+                                            {/* 2. Tag Selector */}
                                             <button
-                                                type="button"
-                                                onClick={() => setIsStyleModalOpen(true)}
-                                                className="h-10 flex items-center gap-2 px-3 rounded-xl border bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white transition-all whitespace-nowrap"
-                                                title="Style & Settings"
+                                                onClick={() => setIsTagSelectorOpen(true)}
+                                                className="h-10 w-10 flex items-center justify-center bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-xl text-amber-400 transition-all hover:scale-105"
+                                                title="Add Tags to Prompt"
                                             >
-                                                <SlidersHorizontal className="w-5 h-5" />
-                                                <span className="hidden xl:inline">Style</span>
-                                                <div className="flex items-center gap-1 ml-1 pl-2 border-l border-white/10">
-                                                    <span className="text-xs bg-white/10 px-1.5 py-0.5 rounded text-gray-400">{aspectRatio}</span>
-                                                </div>
+                                                <TagIcon className="w-5 h-5" />
                                             </button>
 
-                                            {/* Element Picker Toggle */}
+                                            {/* 3. Style & Aspect Ratio */}
                                             <button
-                                                type="button"
+                                                onClick={() => setIsStyleModalOpen(true)}
+                                                className="h-10 flex items-center gap-2 px-3 rounded-xl border bg-black/20 border-white/5 text-gray-400 hover:bg-white/5 hover:text-white transition-all"
+                                            >
+                                                <SlidersHorizontal className="w-4 h-4" />
+                                                <span className="text-sm font-medium hidden sm:inline">Style</span>
+                                                <div className="h-4 w-px bg-white/10 mx-1" />
+                                                <span className="text-xs bg-white/10 px-1.5 py-0.5 rounded text-gray-300 font-mono">{aspectRatio}</span>
+                                            </button>
+
+                                            {/* 3. Reference Elements (Users) */}
+                                            <button
                                                 onClick={() => setIsElementPickerOpen(!isElementPickerOpen)}
                                                 className={clsx(
-                                                    "h-10 w-10 flex items-center justify-center rounded-xl transition-colors relative border border-white/10",
-                                                    isElementPickerOpen ? "bg-white/10 text-white" : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white"
+                                                    "h-10 w-10 flex items-center justify-center rounded-xl transition-all relative border",
+                                                    isElementPickerOpen
+                                                        ? "bg-blue-500/20 border-blue-500/50 text-blue-300"
+                                                        : "bg-black/20 border-white/5 text-gray-400 hover:bg-white/5 hover:text-white"
                                                 )}
-                                                title="Toggle Elements"
                                             >
                                                 <Users className="w-5 h-5" />
                                                 {selectedElementIds.length > 0 && (
@@ -1254,95 +1389,38 @@ export default function GeneratePage() {
                                                 )}
                                             </button>
 
-                                            {/* Mode Switch */}
-                                            <div className="flex items-center bg-white/5 rounded-xl border border-white/10 h-10 p-1">
-                                                <button
-                                                    onClick={() => {
-                                                        setMode('image');
-                                                        setEngineConfig(prev => ({ ...prev, provider: 'fal', model: 'fal-ai/flux/dev' }));
-                                                    }}
-                                                    className={clsx(
-                                                        "h-full px-2 rounded-lg transition-all flex items-center justify-center",
-                                                        mode === 'image' ? "bg-blue-500 text-white shadow-lg" : "text-gray-400 hover:text-white"
-                                                    )}
-                                                    title="Image Mode"
-                                                >
-                                                    <ImageIcon className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        setMode('video');
-                                                        setEngineConfig(prev => ({ ...prev, provider: 'fal', model: 'fal-ai/kling-video/v1/standard/text-to-video' }));
-                                                    }}
-                                                    className={clsx(
-                                                        "h-full px-2 rounded-lg transition-all flex items-center justify-center",
-                                                        mode === 'video' ? "bg-blue-500 text-white shadow-lg" : "text-gray-400 hover:text-white"
-                                                    )}
-                                                    title="Video Mode"
-                                                >
-                                                    <Video className="w-4 h-4" />
-                                                </button>
-                                            </div>
-
-                                            <div className="w-px h-6 bg-white/10 mx-1" />
-
-                                            {/* Duration Dropdown (Video Only) */}
-                                            {(engineConfig.model?.includes('video') || engineConfig.model?.includes('t2v') || engineConfig.model?.includes('wan') || engineConfig.model?.includes('kling') || engineConfig.model?.includes('ltx')) && (
-                                                <div className="flex items-center gap-2 bg-white/5 px-2 rounded-lg border border-white/10 h-10">
-                                                    <span className="text-xs text-gray-400 font-medium px-1">Sec</span>
-                                                    <select
-                                                        value={duration}
-                                                        onChange={(e) => setDuration(e.target.value)}
-                                                        className="bg-transparent text-xs text-white font-medium focus:outline-none cursor-pointer"
-                                                    >
-                                                        <option value="5" className="bg-[#1a1a1a]">5s</option>
-                                                        <option value="10" className="bg-[#1a1a1a]">10s</option>
-                                                    </select>
-                                                </div>
+                                            {/* 5. Motion Scale (Video Models Only) */}
+                                            {mode === 'video' && (
+                                                <CompactMotionSlider
+                                                    value={motionScale}
+                                                    onChange={setMotionScale}
+                                                    engineType={
+                                                        engineConfig.model.includes('kling') ? 'kling' :
+                                                        engineConfig.model.includes('veo') ? 'veo' :
+                                                        engineConfig.model.includes('wan') ? 'wan' :
+                                                        engineConfig.model.includes('luma') ? 'luma' :
+                                                        engineConfig.model.includes('ltx') ? 'ltx' :
+                                                        'other'
+                                                    }
+                                                />
                                             )}
 
-                                            {/* Iterations Dropdown */}
-                                            <div className="flex items-center gap-2 bg-white/5 px-2 rounded-lg border border-white/10 h-10">
-                                                <span className="text-xs text-gray-400 font-medium px-1">Qty</span>
-                                                <select
-                                                    value={variations}
-                                                    onChange={(e) => setVariations(parseInt(e.target.value))}
-                                                    className="bg-transparent text-xs text-white font-medium focus:outline-none cursor-pointer"
-                                                >
-                                                    {[1, 2, 3, 4, 5, 6].map(n => (
-                                                        <option key={n} value={n} className="bg-[#1a1a1a]">{n}</option>
-                                                    ))}
-                                                </select>
+                                            {/* 6. Model Selector Pill */}
+                                            <div className="min-w-[160px]">
+                                                <EngineSelectorV2
+                                                    selectedProvider={engineConfig.provider}
+                                                    selectedModel={engineConfig.model}
+                                                    onSelect={(provider, model) => setEngineConfig({ provider, model })}
+                                                    mode={mode}
+                                                    variant="compact"
+                                                    quantity={variations}
+                                                    onQuantityChange={setVariations}
+                                                    duration={duration}
+                                                    onDurationChange={setDuration}
+                                                    audioFile={audioFile}
+                                                    onAudioChange={setAudioFile}
+                                                />
                                             </div>
-
-                                            {/* Audio Button (Avatar Only) */}
-                                            {(engineConfig.model.includes('ai-avatar') || engineConfig.model.includes('aurora')) && (
-                                                <button
-                                                    onClick={() => setIsAudioModalOpen(true)}
-                                                    className={clsx(
-                                                        "flex items-center gap-2 px-3 rounded-lg border transition-all h-10",
-                                                        audioFile
-                                                            ? "bg-blue-500/20 border-blue-500 text-blue-400"
-                                                            : "bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10"
-                                                    )}
-                                                    title="Audio Source"
-                                                >
-                                                    <Music className="w-4 h-4" />
-                                                    <span className="text-xs font-medium hidden sm:inline">
-                                                        {audioFile ? "Audio Set" : "Audio"}
-                                                    </span>
-                                                </button>
-                                            )}
-
-                                            {/* Engine Selector */}
-                                            <EngineSelectorV2
-                                                selectedProvider={engineConfig.provider}
-                                                selectedModel={engineConfig.model}
-                                                onSelect={(provider, model) => setEngineConfig({ provider, model })}
-                                                mode={mode}
-                                                variant="compact"
-                                                className="w-48"
-                                            />
 
                                             {/* Pipeline Node Workflow (Vidu Q2 Only) */}
                                             {engineConfig.model === 'fal-ai/vidu/q2/reference-to-video' && (
@@ -1466,21 +1544,21 @@ export default function GeneratePage() {
                                             )}
 
 
-                                            {/* Generate Button */}
+                                            {/* 5. Generate Button */}
                                             <button
                                                 onClick={handleGenerate}
                                                 disabled={isGenerating || !prompt?.trim()}
-                                                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 rounded-lg font-medium transition-colors flex items-center gap-2 h-10"
+                                                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:grayscale text-white px-4 rounded-xl font-medium h-10 flex items-center gap-2 shadow-lg shadow-blue-500/20 transition-all hover:scale-105 active:scale-95"
                                             >
                                                 {isGenerating ? (
                                                     <>
                                                         <Loader2 className="w-4 h-4 animate-spin" />
-                                                        Generating...
+                                                        <span className="hidden sm:inline">Generating...</span>
                                                     </>
                                                 ) : (
                                                     <>
                                                         <Sparkles className="w-4 h-4" />
-                                                        Generate
+                                                        <span className="hidden sm:inline">Generate</span>
                                                     </>
                                                 )}
                                             </button>
@@ -1502,22 +1580,21 @@ export default function GeneratePage() {
                                                     initialPrompt={prompt}
                                                     modelId={engineConfig.model}
                                                     generationType={mode}
-                                                    elements={elements
-                                                        .filter(e => selectedElementIds.includes(e.id))
-                                                        .map(e => ({
-                                                            id: e.id,
-                                                            name: e.name,
-                                                            type: (e.type === 'image' ? 'style' : e.type) as 'character' | 'prop' | 'location' | 'style',
-                                                            description: e.name,
-                                                            imageUrl: e.url,
-                                                            consistencyWeight: 0.8
-                                                        }))}
+                                                    elements={elements.map(e => ({
+                                                        id: e.id,
+                                                        name: e.name,
+                                                        type: (e.type === 'image' ? 'style' : e.type) as 'character' | 'prop' | 'location' | 'style',
+                                                        description: e.name,
+                                                        imageUrl: e.url,
+                                                        consistencyWeight: elementStrengths[e.id] || 0.8
+                                                    }))}
+                                                    selectedElementIds={selectedElementIds}
                                                     initialLoRAs={styleConfig?.loras?.map((l) => ({
                                                         id: l.id,
                                                         name: l.name,
-                                                        triggerWords: [],
+                                                        triggerWords: l.triggerWords || (l.triggerWord ? [l.triggerWord] : []),
                                                         type: 'style' as const,
-                                                        baseModel: 'SDXL',
+                                                        baseModel: l.baseModel || 'Unknown',
                                                         recommendedStrength: l.strength || 0.8,
                                                         useCount: 0
                                                     }))}
@@ -1762,6 +1839,18 @@ export default function GeneratePage() {
                             console.error("Failed to save element", e);
                         }
                     }
+                }}
+            />
+
+            <TagSelectorModal
+                isOpen={isTagSelectorOpen}
+                onClose={() => setIsTagSelectorOpen(false)}
+                onTagsApply={(tags: Tag[]) => {
+                    const tagText = tags
+                        .map(t => t.promptKeyword || t.name.toLowerCase())
+                        .join(', ');
+                    setPrompt(prev => prev.trim() ? `${prev.trim()}, ${tagText}` : tagText);
+                    setIsTagSelectorOpen(false);
                 }}
             />
 

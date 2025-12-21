@@ -1,0 +1,87 @@
+{
+    "auditDate": "2025-12-19",
+    "projectId": "ea8f7a50-8126-4d4b-86c7-cdca9a91c271",
+    "issues": [
+        {
+            "id": "QA-001",
+            "severity": "Major",
+            "title": "API Required Field Not Documented",
+            "layer": "Backend",
+            "modelsAffected": [
+                "All"
+            ],
+            "stepsToReproduce": [
+                "POST to /api/projects/:id/generations without 'mode' field",
+                "Observe cryptic Prisma error about missing 'mode' argument"
+            ],
+            "expected": "Clear API documentation specifying required fields, or helpful error message",
+            "actual": "Prisma internal error exposed to caller",
+            "evidence": {
+                "request": {
+                    "method": "POST",
+                    "url": "/api/projects/ea8f7a50-8126-4d4b-86c7-cdca9a91c271/generations",
+                    "body": {
+                        "prompt": "...",
+                        "model": "fal-ai/flux/dev",
+                        "aspectRatio": "4:3"
+                    }
+                },
+                "response": {
+                    "status": 500,
+                    "error": "Failed to create generation",
+                    "message": "Argument `mode` is missing."
+                }
+            },
+            "suggestedFix": "Add input validation in generationController.ts before Prisma call, return descriptive 400 error",
+            "codePointer": "backend/src/controllers/generationController.ts:106"
+        },
+        {
+            "id": "QA-002",
+            "severity": "Minor",
+            "title": "TypeScript Compilation Error - model possibly undefined",
+            "layer": "Backend",
+            "modelsAffected": [
+                "All video models"
+            ],
+            "stepsToReproduce": [
+                "Run 'npm run dev' in backend directory",
+                "Observe TypeScript error at FalAIAdapter.ts:1083"
+            ],
+            "expected": "Backend compiles and starts successfully",
+            "actual": "Compilation error: 'model' is possibly 'undefined'",
+            "evidence": {
+                "errorMessage": "src/services/generators/FalAIAdapter.ts:1083:71 - error TS18048: 'model' is possibly 'undefined'."
+            },
+            "suggestedFix": "Add null check: (model || '').toLowerCase().includes(m)",
+            "codePointer": "backend/src/services/generators/FalAIAdapter.ts:1083",
+            "status": "FIXED"
+        },
+        {
+            "id": "QA-003",
+            "severity": "Minor",
+            "title": "Banana Provider Missing API Key",
+            "layer": "Backend",
+            "modelsAffected": [
+                "Banana models (none currently registered)"
+            ],
+            "stepsToReproduce": [
+                "Start backend",
+                "Observe 'Skipping banana: BANANA_API_KEY not set' in logs"
+            ],
+            "expected": "All configured providers available, or clear documentation on optional providers",
+            "actual": "Warning logged but no models affected",
+            "evidence": {
+                "logMessage": "Skipping banana: BANANA_API_KEY not set"
+            },
+            "suggestedFix": "Either add BANANA_API_KEY to .env or remove Banana provider initialization if unused",
+            "codePointer": "backend/src/index.ts"
+        }
+    ],
+    "summary": {
+        "total": 3,
+        "critical": 0,
+        "major": 1,
+        "minor": 2,
+        "fixed": 1
+    }
+}

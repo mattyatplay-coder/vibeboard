@@ -1,0 +1,43 @@
+{
+  "session_continuity": {
+    "enabled": true,
+    "shared_context_file": "/Users/matthenrichmacbook/Antigravity/CLAUDE.md",
+    "gemini_context_file": "/Users/matthenrichmacbook/Antigravity/vibeboard/GEMINI.md",
+    "task_file": "/Users/matthenrichmacbook/Antigravity/vibeboard/.agent/task.md",
+    "chat_history_backup": "/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/chathistory/",
+    "session_export_prefix": "gemini_session_"
+  },
+  "on_session_start": {
+    "read_files": [
+      "/Users/matthenrichmacbook/Antigravity/CLAUDE.md",
+      "/Users/matthenrichmacbook/Antigravity/vibeboard/GEMINI.md",
+      "/Users/matthenrichmacbook/Antigravity/vibeboard/.agent/task.md"
+    ],
+    "summarize_state": true,
+    "check_pending_tasks": true
+  },
+  "on_checkpoint": {
+    "update_gemini_md": true,
+    "update_task_md": true,
+    "export_session": true,
+    "provide_continuity_summary": true
+  },
+  "session_summary_format": {
+    "sections": [
+      "accomplished",
+      "key_decisions", 
+      "files_modified",
+      "next_steps",
+      "notes_for_next_session"
+    ],
+    "max_items_per_section": 10
+  },
+  "collaboration": {
+    "other_agents": ["claude_code"],
+    "shared_files": [
+      "/Users/matthenrichmacbook/Antigravity/CLAUDE.md",
+      "/Users/matthenrichmacbook/Antigravity/vibeboard/.agent/task.md",
+      "/Users/matthenrichmacbook/Antigravity/vibeboard/.agent/agent_resolutions.json"
+    ]
+  }
+}

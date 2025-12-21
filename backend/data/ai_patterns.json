@@ -1,0 +1,58 @@
+[
+  {
+    "id": "pat_1766184345773_vzkgfo974",
+    "learnedFrom": "fb_1766184345771_3y9luuuaz",
+    "timestamp": "2025-12-19T22:45:45.773Z",
+    "context": "magic-eraser",
+    "pattern": "User correction: Recognize that it is a tattoo, by the pattern of the marking, Also the Prompt says remove tattoo.",
+    "frequency": 1
+  },
+  {
+    "id": "pat_1766184752088_kc3p81t4w",
+    "learnedFrom": "fb_1766184752087_clecr1vu4",
+    "timestamp": "2025-12-19T22:52:32.088Z",
+    "context": "magic-eraser",
+    "pattern": "User correction: the generation deformed her thumb and added artifacts on her skin",
+    "frequency": 1
+  },
+  {
+    "id": "pat_1766185226188_l94oo7gj2",
+    "learnedFrom": "fb_1766185226188_v2hkwfjz5",
+    "timestamp": "2025-12-19T23:00:26.188Z",
+    "context": "magic-eraser",
+    "pattern": "User correction: the mask covers malformed ribcage, next to the sternum.  the goal was to smooth out the area and remove the protruding bumps.",
+    "frequency": 1
+  },
+  {
+    "id": "pat_1766185561809_nj9hi6lcr",
+    "learnedFrom": "fb_1766185561809_4a9dr5a2a",
+    "timestamp": "2025-12-19T23:06:01.809Z",
+    "context": "magic-eraser",
+    "pattern": "User correction: the mask covers unsightly body deformity on the coastal cartilage area of her ribcage.",
+    "frequency": 1
+  },
+  {
+    "id": "pat_1766186139423_zu8v802j0",
+    "learnedFrom": "fb_1766186139423_yc0f015n7",
+    "timestamp": "2025-12-19T23:15:39.423Z",
+    "context": "magic-eraser",
+    "pattern": "User correction: skin repair on the ribcage/costal cartilage area",
+    "frequency": 1
+  },
+  {
+    "id": "pat_1766204448594_f5tb6wr8w",
+    "learnedFrom": "fb_1766204448594_4ee8c1m9n",
+    "timestamp": "2025-12-20T04:20:48.594Z",
+    "context": "magic-eraser",
+    "pattern": "User correction: we are trying to remove extra arm",
+    "frequency": 1
+  },
+  {
+    "id": "pat_1766204574348_pio3869ue",
+    "learnedFrom": "fb_1766204574348_do53p6izj",
+    "timestamp": "2025-12-20T04:22:54.348Z",
+    "context": "magic-eraser",
+    "pattern": "User correction: we are still trying to remove the extra arm as seen in the prompt.",
+    "frequency": 1
+  }
+]

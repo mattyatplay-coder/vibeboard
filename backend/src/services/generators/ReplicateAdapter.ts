@@ -59,6 +59,247 @@ export class ReplicateAdapter implements GenerationProvider {
                 disable_safety_checker: true, // For uncensored generation
             };
 
+            // Handle CUSTOM TRAINED LORA MODELS (e.g., Angelica)
+            // These are trained Flux LoRA models with specific trigger words
+            // Match any model in the mattyatplay-coder namespace or with explicit :version
+            const isCustomTrainedLora = model.startsWith('mattyatplay-coder/') ||
+                                        (model.includes('/') && model.includes(':') && !model.startsWith('black-forest-labs/'));
+
+            if (isCustomTrainedLora) {
+                console.log(`[ReplicateAdapter] Using custom trained LoRA model: ${model}`);
+
+                // Map short model names to full versions (required for custom trained models)
+                const customModelVersions: Record<string, string> = {
+                    'mattyatplay-coder/angelicatraining': 'mattyatplay-coder/angelicatraining:d91b41c61d99d36b8649563cd79d8c2d83facd008199030c51952c5f13ea705a',
+                    'mattyatplay-coder/angelica': 'mattyatplay-coder/angelica:85fb8091d11fb467f36038529afdd2a5f34aff892861d27d580d1241549eb7bf',
+                };
+
+                // Use version-pinned model if available, otherwise try the model as-is
+                const resolvedModel = customModelVersions[model] || model;
+                console.log(`[ReplicateAdapter] Resolved model: ${resolvedModel}`);
+
+                const loraInput: any = {
+                    prompt: options.prompt,
+                    model: "dev", // Use Flux Dev base
+                    aspect_ratio: options.aspectRatio || "16:9",
+                    num_outputs: options.count || 1,
+                    num_inference_steps: 28,
+                    guidance_scale: 3,
+                    lora_scale: 1,
+                    go_fast: false,
+                    output_format: "png",
+                    output_quality: 80,
+                    disable_safety_checker: true,
+                };
+
+                if (options.seed) {
+                    loraInput.seed = options.seed;
+                }
+
+                console.log(`Sending to Replicate (Custom LoRA: ${resolvedModel}):`, { prompt: loraInput.prompt.substring(0, 100) + '...' });
+
+                const output = await this.replicate.run(resolvedModel as `${string}/${string}`, {
+                    input: loraInput
+                });
+
+                console.log("[ReplicateAdapter] Custom LoRA raw output type:", typeof output, Array.isArray(output) ? `array(${(output as any[]).length})` : '');
+
+                // Handle output - including ReadableStream for Flux models
+                const extractUrl = async (item: any): Promise<string> => {
+                    if (typeof item === 'string') return item;
+                    if (item && typeof item === 'object') {
+                        if ('url' in item && typeof item.url === 'string') return item.url;
+
+                        // Handle ReadableStream (common with FLUX models)
+                        if (item instanceof ReadableStream || item.constructor?.name === 'ReadableStream') {
+                            console.log("[ReplicateAdapter] Processing ReadableStream output...");
+                            try {
+                                const reader = item.getReader();
+                                const chunks: Uint8Array[] = [];
+                                while (true) {
+                                    const { done, value } = await reader.read();
+                                    if (done) break;
+                                    if (value) chunks.push(value);
+                                }
+
+                                const buffer = Buffer.concat(chunks);
+                                console.log("[ReplicateAdapter] Stream content length (bytes):", buffer.length);
+
+                                // Check if it's a URL string (text)
+                                const textPreview = buffer.subarray(0, 100).toString('utf-8');
+                                if (textPreview.startsWith('http')) {
+                                    console.log("[ReplicateAdapter] Stream contained URL:", textPreview);
+                                    return buffer.toString('utf-8');
+                                }
+
+                                // It's binary data (image). Save to uploads.
+                                console.log("[ReplicateAdapter] Stream contained binary data. Saving to uploads...");
+                                const crypto = require('crypto');
+
+                                const uploadsDir = path.join(process.cwd(), 'uploads');
+                                if (!fs.existsSync(uploadsDir)) {
+                                    fs.mkdirSync(uploadsDir, { recursive: true });
+                                }
+
+                                const filename = `flux-lora-${crypto.randomUUID()}.png`;
+                                const filepath = path.join(uploadsDir, filename);
+
+                                fs.writeFileSync(filepath, buffer);
+                                console.log("[ReplicateAdapter] Saved stream to:", filepath);
+
+                                const fileUrl = `${process.env.API_URL || 'http://localhost:3001'}/uploads/${filename}`;
+                                return fileUrl;
+
+                            } catch (e) {
+                                console.error("[ReplicateAdapter] Error reading stream:", e);
+                                return '';
+                            }
+                        }
+                    }
+                    console.log("[ReplicateAdapter] Item was not a stream or URL object:", typeof item, item);
+                    return String(item);
+                };
+
+                // Wait for all outputs to resolve (in case of streams)
+                const outputArray = Array.isArray(output) ? output : [output];
+                const resolvedOutputs = await Promise.all(outputArray.map(extractUrl));
+
+                // Filter out empty strings
+                const outputs = resolvedOutputs.filter(url => url && url.length > 0);
+
+                console.log("[ReplicateAdapter] Custom LoRA final outputs:", outputs.length, "URLs");
+
+                return {
+                    id: Date.now().toString(),
+                    status: 'succeeded',
+                    outputs
+                };
+            }
+
+            // Handle STANDARD LORA FILES (safetensors, etc.) via black-forest-labs/flux-dev-lora
+            // This allows using LoRAs from Civitai, HuggingFace, or local files
+            if (options.loras && options.loras.length > 0 && !isCustomTrainedLora) {
+                console.log(`[ReplicateAdapter] Using standard LoRAs via flux-dev-lora: ${options.loras.length} LoRA(s)`);
+
+                const primaryLora = options.loras[0];
+                const loraInput: any = {
+                    prompt: options.prompt,
+                    lora_weights: primaryLora.path, // URL to LoRA safetensors file
+                    lora_scale: primaryLora.strength || 1,
+                    aspect_ratio: options.aspectRatio || "16:9",
+                    num_outputs: options.count || 1,
+                    num_inference_steps: options.steps || 28,
+                    guidance: options.guidanceScale || 3.5,
+                    output_format: "png",
+                    output_quality: 90,
+                    disable_safety_checker: true,
+                };
+
+                // Support for second LoRA via extra_lora
+                if (options.loras.length > 1) {
+                    const secondLora = options.loras[1];
+                    loraInput.extra_lora = secondLora.path;
+                    loraInput.extra_lora_scale = secondLora.strength || 1;
+                    console.log(`[ReplicateAdapter] Added extra LoRA: ${secondLora.path}`);
+                }
+
+                if (options.seed) {
+                    loraInput.seed = options.seed;
+                }
+
+                // Handle image-to-image
+                if (options.sourceImages?.length) {
+                    loraInput.image = await this.resolveLocalUrlToDataUrl(options.sourceImages[0]);
+                    loraInput.prompt_strength = options.strength || 0.8;
+                }
+
+                console.log(`[ReplicateAdapter] Sending to flux-dev-lora with LoRA: ${primaryLora.path}`);
+
+                const output = await this.replicate.run("black-forest-labs/flux-dev-lora" as `${string}/${string}`, {
+                    input: loraInput
+                });
+
+                // Handle output - same as custom LoRA handling
+                const extractUrl = async (item: any): Promise<string> => {
+                    if (typeof item === 'string') return item;
+                    if (item && typeof item === 'object') {
+                        if ('url' in item && typeof item.url === 'string') return item.url;
+                        if (item instanceof ReadableStream || item.constructor?.name === 'ReadableStream') {
+                            const reader = item.getReader();
+                            const chunks: Uint8Array[] = [];
+                            while (true) {
+                                const { done, value } = await reader.read();
+                                if (done) break;
+                                if (value) chunks.push(value);
+                            }
+                            const buffer = Buffer.concat(chunks);
+                            if (buffer.subarray(0, 4).toString('utf-8').startsWith('http')) {
+                                return buffer.toString('utf-8');
+                            }
+                            const crypto = require('crypto');
+                            const uploadsDir = path.join(process.cwd(), 'uploads');
+                            if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+                            const filename = `flux-lora-${crypto.randomUUID()}.png`;
+                            const filepath = path.join(uploadsDir, filename);
+                            fs.writeFileSync(filepath, buffer);
+                            return `${process.env.API_URL || 'http://localhost:3001'}/uploads/${filename}`;
+                        }
+                    }
+                    return String(item);
+                };
+
+                const outputArray = Array.isArray(output) ? output : [output];
+                const resolvedOutputs = await Promise.all(outputArray.map(extractUrl));
+                const outputs = resolvedOutputs.filter(url => url && url.length > 0);
+
+                console.log("[ReplicateAdapter] Standard LoRA outputs:", outputs.length, "URLs");
+
+                return {
+                    id: Date.now().toString(),
+                    status: 'succeeded',
+                    outputs
+                };
+            }
+
+            // Handle QWEN IMAGE EDIT PLUS - instruction-based image editing
+            if (model === 'qwen/qwen-image-edit-plus') {
+                console.log("[ReplicateAdapter] Using Qwen Image Edit Plus...");
+
+                if (!options.sourceImages?.[0]) {
+                    throw new Error("Qwen Image Edit Plus requires a source image to edit.");
+                }
+
+                const qwenInput: any = {
+                    prompt: options.prompt,
+                    image: await this.resolveLocalUrlToDataUrl(options.sourceImages[0]),
+                };
+
+                console.log("Sending to Replicate (Qwen Image Edit Plus):", { prompt: qwenInput.prompt, hasImage: !!qwenInput.image });
+
+                const output = await this.replicate.run("qwen/qwen-image-edit-plus" as `${string}/${string}`, {
+                    input: qwenInput
+                });
+
+                // Handle output
+                let outputs: string[] = [];
+                if (Array.isArray(output)) {
+                    for (const item of output) {
+                        if (typeof item === 'string') outputs.push(item);
+                        else if (item?.url) outputs.push(item.url);
+                    }
+                } else if (typeof output === 'string') {
+                    outputs = [output];
+                } else if ((output as any)?.url) {
+                    outputs = [(output as any).url];
+                }
+
+                return {
+                    id: Date.now().toString(),
+                    status: 'succeeded',
+                    outputs
+                };
+            }
+
             // Handle INPAINTING - use FLUX.1 Fill (professional-grade inpainting)
             if (options.maskUrl) {
                 model = "black-forest-labs/flux-fill-dev"; // Ensure model is set for inpainting

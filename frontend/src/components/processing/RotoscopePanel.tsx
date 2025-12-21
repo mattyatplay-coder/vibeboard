@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Loader2, Upload, Film, Eraser, Brush, Save, Undo2, Download, Trash2, Sparkles, Zap, Crown } from 'lucide-react';
+import { Loader2, Upload, Film, Eraser, Brush, Save, Undo2, Download, Trash2, Sparkles, Zap, Crown, Plus, Minus } from 'lucide-react';
 import { toast } from 'sonner';
 import { FrameTimeline, Frame } from './FrameTimeline';
 
-type InpaintingModelType = 'fast' | 'quality' | 'premium';
+type InpaintingModelType = 'fast' | 'quality' | 'premium' | 'auto';
 
 interface ModelOption {
     key: InpaintingModelType;
@@ -15,7 +15,8 @@ interface ModelOption {
 const MODEL_OPTIONS: ModelOption[] = [
     { key: 'fast', name: 'Fast', description: 'Quick, basic quality', icon: <Zap className="w-3 h-3" /> },
     { key: 'quality', name: 'Quality', description: 'Better context', icon: <Sparkles className="w-3 h-3" /> },
-    { key: 'premium', name: 'Premium', description: 'Best textures', icon: <Crown className="w-3 h-3" /> }
+    { key: 'premium', name: 'Premium', description: 'Best textures', icon: <Crown className="w-3 h-3" /> },
+    { key: 'auto', name: 'AI Auto', description: 'VACE auto-tracks', icon: <Film className="w-3 h-3" /> }
 ];
 
 interface RotoscopePanelProps {
@@ -41,11 +42,18 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
 
     // Drawing state
     const [brushSize, setBrushSize] = useState(30);
+    const [brushMode, setBrushMode] = useState<'add' | 'subtract'>('add');
+    const [maskFeather, setMaskFeather] = useState(0); // 0-20px feather radius
     const [isProcessing, setIsProcessing] = useState(false);
     const [isFrameLoading, setIsFrameLoading] = useState(false);
     const [selectedModel, setSelectedModel] = useState<InpaintingModelType>('quality');
     const [prompt, setPrompt] = useState('clean background, seamless, natural');
     const [strength, setStrength] = useState(0.95);
+
+    // Quick Roto (AI Auto) specific state
+    const [autoResolution, setAutoResolution] = useState<'480p' | '580p' | '720p'>('720p');
+    const [autoResultVideoUrl, setAutoResultVideoUrl] = useState<string | null>(null);
+    const [videoFile, setVideoFile] = useState<File | null>(null);
 
     // Undo history - stores original frame data before edits
     const [frameHistory, setFrameHistory] = useState<Map<number, string>>(new Map());
@@ -63,13 +71,15 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
     const cursorRef = useRef<HTMLDivElement>(null);
     const isDrawingRef = useRef(false);
     const brushSizeRef = useRef(brushSize);
+    const brushModeRef = useRef(brushMode);
     const playIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const dimensionsRef = useRef({ w: 0, h: 0 });
     const initialLoadedRef = useRef(false);
 
     const [displayDimensions, setDisplayDimensions] = useState({ w: 0, h: 0 });
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Keep brush size ref in sync
+    // Keep brush size and mode refs in sync
     useEffect(() => {
         brushSizeRef.current = brushSize;
         if (cursorRef.current) {
@@ -77,6 +87,10 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
             cursorRef.current.style.height = `${brushSize}px`;
         }
     }, [brushSize]);
+
+    useEffect(() => {
+        brushModeRef.current = brushMode;
+    }, [brushMode]);
 
     // Load initial video if provided
     useEffect(() => {
@@ -229,6 +243,10 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        // Save file for Quick Roto mode
+        setVideoFile(file);
+        setAutoResultVideoUrl(null);
+
         toast.info('Processing video...');
 
         try {
@@ -301,7 +319,16 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.lineWidth = brushSizeRef.current * scaleX;
-            ctx.strokeStyle = 'rgba(255, 80, 80, 0.8)';
+
+            if (brushModeRef.current === 'subtract') {
+                // Eraser mode - use destination-out to remove mask
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.strokeStyle = 'rgba(0, 0, 0, 1)';
+            } else {
+                // Add mode - normal painting
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.strokeStyle = 'rgba(255, 80, 80, 0.8)';
+            }
 
             ctx.lineTo(x, y);
             ctx.stroke();
@@ -372,6 +399,26 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         ctx?.clearRect(0, 0, canvas.width, canvas.height);
+    };
+
+    // Apply feather/blur effect to mask for softer edges (like DaVinci's Refine Range)
+    const applyMaskFeather = (ctx: CanvasRenderingContext2D, width: number, height: number, radius: number) => {
+        if (radius <= 0) return;
+
+        // Use CSS filter for blur - much faster than manual convolution
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = width;
+        tempCanvas.height = height;
+        const tempCtx = tempCanvas.getContext('2d')!;
+
+        // Copy current mask
+        tempCtx.drawImage(ctx.canvas, 0, 0);
+
+        // Clear original and apply blur filter
+        ctx.clearRect(0, 0, width, height);
+        ctx.filter = `blur(${radius}px)`;
+        ctx.drawImage(tempCanvas, 0, 0);
+        ctx.filter = 'none';
     };
 
     // Save original frame data before editing (for undo)
@@ -492,20 +539,38 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
             // Draw the display canvas mask scaled to frame size
             maskCtx.drawImage(canvas, 0, 0, frameWidth, frameHeight);
 
-            // Convert to binary mask (white = remove, black = keep)
+            // Apply feather/blur effect if set (like DaVinci's Refine Range)
+            if (maskFeather > 0) {
+                applyMaskFeather(maskCtx, frameWidth, frameHeight, maskFeather);
+            }
+
+            // Convert to grayscale mask with soft edges preserved
+            // For feathered masks: use alpha channel to create gradient (0-255)
+            // For non-feathered: binary mask (white = remove, black = keep)
             const imageData = maskCtx.getImageData(0, 0, frameWidth, frameHeight);
             const data = imageData.data;
             for (let i = 0; i < data.length; i += 4) {
-                if (data[i + 3] > 0) {
-                    data[i] = 255;
-                    data[i + 1] = 255;
-                    data[i + 2] = 255;
+                const alpha = data[i + 3];
+                if (maskFeather > 0) {
+                    // Preserve gradient for feathered masks - use alpha as intensity
+                    const intensity = alpha;
+                    data[i] = intensity;
+                    data[i + 1] = intensity;
+                    data[i + 2] = intensity;
                     data[i + 3] = 255;
                 } else {
-                    data[i] = 0;
-                    data[i + 1] = 0;
-                    data[i + 2] = 0;
-                    data[i + 3] = 255;
+                    // Binary mask for sharp edges
+                    if (alpha > 0) {
+                        data[i] = 255;
+                        data[i + 1] = 255;
+                        data[i + 2] = 255;
+                        data[i + 3] = 255;
+                    } else {
+                        data[i] = 0;
+                        data[i + 1] = 0;
+                        data[i + 2] = 0;
+                        data[i + 3] = 255;
+                    }
                 }
             }
             maskCtx.putImageData(imageData, 0, 0);
@@ -662,20 +727,36 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
                 // Draw mask scaled to frame size
                 maskCtx.drawImage(maskImg, 0, 0, frameWidth, frameHeight);
 
-                // Convert to binary mask
+                // Apply feather/blur effect if set (like DaVinci's Refine Range)
+                if (maskFeather > 0) {
+                    applyMaskFeather(maskCtx, frameWidth, frameHeight, maskFeather);
+                }
+
+                // Convert to grayscale mask with soft edges preserved
                 const imageData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
                 const data = imageData.data;
                 for (let j = 0; j < data.length; j += 4) {
-                    if (data[j + 3] > 0) {
-                        data[j] = 255;
-                        data[j + 1] = 255;
-                        data[j + 2] = 255;
+                    const alpha = data[j + 3];
+                    if (maskFeather > 0) {
+                        // Preserve gradient for feathered masks - use alpha as intensity
+                        const intensity = alpha;
+                        data[j] = intensity;
+                        data[j + 1] = intensity;
+                        data[j + 2] = intensity;
                         data[j + 3] = 255;
                     } else {
-                        data[j] = 0;
-                        data[j + 1] = 0;
-                        data[j + 2] = 0;
-                        data[j + 3] = 255;
+                        // Binary mask for sharp edges
+                        if (alpha > 0) {
+                            data[j] = 255;
+                            data[j + 1] = 255;
+                            data[j + 2] = 255;
+                            data[j + 3] = 255;
+                        } else {
+                            data[j] = 0;
+                            data[j + 1] = 0;
+                            data[j + 2] = 0;
+                            data[j + 3] = 255;
+                        }
                     }
                 }
                 maskCtx.putImageData(imageData, 0, 0);
@@ -832,10 +913,113 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
             setSession(null);
             setCurrentFrameIndex(0);
             setEditedFrames(new Set());
+            setVideoFile(null);
+            setAutoResultVideoUrl(null);
             toast.success('Session cleared');
         } catch (err) {
             toast.error('Failed to cleanup session');
         }
+    };
+
+    // Quick Roto (AI Auto) - processes entire video with first-frame mask
+    const handleQuickRoto = async () => {
+        if (!videoFile || !session) {
+            toast.error('Please upload a video first');
+            return;
+        }
+
+        const canvas = canvasRef.current;
+        if (!canvas) {
+            toast.error('Please draw a mask on the first frame');
+            return;
+        }
+
+        // Check if mask has any content
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const hasContent = imageData.data.some((val, i) => i % 4 === 3 && val > 0);
+
+        if (!hasContent) {
+            toast.error('Please draw a mask on the object you want to remove');
+            return;
+        }
+
+        setIsProcessing(true);
+        try {
+            const formData = new FormData();
+            formData.append('video', videoFile);
+
+            // Convert mask to white-on-black format for VACE inpainting
+            // VACE expects: black background (0,0,0), white areas (255,255,255) = inpaint region
+            const maskCanvas = document.createElement('canvas');
+            maskCanvas.width = canvas.width;
+            maskCanvas.height = canvas.height;
+            const maskCtx = maskCanvas.getContext('2d')!;
+
+            // Fill with black background
+            maskCtx.fillStyle = 'black';
+            maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+
+            // Get original mask data and convert any non-transparent pixel to white
+            const sourceData = imageData;
+            const maskImageData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+
+            for (let i = 0; i < sourceData.data.length; i += 4) {
+                // If alpha > 0 (has mask content), make it white
+                if (sourceData.data[i + 3] > 0) {
+                    maskImageData.data[i] = 255;     // R
+                    maskImageData.data[i + 1] = 255; // G
+                    maskImageData.data[i + 2] = 255; // B
+                    maskImageData.data[i + 3] = 255; // A
+                }
+            }
+
+            maskCtx.putImageData(maskImageData, 0, 0);
+
+            // Create mask blob from converted canvas
+            const maskBlob = await new Promise<Blob>((resolve) => {
+                maskCanvas.toBlob((blob) => resolve(blob!), 'image/png');
+            });
+            formData.append('mask', maskBlob, 'mask.png');
+
+            // Add parameters
+            formData.append('prompt', prompt);
+            formData.append('mode', 'guiding');
+            formData.append('resolution', autoResolution);
+            formData.append('enablePromptExpansion', 'true');
+
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/process/quick-roto`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Processing failed');
+            }
+
+            const result = await response.json();
+            setAutoResultVideoUrl(result.videoUrl);
+            toast.success('AI Auto Roto complete!');
+
+        } catch (err: any) {
+            console.error('Quick Roto failed:', err);
+            toast.error(err.message || 'Processing failed');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    // Download Quick Roto result
+    const handleDownloadAutoResult = () => {
+        if (!autoResultVideoUrl) return;
+
+        const a = document.createElement('a');
+        a.href = autoResultVideoUrl;
+        a.download = `ai-auto-roto-${Date.now()}.mp4`;
+        a.click();
     };
 
     const currentFrame = session?.frames[currentFrameIndex];
@@ -874,10 +1058,10 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
             </div>
 
             {/* Main content */}
-            <div className="flex-1 flex min-h-0">
+            <div className="flex-1 flex min-h-0 overflow-auto">
                 {!session ? (
                     // Upload area
-                    <div className="flex-1 flex items-center justify-center p-8">
+                    <div className="flex-1 flex items-center justify-center p-8 min-h-[400px]">
                         {isExtracting ? (
                             <div className="text-center">
                                 <Loader2 className="w-12 h-12 animate-spin text-cyan-400 mx-auto mb-4" />
@@ -885,17 +1069,24 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
                                 <p className="text-xs text-gray-600 mt-1">This may take a moment for longer videos</p>
                             </div>
                         ) : (
-                            <label className="border-2 border-dashed border-white/20 rounded-xl p-12 flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 transition-colors">
-                                <Film className="w-12 h-12 text-gray-500 mb-4" />
-                                <span className="text-gray-400 font-medium">Upload Video for Rotoscoping</span>
-                                <span className="text-xs text-gray-600 mt-2">MP4, MOV, or WebM</span>
+                            <>
                                 <input
+                                    ref={fileInputRef}
                                     type="file"
                                     accept="video/*"
                                     className="hidden"
                                     onChange={handleVideoUpload}
                                 />
-                            </label>
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="border-2 border-dashed border-white/20 rounded-xl p-12 flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 transition-colors"
+                                >
+                                    <Film className="w-12 h-12 text-gray-500 mb-4" />
+                                    <span className="text-gray-400 font-medium">Upload Video for Rotoscoping</span>
+                                    <span className="text-xs text-gray-600 mt-2">MP4, MOV, or WebM</span>
+                                </button>
+                            </>
                         )}
                     </div>
                 ) : (
@@ -903,11 +1094,11 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
                         {/* Frame editor area */}
                         <div className="flex-1 flex gap-4 p-4 min-h-0 min-w-0 overflow-hidden">
                             {/* Controls */}
-                            <div className="w-56 space-y-4 flex-none">
+                            <div className="w-56 space-y-4 flex-none overflow-y-auto max-h-full">
                                 {/* Model Selection */}
                                 <div className="p-3 bg-black/30 rounded-lg border border-white/5">
                                     <label className="text-xs font-medium text-gray-400 mb-2 block">Quality</label>
-                                    <div className="grid grid-cols-3 gap-1">
+                                    <div className="grid grid-cols-4 gap-1">
                                         {MODEL_OPTIONS.map((model) => (
                                             <button
                                                 key={model.key}
@@ -915,7 +1106,7 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
                                                 disabled={isProcessing}
                                                 className={`p-1.5 rounded text-[10px] flex flex-col items-center gap-0.5 transition-all ${
                                                     selectedModel === model.key
-                                                        ? 'bg-cyan-600 text-white'
+                                                        ? model.key === 'auto' ? 'bg-purple-600 text-white' : 'bg-cyan-600 text-white'
                                                         : 'bg-white/5 text-gray-400 hover:bg-white/10'
                                                 }`}
                                                 title={model.description}
@@ -925,9 +1116,14 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
                                             </button>
                                         ))}
                                     </div>
+                                    {selectedModel === 'auto' && (
+                                        <p className="text-[10px] text-purple-400 mt-2">
+                                            ✨ AI auto-tracks mask across all frames. Just mask first frame!
+                                        </p>
+                                    )}
                                 </div>
 
-                                {/* Prompt (only for quality/premium) */}
+                                {/* Prompt (for quality/premium/auto) */}
                                 {selectedModel !== 'fast' && (
                                     <div className="p-3 bg-black/30 rounded-lg border border-white/5">
                                         <label className="text-xs font-medium text-gray-400 mb-1 block">Fill Prompt</label>
@@ -942,8 +1138,31 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
                                     </div>
                                 )}
 
-                                {/* Strength (only for quality/premium) */}
-                                {selectedModel !== 'fast' && (
+                                {/* AI Auto Resolution (only for auto mode) */}
+                                {selectedModel === 'auto' && (
+                                    <div className="p-3 bg-black/30 rounded-lg border border-white/5">
+                                        <label className="text-xs font-medium text-gray-400 mb-2 block">Resolution</label>
+                                        <div className="grid grid-cols-3 gap-1">
+                                            {(['480p', '580p', '720p'] as const).map((res) => (
+                                                <button
+                                                    key={res}
+                                                    onClick={() => setAutoResolution(res)}
+                                                    disabled={isProcessing}
+                                                    className={`p-2 rounded text-xs transition-all ${
+                                                        autoResolution === res
+                                                            ? 'bg-purple-600 text-white'
+                                                            : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                                                    }`}
+                                                >
+                                                    {res}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Strength (only for quality/premium, not auto) */}
+                                {selectedModel !== 'fast' && selectedModel !== 'auto' && (
                                     <div className="p-3 bg-black/30 rounded-lg border border-white/5">
                                         <div className="flex items-center justify-between mb-2">
                                             <label className="text-xs font-medium text-gray-400">Strength</label>
@@ -963,19 +1182,73 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
                                     </div>
                                 )}
 
-                                <div className="p-3 bg-black/30 rounded-lg border border-white/5">
-                                    <div className="flex items-center gap-2 mb-2 text-cyan-300">
-                                        <Brush className="w-4 h-4" />
-                                        <span className="font-medium text-sm">Brush: {brushSize}px</span>
+                                {/* Brush Controls */}
+                                <div className="p-3 bg-black/30 rounded-lg border border-white/5 space-y-3">
+                                    {/* Brush Mode Toggle (Add/Subtract) - only for non-auto modes */}
+                                    {selectedModel !== 'auto' && (
+                                        <div>
+                                            <label className="text-xs font-medium text-gray-400 mb-2 block">Brush Mode</label>
+                                            <div className="grid grid-cols-2 gap-1">
+                                                <button
+                                                    onClick={() => setBrushMode('add')}
+                                                    className={`p-2 rounded text-xs flex items-center justify-center gap-1 transition-all ${
+                                                        brushMode === 'add'
+                                                            ? 'bg-cyan-600 text-white'
+                                                            : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                                                    }`}
+                                                >
+                                                    <Plus className="w-3 h-3" />
+                                                    Add
+                                                </button>
+                                                <button
+                                                    onClick={() => setBrushMode('subtract')}
+                                                    className={`p-2 rounded text-xs flex items-center justify-center gap-1 transition-all ${
+                                                        brushMode === 'subtract'
+                                                            ? 'bg-orange-600 text-white'
+                                                            : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                                                    }`}
+                                                >
+                                                    <Minus className="w-3 h-3" />
+                                                    Subtract
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Brush Size */}
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-2 text-cyan-300">
+                                            <Brush className="w-4 h-4" />
+                                            <span className="font-medium text-sm">Brush: {brushSize}px</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="5"
+                                            max="100"
+                                            value={brushSize}
+                                            onChange={e => setBrushSize(parseInt(e.target.value))}
+                                            className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                                        />
                                     </div>
-                                    <input
-                                        type="range"
-                                        min="5"
-                                        max="100"
-                                        value={brushSize}
-                                        onChange={e => setBrushSize(parseInt(e.target.value))}
-                                        className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                                    />
+
+                                    {/* Edge Feather - only for non-auto modes */}
+                                    {selectedModel !== 'auto' && (
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <label className="text-xs font-medium text-gray-400">Edge Feather</label>
+                                                <span className="text-xs text-cyan-400 font-bold">{maskFeather}px</span>
+                                            </div>
+                                            <input
+                                                type="range"
+                                                min="0"
+                                                max="20"
+                                                value={maskFeather}
+                                                onChange={e => setMaskFeather(parseInt(e.target.value))}
+                                                className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                                            />
+                                            <p className="text-[10px] text-gray-600 mt-1">Soften mask edges (like DaVinci's Refine)</p>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex gap-2">
@@ -985,59 +1258,112 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
                                     >
                                         Clear Mask
                                     </button>
-                                    <button
-                                        onClick={handleUndoFrame}
-                                        disabled={isProcessing || !frameHistory.has(currentFrameIndex)}
-                                        className="flex-1 bg-orange-600/80 hover:bg-orange-500 py-2 rounded text-xs text-white font-bold flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        title="Restore original frame"
-                                    >
-                                        <Undo2 className="w-3 h-3" />
-                                        Undo
-                                    </button>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={handleEraseFrame}
-                                        disabled={isProcessing}
-                                        className="flex-1 bg-cyan-600 hover:bg-cyan-500 py-2 rounded text-xs text-white font-bold flex items-center justify-center gap-1"
-                                    >
-                                        {isProcessing && !processingProgress ? <Loader2 className="w-3 h-3 animate-spin" /> : <Eraser className="w-3 h-3" />}
-                                        Erase Frame
-                                    </button>
+                                    {selectedModel !== 'auto' && (
+                                        <button
+                                            onClick={handleUndoFrame}
+                                            disabled={isProcessing || !frameHistory.has(currentFrameIndex)}
+                                            className="flex-1 bg-orange-600/80 hover:bg-orange-500 py-2 rounded text-xs text-white font-bold flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            title="Restore original frame"
+                                        >
+                                            <Undo2 className="w-3 h-3" />
+                                            Undo
+                                        </button>
+                                    )}
                                 </div>
 
-                                {/* Batch erase section */}
-                                <div className="p-3 bg-black/30 rounded-lg border border-white/5">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="text-xs text-gray-400">Masked frames:</span>
-                                        <span className="text-xs font-bold text-cyan-400">{frameMasks.size}</span>
-                                    </div>
-                                    <button
-                                        onClick={handleEraseAllMasked}
-                                        disabled={isProcessing || frameMasks.size === 0}
-                                        className="w-full bg-purple-600 hover:bg-purple-500 py-2 rounded text-xs text-white font-bold flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        {processingProgress ? (
-                                            <>
-                                                <Loader2 className="w-3 h-3 animate-spin" />
-                                                {processingProgress.current}/{processingProgress.total}
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Eraser className="w-3 h-3" />
-                                                Erase All Masked
-                                            </>
+                                {/* AI Auto mode - single process button */}
+                                {selectedModel === 'auto' ? (
+                                    <div className="space-y-2">
+                                        <button
+                                            onClick={handleQuickRoto}
+                                            disabled={isProcessing || currentFrameIndex !== 0}
+                                            className="w-full bg-purple-600 hover:bg-purple-500 py-3 rounded text-sm text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {isProcessing ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                    Processing Video...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Film className="w-4 h-4" />
+                                                    Remove Object (All Frames)
+                                                </>
+                                            )}
+                                        </button>
+                                        {currentFrameIndex !== 0 && (
+                                            <p className="text-[10px] text-yellow-500 text-center">
+                                                Go to Frame 1 to use AI Auto mode
+                                            </p>
                                         )}
-                                    </button>
-                                </div>
+                                        {autoResultVideoUrl && (
+                                            <button
+                                                onClick={handleDownloadAutoResult}
+                                                className="w-full bg-green-600 hover:bg-green-500 py-2 rounded text-xs text-white font-bold flex items-center justify-center gap-1"
+                                            >
+                                                <Download className="w-3 h-3" />
+                                                Download Result
+                                            </button>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={handleEraseFrame}
+                                                disabled={isProcessing}
+                                                className="flex-1 bg-cyan-600 hover:bg-cyan-500 py-2 rounded text-xs text-white font-bold flex items-center justify-center gap-1"
+                                            >
+                                                {isProcessing && !processingProgress ? <Loader2 className="w-3 h-3 animate-spin" /> : <Eraser className="w-3 h-3" />}
+                                                Erase Frame
+                                            </button>
+                                        </div>
+
+                                        {/* Batch erase section */}
+                                        <div className="p-3 bg-black/30 rounded-lg border border-white/5">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs text-gray-400">Masked frames:</span>
+                                                <span className="text-xs font-bold text-cyan-400">{frameMasks.size}</span>
+                                            </div>
+                                            <button
+                                                onClick={handleEraseAllMasked}
+                                                disabled={isProcessing || frameMasks.size === 0}
+                                                className="w-full bg-purple-600 hover:bg-purple-500 py-2 rounded text-xs text-white font-bold flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {processingProgress ? (
+                                                    <>
+                                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                                        {processingProgress.current}/{processingProgress.total}
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Eraser className="w-3 h-3" />
+                                                        Erase All Masked
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
 
                                 <div className="text-xs text-gray-500 space-y-1">
                                     <p className="font-medium text-gray-400">How to use:</p>
-                                    <p>1. Paint mask over object</p>
-                                    <p>2. Navigate to next frame</p>
-                                    <p>3. Repeat for all frames</p>
-                                    <p>4. Click "Erase All Masked"</p>
-                                    <p>5. Export when done</p>
+                                    {selectedModel === 'auto' ? (
+                                        <>
+                                            <p>1. <span className="text-purple-400">Paint mask</span> on first frame</p>
+                                            <p>2. Click "Remove Object"</p>
+                                            <p>3. AI auto-tracks across all frames</p>
+                                            <p>4. Download result video</p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <p>1. Paint mask over object</p>
+                                            <p>2. Navigate to next frame</p>
+                                            <p>3. Repeat for all frames</p>
+                                            <p>4. Click "Erase All Masked"</p>
+                                            <p>5. Export when done</p>
+                                        </>
+                                    )}
                                 </div>
                             </div>
 
@@ -1093,7 +1419,9 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
                                         )}
                                         <div
                                             ref={cursorRef}
-                                            className="absolute rounded-full border-2 border-white bg-cyan-500/30 pointer-events-none z-10"
+                                            className={`absolute rounded-full border-2 border-white pointer-events-none z-10 ${
+                                                brushMode === 'subtract' ? 'bg-orange-500/30' : 'bg-cyan-500/30'
+                                            }`}
                                             style={{
                                                 width: brushSize,
                                                 height: brushSize,

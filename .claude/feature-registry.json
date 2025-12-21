@@ -1,0 +1,191 @@
+{
+  "version": "1.0",
+  "description": "VibeBoard Feature Registry - Protected features and files that require user approval before modification",
+  "lastUpdated": "2025-12-20",
+
+  "protectedFeatures": {
+    "AI Feedback Learning System": {
+      "description": "Thumbs up/down feedback that learns from user corrections and injects into future AI prompts",
+      "status": "stable",
+      "owner": "Matt",
+      "criticalFiles": [
+        "backend/src/services/AIFeedbackStore.ts",
+        "backend/src/services/learning/AnalysisService.ts",
+        "frontend/src/components/generations/GenerationCard.tsx"
+      ],
+      "apis": [
+        "POST /api/process/ai-feedback",
+        "GET /api/process/feedback/hints/:context"
+      ],
+      "dataFiles": [
+        "backend/data/ai_feedback.json",
+        "backend/data/ai_patterns.json"
+      ],
+      "doNotRemove": [
+        "getAllLearnedHints() method in AIFeedbackStore",
+        "ThumbsUp/ThumbsDown buttons in GenerationCard",
+        "userFeedback parameter in analyzeGeneration()"
+      ]
+    },
+
+    "Generation Service Provider Routing": {
+      "description": "Central service that routes generation requests to correct providers with fallback support",
+      "status": "stable",
+      "owner": "Matt",
+      "criticalFiles": [
+        "backend/src/services/GenerationService.ts"
+      ],
+      "doNotRemove": [
+        "getProviderForModel() routing logic",
+        "Provider fallback mechanism",
+        "Model-to-provider mapping"
+      ]
+    },
+
+    "Character Consistency System": {
+      "description": "3-layer system for maintaining character identity across generations",
+      "status": "stable",
+      "owner": "Matt",
+      "criticalFiles": [
+        "backend/src/services/generators/FalAIAdapter.ts"
+      ],
+      "doNotRemove": [
+        "generateCharacterSheet()",
+        "generateWithKontext()",
+        "generateWithFaceID()",
+        "IP-Adapter strength formula: ipWeight = 0.2 + (elementStrength * 0.6)"
+      ]
+    },
+
+    "Magic Eraser / Inpainting": {
+      "description": "Object removal with AI-assisted mask recommendations",
+      "status": "stable",
+      "owner": "Matt",
+      "criticalFiles": [
+        "backend/src/services/processing/InpaintingService.ts",
+        "frontend/src/components/processing/MagicEraserPanel.tsx"
+      ],
+      "apis": [
+        "POST /api/process/magic-eraser"
+      ],
+      "doNotRemove": [
+        "Native DOM event listeners for smooth drawing",
+        "Mask dimension scaling for Fal.ai API"
+      ]
+    },
+
+    "Tattoo Compositing Engine": {
+      "description": "Image compositing with geometry, ink bleed, luminance keying",
+      "status": "stable",
+      "owner": "Matt",
+      "criticalFiles": [
+        "backend/src/services/processing/TattooCompositingService.ts",
+        "frontend/src/components/processing/TattooPlacementPanel.tsx"
+      ],
+      "apis": [
+        "POST /api/process/tattoo-composite"
+      ],
+      "doNotRemove": [
+        "Luminance keying logic",
+        "sRGB color space enforcement",
+        "Ink bleed effect"
+      ]
+    },
+
+    "Cinematic Tags System": {
+      "description": "165 tags across 7 categories for prompt enhancement",
+      "status": "stable",
+      "owner": "Matt",
+      "criticalFiles": [
+        "frontend/src/data/CinematicTags.ts",
+        "frontend/src/components/storyboard/CinematicTagsModal.tsx"
+      ],
+      "doNotRemove": [
+        "Tag categories: Cameras, Lenses, Film Stock, Color Grade, Lighting, Motion, Mood",
+        "Social media filters"
+      ]
+    },
+
+    "Character Foundry": {
+      "description": "Synthetic training dataset generation from single image",
+      "status": "stable",
+      "owner": "Matt",
+      "criticalFiles": [
+        "backend/src/services/training/DatasetGeneratorService.ts"
+      ],
+      "apis": [
+        "POST /api/training/jobs/:id/generate-dataset"
+      ],
+      "doNotRemove": [
+        "Pose presets (universal, swimwear, casual, formal, fantasy, anime, cartoon)",
+        "18-20 pose generation logic"
+      ]
+    },
+
+    "Animate Modal": {
+      "description": "Image-to-video animation with multiple provider support",
+      "status": "stable",
+      "owner": "Matt",
+      "criticalFiles": [
+        "frontend/src/components/generations/AnimateModal.tsx"
+      ],
+      "doNotRemove": [
+        "Provider selection UI",
+        "Duration/aspect ratio controls"
+      ]
+    },
+
+    "Engine Library Modal": {
+      "description": "Model selection interface with capability display",
+      "status": "stable",
+      "owner": "Matt",
+      "criticalFiles": [
+        "frontend/src/components/generations/EngineLibraryModal.tsx"
+      ],
+      "doNotRemove": [
+        "Model capability badges",
+        "Provider grouping"
+      ]
+    },
+
+    "Smart Prompt Builder": {
+      "description": "AI prompt enhancement with LoRA trigger words and character reference display",
+      "status": "stable",
+      "owner": "Matt",
+      "criticalFiles": [
+        "frontend/src/components/prompts/PromptBuilder.tsx",
+        "frontend/src/components/generations/GenerationForm.tsx",
+        "frontend/src/components/storyboard/StyleSelectorModal.tsx"
+      ],
+      "doNotRemove": [
+        "Auto-apply enhancement: if (result?.prompt) { setPrompt(); onPromptChange(); onClose(); }",
+        "Pink Enhance button only (no 'Use Enhanced Prompt' button)",
+        "triggerWord?: string in StyleConfig.loras interface",
+        "triggerWord preservation in handleToggleLoRA()",
+        "Will prepend: indicator showing trigger words",
+        "Character Reference section with element thumbnails",
+        "initialLoRAs prop passing from GenerationForm to PromptBuilder"
+      ]
+    }
+  },
+
+  "protectionRules": {
+    "beforeModifyingProtectedFile": [
+      "1. Check if file is in criticalFiles list",
+      "2. If yes, WARN user: 'This file is part of [Feature Name]'",
+      "3. List the doNotRemove items for that feature",
+      "4. Ask: 'Do you want to proceed? This may affect: [feature description]'",
+      "5. Only proceed with explicit user approval"
+    ],
+    "beforeDeletingCode": [
+      "1. Check if function/method is in doNotRemove list",
+      "2. If yes, STOP and ask user for approval",
+      "3. Explain what the code does and why it exists"
+    ],
+    "beforeRefactoring": [
+      "1. List all protected features that may be affected",
+      "2. Get user approval before proceeding",
+      "3. After refactoring, verify all doNotRemove items still exist"
+    ]
+  }
+}

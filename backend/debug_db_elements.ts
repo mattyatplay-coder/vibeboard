@@ -3,19 +3,15 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-    const elementsByProject = await prisma.element.groupBy({
-        by: ['projectId'],
-        _count: {
-            id: true
-        }
+    const elements = await prisma.element.findMany({
+        where: { name: { contains: 'Generated Image' } },
+        take: 20,
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, name: true, fileUrl: true }
     });
 
-    console.log("Elements per Project:");
-    console.log(elementsByProject);
-
-    const allProjects = await prisma.project.findMany();
-    console.log("\nAll Projects:");
-    allProjects.forEach(p => console.log(`- ${p.name} (${p.id})`));
+    console.log("Recent Elements:");
+    elements.forEach(e => console.log(`[${e.name}] -> ${e.fileUrl}`));
 }
 
 main()

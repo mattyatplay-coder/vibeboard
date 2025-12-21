@@ -1,0 +1,422 @@
+[
+  {
+    "id": "fal-ai/flux/dev",
+    "name": "Flux Dev",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/flux/schnell",
+    "name": "Flux Schnell",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/flux-pro",
+    "name": "Flux Pro",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/flux-pro/v1.1-ultra",
+    "name": "Flux 1.1 Pro Ultra",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/flux-2-max",
+    "name": "Flux 2 Max",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/flux-2-flex",
+    "name": "Flux 2 Flex",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/recraft-v3",
+    "name": "Recraft V3",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/ideogram/v2",
+    "name": "Ideogram V2",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/stable-diffusion-v35-large",
+    "name": "SD 3.5 Large",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/imagen3",
+    "name": "Imagen 3 (Fal)",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/imagen4/preview",
+    "name": "Imagen 4 Preview",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/flux-kontext/dev",
+    "name": "Flux Kontext",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/flux-kontext/pro",
+    "name": "Flux Kontext Pro",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/nano-banana-pro/edit",
+    "name": "Nano Banana Edit",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/gpt-image-1.5/edit",
+    "name": "GPT Image 1.5 Edit",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/ideogram/character",
+    "name": "Ideogram Character",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/ip-adapter-face-id",
+    "name": "IP-Adapter Face ID",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/kling-image/o1",
+    "name": "Kling O1 Image",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/flux-2-flex/edit",
+    "name": "Flux 2 Flex Edit",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/flux/dev/image-to-image",
+    "name": "Flux Dev I2I",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/flux/dev/inpainting",
+    "name": "Flux Inpainting",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/creative-upscaler",
+    "name": "Creative Upscaler",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/clarity-upscaler",
+    "name": "Clarity Upscaler",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fal-ai/wan-t2v",
+    "name": "Wan 2.2 T2V",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/wan-25-preview/text-to-video",
+    "name": "Wan 2.5 T2V",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/wan-2.1-t2v-1.3b",
+    "name": "Wan 2.1 T2V (1.3B)",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/ltx-video",
+    "name": "LTX-Video",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/kling-video/v2.6/pro/text-to-video",
+    "name": "Kling 2.6 Pro",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/vidu/v1/text-to-video",
+    "name": "Vidu v1",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/vidu/q2/reference-to-video",
+    "name": "Vidu Q2 Reference",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/hunyuan-video",
+    "name": "Hunyuan Video",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/minimax-video",
+    "name": "MiniMax Video",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/luma-dream-machine",
+    "name": "Luma Dream Machine",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/kling-video/v1.5/pro",
+    "name": "Kling 1.5 Pro",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/wan/v2.2-a14b/image-to-video",
+    "name": "Wan 2.2 I2V",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/wan/v2.2-a14b/image-to-video/lora",
+    "name": "Wan 2.2 I2V LoRA",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/wan-25-preview/image-to-video",
+    "name": "Wan 2.5 I2V",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/wan-2.1-i2v-14b",
+    "name": "Wan 2.1 I2V (14B)",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/ltx-video/image-to-video",
+    "name": "LTX-Video I2V",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/kling-video/v2.1/standard/image-to-video",
+    "name": "Kling 2.1 I2V",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/kling-video/v2.6/pro/image-to-video",
+    "name": "Kling 2.6 Pro I2V",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/kling-video/o1/image-to-video",
+    "name": "Kling O1 I2V",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/minimax-video/image-to-video",
+    "name": "MiniMax I2V",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/luma-dream-machine/image-to-video",
+    "name": "Luma I2V",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/runway-gen3/turbo/image-to-video",
+    "name": "Runway Gen3 Turbo",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/one-to-all-animation/14b",
+    "name": "One-To-All Animation",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/wan-video-2.2-animate-move",
+    "name": "Wan Animate Move",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/kling-video/ai-avatar/v2/pro",
+    "name": "Kling Avatar Pro",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/kling-video/ai-avatar/v2/standard",
+    "name": "Kling Avatar",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/creatify/aurora",
+    "name": "Creatify Aurora",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/wan-vace-14b/inpainting",
+    "name": "Wan VACE Inpaint",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/kling-video/o1/video-to-video/edit",
+    "name": "Kling O1 V2V",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/qwen-image/edit-plus",
+    "name": "Qwen Edit Plus",
+    "provider": "fal",
+    "type": "image"
+  },
+  {
+    "id": "fofr/consistent-character",
+    "name": "Consistent Character",
+    "provider": "replicate",
+    "type": "image"
+  },
+  {
+    "id": "black-forest-labs/flux-dev",
+    "name": "Flux Dev (Replicate)",
+    "provider": "replicate",
+    "type": "image"
+  },
+  {
+    "id": "black-forest-labs/flux-schnell",
+    "name": "Flux Schnell (Replicate)",
+    "provider": "replicate",
+    "type": "image"
+  },
+  {
+    "id": "stability-ai/sdxl",
+    "name": "SDXL (Replicate)",
+    "provider": "replicate",
+    "type": "image"
+  },
+  {
+    "id": "realistic-vision",
+    "name": "Realistic Vision",
+    "provider": "replicate",
+    "type": "image"
+  },
+  {
+    "id": "wan-2.5-t2v",
+    "name": "Wan 2.5 T2V (Replicate)",
+    "provider": "replicate",
+    "type": "video"
+  },
+  {
+    "id": "wan-2.5-i2v",
+    "name": "Wan 2.5 I2V (Replicate)",
+    "provider": "replicate",
+    "type": "video"
+  },
+  {
+    "id": "imagen-3",
+    "name": "Imagen 3",
+    "provider": "google",
+    "type": "image"
+  },
+  {
+    "id": "veo-2",
+    "name": "Veo 2",
+    "provider": "google",
+    "type": "video"
+  },
+  {
+    "id": "fal-ai/veo3.1",
+    "name": "Veo 3.1 (Fal)",
+    "provider": "fal",
+    "type": "video"
+  },
+  {
+    "id": "dall-e-3",
+    "name": "DALL-E 3",
+    "provider": "openai",
+    "type": "image"
+  },
+  {
+    "id": "sora-2-pro",
+    "name": "Sora 2.0 Pro",
+    "provider": "openai",
+    "type": "video"
+  },
+  {
+    "id": "sora-2",
+    "name": "Sora 2.0",
+    "provider": "openai",
+    "type": "video"
+  },
+  {
+    "id": "comfyui/sdxl",
+    "name": "SDXL (Local)",
+    "provider": "comfy",
+    "type": "image"
+  },
+  {
+    "id": "comfyui/flux-dev",
+    "name": "Flux Dev (Local)",
+    "provider": "comfy",
+    "type": "image"
+  },
+  {
+    "id": "comfyui/ltx-video",
+    "name": "LTX-Video (Local)",
+    "provider": "comfy",
+    "type": "video"
+  },
+  {
+    "id": "comfyui/wan-video",
+    "name": "Wan Video (Local)",
+    "provider": "comfy",
+    "type": "video"
+  }
+]

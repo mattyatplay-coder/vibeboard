@@ -1,5 +1,7 @@
 import { GenerationProvider, GenerationOptions, GenerationResult } from './GenerationProvider';
 import axios from 'axios';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
  * Together AI Adapter
@@ -15,6 +17,7 @@ import axios from 'axios';
  * - Lykon/dreamshaper-xl-v2-turbo (artistic, fast)
  *
  * No censorship by default on most models!
+ * NOTE: Together URLs are temporary short URLs that expire quickly, so we save images locally
  */
 export class TogetherAdapter implements GenerationProvider {
     private apiKey: string;
@@ -78,7 +81,12 @@ export class TogetherAdapter implements GenerationProvider {
                 }
             );
 
-            const outputs = response.data.data.map((img: any) => img.url);
+            const tempUrls = response.data.data.map((img: any) => img.url);
+
+            // Together URLs expire quickly, so download and save locally
+            const outputs = await Promise.all(
+                tempUrls.map((url: string) => this.downloadAndSaveImage(url, model))
+            );
 
             return {
                 id: Date.now().toString(),
@@ -119,5 +127,52 @@ export class TogetherAdapter implements GenerationProvider {
             '21:9': [1536, 640],
         };
         return ratios[ratio] || [1024, 1024];
+    }
+
+    /**
+     * Download image from temporary URL and save to local uploads folder
+     * Together URLs expire quickly, so we persist them locally
+     */
+    private async downloadAndSaveImage(url: string, model: string): Promise<string> {
+        try {
+            console.log(`[TogetherAdapter] Downloading image from Together...`);
+
+            const response = await axios({
+                method: 'GET',
+                url: url,
+                responseType: 'arraybuffer',
+                timeout: 30000,
+            });
+
+            const buffer = Buffer.from(response.data);
+            console.log(`[TogetherAdapter] Downloaded ${buffer.length} bytes`);
+
+            // Create uploads directory if it doesn't exist
+            const uploadsDir = path.join(process.cwd(), 'uploads', 'images');
+            if (!fs.existsSync(uploadsDir)) {
+                fs.mkdirSync(uploadsDir, { recursive: true });
+            }
+
+            // Determine extension from content-type or default to png
+            const contentType = response.headers['content-type'] || 'image/png';
+            const ext = contentType.includes('jpeg') || contentType.includes('jpg') ? '.jpg' : '.png';
+
+            // Sanitize model name for filename
+            const safeModelName = model.replace(/[^a-zA-Z0-9.-]/g, '-');
+
+            // Save to file
+            const filename = `together-${safeModelName}-${Date.now()}${ext}`;
+            const filepath = path.join(uploadsDir, filename);
+            fs.writeFileSync(filepath, buffer);
+
+            console.log(`[TogetherAdapter] Image saved to: ${filepath}`);
+
+            // Return the URL path that can be served statically
+            return `/uploads/images/${filename}`;
+        } catch (error: any) {
+            console.error(`[TogetherAdapter] Failed to download image:`, error.message);
+            // Fall back to original URL if download fails (better than nothing)
+            return url;
+        }
     }
 }
