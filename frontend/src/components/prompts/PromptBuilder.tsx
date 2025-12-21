@@ -91,15 +91,17 @@ interface PromptBuilderProps {
     modelId: string;
     generationType: 'image' | 'video';
     elements?: ElementItem[];
-    selectedElementIds?: string[]; // IDs of elements already selected in toolbar
+    selectedElementIds?: string[]; // IDs of elements already selected in toolbar (read-only display)
     initialLoRAs?: LoRAItem[];
     initialImages?: string[];
     onPromptChange: (prompt: string, negativePrompt?: string) => void;
     onRecommendationsChange?: (recommendations: EnhancedResult['recommendations']) => void;
     onScriptParsed?: (prompts: { visual: string; motion: string; audio: string }) => void;
-    onElementSelectionChange?: (elementIds: string[]) => void; // Sync selections back to toolbar
     onClose?: () => void;
 }
+
+// Note: Elements are displayed read-only from selectedElementIds.
+// To change element selection, use the toolbar's element picker.
 
 // ==================== MAIN COMPONENT ====================
 
@@ -114,7 +116,6 @@ export function PromptBuilder({
     onPromptChange,
     onRecommendationsChange,
     onScriptParsed,
-    onElementSelectionChange,
     onClose
 }: PromptBuilderProps) {
     // State
@@ -145,20 +146,9 @@ export function PromptBuilder({
     const [loraSearchResults, setLoraSearchResults] = useState<LoRAItem[]>([]);
     const [isSearchingLoRAs, setIsSearchingLoRAs] = useState(false);
 
-    // Elements
-    const [selectedElements, setSelectedElements] = useState<string[]>(selectedElementIds);
+    // Elements - use the selectedElementIds directly from props (read-only display)
+    const selectedElements = selectedElementIds;
     const [primaryCharacterId, setPrimaryCharacterId] = useState<string | undefined>();
-
-    // Sync selected elements back to parent when they change
-    useEffect(() => {
-        // Only notify if there's an actual change
-        const hasChange = selectedElements.length !== selectedElementIds.length ||
-            selectedElements.some(id => !selectedElementIds.includes(id));
-        if (onElementSelectionChange && hasChange) {
-            onElementSelectionChange(selectedElements);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedElements]);
 
     // Camera (for video)
     const [cameraMovement, setCameraMovement] = useState("");
@@ -392,14 +382,6 @@ export function PromptBuilder({
 
     const removeLoRA = (loraId: string) => {
         setSelectedLoRAs(prev => prev.filter(l => l.id !== loraId));
-    };
-
-    const toggleElement = (elementId: string) => {
-        setSelectedElements(prev =>
-            prev.includes(elementId)
-                ? prev.filter(id => id !== elementId)
-                : [...prev, elementId]
-        );
     };
 
     const copyToClipboard = async (text: string) => {
@@ -734,36 +716,32 @@ export function PromptBuilder({
                             )}
                         </div>
 
-                        {/* Element References Section - Shows ALL elements for selection */}
+                        {/* Character Elements Section - Shows only SELECTED elements from toolbar */}
                         {
-                            elements.length > 0 && (
+                            selectedElements.length > 0 && (
                                 <div className="p-3 border-b border-white/10">
                                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 block flex items-center gap-1">
                                         <User className="w-3 h-3" />
-                                        Element References (for consistency)
+                                        Character Reference (from toolbar)
                                     </label>
-                                    <p className="text-[10px] text-gray-500 mb-2">
-                                        Select elements to use as character/style references. Selected elements sync with toolbar.
-                                    </p>
                                     <div className="flex flex-wrap gap-2">
-                                        {elements.map(element => (
-                                            <button
+                                        {elements
+                                            .filter(element => selectedElements.includes(element.id))
+                                            .map(element => (
+                                            <div
                                                 key={element.id}
                                                 onClick={() => {
-                                                    toggleElement(element.id);
-                                                    if (!selectedElements.includes(element.id) && element.type === 'character') {
+                                                    if (element.type === 'character') {
                                                         setPrimaryCharacterId(element.id);
                                                     }
                                                 }}
                                                 className={clsx(
-                                                    "flex items-center gap-2 px-2 py-1.5 rounded-lg border transition-all",
-                                                    selectedElements.includes(element.id)
-                                                        ? element.type === 'character'
-                                                            ? "bg-blue-500/20 border-blue-500 text-white"
-                                                            : element.type === 'style'
-                                                                ? "bg-pink-500/20 border-pink-500 text-white"
-                                                                : "bg-green-500/20 border-green-500 text-white"
-                                                        : "bg-white/5 border-white/10 text-gray-400 hover:border-white/30"
+                                                    "flex items-center gap-2 px-2 py-1.5 rounded-lg border transition-all cursor-pointer",
+                                                    element.type === 'character'
+                                                        ? "bg-blue-500/20 border-blue-500 text-white"
+                                                        : element.type === 'style'
+                                                            ? "bg-pink-500/20 border-pink-500 text-white"
+                                                            : "bg-green-500/20 border-green-500 text-white"
                                                 )}
                                             >
                                                 {element.imageUrl && (
@@ -788,14 +766,12 @@ export function PromptBuilder({
                                                         PRIMARY
                                                     </span>
                                                 )}
-                                            </button>
+                                            </div>
                                         ))}
                                     </div>
-                                    {selectedElements.length > 0 && (
-                                        <div className="mt-2 text-[10px] text-gray-500">
-                                            {selectedElements.length} element{selectedElements.length !== 1 ? 's' : ''} selected for reference
-                                        </div>
-                                    )}
+                                    <p className="mt-2 text-[10px] text-gray-500">
+                                        Click an element to set as primary. Add more via the toolbar's element picker.
+                                    </p>
                                 </div>
                             )
                         }

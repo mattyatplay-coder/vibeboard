@@ -1541,9 +1541,6 @@ export default function GeneratePage() {
                                                         consistencyWeight: elementStrengths[e.id] || 0.8
                                                     }))}
                                                     selectedElementIds={selectedElementIds}
-                                                    onElementSelectionChange={(newIds) => {
-                                                        setSelectedElementIds(newIds);
-                                                    }}
                                                     initialLoRAs={styleConfig?.loras?.map((l) => ({
                                                         id: l.id,
                                                         name: l.name,
