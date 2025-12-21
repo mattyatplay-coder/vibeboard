@@ -1,17 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { fetchAPI } from "@/lib/api";
+import { fetchAPI, Project } from "@/lib/api";
 import Link from "next/link";
 import { Plus, ArrowRight, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-
-interface Project {
-  id: string;
-  name: string;
-  description: string;
-  updatedAt: string;
-}
 
 export default function ProjectSelector() {
   const [projects, setProjects] = useState<Project[]>([]);

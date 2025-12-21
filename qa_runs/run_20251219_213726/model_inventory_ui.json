@@ -1,0 +1,227 @@
+[
+    {
+        "name": "Flux Dev",
+        "provider": "Black Forest Labs",
+        "type": "Image"
+    },
+    {
+        "name": "Flux Schnell",
+        "provider": "Black Forest Labs",
+        "type": "Image"
+    },
+    {
+        "name": "Flux Pro",
+        "provider": "Black Forest Labs",
+        "type": "Image"
+    },
+    {
+        "name": "Flux 1.1 Pro Ultra",
+        "provider": "Black Forest Labs",
+        "type": "Image"
+    },
+    {
+        "name": "Flux 2 Max",
+        "provider": "Black Forest Labs",
+        "type": "Image"
+    },
+    {
+        "name": "Flux 2 Flex",
+        "provider": "Black Forest Labs",
+        "type": "Image"
+    },
+    {
+        "name": "Recraft V3",
+        "provider": "Recraft",
+        "type": "Image"
+    },
+    {
+        "name": "Ideogram V2",
+        "provider": "Ideogram",
+        "type": "Image"
+    },
+    {
+        "name": "SD 3.5 Large",
+        "provider": "Stability AI",
+        "type": "Image"
+    },
+    {
+        "name": "Imagen 3 (Fal)",
+        "provider": "Google",
+        "type": "Image"
+    },
+    {
+        "name": "Imagen 4 Preview",
+        "provider": "Google",
+        "type": "Image"
+    },
+    {
+        "name": "Consistent Character",
+        "provider": "Replicate",
+        "type": "Image"
+    },
+    {
+        "name": "Flux Dev (Replicate)",
+        "provider": "Replicate",
+        "type": "Image"
+    },
+    {
+        "name": "Flux Schnell (Replicate)",
+        "provider": "Replicate",
+        "type": "Image"
+    },
+    {
+        "name": "SDXL (Replicate)",
+        "provider": "Replicate",
+        "type": "Image"
+    },
+    {
+        "name": "Kling 2.1 I2V",
+        "provider": "Kling",
+        "type": "Video"
+    },
+    {
+        "name": "Kling 2.6 Pro I2V",
+        "provider": "Kling",
+        "type": "Video"
+    },
+    {
+        "name": "Kling O1 I2V",
+        "provider": "Kling",
+        "type": "Video"
+    },
+    {
+        "name": "MiniMax I2V",
+        "provider": "MiniMax",
+        "type": "Video"
+    },
+    {
+        "name": "Luma I2V",
+        "provider": "Luma",
+        "type": "Video"
+    },
+    {
+        "name": "Runway Gen3 Turbo",
+        "provider": "Runway",
+        "type": "Video"
+    },
+    {
+        "name": "Wan 2.5 I2V (Replicate)",
+        "provider": "Replicate",
+        "type": "Video"
+    },
+    {
+        "name": "Wan Video (Local)",
+        "provider": "ComfyUI",
+        "type": "Video"
+    },
+    {
+        "name": "Synthesia Video",
+        "provider": "Synthesia",
+        "type": "Video"
+    },
+    {
+        "name": "Creatify Aurora",
+        "provider": "Creatify",
+        "type": "Video"
+    },
+    {
+        "name": "Ideogram Character",
+        "provider": "Ideogram",
+        "type": "Image"
+    },
+    {
+        "name": "IP-Adapter Face ID",
+        "provider": "Fal.ai",
+        "type": "Image"
+    },
+    {
+        "name": "Kling O1 Image",
+        "provider": "Kling",
+        "type": "Image"
+    },
+    {
+        "name": "Flux 2 Flex Edit",
+        "provider": "Black Forest Labs",
+        "type": "Image"
+    },
+    {
+        "name": "Flux Dev I2I",
+        "provider": "Black Forest Labs",
+        "type": "Image"
+    },
+    {
+        "name": "Flux Inpainting",
+        "provider": "Black Forest Labs",
+        "type": "Image"
+    },
+    {
+        "name": "Creative Upscaler",
+        "provider": "Fal.ai",
+        "type": "Image"
+    },
+    {
+        "name": "Clarity Upscaler",
+        "provider": "Fal.ai",
+        "type": "Image"
+    },
+    {
+        "name": "Wan 2.5 T2V",
+        "provider": "Wan",
+        "type": "Video"
+    },
+    {
+        "name": "Wan 2.1 T2V (1.3B)",
+        "provider": "Wan",
+        "type": "Video"
+    },
+    {
+        "name": "LTX-Video",
+        "provider": "Lightricks",
+        "type": "Video"
+    },
+    {
+        "name": "Kling 2.6 Pro",
+        "provider": "Kling",
+        "type": "Video"
+    },
+    {
+        "name": "Vidu v1",
+        "provider": "Vidu",
+        "type": "Video"
+    },
+    {
+        "name": "Vidu Q2 Reference",
+        "provider": "Vidu",
+        "type": "Video"
+    },
+    {
+        "name": "Hunyuan Video",
+        "provider": "Tencent",
+        "type": "Video"
+    },
+    {
+        "name": "MiniMax Video",
+        "provider": "MiniMax",
+        "type": "Video"
+    },
+    {
+        "name": "Luma Dream Machine",
+        "provider": "Luma",
+        "type": "Video"
+    },
+    {
+        "name": "Kling 2.1",
+        "provider": "Kling",
+        "type": "Video"
+    },
+    {
+        "name": "Kling 2.1 Pro",
+        "provider": "Kling",
+        "type": "Video"
+    },
+    {
+        "name": "Kling 2.6",
+        "provider": "Kling",
+        "type": "Video"
+    }
+]

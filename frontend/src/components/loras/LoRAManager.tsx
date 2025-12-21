@@ -85,6 +85,7 @@ export interface LoRA {
     id: string;
     name: string;
     triggerWord?: string;
+    triggerWords?: string[];
     fileUrl: string;
     baseModel: string;
     type: 'lora' | 'checkpoint' | 'embedding';
@@ -681,7 +682,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                                                     </div>
                                                     <div className="flex items-center gap-2 text-[10px] text-gray-500">
                                                         <span className="bg-white/10 px-1 py-0.5 rounded">{lora.baseModel}</span>
-                                                        {lora.triggerWord && <span className="truncate">Trigger: {lora.triggerWord}</span>}
+                                                        {(lora.triggerWords?.[0] || lora.triggerWord) && <span className="truncate">Trigger: {lora.triggerWords?.[0] || lora.triggerWord}</span>}
                                                     </div>
                                                 </div>
                                             </div>
@@ -749,7 +750,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                                                     </div>
                                                     <div className="flex items-center gap-2 text-[10px] text-gray-500">
                                                         <span className="bg-white/10 px-1 py-0.5 rounded">{firstItem.baseModel}</span>
-                                                        {firstItem.triggerWord && <span className="truncate">Trigger: {firstItem.triggerWord}</span>}
+                                                        {(firstItem.triggerWords?.[0] || firstItem.triggerWord) && <span className="truncate">Trigger: {firstItem.triggerWords?.[0] || firstItem.triggerWord}</span>}
                                                     </div>
                                                 </div>
                                             </div>

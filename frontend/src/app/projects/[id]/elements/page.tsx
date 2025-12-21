@@ -73,7 +73,12 @@ export default function ElementsPage() {
                 id: e.id,
                 name: e.name,
                 type: e.type as ElementType,
-                url: `http://localhost:3001${e.fileUrl}`,
+                url: (() => {
+                    const u = e.fileUrl as string;
+                    if (!u) return '';
+                    if (u.startsWith('http') || u.startsWith('data:')) return u;
+                    return `http://localhost:3001${u.startsWith('/') ? '' : '/'}${u}`;
+                })(),
                 isFavorite: e.isFavorite,
                 tags: e.tags || [],
                 metadata: e.metadata,

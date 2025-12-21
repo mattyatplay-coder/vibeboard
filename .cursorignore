@@ -1,0 +1,35 @@
+# AI/IDE Ignore List
+# These files are ignored by Cursor/VS Code AI indexing to improve performance
+
+# Heavy local services (binaries, venvs)
+local-services/
+local-services/**
+
+# Build artifacts and dependencies
+node_modules/
+**/node_modules/
+dist/
+build/
+.next/
+coverage/
+
+# Large media or data files
+uploads/
+header-*.png
+*.mp4
+*.mov
+*.safetensors
+*.ckpt
+*.pt
+*.gguf
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log
+
+# System
+.DS_Store
+.git/

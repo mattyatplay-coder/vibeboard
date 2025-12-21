@@ -1,0 +1,58 @@
+Model ID,Name,Type,Provider,Capability,LoRA,Negative Prompt,Reference Images,@element,Duration,Audio,Tier,Notes
+fal-ai/flux/dev,Flux Dev,image,fal,text-to-image,Y,Y,Y (IP-Adapter),Y,N/A,N,quality,Primary model with LoRA support
+fal-ai/flux/schnell,Flux Schnell,image,fal,text-to-image,Y,Y,Y,Y,N/A,N,fast,Ultra-fast ~2s
+fal-ai/flux-pro,Flux Pro,image,fal,text-to-image,Y,Y,Y,Y,N/A,N,pro,Commercial quality
+fal-ai/flux-pro/v1.1-ultra,Flux 1.1 Pro Ultra,image,fal,text-to-image,Y,Y,Y,Y,N/A,N,pro,4MP native
+fal-ai/flux-2-max,Flux 2 Max,image,fal,text-to-image,N,N,N,N,N/A,N,pro,Simplified params
+fal-ai/flux-2-flex,Flux 2 Flex,image,fal,text-to-image,Y,Y,Y,Y,N/A,N,quality,Flexible aspect ratios
+fal-ai/recraft-v3,Recraft V3,image,fal,text-to-image,N,Y,N,N,N/A,N,quality,Vector art and logos
+fal-ai/ideogram/v2,Ideogram V2,image,fal,text-to-image,N,Y,N,N,N/A,N,quality,Best text rendering
+fal-ai/stable-diffusion-v35-large,SD 3.5 Large,image,fal,text-to-image,Y,Y,Y,Y,N/A,N,standard,Stability AI
+fal-ai/imagen3,Imagen 3 (Fal),image,fal,text-to-image,N,N,N,N,N/A,N,quality,Google via Fal
+fal-ai/imagen4/preview,Imagen 4 Preview,image,fal,text-to-image,N,N,N,N,N/A,N,pro,Early access
+fal-ai/flux-kontext/dev,Flux Kontext,image,fal,image-editing,N,N,Y (required),Y,N/A,N,quality,Character consistency
+fal-ai/flux-kontext/pro,Flux Kontext Pro,image,fal,image-editing,N,N,Y (required),Y,N/A,N,pro,Falls back to dev
+fal-ai/nano-banana-pro/edit,Nano Banana Edit,image,fal,image-editing,N,N,Y (required),N,N/A,N,fast,Quick AI editing
+fal-ai/gpt-image-1.5/edit,GPT Image 1.5 Edit,image,fal,image-editing,N,N,Y (required),N,N/A,N,quality,OpenAI-style
+fal-ai/ideogram/character,Ideogram Character,image,fal,image-editing,N,Y,Y (required),Y,N/A,N,quality,Character sheets
+fal-ai/ip-adapter-face-id,IP-Adapter Face ID,image,fal,image-editing,N,Y,Y (face),N,N/A,N,quality,Face preservation
+fal-ai/kling-image/o1,Kling O1 Image,image,fal,image-editing,N,N,Y (1-10),Y,N/A,N,pro,Multi-ref blending
+fal-ai/flux-2-flex/edit,Flux 2 Flex Edit,image,fal,image-editing,N,N,Y (required),N,N/A,N,quality,Style transfer
+fal-ai/flux/dev/image-to-image,Flux Dev I2I,image,fal,image-editing,Y,Y,Y (required),Y,N/A,N,quality,Strength control
+fal-ai/flux/dev/inpainting,Flux Inpainting,image,fal,image-editing,N,Y,Y + Mask,N,N/A,N,quality,Regional editing
+fal-ai/qwen-image/edit-plus,Qwen Edit Plus,image,fal,image-editing,N,N,Y (required),N,N/A,N,quality,Object removal
+fal-ai/creative-upscaler,Creative Upscaler,image,fal,image-editing,N,N,Y (required),N,N/A,N,quality,4x with AI enhancement
+fal-ai/clarity-upscaler,Clarity Upscaler,image,fal,image-editing,N,N,Y (required),N,N/A,N,quality,Faithful 2x/4x
+fal-ai/wan-t2v,Wan 2.2 T2V,video,fal,text-to-video,N,Y,N,N,5s/10s,N,quality,Cinematic motion
+fal-ai/wan-25-preview/text-to-video,Wan 2.5 T2V,video,fal,text-to-video,N,Y,N,N,5s/10s,N,pro,Highest quality
+fal-ai/wan-2.1-t2v-1.3b,Wan 2.1 T2V (1.3B),video,fal,text-to-video,N,Y,N,N,5s,N,fast,Lightweight
+fal-ai/ltx-video,LTX-Video,video,fal,text-to-video,N,Y,N,N,5s/10s,N,fast,Ultra-fast ~10s
+fal-ai/kling-video/v2.6/pro/text-to-video,Kling 2.6 Pro,video,fal,text-to-video,N,Y,N,N,5s/10s,N,pro,Professional realism
+fal-ai/vidu/v1/text-to-video,Vidu v1,video,fal,text-to-video,N,N,N,N,4s,N,fast,Asian-style
+fal-ai/hunyuan-video,Hunyuan Video,video,fal,text-to-video,N,Y,N,N,5s/9s,N,quality,Complex motion
+fal-ai/minimax-video,MiniMax Video,video,fal,text-to-video,N,N,N,N,6s,N,quality,Expressive/anime
+fal-ai/luma-dream-machine,Luma Dream Machine,video,fal,text-to-video,N,Y,N,N,5s/9s,N,quality,Dreamlike motion
+fal-ai/kling-video/v1.5/pro,Kling 1.5 Pro,video,fal,text-to-video,N,Y,N,N,5s/10s,N,quality,High quality
+fal-ai/veo3.1,Veo 3.1,video,fal,text-to-video,N,Y,N,N,5s,N,pro,Google via Fal $0.40/s
+veo-2,Veo 2,video,google,text-to-video,N,Y,N,N,5s,N,quality,Direct Google API
+sora-2-pro,Sora 2.0 Pro,video,openai,text-to-video,N,N,N,N,5s/10s,N,pro,Premium $0.50/s
+sora-2,Sora 2.0,video,openai,text-to-video,N,N,N,N,5s,N,standard,$0.10/s
+fal-ai/wan/v2.2-a14b/image-to-video,Wan 2.2 I2V,video,fal,image-to-video,N,Y,Y (required),Y,5s,N,quality,Natural motion
+fal-ai/wan/v2.2-a14b/image-to-video/lora,Wan 2.2 I2V LoRA,video,fal,image-to-video,Y,Y,Y (required),Y,5s,N,quality,Custom styles
+fal-ai/wan-25-preview/image-to-video,Wan 2.5 I2V,video,fal,image-to-video,N,Y,Y (required),Y,5s,N,pro,Highest quality
+fal-ai/wan-2.1-i2v-14b,Wan 2.1 I2V (14B),video,fal,image-to-video,N,Y,Y (required),Y,5s,N,quality,Large model
+fal-ai/ltx-video/image-to-video,LTX-Video I2V,video,fal,image-to-video,N,Y,Y (required),N,6s/10s,N,fast,Fast ~10s
+fal-ai/kling-video/v2.1/standard/image-to-video,Kling 2.1 I2V,video,fal,image-to-video,N,Y,Y (required),N,5s,N,quality,Balanced
+fal-ai/kling-video/v2.6/pro/image-to-video,Kling 2.6 Pro I2V,video,fal,image-to-video,N,Y,Y (required),N,5s/10s,N,pro,Professional
+fal-ai/kling-video/o1/image-to-video,Kling O1 I2V,video,fal,image-to-video,N,Y,Y (required),N,5s/10s,N,pro,Reasoning-based
+fal-ai/minimax-video/image-to-video,MiniMax I2V,video,fal,image-to-video,N,N,Y (required),N,6s/10s,N,fast,Expressive
+fal-ai/luma-dream-machine/image-to-video,Luma I2V,video,fal,image-to-video,N,Y,Y (required),N,5s,N,quality,Ethereal
+fal-ai/runway-gen3/turbo/image-to-video,Runway Gen3 Turbo,video,fal,image-to-video,N,N,Y (required),N,5s/10s,N,fast,Fast cinematic
+fal-ai/vidu/q2/reference-to-video,Vidu Q2 Reference,video,fal,image-to-video,N,N,Y (up to 7),N,4s,N,quality,Multi-character
+fal-ai/one-to-all-animation/14b,One-To-All Animation,video,fal,avatar,N,N,Y + Motion Video,N,N/A,N,quality,Pose-driven
+fal-ai/wan-video-2.2-animate-move,Wan Animate Move,video,fal,avatar,N,N,Y + Motion Video,N,N/A,N,quality,Motion transfer
+fal-ai/kling-video/ai-avatar/v2/pro,Kling Avatar Pro,video,fal,avatar,N,N,Y (face),N,N/A,Y,pro,Talking head + lipsync
+fal-ai/kling-video/ai-avatar/v2/standard,Kling Avatar,video,fal,avatar,N,N,Y (face),N,N/A,Y,fast,Fast talking head
+fal-ai/creatify/aurora,Creatify Aurora,video,fal,avatar,N,N,Y,N,N/A,Y,pro,Ultra-realistic
+fal-ai/wan-vace-14b/inpainting,Wan VACE Inpaint,video,fal,video-editing,N,N,Y (video) + Mask,N,N/A,N,quality,Region editing
+fal-ai/kling-video/o1/video-to-video/edit,Kling O1 V2V,video,fal,video-editing,N,N,Y (video),N,N/A,N,pro,AI transformation

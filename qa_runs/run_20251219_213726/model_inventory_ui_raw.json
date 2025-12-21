@@ -1,0 +1,102 @@
+[
+    {
+        "name": "Flux Dev",
+        "provider": "Fal.ai",
+        "type": "IMAGE"
+    },
+    {
+        "name": "Flux Schnell",
+        "provider": "Fal.ai",
+        "type": "IMAGE"
+    },
+    {
+        "name": "Flux Pro",
+        "provider": "Fal.ai",
+        "type": "IMAGE"
+    },
+    {
+        "name": "Flux 1.1 Pro Ultra",
+        "provider": "Fal.ai",
+        "type": "IMAGE"
+    },
+    {
+        "name": "Flux 2 Max",
+        "provider": "Fal.ai",
+        "type": "IMAGE"
+    },
+    {
+        "name": "Flux 2 Flex",
+        "provider": "Fal.ai",
+        "type": "IMAGE"
+    },
+    {
+        "name": "Wan 2.2 T2V",
+        "provider": "Fal.ai",
+        "type": "VIDEO"
+    },
+    {
+        "name": "Wan 2.5 T2V",
+        "provider": "Fal.ai",
+        "type": "VIDEO"
+    },
+    {
+        "name": "LTX-Video",
+        "provider": "Fal.ai",
+        "type": "VIDEO"
+    },
+    {
+        "name": "Kling 2.6 Pro",
+        "provider": "Fal.ai",
+        "type": "VIDEO"
+    },
+    {
+        "name": "Vidu v1",
+        "provider": "Fal.ai",
+        "type": "VIDEO"
+    },
+    {
+        "name": "Hunyuan Video",
+        "provider": "Tencent",
+        "type": "VIDEO"
+    },
+    {
+        "name": "MiniMax Video",
+        "provider": "MiniMax",
+        "type": "VIDEO"
+    },
+    {
+        "name": "Luma Dream Machine",
+        "provider": "Luma",
+        "type": "VIDEO"
+    },
+    {
+        "name": "Kling 1.5 Pro",
+        "provider": "Kuaishou",
+        "type": "VIDEO"
+    },
+    {
+        "name": "Sora 2.0 Pro",
+        "provider": "OpenAI",
+        "type": "VIDEO"
+    },
+    {
+        "name": "Veo 2",
+        "provider": "Google",
+        "type": "VIDEO"
+    },
+    {
+        "name": "DALL-E 3",
+        "provider": "OpenAI",
+        "type": "IMAGE"
+    },
+    {
+        "name": "Imagen 3",
+        "provider": "Google",
+        "type": "IMAGE"
+    },
+    {
+        "name": "SDXL (Local)",
+        "provider": "ComfyUI (Local)",
+        "type": "IMAGE"
+    }
+]

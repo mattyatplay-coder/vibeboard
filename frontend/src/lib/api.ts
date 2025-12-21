@@ -1,6 +1,14 @@
 export const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || `${BACKEND_URL}/api`;
 
+export interface Project {
+    id: string;
+    name: string;
+    description: string;
+    updatedAt: string;
+    createdAt: string;
+}
+
 export function resolveFileUrl(path: string | undefined | null): string {
     if (!path) return '';
     if (path.startsWith('http') || path.startsWith('data:')) return path;

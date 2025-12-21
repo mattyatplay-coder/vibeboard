@@ -1,0 +1,75 @@
+{
+  "timestamp": "2025-12-18T07:08:44.322Z",
+  "prompt": "ohwx_angelica, sitting on her couch listening to music in a small fitted white half cut babydoll t-shirt that shows her midriff and belly button ring",
+  "lora": {
+    "path": "https://huggingface.co/MikoMurra/angelica-lora/resolve/main/angelica-v4.safetensors",
+    "strength": 1,
+    "triggerWord": "ohwx_angelica"
+  },
+  "results": [
+    {
+      "engine": "fal",
+      "model": "fal-ai/flux-lora",
+      "loraType": "safetensors",
+      "status": "success",
+      "outputUrl": "https://v3b.fal.media/files/b/0a86c40a/qNEUYvAwRYTVmPToRDnh1_b7b3b65d4fcf4d959382ddb7d0f3fbf2.jpg",
+      "duration": 5116
+    },
+    {
+      "engine": "fal",
+      "model": "fal-ai/flux/dev",
+      "loraType": "safetensors",
+      "status": "success",
+      "outputUrl": "https://v3b.fal.media/files/b/0a86c40a/OxcsuJ2OGYGVkXfYXwUPE.jpg",
+      "duration": 1440
+    },
+    {
+      "engine": "replicate",
+      "model": "mattyatplay-coder/angelicatraining",
+      "loraType": "replicate-trained",
+      "status": "success",
+      "outputUrl": "http://localhost:3001/uploads/flux-lora-c242b493-3bd2-4038-a22f-54c18f31bf7e.png",
+      "duration": 10304
+    },
+    {
+      "engine": "replicate",
+      "model": "black-forest-labs/flux-dev-lora",
+      "loraType": "safetensors",
+      "status": "success",
+      "outputUrl": "http://localhost:3001/uploads/flux-lora-2c35a45d-5f45-4951-995f-1730644765eb.png",
+      "duration": 3354
+    },
+    {
+      "engine": "civitai",
+      "model": "SDXL 1.0",
+      "loraType": "civitai-syntax",
+      "status": "failed",
+      "error": "Request failed with status code 500",
+      "duration": 220
+    },
+    {
+      "engine": "civitai",
+      "model": "Flux.1 D",
+      "loraType": "civitai-syntax",
+      "status": "failed",
+      "error": "Request failed with status code 500",
+      "duration": 124
+    },
+    {
+      "engine": "fal",
+      "model": "fal-ai/wan-lora-video",
+      "loraType": "safetensors",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 601
+    },
+    {
+      "engine": "civitai",
+      "model": "Wan Video 2.5 T2V",
+      "loraType": "civitai-syntax",
+      "status": "failed",
+      "error": "Civitai video generation failed: Request failed with status code 500",
+      "duration": 121
+    }
+  ]
+}
