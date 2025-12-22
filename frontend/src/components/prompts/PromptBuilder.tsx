@@ -35,6 +35,7 @@ interface LoRAItem {
     id: string;
     name: string;
     triggerWords: string[];
+    aliasPatterns?: string[]; // Custom aliases for prompt detection
     activationText?: string;
     type: 'character' | 'style' | 'concept' | 'clothing' | 'pose';
     baseModel: string;
@@ -311,7 +312,10 @@ export function PromptBuilder({
                     loras: selectedLoRAs.map(l => ({
                         id: l.id,
                         name: l.name,
-                        triggerWord: l.triggerWords?.[0] || ''
+                        triggerWords: l.triggerWords || [],
+                        aliasPatterns: l.aliasPatterns || [],
+                        type: l.type,
+                        strength: l.recommendedStrength
                     })),
                     style,
                     mood,

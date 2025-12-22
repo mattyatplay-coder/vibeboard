@@ -894,6 +894,13 @@ export class FalAIAdapter implements GenerationProvider {
                 input.loras = processedLoRAs;
             }
 
+            // Wan 2.6 models use different endpoint format: wan/v2.6/... (not fal-ai/wan/v2.6/...)
+            // The fal.subscribe function expects the path without "fal-ai/" prefix for Wan 2.6
+            if (model.includes("wan") && model.includes("v2.6") && model.startsWith("fal-ai/")) {
+                model = model.replace("fal-ai/", "");
+                console.log(`[FalAI] Wan 2.6 model path normalized to: ${model}`);
+            }
+
             console.log("Generating video with:", model);
             console.log("Input payload:", JSON.stringify(input, null, 2));
 

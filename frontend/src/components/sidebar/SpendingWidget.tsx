@@ -1,17 +1,20 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { DollarSign, TrendingUp, Clock, Calendar, ChevronDown, ChevronUp, Trash2, Download, Image, Video } from 'lucide-react';
+import { DollarSign, Zap, Clock, Calendar, ChevronDown, ChevronUp, Trash2, Download, Image, Video } from 'lucide-react';
 import { costTracker, CostSummary, GenerationRecord } from '@/lib/CostTracker';
-import { formatCost } from '@/lib/ModelPricing';
+import { formatCost, calculateGenerationCost } from '@/lib/ModelPricing';
 import { PROVIDER_DEFINITIONS } from '@/lib/ModelRegistry';
 import clsx from 'clsx';
 
 interface SpendingWidgetProps {
     collapsed?: boolean;
+    currentModelId?: string;
+    currentDuration?: string;
+    isVideo?: boolean;
 }
 
-export function SpendingWidget({ collapsed = false }: SpendingWidgetProps) {
+export function SpendingWidget({ collapsed = false, currentModelId, currentDuration, isVideo }: SpendingWidgetProps) {
     const [summary, setSummary] = useState<CostSummary | null>(null);
     const [expanded, setExpanded] = useState(false);
     const [showDetails, setShowDetails] = useState(false);
@@ -27,6 +30,14 @@ export function SpendingWidget({ collapsed = false }: SpendingWidgetProps) {
 
         return unsubscribe;
     }, []);
+
+    // Calculate estimated cost for current shot
+    const shotEstimate = currentModelId
+        ? calculateGenerationCost(currentModelId, {
+            quantity: 1,
+            durationSeconds: currentDuration ? parseInt(currentDuration.replace('s', ''), 10) : (isVideo ? 5 : undefined),
+        })
+        : 0;
 
     if (!summary) return null;
 
@@ -87,15 +98,15 @@ export function SpendingWidget({ collapsed = false }: SpendingWidgetProps) {
                 <div className="border-t border-white/10 p-3 space-y-4">
                     {/* Time Period Stats */}
                     <div className="grid grid-cols-3 gap-2">
+                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-2 text-center">
+                            <Zap className="w-3 h-3 text-amber-400 mx-auto mb-1" />
+                            <p className="text-xs text-amber-400/80">Next Shot</p>
+                            <p className="text-sm font-semibold text-amber-400">{shotEstimate > 0 ? formatCost(shotEstimate) : '—'}</p>
+                        </div>
                         <div className="bg-white/5 rounded-lg p-2 text-center">
                             <Clock className="w-3 h-3 text-gray-500 mx-auto mb-1" />
                             <p className="text-xs text-gray-500">Today</p>
                             <p className="text-sm font-semibold text-white">{formatCost(summary.today)}</p>
-                        </div>
-                        <div className="bg-white/5 rounded-lg p-2 text-center">
-                            <TrendingUp className="w-3 h-3 text-gray-500 mx-auto mb-1" />
-                            <p className="text-xs text-gray-500">Week</p>
-                            <p className="text-sm font-semibold text-white">{formatCost(summary.thisWeek)}</p>
                         </div>
                         <div className="bg-white/5 rounded-lg p-2 text-center">
                             <Calendar className="w-3 h-3 text-gray-500 mx-auto mb-1" />

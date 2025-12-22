@@ -11,6 +11,7 @@ import { Plus, Folder, ChevronDown, ChevronRight, Trash2, ChevronLeft } from "lu
 import { useState } from "react";
 import { SpendingWidget } from "@/components/sidebar/SpendingWidget";
 import { useSidebarStore } from "@/lib/sidebarStore";
+import { useEngineConfigStore } from "@/lib/engineConfigStore";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -21,6 +22,7 @@ export function Sidebar() {
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [newSessionName, setNewSessionName] = useState("");
   const { isCollapsed, toggleSidebar } = useSidebarStore();
+  const { currentModelId, currentDuration, isVideo } = useEngineConfigStore();
 
   if (!projectId) return null;
 
@@ -176,7 +178,12 @@ export function Sidebar() {
 
       {/* Spending Widget */}
       <div className={clsx("px-4 pb-2", isCollapsed && "px-2")}>
-        <SpendingWidget collapsed={isCollapsed} />
+        <SpendingWidget
+          collapsed={isCollapsed}
+          currentModelId={currentModelId ?? undefined}
+          currentDuration={currentDuration ?? undefined}
+          isVideo={isVideo}
+        />
       </div>
 
       <div className="p-4 border-t border-white/10">

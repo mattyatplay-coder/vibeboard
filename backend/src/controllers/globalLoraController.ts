@@ -40,11 +40,12 @@ export const getGlobalLibrary = async (req: Request, res: Response) => {
             }
         });
 
-        // Parse recommendedSettings and tags JSON strings
+        // Parse recommendedSettings, tags, and aliasPatterns JSON strings
         const parsedItems = items.map(item => ({
             ...item,
             settings: item.recommendedSettings ? JSON.parse(item.recommendedSettings) : null,
             tags: item.tags ? JSON.parse(item.tags) : [],
+            aliasPatterns: item.aliasPatterns ? JSON.parse(item.aliasPatterns) : [],
             installCount: item._count.projectInstalls
         }));
 

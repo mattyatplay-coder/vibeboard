@@ -40,7 +40,11 @@ import { TagSelectorModal } from "@/components/generation/TagSelectorModal";
 import { CompactMotionSlider } from "@/components/generation/CompactMotionSlider";
 import { Tag } from "@/components/tag-system";
 import { getModelRequirements } from "@/lib/ModelConstraints";
-import { ALL_MODELS } from "@/lib/ModelRegistry";
+import { ALL_MODELS, PROVIDER_DEFINITIONS } from "@/lib/ModelRegistry";
+import { useEngineConfigStore } from "@/lib/engineConfigStore";
+import { costTracker } from "@/lib/CostTracker";
+import { usePromptWeighting } from "@/hooks/usePromptWeighting";
+import { WeightHintTooltip } from "@/components/prompts/WeightHintTooltip";
 
 interface PipelineStage {
     id: string;
@@ -110,6 +114,17 @@ export default function GeneratePage() {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [styleConfig, setStyleConfig] = useState<StyleConfig | null>(null);
 
+    // Cost tracking - track which generation IDs we've already recorded costs for
+    // We store IDs of generations that were already succeeded on first load to avoid double-counting
+    const recordedCostIds = useRef<Set<string>>(new Set());
+    const initialLoadComplete = useRef<boolean>(false);
+
+    // Prompt Weighting: Ctrl/Cmd + Arrow Up/Down to adjust weights (word:1.1)
+    const { handleKeyDown: handleWeightingKeyDown, isModifierHeld } = usePromptWeighting({
+        value: prompt,
+        onChange: setPrompt,
+    });
+
     // Edit Modal State
     const [selectedGeneration, setSelectedGeneration] = useState<Generation | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -143,6 +158,17 @@ export default function GeneratePage() {
             setMode(currentModel.type === 'video' ? 'video' : 'image');
         }
     }, [engineConfig.model]);
+
+    // Sync engine config to global store for SpendingWidget
+    const setCurrentConfig = useEngineConfigStore(state => state.setCurrentConfig);
+    React.useEffect(() => {
+        const currentModel = ALL_MODELS.find(m => m.id === engineConfig.model);
+        setCurrentConfig({
+            modelId: engineConfig.model,
+            duration: duration + 's',
+            isVideo: currentModel?.type === 'video' || false,
+        });
+    }, [engineConfig.model, duration, setCurrentConfig]);
 
     const handleAddTag = (tag: string, category: string) => {
         const prefix = prompt ? `${prompt}, ` : "";
@@ -257,6 +283,47 @@ export default function GeneratePage() {
                 : `/projects/${params.id}/generations`;
 
             const data = await fetchAPI(endpoint);
+
+            // On first load, just record the IDs of already-succeeded generations
+            // so we don't count them as new costs
+            if (!initialLoadComplete.current) {
+                initialLoadComplete.current = true;
+                for (const gen of data as Generation[]) {
+                    if (gen.status === 'succeeded') {
+                        recordedCostIds.current.add(gen.id);
+                    }
+                }
+            } else {
+                // Track costs for newly succeeded generations (after initial load)
+                for (const gen of data as Generation[]) {
+                    if (gen.status === 'succeeded' && !recordedCostIds.current.has(gen.id)) {
+                        // Mark as recorded to prevent duplicate tracking
+                        recordedCostIds.current.add(gen.id);
+
+                        // Get model info
+                        const modelId = gen.falModel || gen.usedLoras?.model || gen.usedLoras?.falModel;
+                        const provider = gen.engine || gen.usedLoras?.provider || 'unknown';
+                        const modelInfo = ALL_MODELS.find(m => m.id === modelId);
+                        const isVideo = gen.outputs?.[0]?.type === 'video';
+
+                        // Get duration from usedLoras or default
+                        const durationSeconds = gen.usedLoras?.duration
+                            ? parseInt(String(gen.usedLoras.duration).replace('s', ''), 10)
+                            : (isVideo ? 5 : undefined);
+
+                        // Record the cost
+                        costTracker.recordGeneration({
+                            modelId: modelId || 'unknown',
+                            modelName: modelInfo?.name || modelId || 'Unknown Model',
+                            provider: provider,
+                            type: isVideo ? 'video' : 'image',
+                            quantity: gen.outputs?.length || 1,
+                            durationSeconds: durationSeconds,
+                        });
+                    }
+                }
+            }
+
             setGenerations(data);
         } catch (error) {
             console.error("Failed to load generations:", error);
@@ -779,6 +846,9 @@ export default function GeneratePage() {
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        // Handle prompt weighting (Ctrl/Cmd + Arrow Up/Down)
+        handleWeightingKeyDown(e);
+
         if (e.key === 'Enter' && !e.shiftKey && !showSuggestions) {
             e.preventDefault();
             handleGenerate();
@@ -1853,6 +1923,9 @@ export default function GeneratePage() {
                     setIsTagSelectorOpen(false);
                 }}
             />
+
+            {/* Weight Hint Tooltip - Shows when Cmd/Ctrl is held */}
+            <WeightHintTooltip isVisible={isModifierHeld && isFocused} />
 
         </DndContext >
     );

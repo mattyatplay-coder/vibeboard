@@ -155,6 +155,7 @@ export interface LoRA {
     name: string;
     triggerWord?: string;
     triggerWords?: string[];
+    aliasPatterns?: string[]; // Custom aliases for prompt detection (e.g., ["sarah", "sara"])
     fileUrl: string;
     baseModel: string;
     type: 'lora' | 'checkpoint' | 'embedding';
@@ -226,6 +227,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
     const [editCategory, setEditCategory] = useState("other");
     const [editName, setEditName] = useState("");
     const [editTrigger, setEditTrigger] = useState("");
+    const [editAliases, setEditAliases] = useState(""); // Comma-separated aliases
     const [editBaseModel, setEditBaseModel] = useState("SDXL");
     const [editStrength, setEditStrength] = useState(1.0);
     const [newSettings, setNewSettings] = useState<any>(null);
@@ -309,6 +311,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
         setEditingLora(lora);
         setEditName(lora.name);
         setEditTrigger(lora.triggerWord || "");
+        setEditAliases(lora.aliasPatterns?.join(", ") || "");
         setEditBaseModel(lora.baseModel);
         setEditCategory(lora.category || "other");
         setEditStrength(lora.strength);
@@ -319,6 +322,7 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
         setEditingLora(null);
         setEditName("");
         setEditTrigger("");
+        setEditAliases("");
         setEditBaseModel("");
         setEditCategory("other");
         setEditStrength(1.0);
@@ -329,12 +333,19 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
         if (!editingLora || !editName) return;
         setError(null);
 
+        // Parse comma-separated aliases into array
+        const aliasPatterns = editAliases
+            .split(",")
+            .map(a => a.trim().toLowerCase())
+            .filter(a => a.length > 0);
+
         try {
             await fetchAPI(`/projects/${projectId}/loras/${editingLora.id}`, {
                 method: "PUT",
                 body: JSON.stringify({
                     name: editName,
                     triggerWord: editTrigger,
+                    aliasPatterns: aliasPatterns.length > 0 ? aliasPatterns : undefined,
                     baseModel: editBaseModel,
                     category: editCategory,
                     strength: editStrength
@@ -486,6 +497,21 @@ export function LoRAManager({ projectId, isOpen, onClose, selectedIds = [], onTo
                                     placeholder="e.g. cbrpnk"
                                     className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 outline-none"
                                 />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-400 mb-1">
+                                    Aliases <span className="text-gray-600">(comma-separated, for prompt detection)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={editAliases}
+                                    onChange={(e) => setEditAliases(e.target.value)}
+                                    placeholder="e.g. sarah, sara, sari"
+                                    className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 outline-none"
+                                />
+                                <p className="text-[10px] text-gray-500 mt-1">
+                                    When these words appear in your prompt, the trigger word will be automatically added.
+                                </p>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>

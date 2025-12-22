@@ -1,5 +1,5 @@
 
-import { useCallback } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 
 interface UsePromptWeightingProps {
     value: string;
@@ -8,6 +8,39 @@ interface UsePromptWeightingProps {
 }
 
 export function usePromptWeighting({ value, onChange, onPropChange }: UsePromptWeightingProps) {
+    const [isModifierHeld, setIsModifierHeld] = useState(false);
+
+    // Track global modifier key state
+    useEffect(() => {
+        const handleGlobalKeyDown = (e: KeyboardEvent) => {
+            if (e.ctrlKey || e.metaKey) {
+                setIsModifierHeld(true);
+            }
+        };
+
+        const handleGlobalKeyUp = (e: KeyboardEvent) => {
+            // Check if neither ctrl nor meta is pressed anymore
+            if (!e.ctrlKey && !e.metaKey) {
+                setIsModifierHeld(false);
+            }
+        };
+
+        // Also handle window blur (user switches tabs while holding key)
+        const handleBlur = () => {
+            setIsModifierHeld(false);
+        };
+
+        window.addEventListener('keydown', handleGlobalKeyDown);
+        window.addEventListener('keyup', handleGlobalKeyUp);
+        window.addEventListener('blur', handleBlur);
+
+        return () => {
+            window.removeEventListener('keydown', handleGlobalKeyDown);
+            window.removeEventListener('keyup', handleGlobalKeyUp);
+            window.removeEventListener('blur', handleBlur);
+        };
+    }, []);
+
     const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if ((e.ctrlKey || e.metaKey) && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
             e.preventDefault();
@@ -116,5 +149,5 @@ export function usePromptWeighting({ value, onChange, onPropChange }: UsePromptW
         }
     }, [value, onChange, onPropChange]);
 
-    return { handleKeyDown };
+    return { handleKeyDown, isModifierHeld };
 }

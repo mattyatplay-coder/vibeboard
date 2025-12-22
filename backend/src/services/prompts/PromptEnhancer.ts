@@ -124,16 +124,63 @@ export interface EnhancedPrompt {
 
 export class PromptEnhancer {
     private openai: OpenAI;
-    private useLocalLLM: boolean;
+    private openrouter: OpenAI;
+    private useLocalLLM: boolean = false;
+    private useOpenRouter: boolean = false;
+    private enhancerModel: string;
+    private deepinfra: OpenAI | null = null;
+    private useDeepInfra: boolean = false;
 
     constructor() {
-        // Try OpenAI first, fall back to other options
-        const apiKey = process.env.OPENAI_API_KEY || '';
-        this.openai = new OpenAI({ apiKey });
-        this.useLocalLLM = !apiKey;
+        // Check for API keys in order of preference
+        const deepInfraKey = process.env.DEEPINFRA_API_KEY || '';
+        const openRouterKey = process.env.OPENROUTER_API_KEY || '';
+        const openAIKey = process.env.OPENAI_API_KEY || '';
 
-        if (this.useLocalLLM) {
-            console.log('PromptEnhancer: No OpenAI key, using rule-based enhancement');
+        // Configurable model - defaults depend on provider
+        // DeepInfra: cognitivecomputations/dolphin-2.9.1-llama-3-70b (best uncensored, ~$0.35/M)
+        // OpenRouter: cognitivecomputations/dolphin-mistral-24b-venice-edition:free (FREE, uncensored)
+        this.enhancerModel = process.env.PROMPT_ENHANCER_MODEL || '';
+
+        // Setup DeepInfra client (preferred for Dolphin 2.9.1 70B - most capable uncensored model)
+        if (deepInfraKey) {
+            this.deepinfra = new OpenAI({
+                apiKey: deepInfraKey,
+                baseURL: 'https://api.deepinfra.com/v1/openai',
+            });
+            this.useDeepInfra = true;
+            this.enhancerModel = this.enhancerModel || 'cognitivecomputations/dolphin-2.9.1-llama-3-70b';
+            console.log(`PromptEnhancer: Using DeepInfra with model ${this.enhancerModel}`);
+        }
+
+        // Setup OpenRouter client (for uncensored prompt enhancement)
+        this.openrouter = new OpenAI({
+            apiKey: openRouterKey,
+            baseURL: 'https://openrouter.ai/api/v1',
+            defaultHeaders: {
+                'HTTP-Referer': process.env.CORS_ORIGIN || 'http://localhost:3000',
+                'X-Title': 'VibeBoard',
+            }
+        });
+
+        // Setup OpenAI client (for vision analysis - still uses GPT-4o)
+        this.openai = new OpenAI({ apiKey: openAIKey });
+
+        // Prefer DeepInfra > OpenRouter > OpenAI for prompt enhancement
+        if (!this.useDeepInfra) {
+            this.useOpenRouter = !!openRouterKey;
+            if (this.useOpenRouter) {
+                this.enhancerModel = this.enhancerModel || 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free';
+                console.log(`PromptEnhancer: Using OpenRouter with model ${this.enhancerModel}`);
+            }
+        }
+
+        this.useLocalLLM = !this.useDeepInfra && !this.useOpenRouter && !openAIKey;
+
+        if (!this.useDeepInfra && !this.useOpenRouter && !this.useLocalLLM) {
+            console.log('PromptEnhancer: Using OpenAI (gpt-4o-mini)');
+        } else if (this.useLocalLLM) {
+            console.log('PromptEnhancer: No API keys, using rule-based enhancement');
         }
     }
 
@@ -222,8 +269,10 @@ JSON ONLY, no markdown.`;
         );
         console.log('Trigger word detections:', JSON.stringify(triggerDetections, null, 2));
 
-        // Apply detections to get the final trigger word list
-        const triggerWords = this.applyTriggerDetections(triggerDetections);
+        // Apply detections to get the final trigger word list (deduplicated)
+        const rawTriggerWords = this.applyTriggerDetections(triggerDetections);
+        // Deduplicate trigger words - having the same trigger twice causes excessive repetition
+        const triggerWords = [...new Set(rawTriggerWords)];
         console.log('Final trigger words to prepend:', triggerWords);
 
         // Build character description from elements
@@ -243,10 +292,16 @@ JSON ONLY, no markdown.`;
         let llmResult: any = null;
         let enhancedPromptText: string;
 
+        // Extract weight syntax BEFORE LLM processing to preserve it
+        // LLMs tend to strip or normalize (text:1.5) syntax even when told not to
+        const { cleanedPrompt, weightedSegments } = this.extractWeightSyntax(request.originalPrompt);
+        const requestWithCleanPrompt = { ...request, originalPrompt: cleanedPrompt };
+        console.log('Extracted weighted segments:', weightedSegments);
+
         if (!this.useLocalLLM && request.enhancementLevel !== 'minimal') {
             console.log('Enhancing with LLM for model:', request.modelId);
             const result = await this.enhanceWithLLM(
-                request,  // Pass original request with clean prompt
+                requestWithCleanPrompt,  // Pass request with weight syntax extracted
                 guide,
                 triggerWords,
                 characterDescription,
@@ -261,6 +316,13 @@ JSON ONLY, no markdown.`;
             } else {
                 enhancedPromptText = result;
             }
+
+            // Re-inject weighted segments that the LLM might have stripped
+            enhancedPromptText = this.restoreWeightSyntax(enhancedPromptText, weightedSegments);
+
+            // Force-prepend trigger words if LLM didn't include all of them
+            // LLMs tend to deduplicate, so we ensure ALL trigger words are at the start
+            enhancedPromptText = this.ensureTriggerWordsAtStart(enhancedPromptText, triggerWords, guide);
         } else {
             console.log('Enhancing with Rules for model:', request.modelId);
             // For rules, we MUST append vision context manually since there's no LLM to merge it
@@ -287,6 +349,9 @@ JSON ONLY, no markdown.`;
         if (qualityBoosters.length > 0 && !this.containsQualityTerms(enhancedPromptText, qualityBoosters)) {
             enhancedPromptText = this.appendQualityBoosters(enhancedPromptText, qualityBoosters, guide);
         }
+
+        // Convert weight syntax to repetition for models that don't support it
+        enhancedPromptText = this.convertWeightsToRepetition(enhancedPromptText, guide);
 
         // Build negative prompt
         let negativePrompt = request.addNegativePrompt
@@ -666,24 +731,82 @@ JSON ONLY, no markdown.`;
         );
 
         try {
-            const response = await this.openai.chat.completions.create({
-                model: 'gpt-4o-mini',
+            // Select client in order of preference: DeepInfra > OpenRouter > OpenAI
+            let client: OpenAI;
+            let model: string;
+            let providerName: string;
+
+            if (this.useDeepInfra && this.deepinfra) {
+                client = this.deepinfra;
+                model = this.enhancerModel;
+                providerName = 'DeepInfra';
+            } else if (this.useOpenRouter) {
+                client = this.openrouter;
+                model = this.enhancerModel;
+                providerName = 'OpenRouter';
+            } else {
+                client = this.openai;
+                model = 'gpt-4o-mini';
+                providerName = 'OpenAI';
+            }
+
+            console.log(`[PromptEnhancer] Using ${providerName} with model: ${model}`);
+
+            const response = await client.chat.completions.create({
+                model: model,
                 messages: [
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: userPrompt }
                 ],
                 max_tokens: 1000, // Increased for JSON
                 temperature: 0.7,
-                response_format: { type: "json_object" } // Force JSON mode
+                // Note: Only OpenAI natively supports JSON mode, other providers we handle parsing gracefully
+                ...(providerName === 'OpenAI' ? { response_format: { type: "json_object" } } : {})
             });
 
             const content = response.choices[0]?.message?.content?.trim();
             if (content && content.toLowerCase() !== 'undefined') {
                 try {
-                    return JSON.parse(content);
+                    // Try to extract JSON from the response (some models wrap it in markdown)
+                    let jsonContent = content;
+                    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+                    if (jsonMatch) {
+                        jsonContent = jsonMatch[1].trim();
+                    }
+                    return JSON.parse(jsonContent);
                 } catch (e) {
-                    console.warn("Failed to parse LLM JSON response, returning raw string", e);
-                    return content;
+                    console.warn("Failed to parse LLM JSON response, attempting to extract prompt field", e);
+
+                    // Try to extract the prompt field from malformed JSON
+                    // Pattern matches: "prompt": "..." or 'prompt': '...'
+                    const promptFieldMatch = content.match(/"prompt"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+                    if (promptFieldMatch) {
+                        const extractedPrompt = promptFieldMatch[1]
+                            .replace(/\\n/g, ' ')
+                            .replace(/\\"/g, '"')
+                            .replace(/\\\\/g, '\\')
+                            .trim();
+                        console.log("Extracted prompt from malformed JSON:", extractedPrompt.substring(0, 100) + "...");
+                        return { prompt: extractedPrompt };
+                    }
+
+                    // If we still can't extract, strip markdown wrappers and return as cleaned text
+                    let cleaned = content;
+                    // Remove markdown code blocks
+                    cleaned = cleaned.replace(/```(?:json)?\s*/g, '').replace(/```\s*/g, '');
+                    // Remove JSON-like structure if present
+                    cleaned = cleaned.replace(/^\s*\{\s*"prompt"\s*:\s*"?/i, '');
+                    cleaned = cleaned.replace(/"?\s*,?\s*"negativePrompt".*$/s, '');
+                    cleaned = cleaned.replace(/"\s*\}\s*$/s, '');
+
+                    // If it still looks like JSON garbage, fall back to original prompt
+                    if (cleaned.includes('{') || cleaned.includes('"prompt"')) {
+                        console.warn("LLM response too malformed, falling back to rules");
+                        return this.enhanceWithRules(request, guide, triggerWords, characterDescription, consistencyKeywords);
+                    }
+
+                    console.log("Returning cleaned LLM response:", cleaned.substring(0, 100) + "...");
+                    return cleaned.trim();
                 }
             }
 
@@ -827,17 +950,26 @@ CRITICAL RULES FOR TRIGGER WORDS:
 OTHER RULES:
 7. Character consistency is the TOP PRIORITY - include detailed physical descriptions
 8. Keep the user's original intent but enhance with proper syntax
-9. Do NOT repeat the same action multiple times UNLESS it was bracketed for emphasis.
-10. Move negative constraints (e.g. "text", "watermark", "blurry") to the 'negativePrompt' field
-11. If the user asks to REMOVE something, replace it with the opposite in the positive prompt
+9. Do NOT repeat trigger words or key actions multiple times. Say them ONCE, clearly.
+10. Do NOT create variations of the same phrase (e.g., "giving a blowjob is the main focus, prominently featuring a blowjob" = BAD)
+11. Move negative constraints (e.g. "text", "watermark", "blurry") to the 'negativePrompt' field
+12. If the user asks to REMOVE something, replace it with the opposite in the positive prompt
 
 CRITICAL RULE FOR BRACKETED EMPHASIS [text]:
-12. If the user puts text in square brackets (e.g. "a girl [wearing a red hat]"), this means STRICT ADHERENCE IS REQUIRED.
-13. Since T5 models don't support (text:1.5) syntax, you must simulate weight by REDUNDANT REPETITION.
-14. Action: Remove the brackets and REPEAT the key detail 2-3 times as SEPARATE SENTENCES.
+13. If the user puts text in square brackets (e.g. "a girl [wearing a red hat]"), this means STRICT ADHERENCE IS REQUIRED.
+14. Since T5 models don't support (text:1.5) syntax, you must simulate weight by REDUNDANT REPETITION.
+15. Action: Remove the brackets and REPEAT the key detail 2-3 times as SEPARATE SENTENCES.
     - Input: "a girl [in a small bathroom]"
     - Output: "A girl in a small bathroom. The room is distinctively a small personal bathroom. A cramped bathroom setting."
-15. Do NOT try to be concise. Redundancy is the GOAL for bracketed text.
+16. Do NOT try to be concise. Redundancy is the GOAL for bracketed text.
+
+CRITICAL RULE FOR __WEIGHT__ PLACEHOLDERS (READ CAREFULLY):
+17. The prompt contains literal __WEIGHT_0__, __WEIGHT_1__, etc. tokens. These are TECHNICAL PLACEHOLDERS.
+18. You MUST output these EXACT strings unchanged. They are NOT variables to be filled in.
+19. CORRECT: "a woman __WEIGHT_0__, walking in a park" (placeholder kept as-is)
+20. WRONG: "a woman giving oral sex, walking in a park" (placeholder expanded - NEVER DO THIS)
+21. WRONG: "a woman performing a sexual act, walking" (placeholder paraphrased - NEVER DO THIS)
+22. Think of __WEIGHT_X__ as a proprietary token that our backend needs to process. Just leave it alone.
 
 `;
 
@@ -1274,6 +1406,201 @@ Output ONLY valid JSON in this format:
         });
 
         return result.prompt;
+    }
+
+    /**
+     * Ensure all trigger words are at the start of the prompt.
+     * LLMs tend to deduplicate or skip trigger words even when instructed to include them all.
+     * This function force-prepends any missing trigger words.
+     */
+    private ensureTriggerWordsAtStart(prompt: string, triggerWords: string[], guide: ModelPromptGuide | null): string {
+        if (!triggerWords || triggerWords.length === 0) return prompt;
+
+        const sep = guide?.syntax.separator || ', ';
+
+        // Build a map of how many times each trigger word should appear
+        const expectedCounts = new Map<string, number>();
+        for (const tw of triggerWords) {
+            expectedCounts.set(tw, (expectedCounts.get(tw) || 0) + 1);
+        }
+
+        // Count how many times each trigger word appears in the current prompt
+        const actualCounts = new Map<string, number>();
+        for (const tw of triggerWords) {
+            // Use regex to count occurrences (case-insensitive, word boundary)
+            const regex = new RegExp(`\\b${tw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+            const matches = prompt.match(regex);
+            actualCounts.set(tw, matches ? matches.length : 0);
+        }
+
+        // Build list of trigger words to prepend (maintaining order and duplicates)
+        const toPrepend: string[] = [];
+        const prependedCounts = new Map<string, number>();
+
+        for (const tw of triggerWords) {
+            const expected = expectedCounts.get(tw) || 0;
+            const actual = actualCounts.get(tw) || 0;
+            const alreadyPrepended = prependedCounts.get(tw) || 0;
+
+            // How many more do we need?
+            const needed = expected - actual - alreadyPrepended;
+            if (needed > 0) {
+                toPrepend.push(tw);
+                prependedCounts.set(tw, alreadyPrepended + 1);
+            }
+        }
+
+        if (toPrepend.length === 0) {
+            console.log('All trigger words already present in prompt');
+            return prompt;
+        }
+
+        console.log(`Prepending missing trigger words: ${toPrepend.join(', ')}`);
+
+        // Prepend the missing trigger words
+        return `${toPrepend.join(sep)}${sep}${prompt}`;
+    }
+
+    /**
+     * Extract weight syntax (text:weight) from prompt before LLM processing.
+     * LLMs tend to strip or normalize this syntax even when instructed to preserve it.
+     * We extract them, let the LLM process the clean prompt, then restore them.
+     */
+    private extractWeightSyntax(prompt: string): { cleanedPrompt: string; weightedSegments: Array<{ original: string; text: string; weight: number; placeholder: string }> } {
+        const weightRegex = /\(([^():]+):(\d+\.?\d*)\)/g;
+        const weightedSegments: Array<{ original: string; text: string; weight: number; placeholder: string }> = [];
+
+        console.log(`[extractWeightSyntax] Input prompt: "${prompt.substring(0, 200)}..."`);
+
+        let index = 0;
+        const cleanedPrompt = prompt.replace(weightRegex, (match, text, weight) => {
+            const placeholder = `__WEIGHT_${index}__`;
+            console.log(`[extractWeightSyntax] Found weighted segment: "${match}" -> text: "${text}", weight: ${weight}`);
+            weightedSegments.push({
+                original: match,
+                text: text.trim(),
+                weight: parseFloat(weight),
+                placeholder
+            });
+            index++;
+            // Replace with placeholder that LLM must preserve
+            // This prevents the LLM from paraphrasing or censoring the content
+            return placeholder;
+        });
+
+        console.log(`[extractWeightSyntax] Extracted ${weightedSegments.length} weighted segments`);
+        console.log(`[extractWeightSyntax] Cleaned prompt: "${cleanedPrompt.substring(0, 200)}..."`);
+
+        return { cleanedPrompt, weightedSegments };
+    }
+
+    /**
+     * Restore weight syntax after LLM processing.
+     * Finds the plain text in the enhanced prompt and wraps it back with weight syntax.
+     */
+    private restoreWeightSyntax(enhancedPrompt: string, weightedSegments: Array<{ original: string; text: string; weight: number; placeholder: string }>): string {
+        let result = enhancedPrompt;
+
+        console.log(`[restoreWeightSyntax] Input prompt length: ${enhancedPrompt.length}`);
+        console.log(`[restoreWeightSyntax] Segments to restore: ${weightedSegments.length}`);
+
+        for (const segment of weightedSegments) {
+            const weightSyntax = `(${segment.text}:${segment.weight})`;
+            const placeholder = segment.placeholder;
+
+            console.log(`[restoreWeightSyntax] Looking for placeholder: "${placeholder}"`);
+            console.log(`[restoreWeightSyntax] Found in result: ${result.includes(placeholder)}`);
+
+            // First try: look for the placeholder (preferred method)
+            if (result.includes(placeholder)) {
+                result = result.replace(placeholder, weightSyntax);
+                console.log(`[restoreWeightSyntax] Restored placeholder: "${placeholder}" -> "${weightSyntax}"`);
+            } else {
+                // Fallback: look for the original text (in case LLM ignored placeholder instruction)
+                const textToFind = segment.text;
+                console.log(`[restoreWeightSyntax] Placeholder not found, looking for text: "${textToFind}"`);
+
+                if (result.includes(textToFind) && !result.includes(weightSyntax)) {
+                    result = result.replace(textToFind, weightSyntax);
+                    console.log(`[restoreWeightSyntax] Restored text: "${textToFind}" -> "${weightSyntax}"`);
+                } else if (!result.includes(textToFind) && !result.includes(weightSyntax)) {
+                    // Try case-insensitive search
+                    const lowerResult = result.toLowerCase();
+                    const lowerText = textToFind.toLowerCase();
+                    if (lowerResult.includes(lowerText)) {
+                        const index = lowerResult.indexOf(lowerText);
+                        const originalText = result.substring(index, index + textToFind.length);
+                        result = result.replace(originalText, weightSyntax);
+                        console.log(`[restoreWeightSyntax] Restored (case-insensitive): "${originalText}" -> "${weightSyntax}"`);
+                    } else {
+                        // Last resort: append the weighted segment if completely removed
+                        console.log(`[restoreWeightSyntax] WARNING: Could not find placeholder or text, appending`);
+                        result = `${result}, ${weightSyntax}`;
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Convert weight syntax (text:1.2) to repetition for models that don't support it
+     * T5-based models like Flux/SD3.5 don't natively support weight syntax, so we simulate
+     * emphasis by repeating the text based on the weight value.
+     *
+     * Weight mapping:
+     * - 1.0-1.19: No repetition (normal emphasis)
+     * - 1.2-1.39: Repeat once (moderate emphasis)
+     * - 1.4-1.59: Repeat twice (strong emphasis)
+     * - 1.6+: Repeat three times (maximum emphasis)
+     * - <1.0: Reduce prominence (move to end or skip repetition)
+     */
+    private convertWeightsToRepetition(prompt: string, guide: ModelPromptGuide | null): string {
+        // If model supports weight syntax natively (like SDXL with (text:1.5)), keep as-is
+        if (guide?.syntax.weightSyntax && guide.syntax.weightSyntax.includes(':')) {
+            return prompt;
+        }
+
+        // Regex to match (text:weight) patterns
+        const weightRegex = /\(([^():]+):(\d+\.?\d*)\)/g;
+
+        let result = prompt;
+        const matches = [...prompt.matchAll(weightRegex)];
+
+        if (matches.length === 0) {
+            return prompt;
+        }
+
+        // Process each weighted segment
+        for (const match of matches) {
+            const fullMatch = match[0];
+            const text = match[1].trim();
+            const weight = parseFloat(match[2]);
+
+            let replacement: string;
+
+            if (weight < 1.0) {
+                // Low weight - just use the text once, without emphasis
+                replacement = text;
+            } else if (weight < 1.2) {
+                // Normal weight - use text as-is
+                replacement = text;
+            } else if (weight < 1.4) {
+                // Moderate emphasis - repeat once as a phrase variation
+                replacement = `${text}, emphasizing ${text}`;
+            } else if (weight < 1.6) {
+                // Strong emphasis - repeat twice with variations
+                replacement = `${text}, ${text} is prominent, featuring ${text}`;
+            } else {
+                // Maximum emphasis - repeat three times with strong reinforcement
+                replacement = `${text}, ${text} is the main focus, prominently featuring ${text}, ${text} stands out`;
+            }
+
+            result = result.replace(fullMatch, replacement);
+        }
+
+        return result;
     }
 }
 

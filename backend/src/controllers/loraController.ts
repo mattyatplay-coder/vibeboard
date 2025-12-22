@@ -27,6 +27,7 @@ export const getLoRAs = async (req: Request, res: Response) => {
             ...lora,
             settings: lora.recommendedSettings ? JSON.parse(lora.recommendedSettings) : null,
             triggerWords: lora.triggerWords ? JSON.parse(lora.triggerWords) : (lora.triggerWord ? [lora.triggerWord] : []),
+            aliasPatterns: lora.aliasPatterns ? JSON.parse(lora.aliasPatterns) : [],
             tags: [], // Placeholder since LoRA schema doesn't have a direct tags JSON column like GlobalLoRA yet, or it's handled differently
             characterAttributes: lora.characterAttributes ? JSON.parse(lora.characterAttributes) : null
         }));
@@ -66,7 +67,7 @@ function inferCategory(name: string, tags?: string[]): string {
 export const createLoRA = async (req: Request, res: Response) => {
     try {
         const { projectId } = req.params;
-        const { name, triggerWord, triggerWords, fileUrl, baseModel, strength, imageUrl, type, category, settings, addToGlobalLibrary, civitaiModelId, civitaiVersionId, description, tags, characterAttributes } = req.body;
+        const { name, triggerWord, triggerWords, aliasPatterns, fileUrl, baseModel, strength, imageUrl, type, category, settings, addToGlobalLibrary, civitaiModelId, civitaiVersionId, description, tags, characterAttributes } = req.body;
 
         console.log(`[createLoRA] Creating LoRA for project ${projectId}`);
         console.log(`[createLoRA] Data:`, { name, triggerWord, fileUrl, baseModel, strength, imageUrl, type, addToGlobalLibrary });
@@ -175,6 +176,7 @@ export const createLoRA = async (req: Request, res: Response) => {
                 name,
                 triggerWord,
                 triggerWords: triggerWords ? JSON.stringify(triggerWords) : (triggerWord ? JSON.stringify([triggerWord]) : null),
+                aliasPatterns: aliasPatterns ? JSON.stringify(aliasPatterns) : null,
                 fileUrl: finalUrl,
                 baseModel,
                 type: type || 'lora',
@@ -197,10 +199,10 @@ export const createLoRA = async (req: Request, res: Response) => {
 export const updateLoRA = async (req: Request, res: Response) => {
     try {
         const { projectId, loraId } = req.params;
-        const { name, triggerWord, triggerWords, baseModel, category, strength, characterAttributes } = req.body;
+        const { name, triggerWord, triggerWords, aliasPatterns, baseModel, category, strength, characterAttributes } = req.body;
 
         console.log(`[updateLoRA] Updating LoRA ${loraId} for project ${projectId}`);
-        console.log(`[updateLoRA] Data:`, { name, triggerWord, baseModel, category, strength });
+        console.log(`[updateLoRA] Data:`, { name, triggerWord, aliasPatterns, baseModel, category, strength });
 
         const lora = await prisma.loRA.update({
             where: { id: loraId, projectId },
@@ -208,6 +210,7 @@ export const updateLoRA = async (req: Request, res: Response) => {
                 name,
                 triggerWord,
                 triggerWords: triggerWords ? JSON.stringify(triggerWords) : undefined,
+                aliasPatterns: aliasPatterns ? JSON.stringify(aliasPatterns) : undefined,
                 baseModel,
                 category,
                 strength: strength || 1.0,
