@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { fetchAPI, Project } from "@/lib/api";
-import Link from "next/link";
-import { Plus, ArrowRight, Loader2, Trash2 } from "lucide-react";
-import { toast } from "sonner";
+import { useState, useEffect } from 'react';
+import { fetchAPI, Project } from '@/lib/api';
+import Link from 'next/link';
+import { Plus, ArrowRight, Loader2, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function ProjectSelector() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newDesc, setNewDesc] = useState("");
+  const [newName, setNewName] = useState('');
+  const [newDesc, setNewDesc] = useState('');
 
   useEffect(() => {
     loadProjects();
@@ -19,12 +19,12 @@ export default function ProjectSelector() {
 
   const loadProjects = async () => {
     try {
-      const data = await fetchAPI("/projects");
+      const data = await fetchAPI('/projects');
       setProjects(data);
     } catch (err) {
       console.error(err);
-      toast.error("Failed to load projects", {
-        description: "Please check your connection and try again.",
+      toast.error('Failed to load projects', {
+        description: 'Please check your connection and try again.',
       });
     } finally {
       setLoading(false);
@@ -36,27 +36,27 @@ export default function ProjectSelector() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) {
-      toast.error("Project name is required");
+      toast.error('Project name is required');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await fetchAPI("/projects", {
-        method: "POST",
+      await fetchAPI('/projects', {
+        method: 'POST',
         body: JSON.stringify({ name: newName, description: newDesc }),
       });
-      toast.success("Project created!", {
+      toast.success('Project created!', {
         description: `"${newName}" is ready to use.`,
       });
-      setNewName("");
-      setNewDesc("");
+      setNewName('');
+      setNewDesc('');
       setIsCreating(false);
       loadProjects();
     } catch (err) {
       console.error(err);
-      toast.error("Failed to create project", {
-        description: "Please try again.",
+      toast.error('Failed to create project', {
+        description: 'Please try again.',
       });
     } finally {
       setIsSubmitting(false);
@@ -65,8 +65,8 @@ export default function ProjectSelector() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-black text-white">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      <div className="flex h-screen items-center justify-center bg-black text-white">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
       </div>
     );
   }
@@ -75,49 +75,55 @@ export default function ProjectSelector() {
     e.preventDefault(); // Prevent Link navigation
     e.stopPropagation();
 
-    if (!confirm("Are you sure you want to delete this project? This cannot be undone.")) return;
+    if (!confirm('Are you sure you want to delete this project? This cannot be undone.')) return;
 
     try {
-      await fetchAPI(`/projects/${id}`, { method: "DELETE" });
-      toast.success("Project deleted");
+      await fetchAPI(`/projects/${id}`, { method: 'DELETE' });
+      toast.success('Project deleted');
       loadProjects();
     } catch (err) {
       console.error(err);
-      toast.error("Failed to delete project");
+      toast.error('Failed to delete project');
     }
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-8">
-      <div className="max-w-5xl mx-auto">
-        <header className="flex items-center justify-between mb-12">
+    <div className="min-h-screen bg-black p-8 text-white">
+      <div className="mx-auto max-w-5xl">
+        <header className="mb-12 flex items-center justify-between">
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+            <h1 className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-4xl font-bold text-transparent">
               VibeBoard
             </h1>
-            <p className="text-gray-400 mt-2">Select a project to start creating.</p>
+            <p className="mt-2 text-gray-400">Select a project to start creating.</p>
           </div>
           <button
             onClick={() => setIsCreating(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-lg font-medium hover:bg-gray-200 transition-colors"
+            className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 font-medium text-black transition-colors hover:bg-gray-200"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="h-4 w-4" />
             New Project
           </button>
         </header>
 
         {isCreating && (
-          <div className="mb-8 p-6 bg-white/5 border border-white/10 rounded-xl animate-in fade-in slide-in-from-top-4">
+          <div className="animate-in fade-in slide-in-from-top-4 mb-8 rounded-xl border border-white/10 bg-white/5 p-6">
             <form onSubmit={handleCreate} className="space-y-4" aria-label="Create new project">
               <div>
-                <label htmlFor="project-name" className="block text-sm font-medium text-gray-400 mb-1">
-                  Project Name <span className="text-red-400" aria-label="required">*</span>
+                <label
+                  htmlFor="project-name"
+                  className="mb-1 block text-sm font-medium text-gray-400"
+                >
+                  Project Name{' '}
+                  <span className="text-red-400" aria-label="required">
+                    *
+                  </span>
                 </label>
                 <input
                   id="project-name"
                   value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={e => setNewName(e.target.value)}
+                  className="w-full rounded-lg border border-white/10 bg-black/50 px-4 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   placeholder="My Awesome Movie"
                   autoFocus
                   required
@@ -126,12 +132,17 @@ export default function ProjectSelector() {
                 />
               </div>
               <div>
-                <label htmlFor="project-desc" className="block text-sm font-medium text-gray-400 mb-1">Description</label>
+                <label
+                  htmlFor="project-desc"
+                  className="mb-1 block text-sm font-medium text-gray-400"
+                >
+                  Description
+                </label>
                 <input
                   id="project-desc"
                   value={newDesc}
-                  onChange={(e) => setNewDesc(e.target.value)}
-                  className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={e => setNewDesc(e.target.value)}
+                  className="w-full rounded-lg border border-white/10 bg-black/50 px-4 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   placeholder="A sci-fi thriller about..."
                   disabled={isSubmitting}
                 />
@@ -140,7 +151,7 @@ export default function ProjectSelector() {
                 <button
                   type="button"
                   onClick={() => setIsCreating(false)}
-                  className="px-4 py-2 text-sm text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/50 rounded"
+                  className="rounded px-4 py-2 text-sm text-gray-400 hover:text-white focus:ring-2 focus:ring-white/50 focus:outline-none"
                   disabled={isSubmitting}
                 >
                   Cancel
@@ -148,48 +159,47 @@ export default function ProjectSelector() {
                 <button
                   type="submit"
                   disabled={!newName.trim() || isSubmitting}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-black flex items-center gap-2"
+                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2 font-medium text-white hover:bg-blue-500 focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-black focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {isSubmitting ? "Creating..." : "Create Project"}
+                  {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isSubmitting ? 'Creating...' : 'Create Project'}
                 </button>
               </div>
             </form>
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((project) => (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {projects.map(project => (
             <Link
               key={project.id}
               href={`/projects/${project.id}/elements`}
-              className="group relative block p-6 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 hover:border-white/20 transition-all"
+              className="group relative block rounded-xl border border-white/10 bg-white/5 p-6 transition-all hover:border-white/20 hover:bg-white/10"
             >
               <button
-                onClick={(e) => handleDelete(e, project.id)}
-                className="absolute top-4 right-4 p-2 text-gray-500 hover:text-red-500 hover:bg-white/10 rounded-full transition-all opacity-0 group-hover:opacity-100"
+                onClick={e => handleDelete(e, project.id)}
+                className="absolute top-4 right-4 rounded-full p-2 text-gray-500 opacity-0 transition-all group-hover:opacity-100 hover:bg-white/10 hover:text-red-500"
                 title="Delete Project"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="h-4 w-4" />
               </button>
 
-              <h3 className="text-xl font-bold mb-2 group-hover:text-blue-400 transition-colors pr-8">
+              <h3 className="mb-2 pr-8 text-xl font-bold transition-colors group-hover:text-blue-400">
                 {project.name}
               </h3>
-              <p className="text-gray-400 text-sm line-clamp-2 mb-4">
-                {project.description || "No description"}
+              <p className="mb-4 line-clamp-2 text-sm text-gray-400">
+                {project.description || 'No description'}
               </p>
               <div className="flex items-center justify-between text-xs text-gray-500">
                 <span>Updated {new Date(project.updatedAt).toLocaleDateString()}</span>
-                <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0" />
+                <ArrowRight className="h-4 w-4 -translate-x-2 opacity-0 transition-opacity group-hover:translate-x-0 group-hover:opacity-100" />
               </div>
             </Link>
           ))}
         </div>
 
-
         {projects.length === 0 && !isCreating && (
-          <div className="text-center py-20 text-gray-500">
+          <div className="py-20 text-center text-gray-500">
             <p>No projects yet. Create one to get started!</p>
           </div>
         )}

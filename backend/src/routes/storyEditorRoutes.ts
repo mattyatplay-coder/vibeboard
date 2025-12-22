@@ -6,14 +6,14 @@
 
 import { Router } from 'express';
 import {
-    generateOutline,
-    generateScript,
-    parseScript,
-    breakdownScene,
-    generatePrompts,
-    enhancePrompt,
-    fullPipeline,
-    fullPipelineStream
+  generateOutline,
+  generateScript,
+  parseScript,
+  breakdownScene,
+  generatePrompts,
+  enhancePrompt,
+  fullPipeline,
+  fullPipelineStream,
 } from '../controllers/storyEditorController';
 
 const router = Router();

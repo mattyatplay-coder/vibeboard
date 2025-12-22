@@ -1,5 +1,9 @@
 import { Router } from 'express';
-import { getParameters, createParameter, deleteParameter } from '../controllers/modelParameterController';
+import {
+  getParameters,
+  createParameter,
+  deleteParameter,
+} from '../controllers/modelParameterController';
 
 const router = Router({ mergeParams: true });
 

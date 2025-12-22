@@ -155,12 +155,7 @@ export interface StoryboardProject {
 // UTILITY TYPES
 // ============================================================================
 
-export type PromptEnhancementType = 
-  | 'cinematic'
-  | 'lighting'
-  | 'camera'
-  | 'quality'
-  | 'motion';
+export type PromptEnhancementType = 'cinematic' | 'lighting' | 'camera' | 'quality' | 'motion';
 
 export interface PromptEnhancement {
   type: PromptEnhancementType;

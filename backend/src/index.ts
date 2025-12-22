@@ -24,12 +24,12 @@ import trainingRoutes from './routes/trainingRoutes';
 
 // Validate storage before starting server
 try {
-    validateStorage();
+  validateStorage();
 } catch (error) {
-    console.error(error instanceof Error ? error.message : error);
-    console.error('\n⚠️  Server startup aborted due to storage validation failure.');
-    console.error('   Please ensure the network drive is mounted and try again.\n');
-    process.exit(1);
+  console.error(error instanceof Error ? error.message : error);
+  console.error('\n⚠️  Server startup aborted due to storage validation failure.');
+  console.error('   Please ensure the network drive is mounted and try again.\n');
+  process.exit(1);
 }
 
 const app = express();
@@ -41,8 +41,8 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Debug Middleware: Log all requests
 app.use((req, res, next) => {
-    console.log(`[API] ${req.method} ${req.url}`);
-    next();
+  console.log(`[API] ${req.method} ${req.url}`);
+  next();
 });
 
 // Serve uploaded files statically
@@ -74,27 +74,26 @@ app.use('/api/prompts', promptRoutes);
 app.use('/api/story-editor', storyEditorRoutes);
 app.get('/api/elements', require('./controllers/elementController').getAllElements);
 
-
 app.get('/api/health', (req, res) => {
-    res.json({
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        falConfigured: !!process.env.FAL_KEY,
-        storage: getStorageStatus()
-    });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    falConfigured: !!process.env.FAL_KEY,
+    storage: getStorageStatus(),
+  });
 });
 
 app.listen(port, () => {
-    console.log(`[server]: Server is running at http://localhost:${port}`);
+  console.log(`[server]: Server is running at http://localhost:${port}`);
 });
 
 // Keep process alive
-setInterval(() => { }, 1000);
+setInterval(() => {}, 1000);
 
-process.on('uncaughtException', (err) => {
-    console.error('Uncaught Exception:', err);
+process.on('uncaughtException', err => {
+  console.error('Uncaught Exception:', err);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });

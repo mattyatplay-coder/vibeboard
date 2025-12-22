@@ -1,5 +1,11 @@
 import { Router } from 'express';
-import { uploadElement, getElements, updateElement, deleteElement, createElementFromGeneration } from '../controllers/elementController';
+import {
+  uploadElement,
+  getElements,
+  updateElement,
+  deleteElement,
+  createElementFromGeneration,
+} from '../controllers/elementController';
 import { upload } from '../middleware/upload';
 
 const router = Router({ mergeParams: true }); // Enable access to projectId from parent router
