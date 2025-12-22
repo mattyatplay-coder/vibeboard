@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import {
-    getGlobalLibrary,
-    addToGlobalLibrary,
-    installToProject,
-    deleteFromGlobalLibrary,
-    getProjectInstallations
+  getGlobalLibrary,
+  addToGlobalLibrary,
+  installToProject,
+  deleteFromGlobalLibrary,
+  getProjectInstallations,
 } from '../controllers/globalLoraController';
 
 const router = Router();

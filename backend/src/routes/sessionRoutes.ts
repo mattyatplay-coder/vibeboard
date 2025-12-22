@@ -1,5 +1,10 @@
 import { Router } from 'express';
-import { getSessions, createSession, updateSession, deleteSession } from '../controllers/sessionController';
+import {
+  getSessions,
+  createSession,
+  updateSession,
+  deleteSession,
+} from '../controllers/sessionController';
 
 const router = Router({ mergeParams: true });
 

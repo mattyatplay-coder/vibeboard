@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, { useState, useCallback } from 'react';
 import { Gauge, ChevronDown, ChevronUp } from 'lucide-react';
@@ -46,47 +46,49 @@ export const CompactMotionSlider: React.FC<CompactMotionSliderProps> = ({
   const engineRec = ENGINE_RECOMMENDATIONS[engineType] || ENGINE_RECOMMENDATIONS.other;
   const isOptimal = value >= engineRec.optimal[0] && value <= engineRec.optimal[1];
 
-  const handleSliderChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = parseFloat(e.target.value);
-    onChange(newValue);
-  }, [onChange]);
+  const handleSliderChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newValue = parseFloat(e.target.value);
+      onChange(newValue);
+    },
+    [onChange]
+  );
 
-  const handlePresetClick = useCallback((presetValue: number) => {
-    if (!disabled) {
-      onChange(presetValue);
-    }
-  }, [disabled, onChange]);
+  const handlePresetClick = useCallback(
+    (presetValue: number) => {
+      if (!disabled) {
+        onChange(presetValue);
+      }
+    },
+    [disabled, onChange]
+  );
 
   return (
-    <div className={clsx("relative", className)}>
+    <div className={clsx('relative', className)}>
       {/* Compact Trigger */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className={clsx(
-          "flex items-center gap-2 px-3 rounded-lg border transition-all h-10",
+          'flex h-10 items-center gap-2 rounded-lg border px-3 transition-all',
           isOptimal
-            ? "bg-green-500/10 border-green-500/30 text-green-400"
-            : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white"
+            ? 'border-green-500/30 bg-green-500/10 text-green-400'
+            : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
         )}
         disabled={disabled}
       >
-        <Gauge className="w-4 h-4" />
+        <Gauge className="h-4 w-4" />
         <span className="text-xs font-medium">{currentPreset.emoji}</span>
-        <span className="text-xs font-medium hidden sm:inline">{value.toFixed(1)}</span>
-        {isExpanded ? (
-          <ChevronUp className="w-3 h-3" />
-        ) : (
-          <ChevronDown className="w-3 h-3" />
-        )}
+        <span className="hidden text-xs font-medium sm:inline">{value.toFixed(1)}</span>
+        {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
       </button>
 
       {/* Expanded Panel */}
       {isExpanded && (
-        <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-[#1a1a1a] rounded-xl border border-white/10 shadow-2xl z-50 animate-in slide-in-from-bottom-2 fade-in duration-150">
+        <div className="animate-in slide-in-from-bottom-2 fade-in absolute right-0 bottom-full z-50 mb-2 w-64 rounded-xl border border-white/10 bg-[#1a1a1a] p-3 shadow-2xl duration-150">
           {/* Header */}
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-gray-300 flex items-center gap-2">
-              <Gauge className="w-4 h-4 text-blue-400" />
+          <div className="mb-3 flex items-center justify-between">
+            <span className="flex items-center gap-2 text-xs font-semibold text-gray-300">
+              <Gauge className="h-4 w-4 text-blue-400" />
               Motion Scale
             </span>
             <span className="text-sm font-bold text-blue-400">{value.toFixed(2)}</span>
@@ -102,26 +104,26 @@ export const CompactMotionSlider: React.FC<CompactMotionSliderProps> = ({
               value={value}
               onChange={handleSliderChange}
               disabled={disabled}
-              className="w-full h-1.5 rounded-lg appearance-none cursor-pointer bg-white/10 accent-blue-500"
+              className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-white/10 accent-blue-500"
               style={{
-                background: `linear-gradient(to right, #3B82F6 0%, #3B82F6 ${value * 100}%, rgba(255,255,255,0.1) ${value * 100}%, rgba(255,255,255,0.1) 100%)`
+                background: `linear-gradient(to right, #3B82F6 0%, #3B82F6 ${value * 100}%, rgba(255,255,255,0.1) ${value * 100}%, rgba(255,255,255,0.1) 100%)`,
               }}
             />
           </div>
 
           {/* Presets */}
-          <div className="grid grid-cols-5 gap-1 mb-3">
-            {MOTION_PRESETS.map((preset) => (
+          <div className="mb-3 grid grid-cols-5 gap-1">
+            {MOTION_PRESETS.map(preset => (
               <button
                 key={preset.value}
                 onClick={() => handlePresetClick(preset.value)}
                 disabled={disabled}
                 className={clsx(
-                  "flex flex-col items-center gap-0.5 p-1.5 rounded-lg border transition-all",
+                  'flex flex-col items-center gap-0.5 rounded-lg border p-1.5 transition-all',
                   Math.abs(value - preset.value) < 0.05
-                    ? "border-blue-500 bg-blue-500/20"
-                    : "border-white/10 hover:border-white/20 hover:bg-white/5",
-                  disabled && "opacity-50 cursor-not-allowed"
+                    ? 'border-blue-500 bg-blue-500/20'
+                    : 'border-white/10 hover:border-white/20 hover:bg-white/5',
+                  disabled && 'cursor-not-allowed opacity-50'
                 )}
               >
                 <span className="text-sm">{preset.emoji}</span>
@@ -131,7 +133,7 @@ export const CompactMotionSlider: React.FC<CompactMotionSliderProps> = ({
           </div>
 
           {/* Current Preset Indicator */}
-          <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-lg border border-blue-500/20 mb-2">
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-blue-500/20 bg-gradient-to-r from-blue-500/10 to-purple-500/10 p-2">
             <span className="text-lg">{currentPreset.emoji}</span>
             <div className="flex-1">
               <div className="text-xs font-medium text-white">{currentPreset.label} Motion</div>
@@ -139,20 +141,19 @@ export const CompactMotionSlider: React.FC<CompactMotionSliderProps> = ({
           </div>
 
           {/* Engine Recommendation */}
-          <div className={clsx(
-            "p-2 rounded-lg border text-xs",
-            isOptimal
-              ? "bg-green-500/10 border-green-500/30"
-              : "bg-amber-500/10 border-amber-500/30"
-          )}>
-            <div className={clsx(
-              "font-medium",
-              isOptimal ? "text-green-400" : "text-amber-400"
-            )}>
+          <div
+            className={clsx(
+              'rounded-lg border p-2 text-xs',
+              isOptimal
+                ? 'border-green-500/30 bg-green-500/10'
+                : 'border-amber-500/30 bg-amber-500/10'
+            )}
+          >
+            <div className={clsx('font-medium', isOptimal ? 'text-green-400' : 'text-amber-400')}>
               {isOptimal ? '✓ Optimal' : '⚠ Outside range'} for {engineRec.name}
             </div>
             {!isOptimal && (
-              <div className="text-gray-400 mt-0.5">
+              <div className="mt-0.5 text-gray-400">
                 Recommended: {engineRec.optimal[0].toFixed(1)} - {engineRec.optimal[1].toFixed(1)}
               </div>
             )}

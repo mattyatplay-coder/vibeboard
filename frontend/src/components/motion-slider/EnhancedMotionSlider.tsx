@@ -69,16 +69,22 @@ export const EnhancedMotionSlider: React.FC<MotionSliderProps> = ({
   const engineRec = ENGINE_RECOMMENDATIONS[engineType];
   const isOptimal = value >= engineRec.optimal[0] && value <= engineRec.optimal[1];
 
-  const handleSliderChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = parseFloat(e.target.value);
-    onChange(newValue);
-  }, [onChange]);
+  const handleSliderChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newValue = parseFloat(e.target.value);
+      onChange(newValue);
+    },
+    [onChange]
+  );
 
-  const handlePresetClick = useCallback((presetValue: number) => {
-    if (!disabled) {
-      onChange(presetValue);
-    }
-  }, [disabled, onChange]);
+  const handlePresetClick = useCallback(
+    (presetValue: number) => {
+      if (!disabled) {
+        onChange(presetValue);
+      }
+    },
+    [disabled, onChange]
+  );
 
   const getMotionDescription = (val: number): string => {
     if (val === 0) return 'Camera locked, subjects may move slightly';
@@ -96,7 +102,7 @@ export const EnhancedMotionSlider: React.FC<MotionSliderProps> = ({
         #3B82F6 0%, 
         #3B82F6 ${percentage}%, 
         #E5E7EB ${percentage}%, 
-        #E5E7EB 100%)`
+        #E5E7EB 100%)`,
     };
   };
 
@@ -104,28 +110,26 @@ export const EnhancedMotionSlider: React.FC<MotionSliderProps> = ({
     <div className={`space-y-4 ${className}`}>
       {/* Header */}
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-          <Gauge className="w-4 h-4" />
+        <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+          <Gauge className="h-4 w-4" />
           Motion Scale
         </label>
         <div className="flex items-center gap-2">
-          <span className="text-lg font-semibold text-blue-600">
-            {value.toFixed(2)}
-          </span>
+          <span className="text-lg font-semibold text-blue-600">{value.toFixed(2)}</span>
           <button
             onClick={() => setShowTooltip(!showTooltip)}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 transition-colors hover:text-gray-600"
             aria-label="More info"
           >
-            <Info className="w-4 h-4" />
+            <Info className="h-4 w-4" />
           </button>
         </div>
       </div>
 
       {/* Tooltip */}
       {showTooltip && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
-          <p className="font-medium mb-1">Motion Scale Guide:</p>
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+          <p className="mb-1 font-medium">Motion Scale Guide:</p>
           <p className="text-blue-700">{getMotionDescription(value)}</p>
         </div>
       )}
@@ -144,96 +148,74 @@ export const EnhancedMotionSlider: React.FC<MotionSliderProps> = ({
           onTouchStart={() => setIsDragging(true)}
           onTouchEnd={() => setIsDragging(false)}
           disabled={disabled}
-          className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+          className="h-2 w-full cursor-pointer appearance-none rounded-lg"
           style={getGradientStyle()}
         />
 
         {/* Slider tick marks */}
-        <div className="absolute top-6 left-0 right-0 flex justify-between px-1">
-          {[0, 0.25, 0.5, 0.75, 1.0].map((tick) => (
-            <div
-              key={tick}
-              className="w-px h-2 bg-gray-300"
-            />
+        <div className="absolute top-6 right-0 left-0 flex justify-between px-1">
+          {[0, 0.25, 0.5, 0.75, 1.0].map(tick => (
+            <div key={tick} className="h-2 w-px bg-gray-300" />
           ))}
         </div>
       </div>
 
       {/* Current Preset Indicator */}
-      <div className="flex items-center justify-center gap-2 py-2 px-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+      <div className="flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-gradient-to-r from-blue-50 to-purple-50 px-4 py-2">
         <span className="text-2xl">{currentPreset.icon}</span>
         <div>
-          <div className="text-sm font-semibold text-gray-900">
-            {currentPreset.label} Motion
-          </div>
-          <div className="text-xs text-gray-600">
-            {currentPreset.description}
-          </div>
+          <div className="text-sm font-semibold text-gray-900">{currentPreset.label} Motion</div>
+          <div className="text-xs text-gray-600">{currentPreset.description}</div>
         </div>
       </div>
 
       {/* Preset Buttons */}
       <div className="grid grid-cols-5 gap-2">
-        {MOTION_PRESETS.map((preset) => (
+        {MOTION_PRESETS.map(preset => (
           <button
             key={preset.value}
             onClick={() => handlePresetClick(preset.value)}
             disabled={disabled}
-            className={`
-              flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition-all
-              ${value === preset.value
+            className={`flex flex-col items-center gap-1 rounded-lg border-2 p-2 transition-all ${
+              value === preset.value
                 ? 'border-blue-500 bg-blue-50 shadow-sm'
                 : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-              }
-              ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-            `}
+            } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} `}
           >
             <span className="text-xl">{preset.icon}</span>
-            <span className="text-xs font-medium text-gray-700">
-              {preset.label}
-            </span>
-            <span className="text-xs text-gray-500">
-              {preset.value.toFixed(1)}
-            </span>
+            <span className="text-xs font-medium text-gray-700">{preset.label}</span>
+            <span className="text-xs text-gray-500">{preset.value.toFixed(1)}</span>
           </button>
         ))}
       </div>
 
       {/* Engine Recommendation */}
       {showRecommendations && (
-        <div className={`
-          p-3 rounded-lg border-2 transition-all
-          ${isOptimal
-            ? 'bg-green-50 border-green-300'
-            : 'bg-amber-50 border-amber-300'
-          }
-        `}>
+        <div
+          className={`rounded-lg border-2 p-3 transition-all ${
+            isOptimal ? 'border-green-300 bg-green-50' : 'border-amber-300 bg-amber-50'
+          } `}
+        >
           <div className="flex items-start gap-2">
-            <div className={`
-              p-1 rounded-full
-              ${isOptimal ? 'bg-green-200' : 'bg-amber-200'}
-            `}>
+            <div className={`rounded-full p-1 ${isOptimal ? 'bg-green-200' : 'bg-amber-200'} `}>
               {isOptimal ? (
-                <Zap className="w-4 h-4 text-green-700" />
+                <Zap className="h-4 w-4 text-green-700" />
               ) : (
-                <Info className="w-4 h-4 text-amber-700" />
+                <Info className="h-4 w-4 text-amber-700" />
               )}
             </div>
             <div className="flex-1">
-              <div className={`
-                text-sm font-medium
-                ${isOptimal ? 'text-green-900' : 'text-amber-900'}
-              `}>
+              <div
+                className={`text-sm font-medium ${isOptimal ? 'text-green-900' : 'text-amber-900'} `}
+              >
                 {isOptimal ? 'Optimal for' : 'Outside optimal range for'} {engineRec.name}
               </div>
-              <div className={`
-                text-xs mt-1
-                ${isOptimal ? 'text-green-700' : 'text-amber-700'}
-              `}>
+              <div className={`mt-1 text-xs ${isOptimal ? 'text-green-700' : 'text-amber-700'} `}>
                 {engineRec.description}
                 {!isOptimal && (
-                  <span className="block mt-1">
-                    Recommended: {engineRec.optimal[0].toFixed(1)} - {engineRec.optimal[1].toFixed(1)}
+                  <span className="mt-1 block">
+                    Recommended: {engineRec.optimal[0].toFixed(1)} -{' '}
+                    {engineRec.optimal[1].toFixed(1)}
                   </span>
                 )}
               </div>
@@ -244,10 +226,10 @@ export const EnhancedMotionSlider: React.FC<MotionSliderProps> = ({
 
       {/* Technical Details (Collapsible) */}
       <details className="text-xs text-gray-600">
-        <summary className="cursor-pointer hover:text-gray-900 font-medium">
+        <summary className="cursor-pointer font-medium hover:text-gray-900">
           Technical Details
         </summary>
-        <div className="mt-2 space-y-1 pl-4 border-l-2 border-gray-200">
+        <div className="mt-2 space-y-1 border-l-2 border-gray-200 pl-4">
           <div>• CFG Scale: Auto-adjusted based on motion</div>
           <div>• Steps: {value < 0.3 ? '30-40' : value < 0.7 ? '40-50' : '50-60'} recommended</div>
           <div>• Frame interpolation: {value > 0.7 ? 'Recommended' : 'Optional'}</div>

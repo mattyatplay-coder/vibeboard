@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import {
-    createScene,
-    getScenes,
-    addShotToScene,
-    removeShotFromScene,
-    updateScene,
-    deleteScene,
-    getSceneReferences,
-    addSceneReferences,
-    removeSceneReferences
+  createScene,
+  getScenes,
+  addShotToScene,
+  removeShotFromScene,
+  updateScene,
+  deleteScene,
+  getSceneReferences,
+  addSceneReferences,
+  removeSceneReferences,
 } from '../controllers/sceneController';
 
 const router = Router({ mergeParams: true });

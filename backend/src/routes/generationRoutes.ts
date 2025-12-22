@@ -1,12 +1,26 @@
 import { Router } from 'express';
-import { createGeneration, getGenerations, updateGeneration, deleteGeneration, downloadWithMetadata, getQueueStatus, enhanceVideo, analyzeGeneration, refineGeneration } from '../controllers/generationController';
+import {
+  createGeneration,
+  getGenerations,
+  updateGeneration,
+  deleteGeneration,
+  downloadWithMetadata,
+  getQueueStatus,
+  enhanceVideo,
+  analyzeGeneration,
+  refineGeneration,
+} from '../controllers/generationController';
 
 const router = Router({ mergeParams: true });
 
-router.post('/', (req, res, next) => {
+router.post(
+  '/',
+  (req, res, next) => {
     console.log(`[Generation Request] Body:`, JSON.stringify(req.body, null, 2));
     next();
-}, createGeneration);
+  },
+  createGeneration
+);
 router.get('/', getGenerations);
 router.get('/queue/status', getQueueStatus);
 router.patch('/:generationId', updateGeneration);

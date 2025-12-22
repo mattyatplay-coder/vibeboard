@@ -3,33 +3,31 @@ import { WORKFLOW_TEMPLATES, WorkflowTemplate } from '../../data/workflowTemplat
 import { clsx } from 'clsx';
 
 interface TemplateSelectorProps {
-    onSelect: (template: WorkflowTemplate) => void;
-    selectedId?: string;
+  onSelect: (template: WorkflowTemplate) => void;
+  selectedId?: string;
 }
 
 export function TemplateSelector({ onSelect, selectedId }: TemplateSelectorProps) {
-    return (
-        <div className="grid grid-cols-2 gap-4">
-            {WORKFLOW_TEMPLATES.map((template) => (
-                <button
-                    key={template.id}
-                    onClick={() => onSelect(template)}
-                    className={clsx(
-                        "flex flex-col items-start p-4 rounded-xl border text-left transition-all hover:bg-white/5",
-                        selectedId === template.id
-                            ? "bg-blue-600/20 border-blue-500 ring-1 ring-blue-500"
-                            : "bg-black/30 border-white/10"
-                    )}
-                >
-                    <div className="flex items-center gap-3 mb-2">
-                        <span className="text-2xl">{template.icon}</span>
-                        <span className="font-medium text-white">{template.name}</span>
-                    </div>
-                    <p className="text-xs text-gray-400 line-clamp-2">
-                        {template.description}
-                    </p>
-                </button>
-            ))}
-        </div>
-    );
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      {WORKFLOW_TEMPLATES.map(template => (
+        <button
+          key={template.id}
+          onClick={() => onSelect(template)}
+          className={clsx(
+            'flex flex-col items-start rounded-xl border p-4 text-left transition-all hover:bg-white/5',
+            selectedId === template.id
+              ? 'border-blue-500 bg-blue-600/20 ring-1 ring-blue-500'
+              : 'border-white/10 bg-black/30'
+          )}
+        >
+          <div className="mb-2 flex items-center gap-3">
+            <span className="text-2xl">{template.icon}</span>
+            <span className="font-medium text-white">{template.name}</span>
+          </div>
+          <p className="line-clamp-2 text-xs text-gray-400">{template.description}</p>
+        </button>
+      ))}
+    </div>
+  );
 }

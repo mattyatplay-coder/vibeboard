@@ -167,6 +167,7 @@ model LoRA {
   name        String
   triggerWord String?
   triggerWords String? // JSON array for multiple trigger words
+  aliasPatterns String? // JSON array of custom aliases (e.g., ["sarah", "sara"]) for prompt detection
   fileUrl     String   // Local path or HF URL
   baseModel   String   // 'SDXL', 'Flux', 'SVD', 'Other'
   strength    Float    @default(1.0)
@@ -190,6 +191,7 @@ model GlobalLoRA {
   id          String   @id @default(uuid())
   name        String
   triggerWord String?
+  aliasPatterns String? // JSON array of custom aliases (e.g., ["sarah", "sara"]) for prompt detection
   fileUrl     String   // Local path or HF URL
   baseModel   String   // 'SDXL', 'Flux', 'SD1.5', 'Other'
   strength    Float    @default(1.0)

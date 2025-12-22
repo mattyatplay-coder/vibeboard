@@ -25,26 +25,28 @@ const PORT = process.env.PORT || 3001;
 // =============================================================================
 
 // CORS configuration
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
 
-    // Allow any localhost origin for development
-    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
-      return callback(null, true);
-    }
+      // Allow any localhost origin for development
+      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+        return callback(null, true);
+      }
 
-    // Check against specific allowed origins from env
-    const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',');
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
+      // Check against specific allowed origins from env
+      const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',');
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
 
-    callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-}));
+      callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+  })
+);
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
@@ -180,7 +182,7 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', error => {
   console.error('Uncaught Exception:', error);
   gracefulShutdown('UNCAUGHT_EXCEPTION');
 });

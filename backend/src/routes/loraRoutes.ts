@@ -1,5 +1,13 @@
 import { Router } from 'express';
-import { getLoRAs, createLoRA, updateLoRA, deleteLoRA, fetchLoRAMetadata, fetchCivitaiLoRAMetadata, syncModelMetadata } from '../controllers/loraController';
+import {
+  getLoRAs,
+  createLoRA,
+  updateLoRA,
+  deleteLoRA,
+  fetchLoRAMetadata,
+  fetchCivitaiLoRAMetadata,
+  syncModelMetadata,
+} from '../controllers/loraController';
 
 const router = Router({ mergeParams: true });
 
