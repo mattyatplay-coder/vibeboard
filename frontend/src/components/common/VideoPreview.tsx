@@ -1,5 +1,4 @@
-/* eslint-disable react-hooks/rules-of-hooks */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { X, Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -18,22 +17,28 @@ export function VideoPreview({
   className,
   autoPlay = false,
 }: VideoPreviewProps) {
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(autoPlay);
   const [isMuted, setIsMuted] = useState(true);
   const videoRef = React.useRef<HTMLVideoElement>(null);
 
+  // Handle file object URL creation and cleanup
   useEffect(() => {
     if (file) {
       const objectUrl = URL.createObjectURL(file);
-      setPreviewUrl(objectUrl);
+      setFileUrl(objectUrl);
       return () => URL.revokeObjectURL(objectUrl);
-    } else if (src) {
-      setPreviewUrl(src);
     } else {
-      setPreviewUrl(null);
+      setFileUrl(null);
     }
-  }, [src, file]);
+  }, [file]);
+
+  // Derive previewUrl from either file URL or src prop
+  const previewUrl = useMemo(() => {
+    if (fileUrl) return fileUrl;
+    if (src) return src;
+    return null;
+  }, [fileUrl, src]);
 
   const togglePlay = () => {
     if (videoRef.current) {

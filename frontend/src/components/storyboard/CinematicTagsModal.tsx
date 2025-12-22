@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/rules-of-hooks */
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -403,7 +402,7 @@ export function CinematicTagsModal({
                   {/* Preview tags - if genre sorted, show recommended first */}
                   <div className="flex flex-wrap gap-1 pl-6">
                     {(() => {
-                      let previewTags = [...cat.tags];
+                      const previewTags = [...cat.tags];
                       if (genreTemplate) {
                         previewTags.sort((a, b) => {
                           const aRec = genreTemplate.recommendedTags.includes(a.id);
