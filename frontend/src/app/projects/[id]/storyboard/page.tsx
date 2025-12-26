@@ -1,845 +1,622 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { fetchAPI } from '@/lib/api';
-import { useParams, useRouter } from 'next/navigation';
-import {
-  Plus,
-  Sparkles,
-  Copy,
-  Trash2,
-  X,
-  CheckSquare,
-  FastForward,
-  Palette,
-  Play,
-  Video,
-} from 'lucide-react';
-import { GenerationPickerModal } from '@/components/storyboard/GenerationPickerModal';
-import { SceneGeneratorModal } from '@/components/storyboard/SceneGeneratorModal';
-import { StoryboardHeader } from '@/components/storyboard/StoryboardHeader';
-import { StyleSelectorModal } from '@/components/storyboard/StyleSelectorModal';
-import { CastModal } from '@/components/storyboard/CastModal';
-import { ShotStyleEditorModal } from '@/components/storyboard/ShotStyleEditorModal';
-import { EditElementModal } from '@/components/elements/EditElementModal';
-import { FoundationImagePanel } from '@/components/storyboard/FoundationImagePanel';
-import { ShotActionsPanel } from '@/components/storyboard/ShotActionsPanel';
-import { Generation } from '@/lib/store';
-import { useSession } from '@/context/SessionContext';
-import { clsx } from 'clsx';
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { Plus, Play, Film, Clock, Loader2, ChevronLeft, Settings } from "lucide-react";
+import { BACKEND_URL } from "@/lib/api";
+import StoryboardShot, { ShotData } from "@/components/storyboard/StoryboardShot";
+import { clsx } from "clsx";
 
-const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = error => reject(error);
-  });
-};
+interface SceneChain {
+    id: string;
+    name: string;
+    description?: string;
+    status: string;
+    targetDuration?: number;
+    aspectRatio: string;
+    segments: ShotData[];
+}
 
 export default function StoryboardPage() {
-  const params = useParams();
-  const router = useRouter();
-  const projectId = params.id as string;
-  const { selectedSessionId, sessions } = useSession();
-  const [scenes, setScenes] = useState<any[]>([]);
-
-  // Edit Modal State
-  const [selectedGeneration, setSelectedGeneration] = useState<Generation | null>(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-
-  // Picker state
-  const [isPickerOpen, setIsPickerOpen] = useState(false);
-  const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (projectId) {
-      loadScenes();
-    }
-  }, [projectId, selectedSessionId]);
-
-  const loadScenes = async () => {
-    try {
-      const endpoint = selectedSessionId
-        ? `/projects/${projectId}/scenes?sessionId=${selectedSessionId}`
-        : `/projects/${projectId}/scenes`;
-      const data = await fetchAPI(endpoint);
-      setScenes(data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleCreateScene = async () => {
-    const name = window.prompt('Enter scene name:');
-    if (!name) return;
-
-    try {
-      await fetchAPI(`/projects/${projectId}/scenes`, {
-        method: 'POST',
-        body: JSON.stringify({
-          name,
-          sessionId: selectedSessionId || undefined,
-        }),
-      });
-      loadScenes();
-    } catch (err) {
-      console.error(err);
-      alert('Failed to create scene');
-    }
-  };
-
-  const openPicker = (sceneId: string) => {
-    setActiveSceneId(sceneId);
-    setIsPickerOpen(true);
-  };
-
-  const handleAddShot = async (generation: any) => {
-    if (!activeSceneId) return;
-
-    try {
-      // Calculate next index (simple append)
-      const scene = scenes.find(s => s.id === activeSceneId);
-      const nextIndex = (scene?.shots?.length || 0) + 1;
-
-      await fetchAPI(`/projects/${projectId}/scenes/${activeSceneId}/shots`, {
-        method: 'POST',
-        body: JSON.stringify({
-          generationId: generation.id,
-          index: nextIndex,
-        }),
-      });
-
-      setIsPickerOpen(false);
-      setActiveSceneId(null);
-      loadScenes();
-    } catch (err) {
-      console.error(err);
-      alert('Failed to add shot');
-    }
-  };
-
-  // Scene Generator state
-  const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
-  const [generatorSceneId, setGeneratorSceneId] = useState<string | null>(null);
-
-  const openGenerator = (sceneId: string) => {
-    setGeneratorSceneId(sceneId);
-    setIsGeneratorOpen(true);
-  };
-
-  const handleGenerateScene = async (config: any) => {
-    if (!generatorSceneId) return;
-
-    console.log('Generating scene with config:', config);
-
-    // Construct the full prompt
-    let fullPrompt = config.prompt;
-
-    // Append technical details
-    const technicalDetails = [];
-    if (config.shotTypes.length)
-      technicalDetails.push(`Shot types: ${config.shotTypes.join(', ')}`);
-    if (config.cameraAngles.length)
-      technicalDetails.push(`Angles: ${config.cameraAngles.join(', ')}`);
-    if (config.location) technicalDetails.push(`Location: ${config.location}`);
-    if (config.lighting) technicalDetails.push(`Lighting: ${config.lighting}`);
-
-    if (technicalDetails.length > 0) {
-      fullPrompt += ` -- ${technicalDetails.join(' | ')}`;
-    }
-
-    // Append Style Suffix (Hidden Prompt)
-    if (selectedStyle && selectedStyle.promptSuffix) {
-      fullPrompt += selectedStyle.promptSuffix;
-    }
-
-    try {
-      // Create a generation for the scene
-      // For now, we'll create one generation per "variation" requested
-      // In a real app, we might want a batch endpoint
-
-      const promises = [];
-      for (let i = 0; i < config.variations; i++) {
-        // Process files if present
-        let startFrameBase64 = undefined;
-        let endFrameBase64 = undefined;
-        let inputVideoBase64 = undefined;
-
-        if (config.startFrame) startFrameBase64 = await fileToBase64(config.startFrame);
-        if (config.endFrame) endFrameBase64 = await fileToBase64(config.endFrame);
-        if (config.inputVideo) inputVideoBase64 = await fileToBase64(config.inputVideo);
-
-        promises.push(
-          fetchAPI(`/projects/${projectId}/generations`, {
-            method: 'POST',
-            body: JSON.stringify({
-              mode: config.mode || 'text_to_image',
-              inputPrompt: fullPrompt,
-              aspectRatio: config.aspectRatio,
-              variations: 1,
-              startFrame: startFrameBase64,
-              endFrame: endFrameBase64,
-              inputVideo: inputVideoBase64,
-            }),
-          }).then(async gen => {
-            // Automatically add the generated shot to the scene
-            // We need to fetch the scene to get the current shot count, but for parallel requests this is tricky.
-            // For simplicity, we'll just add them. The backend might need to handle ordering or we accept they might be out of order.
-            // A better approach would be a specific "generate scene" endpoint.
-
-            // For this MVP, we will just create the generation.
-            // The user can then drag it in, OR we can try to append it.
-
-            // Let's try to append it to the scene immediately
-            const scene = scenes.find(s => s.id === generatorSceneId);
-            const nextIndex = (scene?.shots?.length || 0) + i + 1;
-
-            await fetchAPI(`/projects/${projectId}/scenes/${generatorSceneId}/shots`, {
-              method: 'POST',
-              body: JSON.stringify({
-                generationId: gen.id,
-                index: nextIndex,
-              }),
-            });
-          })
-        );
-      }
-
-      await Promise.all(promises);
-      loadScenes();
-      alert(`Generated ${config.variations} shots for the scene!`);
-    } catch (err) {
-      console.error('Failed to generate scene', err);
-      alert('Failed to generate scene');
-    }
-
-    setIsGeneratorOpen(false);
-    setGeneratorSceneId(null);
-  };
-
-  // Header state
-  const [aspectRatio, setAspectRatio] = useState('16:9');
-  const [isStyleModalOpen, setIsStyleModalOpen] = useState(false);
-  const [isCastModalOpen, setIsCastModalOpen] = useState(false);
-
-  const [selectedStyle, setSelectedStyle] = useState<any>(null);
-
-  const handleStyleApply = (config: any) => {
-    console.log('Style applied:', config);
-    setSelectedStyle(config);
-  };
-
-  const handlePreview = () => {
-    console.log('Preview clicked');
-    alert('Preview functionality coming soon!');
-  };
-
-  // Shot Editing
-  const [editingShot, setEditingShot] = useState<any>(null);
-
-  const handleUpdateShot = async (shotId: string, newPrompt: string) => {
-    if (!editingShot || !editingShot.generationId) return;
-
-    try {
-      await fetchAPI(`/projects/${projectId}/generations/${editingShot.generationId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ inputPrompt: newPrompt }),
-      });
-
-      // Reload scenes to reflect changes
-      loadScenes();
-    } catch (err) {
-      console.error('Failed to update shot', err);
-      alert('Failed to update shot style');
-    }
-  };
-
-  // Batch Selection State
-  const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
-
-  // Foundation Image State
-  const [foundationImage, setFoundationImage] = useState<string | File | null>(null);
-  const [styleConfig, setStyleConfig] = useState({
-    aesthetic: '',
-    lighting: '',
-    colorPalette: '',
-    cameraDirection: '',
-  });
-
-  // Active Shot for V2V Actions
-  const [activeShotForActions, setActiveShotForActions] = useState<any>(null);
-
-  // Generate Foundation Image
-  const handleGenerateFoundation = async (prompt: string) => {
-    try {
-      const response = await fetchAPI(`/projects/${projectId}/generations`, {
-        method: 'POST',
-        body: JSON.stringify({
-          mode: 'text_to_image',
-          inputPrompt: prompt,
-          aspectRatio: aspectRatio,
-          variations: 1,
-        }),
-      });
-      // The foundation image will be set when the generation completes
-      // For now, we'll poll or use the first output
-      if (response.outputs?.[0]?.url) {
-        setFoundationImage(response.outputs[0].url);
-      }
-    } catch (err) {
-      console.error('Failed to generate foundation image', err);
-      alert('Failed to generate foundation image');
-    }
-  };
-
-  // Grab Last Frame from a shot's video
-  const handleGrabLastFrame = async (shotId: string) => {
-    const shot = scenes.flatMap(s => s.shots || []).find((s: any) => s.id === shotId);
-    if (!shot?.generation?.outputs?.[0]) return;
-
-    const videoUrl = shot.generation.outputs[0].url;
-    // In a real implementation, this would extract the last frame server-side
-    // For now, we'll create a new generation using the video's last frame
-    alert(
-      `Grab Last Frame from ${videoUrl} - This would extract the last frame and use it as a starting image for the next generation.`
-    );
-  };
-
-  // Grab First Frame from a shot's video
-  const handleGrabFirstFrame = async (shotId: string) => {
-    const shot = scenes.flatMap(s => s.shots || []).find((s: any) => s.id === shotId);
-    if (!shot?.generation?.outputs?.[0]) return;
-
-    const videoUrl = shot.generation.outputs[0].url;
-    alert(
-      `Grab First Frame from ${videoUrl} - This would extract the first frame for use as an end frame.`
-    );
-  };
-
-  // V2V Edit (Kling O1 style)
-  const handleV2VEdit = async (shotId: string, editType: string, prompt: string) => {
-    const shot = scenes.flatMap(s => s.shots || []).find((s: any) => s.id === shotId);
-    if (!shot?.generation?.outputs?.[0]) return;
-
-    try {
-      // Create a new generation using Kling O1 V2V
-      const response = await fetchAPI(`/projects/${projectId}/generations`, {
-        method: 'POST',
-        body: JSON.stringify({
-          mode: 'video_to_video',
-          inputPrompt: prompt,
-          sourceVideoUrl: shot.generation.outputs[0].url,
-          aspectRatio: aspectRatio,
-          model: 'fal-ai/kling-video/o1/video-to-video/edit',
-        }),
-      });
-      loadScenes();
-      alert(`V2V Edit (${editType}) initiated!`);
-    } catch (err) {
-      console.error('Failed to apply V2V edit', err);
-      alert('Failed to apply V2V edit');
-    }
-  };
-
-  // Predict Next Shot
-  const handlePredictNextShot = async (shotId: string, prompt: string) => {
-    const shot = scenes.flatMap(s => s.shots || []).find((s: any) => s.id === shotId);
-    if (!shot?.generation?.outputs?.[0]) return;
-
-    try {
-      const fullPrompt = prompt
-        ? `Based on @Video1, generate the next shot: ${prompt}`
-        : 'Based on @Video1, generate the next shot';
-
-      const response = await fetchAPI(`/projects/${projectId}/generations`, {
-        method: 'POST',
-        body: JSON.stringify({
-          mode: 'video_to_video',
-          inputPrompt: fullPrompt,
-          sourceVideoUrl: shot.generation.outputs[0].url,
-          aspectRatio: aspectRatio,
-          model: 'fal-ai/kling-video/o1/image-to-video',
-        }),
-      });
-      loadScenes();
-      alert('Next shot prediction initiated!');
-    } catch (err) {
-      console.error('Failed to predict next shot', err);
-      alert('Failed to predict next shot');
-    }
-  };
-
-  // Predict Previous Shot
-  const handlePredictPreviousShot = async (shotId: string, prompt: string) => {
-    const shot = scenes.flatMap(s => s.shots || []).find((s: any) => s.id === shotId);
-    if (!shot?.generation?.outputs?.[0]) return;
-
-    try {
-      const fullPrompt = prompt
-        ? `Based on @Video1, generate the previous shot: ${prompt}`
-        : 'Based on @Video1, generate the previous shot';
-
-      const response = await fetchAPI(`/projects/${projectId}/generations`, {
-        method: 'POST',
-        body: JSON.stringify({
-          mode: 'video_to_video',
-          inputPrompt: fullPrompt,
-          sourceVideoUrl: shot.generation.outputs[0].url,
-          aspectRatio: aspectRatio,
-          model: 'fal-ai/kling-video/o1/image-to-video',
-        }),
-      });
-      loadScenes();
-      alert('Previous shot prediction initiated!');
-    } catch (err) {
-      console.error('Failed to predict previous shot', err);
-      alert('Failed to predict previous shot');
-    }
-  };
-
-  const toggleSceneSelection = (id: string) => {
-    setSelectedSceneIds(prev =>
-      prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id]
-    );
-  };
-
-  const selectAllScenes = () => {
-    setSelectedSceneIds(scenes.map(s => s.id));
-  };
-
-  const deselectAllScenes = () => {
-    setSelectedSceneIds([]);
-  };
-
-  const handleBatchDelete = async () => {
-    if (!confirm(`Are you sure you want to delete ${selectedSceneIds.length} scenes?`)) return;
-
-    try {
-      await Promise.all(
-        selectedSceneIds.map(id =>
-          fetchAPI(`/projects/${projectId}/scenes/${id}`, { method: 'DELETE' })
-        )
-      );
-      setSelectedSceneIds([]);
-      loadScenes();
-    } catch (err) {
-      console.error('Batch delete failed', err);
-    }
-  };
-
-  const handleBatchMove = async (targetSessionId: string) => {
-    try {
-      await Promise.all(
-        selectedSceneIds.map(id =>
-          fetchAPI(`/projects/${projectId}/scenes/${id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ sessionId: targetSessionId }),
-          })
-        )
-      );
-      setSelectedSceneIds([]);
-      loadScenes();
-    } catch (err) {
-      console.error('Batch move failed', err);
-    }
-  };
-
-  const handleBatchCopyLinks = () => {
-    const links = scenes
-      .filter(s => selectedSceneIds.includes(s.id))
-      .flatMap(s => s.shots || [])
-      .map((shot: any) => shot.generation?.outputs?.[0]?.url)
-      .filter(Boolean)
-      .join('\n');
-
-    if (links) {
-      navigator.clipboard.writeText(links);
-      alert(`Copied links from ${selectedSceneIds.length} scenes to clipboard!`);
-    } else {
-      alert('No links found in selected scenes.');
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-black text-white">
-      <StoryboardHeader
-        aspectRatio={aspectRatio}
-        onAspectRatioChange={setAspectRatio}
-        onStyleClick={() => setIsStyleModalOpen(true)}
-        onCastClick={() => router.push(`/projects/${projectId}/elements?type=character`)}
-        onPreview={handlePreview}
-      />
-
-      <div className="p-8">
-        <header className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Storyboard</h1>
-            <p className="mt-2 text-gray-400">Organize your shots into scenes.</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleCreateScene}
-              className="rounded-lg bg-white/10 px-4 py-2 text-white transition-colors hover:bg-white/20"
-            >
-              + New Scene
-            </button>
-            {scenes.length > 0 && (
-              <button
-                onClick={
-                  selectedSceneIds.length === scenes.length ? deselectAllScenes : selectAllScenes
-                }
-                className="text-sm text-blue-400 hover:text-blue-300"
-              >
-                {selectedSceneIds.length === scenes.length ? 'Deselect All' : 'Select All'}
-              </button>
-            )}
-          </div>
-        </header>
-
-        {/* Foundation Image Panel */}
-        <div className="mb-8">
-          <FoundationImagePanel
-            projectId={projectId}
-            foundationImage={foundationImage}
-            onFoundationImageChange={setFoundationImage}
-            onGenerateFromPrompt={handleGenerateFoundation}
-            styleConfig={styleConfig}
-            onStyleConfigChange={setStyleConfig}
-          />
-        </div>
-
-        <div className="space-y-8">
-          {scenes.length === 0 ? (
-            <div className="rounded-xl border-2 border-dashed border-white/10 py-20 text-center text-gray-500">
-              <p>No scenes yet. Create one to start building your story.</p>
-            </div>
-          ) : (
-            scenes.map(scene => (
-              <div key={scene.id} className="rounded-xl border border-white/10 bg-white/5 p-6">
-                <div className="mb-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div
-                      onClick={() => toggleSceneSelection(scene.id)}
-                      className={`flex h-5 w-5 cursor-pointer items-center justify-center rounded border transition-colors ${
-                        selectedSceneIds.includes(scene.id)
-                          ? 'border-blue-500 bg-blue-500'
-                          : 'border-white/50 bg-black/50 hover:border-white'
-                      }`}
-                    >
-                      {selectedSceneIds.includes(scene.id) && (
-                        <CheckSquare className="h-3 w-3 text-white" />
-                      )}
-                    </div>
-                    <h3 className="text-xl font-bold">{scene.name}</h3>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => openGenerator(scene.id)}
-                      className="flex items-center gap-2 rounded-lg bg-purple-600/20 px-3 py-1.5 text-sm font-medium text-purple-400 transition-colors hover:bg-purple-600/30"
-                    >
-                      <Sparkles className="h-4 w-4" /> Generate Scene
-                    </button>
-                    <button
-                      onClick={() => openPicker(scene.id)}
-                      className="flex items-center gap-2 rounded-lg bg-blue-600/20 px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-600/30"
-                    >
-                      <Plus className="h-4 w-4" /> Add Shot
-                    </button>
-                  </div>
-                </div>
-
-                <div className="scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent flex gap-4 overflow-x-auto pb-4">
-                  {scene.shots?.length === 0 && (
-                    <div className="flex aspect-video w-64 items-center justify-center rounded-lg border border-dashed border-white/10 bg-white/5 text-sm text-gray-500">
-                      No shots yet
-                    </div>
-                  )}
-                  {scene.shots?.map((shot: any) => {
-                    const isVideo = shot.generation?.outputs?.[0]?.type === 'video';
-                    const mediaUrl = shot.generation?.outputs?.[0]?.url;
-
-                    return (
-                      <div
-                        key={shot.id}
-                        className={clsx(
-                          'group relative w-64 flex-shrink-0 overflow-hidden rounded-lg border bg-black/50 transition-all',
-                          activeShotForActions?.id === shot.id
-                            ? 'border-blue-500 ring-2 ring-blue-500/20'
-                            : 'border-white/5 hover:border-white/20'
-                        )}
-                      >
-                        {/* Media Preview */}
-                        <div className="relative aspect-video">
-                          {mediaUrl ? (
-                            isVideo ? (
-                              <video
-                                src={mediaUrl}
-                                className="h-full w-full object-cover"
-                                muted
-                                loop
-                                playsInline
-                                onMouseEnter={e => (e.target as HTMLVideoElement).play()}
-                                onMouseLeave={e => {
-                                  (e.target as HTMLVideoElement).pause();
-                                  (e.target as HTMLVideoElement).currentTime = 0;
-                                }}
-                              />
-                            ) : (
-                              <img src={mediaUrl} className="h-full w-full object-cover" />
-                            )
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-xs text-gray-600">
-                              No media
-                            </div>
-                          )}
-
-                          {/* Video Indicator */}
-                          {isVideo && (
-                            <div className="absolute top-2 left-2 flex items-center gap-1 rounded bg-blue-500/80 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                              <Video className="h-3 w-3" />
-                              Video
-                            </div>
-                          )}
-
-                          {/* Shot Index Badge */}
-                          <div className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-1 text-xs text-white backdrop-blur-sm">
-                            Shot {shot.index}
-                          </div>
-
-                          {/* Action Buttons Overlay */}
-                          <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                            {/* V2V Actions Button */}
-                            {isVideo && (
-                              <button
-                                onClick={() =>
-                                  setActiveShotForActions(
-                                    activeShotForActions?.id === shot.id ? null : shot
-                                  )
-                                }
-                                className={clsx(
-                                  'rounded-lg p-2 backdrop-blur-sm transition-all',
-                                  activeShotForActions?.id === shot.id
-                                    ? 'bg-blue-500 text-white'
-                                    : 'bg-black/60 text-white hover:bg-blue-500'
-                                )}
-                                title="V2V Actions"
-                              >
-                                <Palette className="h-4 w-4" />
-                              </button>
-                            )}
-
-                            {/* Extend Button */}
-                            {isVideo && (
-                              <button
-                                onClick={() => handleGrabLastFrame(shot.id)}
-                                className="rounded-lg bg-black/60 p-2 text-white backdrop-blur-sm transition-all hover:bg-green-500"
-                                title="Grab Last Frame (Extend)"
-                              >
-                                <FastForward className="h-4 w-4" />
-                              </button>
-                            )}
-
-                            {/* Edit Style Button */}
-                            <button
-                              onClick={() => setEditingShot(shot)}
-                              className="rounded-lg bg-black/60 p-2 text-white backdrop-blur-sm transition-all hover:bg-purple-600"
-                              title="Edit Shot Style"
-                            >
-                              <Sparkles className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Prompt Preview */}
-                        <div className="border-t border-white/5 p-2">
-                          <p className="truncate text-[10px] text-gray-500">
-                            {shot.generation?.inputPrompt || 'No prompt'}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Batch Action Toolbar */}
-      {selectedSceneIds.length > 0 && (
-        <div className="animate-in slide-in-from-bottom-4 fade-in fixed bottom-8 left-1/2 z-50 flex -translate-x-1/2 items-center gap-6 rounded-xl border border-white/10 bg-[#1a1a1a] px-6 py-3 shadow-2xl duration-200">
-          <span className="text-sm font-medium text-white">{selectedSceneIds.length} selected</span>
-          <div className="h-4 w-px bg-white/10" />
-          <div className="flex items-center gap-2">
-            <select
-              onChange={e => {
-                if (e.target.value) handleBatchMove(e.target.value);
-              }}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
-              defaultValue=""
-            >
-              <option value="" disabled>
-                Move to Session...
-              </option>
-              {sessions.map(s => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={handleBatchCopyLinks}
-              className="flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/20"
-              title="Copy Links for JDownloader"
-            >
-              <Copy className="h-4 w-4" />
-              Copy Links
-            </button>
-            <button
-              onClick={handleBatchDelete}
-              className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/20"
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete
-            </button>
-            <div className="mx-1 h-4 w-px bg-white/10" />
-            <button
-              onClick={
-                selectedSceneIds.length === scenes.length ? deselectAllScenes : selectAllScenes
-              }
-              className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-white/10"
-            >
-              <CheckSquare className="h-4 w-4" />
-              {selectedSceneIds.length === scenes.length ? 'Deselect All' : 'Select All'}
-            </button>
-            <button
-              onClick={deselectAllScenes}
-              className="ml-1 p-1.5 text-gray-400 transition-colors hover:text-white"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* V2V Actions Slide Panel */}
-      {activeShotForActions && (
-        <div className="fixed top-16 right-0 bottom-0 z-40 w-80 overflow-y-auto border-l border-white/10 bg-[#0a0a0a] shadow-2xl">
-          <div className="p-4">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white">Shot Actions</h3>
-              <button
-                onClick={() => setActiveShotForActions(null)}
-                className="rounded p-1 text-gray-400 hover:bg-white/10 hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Shot Preview */}
-            <div className="mb-4 aspect-video overflow-hidden rounded-lg border border-white/10">
-              {activeShotForActions.generation?.outputs?.[0]?.type === 'video' ? (
-                <video
-                  src={activeShotForActions.generation.outputs[0].url}
-                  className="h-full w-full object-cover"
-                  controls
-                  muted
-                />
-              ) : (
-                <img
-                  src={activeShotForActions.generation?.outputs?.[0]?.url}
-                  className="h-full w-full object-cover"
-                />
-              )}
-            </div>
-
-            <ShotActionsPanel
-              shot={activeShotForActions}
-              onGrabLastFrame={handleGrabLastFrame}
-              onGrabFirstFrame={handleGrabFirstFrame}
-              onV2VEdit={handleV2VEdit}
-              onPredictNextShot={handlePredictNextShot}
-              onPredictPreviousShot={handlePredictPreviousShot}
-            />
-          </div>
-        </div>
-      )}
-
-      <GenerationPickerModal
-        projectId={projectId}
-        isOpen={isPickerOpen}
-        onClose={() => setIsPickerOpen(false)}
-        onSelect={handleAddShot}
-      />
-
-      <SceneGeneratorModal
-        isOpen={isGeneratorOpen}
-        onClose={() => setIsGeneratorOpen(false)}
-        onGenerate={handleGenerateScene}
-        sceneName={scenes.find(s => s.id === generatorSceneId)?.name || 'Scene'}
-      />
-
-      <StyleSelectorModal
-        isOpen={isStyleModalOpen}
-        onClose={() => setIsStyleModalOpen(false)}
-        onApply={handleStyleApply}
-        projectId={projectId}
-      />
-
-      <CastModal
-        isOpen={isCastModalOpen}
-        onClose={() => setIsCastModalOpen(false)}
-        projectId={projectId}
-      />
-
-      <ShotStyleEditorModal
-        isOpen={!!editingShot}
-        onClose={() => setEditingShot(null)}
-        shot={editingShot}
-        onSave={handleUpdateShot}
-      />
-
-      <EditElementModal
-        element={
-          selectedGeneration
-            ? {
-                id: selectedGeneration.id,
-                name: selectedGeneration.name || selectedGeneration.inputPrompt,
-                type: selectedGeneration.outputs?.[0]?.type || 'image',
-                url: selectedGeneration.outputs?.[0]?.url || '',
-                tags: selectedGeneration.tags || [],
-                session: selectedGeneration.session,
-                metadata: {},
-                projectId: projectId,
-              }
-            : null
+    const params = useParams();
+    const router = useRouter();
+    const projectId = params.id as string;
+
+    // Scene Chain state
+    const [chains, setChains] = useState<SceneChain[]>([]);
+    const [selectedChainId, setSelectedChainId] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    // Create chain modal
+    const [isCreating, setIsCreating] = useState(false);
+    const [newChainName, setNewChainName] = useState('');
+    const [newChainDescription, setNewChainDescription] = useState('');
+
+    // Settings
+    const [aspectRatio, setAspectRatio] = useState('16:9');
+
+    // Generation state
+    const [generatingShots, setGeneratingShots] = useState<Set<string>>(new Set());
+
+    // Load chains
+    useEffect(() => {
+        if (projectId) {
+            fetchChains();
         }
-        isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setSelectedGeneration(null);
-        }}
-        onSave={async (id, updates) => {
-          // Map updates back to generation fields
-          const genUpdates: any = {};
-          if (updates.name) genUpdates.name = updates.name;
-          if (updates.tags) genUpdates.tags = updates.tags;
-          if (updates.sessionId !== undefined) genUpdates.sessionId = updates.sessionId;
+    }, [projectId]);
 
-          try {
-            await fetchAPI(`/projects/${projectId}/generations/${id}`, {
-              method: 'PATCH',
-              body: JSON.stringify(genUpdates),
+    const fetchChains = async () => {
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/projects/${projectId}/scene-chains`);
+            if (res.ok) {
+                const data = await res.json();
+                setChains(data);
+
+                // Auto-select first chain if none selected
+                if (!selectedChainId && data.length > 0) {
+                    setSelectedChainId(data[0].id);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch scene chains:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchChainDetails = async (chainId: string) => {
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/projects/${projectId}/scene-chains/${chainId}`);
+            if (res.ok) {
+                const data = await res.json();
+                setChains(prev => prev.map(c => c.id === chainId ? data : c));
+            }
+        } catch (error) {
+            console.error('Failed to fetch chain details:', error);
+        }
+    };
+
+    // Get selected chain
+    const selectedChain = chains.find(c => c.id === selectedChainId);
+
+    // Calculate total duration
+    const totalDuration = selectedChain?.segments?.reduce((acc, seg) => acc + (seg.duration || 5), 0) || 0;
+
+    // Create new chain
+    const handleCreateChain = async () => {
+        if (!newChainName.trim()) return;
+
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/projects/${projectId}/scene-chains`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: newChainName,
+                    description: newChainDescription,
+                    aspectRatio
+                })
             });
-            loadScenes();
-          } catch (err) {
-            console.error('Failed to update generation', err);
-          }
-        }}
-        sessions={sessions}
-      />
-    </div>
-  );
+
+            if (res.ok) {
+                const newChain = await res.json();
+                setChains(prev => [...prev, newChain]);
+                setSelectedChainId(newChain.id);
+                setIsCreating(false);
+                setNewChainName('');
+                setNewChainDescription('');
+            }
+        } catch (error) {
+            console.error('Failed to create chain:', error);
+        }
+    };
+
+    // Add new shot/segment
+    const handleAddShot = async () => {
+        if (!selectedChainId) return;
+
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/projects/${projectId}/scene-chains/${selectedChainId}/segments`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    prompt: '',
+                    duration: 10,
+                    orderIndex: selectedChain?.segments?.length || 0
+                })
+            });
+
+            if (res.ok) {
+                fetchChainDetails(selectedChainId);
+            }
+        } catch (error) {
+            console.error('Failed to add segment:', error);
+        }
+    };
+
+    // Update shot
+    const handleUpdateShot = async (shotId: string, updates: Partial<ShotData>) => {
+        if (!selectedChainId) return;
+
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/projects/${projectId}/scene-chains/${selectedChainId}/segments/${shotId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates)
+            });
+
+            if (res.ok) {
+                // Optimistically update local state
+                setChains(prev => prev.map(chain => {
+                    if (chain.id !== selectedChainId) return chain;
+                    return {
+                        ...chain,
+                        segments: chain.segments?.map(seg =>
+                            seg.id === shotId ? { ...seg, ...updates } : seg
+                        )
+                    };
+                }));
+            }
+        } catch (error) {
+            console.error('Failed to update segment:', error);
+        }
+    };
+
+    // Delete shot
+    const handleDeleteShot = async (shotId: string) => {
+        if (!selectedChainId) return;
+        if (!confirm('Delete this shot?')) return;
+
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/projects/${projectId}/scene-chains/${selectedChainId}/segments/${shotId}`, {
+                method: 'DELETE'
+            });
+
+            if (res.ok) {
+                fetchChainDetails(selectedChainId);
+            }
+        } catch (error) {
+            console.error('Failed to delete segment:', error);
+        }
+    };
+
+    // Upload frame
+    const handleUploadFrame = async (shotId: string, frameType: 'first' | 'last', file: File) => {
+        if (!selectedChainId) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('frameType', frameType);
+
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/projects/${projectId}/scene-chains/${selectedChainId}/segments/${shotId}/frame`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                // Update local state with the new frame URL
+                setChains(prev => prev.map(chain => {
+                    if (chain.id !== selectedChainId) return chain;
+                    return {
+                        ...chain,
+                        segments: chain.segments?.map(seg => {
+                            if (seg.id !== shotId) return seg;
+                            return {
+                                ...seg,
+                                [frameType === 'first' ? 'firstFrameUrl' : 'lastFrameUrl']: data.fileUrl
+                            };
+                        })
+                    };
+                }));
+            }
+        } catch (error) {
+            console.error('Failed to upload frame:', error);
+        }
+    };
+
+    // Generate single shot
+    const handleGenerateShot = async (shotId: string) => {
+        if (!selectedChainId) return;
+
+        setGeneratingShots(prev => new Set(prev).add(shotId));
+
+        // Update local status to generating
+        setChains(prev => prev.map(chain => {
+            if (chain.id !== selectedChainId) return chain;
+            return {
+                ...chain,
+                segments: chain.segments?.map(seg =>
+                    seg.id === shotId ? { ...seg, status: 'generating' as const } : seg
+                )
+            };
+        }));
+
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/projects/${projectId}/scene-chains/${selectedChainId}/segments/${shotId}/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ aspectRatio })
+            });
+
+            if (res.ok) {
+                // Poll for completion
+                pollShotStatus(shotId);
+            } else {
+                setGeneratingShots(prev => {
+                    const next = new Set(prev);
+                    next.delete(shotId);
+                    return next;
+                });
+                handleUpdateShot(shotId, { status: 'failed', failureReason: 'Failed to start generation' });
+            }
+        } catch (error) {
+            console.error('Failed to generate shot:', error);
+            setGeneratingShots(prev => {
+                const next = new Set(prev);
+                next.delete(shotId);
+                return next;
+            });
+            handleUpdateShot(shotId, { status: 'failed', failureReason: 'Network error' });
+        }
+    };
+
+    // Poll shot status
+    const pollShotStatus = async (shotId: string) => {
+        if (!selectedChainId) return;
+
+        const pollInterval = setInterval(async () => {
+            try {
+                const res = await fetch(`${BACKEND_URL}/api/projects/${projectId}/scene-chains/${selectedChainId}/segments/${shotId}`);
+                if (res.ok) {
+                    const data = await res.json();
+
+                    // Update local state
+                    setChains(prev => prev.map(chain => {
+                        if (chain.id !== selectedChainId) return chain;
+                        return {
+                            ...chain,
+                            segments: chain.segments?.map(seg =>
+                                seg.id === shotId ? { ...seg, ...data } : seg
+                            )
+                        };
+                    }));
+
+                    // Check for terminal status
+                    if (data.status === 'complete' || data.status === 'failed') {
+                        clearInterval(pollInterval);
+                        setGeneratingShots(prev => {
+                            const next = new Set(prev);
+                            next.delete(shotId);
+                            return next;
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('Polling error:', error);
+                clearInterval(pollInterval);
+                setGeneratingShots(prev => {
+                    const next = new Set(prev);
+                    next.delete(shotId);
+                    return next;
+                });
+            }
+        }, 3000);
+    };
+
+    // Generate all shots
+    const handleGenerateAll = async () => {
+        if (!selectedChain?.segments?.length) return;
+
+        for (const segment of selectedChain.segments) {
+            if (segment.status !== 'complete' && segment.prompt?.trim()) {
+                await handleGenerateShot(segment.id);
+                // Small delay between shots
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+    };
+
+    // Format duration for display
+    const formatDuration = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-zinc-950 text-white">
+            {/* Header */}
+            <header className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur-lg border-b border-white/10">
+                <div className="max-w-7xl mx-auto px-6 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <button
+                                onClick={() => router.push(`/projects/${projectId}`)}
+                                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                            >
+                                <ChevronLeft className="w-5 h-5" />
+                            </button>
+                            <div>
+                                <h1 className="text-xl font-bold flex items-center gap-2">
+                                    <Film className="w-5 h-5 text-purple-400" />
+                                    Storyboard
+                                </h1>
+                                {selectedChain && (
+                                    <p className="text-sm text-gray-400">{selectedChain.name}</p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            {/* Timeline summary */}
+                            {selectedChain && (
+                                <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-lg border border-white/10">
+                                    <Clock className="w-4 h-4 text-gray-400" />
+                                    <span className="text-sm text-white">
+                                        {selectedChain.segments?.length || 0} shots
+                                    </span>
+                                    <span className="text-gray-500">•</span>
+                                    <span className="text-sm text-purple-400 font-medium">
+                                        {formatDuration(totalDuration)}
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* Aspect ratio selector */}
+                            <select
+                                value={aspectRatio}
+                                onChange={(e) => setAspectRatio(e.target.value)}
+                                className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                            >
+                                <option value="16:9">16:9</option>
+                                <option value="9:16">9:16 (Vertical)</option>
+                                <option value="1:1">1:1 (Square)</option>
+                                <option value="4:3">4:3</option>
+                            </select>
+
+                            {/* Generate All button */}
+                            {selectedChain?.segments && selectedChain.segments.length > 0 && (
+                                <button
+                                    onClick={handleGenerateAll}
+                                    disabled={generatingShots.size > 0}
+                                    className={clsx(
+                                        "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all",
+                                        generatingShots.size > 0
+                                            ? "bg-amber-500/20 text-amber-400 cursor-wait"
+                                            : "bg-purple-600 text-white hover:bg-purple-500"
+                                    )}
+                                >
+                                    {generatingShots.size > 0 ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            Generating ({generatingShots.size})
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Play className="w-4 h-4" />
+                                            Generate All
+                                        </>
+                                    )}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div className="max-w-7xl mx-auto px-6 py-8">
+                <div className="flex gap-8">
+                    {/* Chain selector sidebar */}
+                    <div className="w-64 flex-shrink-0">
+                        <div className="sticky top-28">
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Scenes</h2>
+                                <button
+                                    onClick={() => setIsCreating(true)}
+                                    className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                    title="New Scene"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-2">
+                                {chains.length === 0 ? (
+                                    <div className="text-center py-8 text-gray-500 text-sm border-2 border-dashed border-white/10 rounded-lg">
+                                        <Film className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                                        <p>No scenes yet</p>
+                                        <button
+                                            onClick={() => setIsCreating(true)}
+                                            className="mt-2 text-purple-400 hover:text-purple-300"
+                                        >
+                                            Create first scene
+                                        </button>
+                                    </div>
+                                ) : (
+                                    chains.map(chain => (
+                                        <button
+                                            key={chain.id}
+                                            onClick={() => {
+                                                setSelectedChainId(chain.id);
+                                                fetchChainDetails(chain.id);
+                                            }}
+                                            className={clsx(
+                                                "w-full text-left p-3 rounded-lg border transition-all",
+                                                selectedChainId === chain.id
+                                                    ? "bg-purple-500/10 border-purple-500/30 text-white"
+                                                    : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white"
+                                            )}
+                                        >
+                                            <div className="font-medium truncate">{chain.name}</div>
+                                            {chain.description && (
+                                                <div className="text-xs text-gray-500 truncate mt-1">{chain.description}</div>
+                                            )}
+                                            <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                                                <span>{chain.segments?.length || 0} shots</span>
+                                                <span>•</span>
+                                                <span>{chain.aspectRatio}</span>
+                                            </div>
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Main content - shots list */}
+                    <div className="flex-1">
+                        {selectedChain ? (
+                            <>
+                                {/* Shots list */}
+                                <div className="space-y-6">
+                                    {selectedChain.segments?.length === 0 ? (
+                                        <div className="text-center py-16 border-2 border-dashed border-white/10 rounded-xl">
+                                            <Film className="w-12 h-12 mx-auto mb-4 text-gray-600" />
+                                            <p className="text-gray-500 mb-4">No shots in this scene yet</p>
+                                            <button
+                                                onClick={handleAddShot}
+                                                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 transition-colors"
+                                            >
+                                                Add First Shot
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {selectedChain.segments.map((shot, index) => (
+                                                <StoryboardShot
+                                                    key={shot.id}
+                                                    shot={{ ...shot, orderIndex: index, status: shot.status || 'pending' }}
+                                                    sceneTitle={selectedChain.name}
+                                                    sceneDescription={selectedChain.description}
+                                                    onUpdate={handleUpdateShot}
+                                                    onDelete={handleDeleteShot}
+                                                    onGenerate={handleGenerateShot}
+                                                    onUploadFrame={handleUploadFrame}
+                                                    isGenerating={generatingShots.has(shot.id)}
+                                                />
+                                            ))}
+
+                                            {/* Add shot button */}
+                                            <button
+                                                onClick={handleAddShot}
+                                                className="w-full py-4 border-2 border-dashed border-white/10 rounded-xl text-gray-500 hover:text-white hover:border-white/30 hover:bg-white/5 transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <Plus className="w-5 h-5" />
+                                                Add Shot
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Timeline visualization */}
+                                {selectedChain.segments && selectedChain.segments.length > 0 && (
+                                    <div className="mt-8 p-4 bg-white/5 rounded-xl border border-white/10">
+                                        <h3 className="text-sm font-medium text-gray-400 mb-3">Timeline</h3>
+                                        <div className="flex gap-1 h-12">
+                                            {selectedChain.segments.map((shot, index) => {
+                                                const widthPercent = totalDuration > 0 ? ((shot.duration || 5) / totalDuration) * 100 : 100 / selectedChain.segments.length;
+                                                return (
+                                                    <div
+                                                        key={shot.id}
+                                                        className={clsx(
+                                                            "h-full rounded flex items-center justify-center text-xs font-medium transition-all",
+                                                            shot.status === 'complete'
+                                                                ? "bg-green-500/30 text-green-300 border border-green-500/30"
+                                                                : shot.status === 'generating'
+                                                                    ? "bg-amber-500/30 text-amber-300 border border-amber-500/30 animate-pulse"
+                                                                    : shot.status === 'failed'
+                                                                        ? "bg-red-500/30 text-red-300 border border-red-500/30"
+                                                                        : "bg-white/10 text-gray-400 border border-white/10"
+                                                        )}
+                                                        style={{ width: `${widthPercent}%`, minWidth: '40px' }}
+                                                        title={`Shot ${index + 1}: ${shot.duration || 5}s`}
+                                                    >
+                                                        {index + 1}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        <div className="flex justify-between mt-2 text-xs text-gray-500">
+                                            <span>0:00</span>
+                                            <span>{formatDuration(totalDuration)}</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <div className="text-center py-20">
+                                <Film className="w-16 h-16 mx-auto mb-4 text-gray-600" />
+                                <p className="text-gray-500 mb-4">Select a scene or create a new one to get started</p>
+                                <button
+                                    onClick={() => setIsCreating(true)}
+                                    className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-500 transition-colors"
+                                >
+                                    Create Scene
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Create chain modal */}
+            {isCreating && (
+                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setIsCreating(false)}>
+                    <div className="bg-[#1a1a1a] rounded-xl border border-white/10 w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+                        <h2 className="text-xl font-bold mb-4">New Scene</h2>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm text-gray-400 mb-1">Scene Name</label>
+                                <input
+                                    type="text"
+                                    value={newChainName}
+                                    onChange={(e) => setNewChainName(e.target.value)}
+                                    placeholder="e.g., Opening Sequence"
+                                    className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-gray-400 mb-1">Description (Optional)</label>
+                                <textarea
+                                    value={newChainDescription}
+                                    onChange={(e) => setNewChainDescription(e.target.value)}
+                                    placeholder="Brief description of the scene..."
+                                    rows={3}
+                                    className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-600 resize-none focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button
+                                onClick={() => setIsCreating(false)}
+                                className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleCreateChain}
+                                disabled={!newChainName.trim()}
+                                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Create Scene
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 }

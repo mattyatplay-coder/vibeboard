@@ -1,0 +1,129 @@
+{
+  "timestamp": "2025-12-24T19:48:49.470Z",
+  "summary": {
+    "total": 17,
+    "successful": 13,
+    "failed": 4
+  },
+  "results": [
+    {
+      "model": "Flux Dev",
+      "endpoint": "fal-ai/flux/dev",
+      "status": "success",
+      "duration": 2636,
+      "outputUrl": "https://v3b.fal.media/files/b/0a87a04c/7iE-T-IoVNG-OAhNcYK8I.jpg"
+    },
+    {
+      "model": "Flux Schnell",
+      "endpoint": "fal-ai/flux/schnell",
+      "status": "success",
+      "duration": 883,
+      "outputUrl": "https://v3b.fal.media/files/b/0a87a04c/As55npY6KcbfqZmT2bQiL.jpg"
+    },
+    {
+      "model": "Flux Pro",
+      "endpoint": "fal-ai/flux-pro",
+      "status": "success",
+      "duration": 5284,
+      "outputUrl": "https://v3b.fal.media/files/b/0a87a04d/onsSZlD8dLPy1jF_yDJSC_6460325a5eb8403e856617fa8dae3c2b.jpg"
+    },
+    {
+      "model": "Flux 1.1 Pro Ultra",
+      "endpoint": "fal-ai/flux-pro/v1.1-ultra",
+      "status": "success",
+      "duration": 10578,
+      "outputUrl": "https://v3b.fal.media/files/b/0a87a04e/bMYxqSjatvVsThy2u0eAe_dc293fcff63f47c592802e5dc8b8b965.jpg"
+    },
+    {
+      "model": "Flux 2 Max",
+      "endpoint": "fal-ai/flux-2-max",
+      "status": "success",
+      "duration": 23225,
+      "outputUrl": "https://v3b.fal.media/files/b/0a87a04e/xn_-Zkb9PbNDG3ilRsoT_.jpg"
+    },
+    {
+      "model": "Flux 2 Flex",
+      "endpoint": "fal-ai/flux-2-flex",
+      "status": "success",
+      "duration": 16342,
+      "outputUrl": "https://v3b.fal.media/files/b/0a87a050/nrWyZ17ErDL9KenST8Ok0.jpg"
+    },
+    {
+      "model": "Flux Kontext Dev",
+      "endpoint": "fal-ai/flux-kontext/dev",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 872
+    },
+    {
+      "model": "Flux Pro Kontext",
+      "endpoint": "fal-ai/flux-pro/kontext",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 866
+    },
+    {
+      "model": "Recraft V3",
+      "endpoint": "fal-ai/recraft-v3",
+      "status": "success",
+      "duration": 4614,
+      "outputUrl": "https://v3b.fal.media/files/b/0a87a052/N99_UECQyiMMUMVvDtzIb_image.webp"
+    },
+    {
+      "model": "Ideogram V2",
+      "endpoint": "fal-ai/ideogram/v2",
+      "status": "success",
+      "duration": 21416,
+      "outputUrl": "https://v3b.fal.media/files/b/0a87a054/b3f0qBqiQQaxKbCY8QjDw_image.png"
+    },
+    {
+      "model": "Ideogram V3",
+      "endpoint": "fal-ai/ideogram/v3",
+      "status": "success",
+      "duration": 10943,
+      "outputUrl": "https://v3b.fal.media/files/b/0a87a055/TFYOGWdvODLc6YQUgoifU_image.png"
+    },
+    {
+      "model": "SD 3.5 Large",
+      "endpoint": "fal-ai/stable-diffusion-v35-large",
+      "status": "success",
+      "duration": 4658,
+      "outputUrl": "https://v3b.fal.media/files/b/0a87a056/3WgREGcdCkDgXlKJD_go5.jpg"
+    },
+    {
+      "model": "Imagen 3",
+      "endpoint": "fal-ai/imagen3",
+      "status": "success",
+      "duration": 16631,
+      "outputUrl": "https://v3b.fal.media/files/b/0a87a057/xCE7G7sVi2O37T3FO4QSK_output.png"
+    },
+    {
+      "model": "Imagen 4 Preview",
+      "endpoint": "fal-ai/imagen4/preview",
+      "status": "success",
+      "duration": 8264,
+      "outputUrl": "https://v3b.fal.media/files/b/0a87a058/ZeEZen6iqewOn8S5r0J_H.png"
+    },
+    {
+      "model": "Kling O1 Image",
+      "endpoint": "fal-ai/kling-image/o1",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 893
+    },
+    {
+      "model": "Flux 2 Max Edit",
+      "endpoint": "fal-ai/flux-2-max/edit",
+      "status": "success",
+      "duration": 37736,
+      "outputUrl": "https://v3b.fal.media/files/b/0a87a059/UGY0c46_wA98u3bPDOAmt.jpg"
+    },
+    {
+      "model": "Ideogram Character",
+      "endpoint": "fal-ai/ideogram/character",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 860
+    }
+  ]
+}

@@ -269,3 +269,274 @@ These are areas where VibeBoard already leads:
 3. **Explicit cropping language**: "no legs visible", "cropped at chest" to force framing
 4. **Dynamic aspect ratios**: Match aspect ratio to shot type for better results
 5. **Clothing-aware presets**: Avoid impossible poses (no pockets in swimwear)
+
+---
+
+# Script Library & Genre Style System (Dec 2025)
+
+## Phase 1: Script Library Organization ✅ COMPLETE
+
+- [x] **Create Script Library Folder Structure** <!-- id: 400 -->
+    - [x] Create main folder at `/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/Script Library/` <!-- id: 401 -->
+    - [x] Create 16 genre subfolders (Action, Animation, Comedy, etc.) <!-- id: 402 -->
+    - [x] Organize existing scripts from Movie Scripts folder <!-- id: 403 -->
+    - [x] Create `_analyses` cache folder <!-- id: 404 -->
+
+## Phase 2: Style Guide System ✅ COMPLETE
+
+- [x] **Create GenreStyleGuide.ts** <!-- id: 410 -->
+    - [x] Pixar 22 Rules of Storytelling with application guidance <!-- id: 411 -->
+    - [x] 12 Director Visual Styles with prompt prefixes <!-- id: 412 -->
+    - [x] 5 Cinematographer Styles <!-- id: 413 -->
+    - [x] 14 Genre Guides with conventions, tropes, archetypes <!-- id: 414 -->
+
+- [x] **Create ScriptAnalyzer.ts** <!-- id: 420 -->
+    - [x] Script analysis for voice, patterns, structure extraction <!-- id: 421 -->
+    - [x] Story outline generation with style combination <!-- id: 422 -->
+    - [x] Scene prompt generation (First Frame, Last Frame, Video) <!-- id: 423 -->
+
+## Phase 3: API Endpoints ✅ COMPLETE
+
+- [x] **Create storyStyleRoutes.ts** <!-- id: 430 -->
+    - [x] GET /api/story-style/genres <!-- id: 431 -->
+    - [x] GET /api/story-style/directors <!-- id: 432 -->
+    - [x] GET /api/story-style/cinematographers <!-- id: 433 -->
+    - [x] GET /api/story-style/pixar-rules <!-- id: 434 -->
+    - [x] POST /api/story-style/build-prefix <!-- id: 435 -->
+    - [x] GET /api/story-style/scripts <!-- id: 436 -->
+    - [x] POST /api/story-style/scripts/analyze <!-- id: 437 -->
+    - [x] POST /api/story-style/generate-outline <!-- id: 438 -->
+    - [x] POST /api/story-style/generate-scene-prompts <!-- id: 439 -->
+
+## Phase 4: Story Editor Integration ✅ TESTED
+
+- [x] **Full Pipeline Test** <!-- id: 450 -->
+    - [x] Generate outline from concept (Tide Whisperer) <!-- id: 451 -->
+    - [x] Generate screenplay from outline <!-- id: 452 -->
+    - [x] Parse screenplay into 18 scenes <!-- id: 453 -->
+    - [x] Breakdown scenes into shots with camera presets <!-- id: 454 -->
+    - [x] Generate First Frame, Last Frame, Video prompts <!-- id: 455 -->
+
+### Technical Results
+- 3 Acts, 14 story beats following Pixar structure
+- 18 scenes with full breakdowns
+- Shot-level prompts with Hayao Miyazaki/Studio Ghibli style
+- Director style injection via `promptPrefix`
+- Negative prompts for artifact prevention
+
+---
+
+# Bug Fixes (Dec 2025)
+
+## Video Generation Fix ✅ COMPLETE (Dec 24, 2025)
+
+- [x] **Model ID Mapping for Fal.ai** <!-- id: 500 -->
+    - [x] Add modelEndpointMap to WanVideoAdapter.ts <!-- id: 501 -->
+    - [x] Map `fal-ai/wan-2.1-t2v-1.3b` → `fal-ai/wan-t2v` <!-- id: 502 -->
+    - [x] Map `fal-ai/wan-2.1-i2v-14b` → `fal-ai/wan/v2.2-a14b/image-to-video` <!-- id: 503 -->
+    - [x] Fix num_frames parameter (81-100 range required) <!-- id: 504 -->
+    - [x] Add detailed error body logging <!-- id: 505 -->
+    - [x] Add matching mapping to FalAIAdapter.ts <!-- id: 506 -->
+
+### Test Result
+```
+✓ wan succeeded
+Generation 137bc2f1-314d-4ffc-ba66-0f745483272e completed.
+```
+
+## Story Editor Fixes ✅ COMPLETE (Dec 24, 2025)
+
+- [x] **Storyboard Export** <!-- id: 510 -->
+    - [x] Auto-save story before exporting <!-- id: 511 -->
+    - [x] Use scene-chains/segments API instead of scenes/shots <!-- id: 512 -->
+    - [x] Auto-navigate to storyboard page after export <!-- id: 513 -->
+    - [x] Add element loading console logging <!-- id: 514 -->
+
+---
+
+# Filmmaker's Toolbox - Batch Features (Dec 25, 2025)
+
+## Batch #3 - Quick Wins ✅ COMPLETE
+
+- [x] **Fork Recipe Button** <!-- id: 600 -->
+    - [x] Metadata inspection overlay on GenerationCard <!-- id: 601 -->
+    - [x] Copy prompt, model, settings to current generation form <!-- id: 602 -->
+
+- [x] **Hover-Scrub Video Thumbnails** <!-- id: 610 -->
+    - [x] Video playback on hover in gallery <!-- id: 611 -->
+    - [x] Muted autoplay with smooth transitions <!-- id: 612 -->
+
+- [x] **Proxy Placeholder System** <!-- id: 620 -->
+    - [x] Shimmer loading states for slow generations <!-- id: 621 -->
+    - [x] Spinner overlay with status badge <!-- id: 622 -->
+
+- [x] **Prompt Variables ($MainLook syntax)** <!-- id: 630 -->
+    - [x] Create promptVariableStore.ts with Zustand persist <!-- id: 631 -->
+    - [x] Create PromptVariablePanel.tsx UI component <!-- id: 632 -->
+    - [x] Integrate $Variable expansion in handleGenerate <!-- id: 633 -->
+
+- [x] **Lighting Lock (IP-Adapter)** <!-- id: 640 -->
+    - [x] Create lightingLockStore.ts <!-- id: 641 -->
+    - [x] Create LightingLockPanel.tsx UI component <!-- id: 642 -->
+    - [x] Integrate lighting reference with IP-Adapter <!-- id: 643 -->
+
+## Batch #4 - Technical Director's Suite ✅ COMPLETE
+
+- [x] **Focal Length Lens Kit** <!-- id: 700 -->
+    - [x] Create LensPresets.ts with 7 presets (14mm-135mm) <!-- id: 701 -->
+    - [x] Create LensKitSelector.tsx with visual slider <!-- id: 702 -->
+    - [x] Add prompt modifier injection based on lens selection <!-- id: 703 -->
+    - [x] Add 4 lens effects (bokeh, flare, vignette, distortion) <!-- id: 704 -->
+
+- [x] **Prop Bin (#PropName syntax)** <!-- id: 710 -->
+    - [x] Create propBinStore.ts with CRUD and expansion <!-- id: 711 -->
+    - [x] Create PropBinPanel.tsx with search/filter <!-- id: 712 -->
+    - [x] 9 prop categories (vehicle, weapon, clothing, etc.) <!-- id: 713 -->
+    - [x] Integrate #PropName expansion in handleGenerate <!-- id: 714 -->
+
+- [x] **Prompt Tree (Version Control)** <!-- id: 720 -->
+    - [x] Create promptTreeStore.ts with git-like branching <!-- id: 721 -->
+    - [x] Create PromptTreePanel.tsx with tree visualization <!-- id: 722 -->
+    - [x] Lineage breadcrumb for active path <!-- id: 723 -->
+    - [x] Auto-save prompts when generating <!-- id: 724 -->
+    - [x] Load any previous prompt as starting point <!-- id: 725 -->
+
+## Batch #5 - Executive Producer & Master Cinematographer Suite
+
+### 1. The "Continuity Person" (Visual Heatmaps) ✅ COMPLETE <!-- id: 800 -->
+*In real production, the Script Supervisor ensures visual consistency. In AI, "drift" is the enemy.*
+
+- [x] **Consistency Heatmap (Delta View)** <!-- id: 801 -->
+    - [x] Add "Continuity Check" toggle in Shot Navigator <!-- id: 802 -->
+    - [x] Implement Grok Vision comparison (alternative to CLIP) <!-- id: 803 -->
+    - [x] Visual heatmap highlighting drift areas with severity colors <!-- id: 804 -->
+    - [x] Compare @Image reference against current shot <!-- id: 805 -->
+    - [x] Show specific drift details with descriptions <!-- id: 806 -->
+
+**Implementation Notes:**
+- Backend: `ContinuityService.ts` uses Grok Vision for AI-powered comparison
+- Backend: `continuityRoutes.ts` with `/api/continuity/check` endpoint
+- Frontend: `ContinuityHeatmap.tsx` with side-by-side comparison and drift overlays
+- Frontend: `ShotNavigator.tsx` with toggle and per-shot check buttons
+- Metrics: Color, Shape, Texture, Character consistency scores (0-1)
+- Drift regions with normalized coordinates and severity levels (low/medium/high)
+
+### 2. The "Virtual Gaffer" (3-Point Lighting Layout) <!-- id: 810 -->
+*Pros want to design light, not just copy it.*
+
+- [ ] **Interactive Light Map** <!-- id: 811 -->
+    - [ ] Top-down 2D "stage" widget next to prompt bar <!-- id: 812 -->
+    - [ ] Placeable light sources: Key, Fill, Backlight <!-- id: 813 -->
+    - [ ] Generate ControlNet Depth/Canny map from layout <!-- id: 814 -->
+    - [ ] Generate lighting prompt string (e.g., "rim lighting from back-left") <!-- id: 815 -->
+    - [ ] Color Temperature (Kelvin) setting per light source <!-- id: 816 -->
+
+### 3. Neural Foley & Lens-Aware Audio <!-- id: 820 -->
+*Pro audio is Spatial - match audio to visual focal length.*
+
+- [ ] **Acoustic Mapping** <!-- id: 821 -->
+    - [ ] Use Lens Kit metadata to drive audio engine <!-- id: 822 -->
+    - [ ] 14mm Ultra Wide: High reverb, environmental atmos (wind, city hum) <!-- id: 823 -->
+    - [ ] 85mm Tight Close-up: Dry, intimate (enhanced foley, breathing) <!-- id: 824 -->
+    - [ ] Auto-apply "Sonic Realism" matching focal length <!-- id: 825 -->
+
+### 4. The "Set Extension" (Infinite Outpainting) <!-- id: 830 -->
+*Discover the environment - pan 360° to build the entire "Set".*
+
+- [ ] **Infinite Canvas (Pan-to-Extend)** <!-- id: 831 -->
+    - [ ] Drag image in preview to reveal empty space <!-- id: 832 -->
+    - [ ] Outpaint section on release <!-- id: 833 -->
+    - [ ] Support 360° environment building <!-- id: 834 -->
+    - [ ] Integrate with Shot Navigator for consistent set design <!-- id: 835 -->
+
+### 5. Alpha-Channel Exports (VFX Bridge) <!-- id: 840 -->
+*Make VibeBoard a "VFX Asset Generator" for After Effects integration.*
+
+- [ ] **Background Transparency Toggle** <!-- id: 841 -->
+    - [ ] Use SAM 2/3 (Magic Mask) for alpha video generation <!-- id: 842 -->
+    - [ ] "Export with Alpha" checkbox in download settings <!-- id: 843 -->
+    - [ ] Black-and-white alpha video for every render <!-- id: 844 -->
+    - [ ] PNG sequence export with transparency <!-- id: 845 -->
+
+### 6. The "Director's Dashboard" (Production Health) <!-- id: 850 -->
+*High-level view for big projects.*
+
+- [ ] **Continuity & Budget Monitor** <!-- id: 851 -->
+    - [ ] Style Drift graph (project "Look" consistency over time) <!-- id: 852 -->
+    - [ ] Asset Usage tracking (#Key, @Turtle_2 appearances) <!-- id: 853 -->
+    - [ ] Real-Time Spending dashboard (Fal/Replicate/OpenAI costs) <!-- id: 854 -->
+    - [ ] Project health summary widget <!-- id: 855 -->
+
+### 7. Semantic Search (Enhanced) <!-- id: 860 -->
+*Gallery becomes a searchable Database.*
+
+- [ ] **Vision-Powered Search** <!-- id: 861 -->
+    - [ ] Auto-generate "Technical Description" on image creation <!-- id: 862 -->
+    - [ ] Use low-cost Vision model (Moondream/Llava) <!-- id: 863 -->
+    - [ ] Natural language queries ("Turtle looking left") <!-- id: 864 -->
+    - [ ] CLIP embedding for visual similarity search <!-- id: 865 -->
+
+### 8. Multi-Pass Workflow <!-- id: 870 --> ✅ COMPLETE
+*Quality improvement pipeline.*
+
+- [x] **Block-In → Upscale → Enhance** <!-- id: 871 -->
+    - [x] Define quality stages pipeline <!-- id: 872 -->
+    - [x] Auto-progression through stages <!-- id: 873 -->
+    - [x] Manual override at each stage <!-- id: 874 -->
+
+---
+
+## Batch #6 - Multi-Pass Render Queue (Dec 25, 2025)
+
+### 1. Multi-Pass Render Queue ✅ COMPLETE <!-- id: 900 -->
+*Draft → Review → Master workflow with seed inheritance for visual consistency.*
+
+- [x] **RenderQueueTypes.ts** - Type definitions <!-- id: 901 -->
+    - [x] ShotRecipe interface (locked creative settings) <!-- id: 902 -->
+    - [x] RenderPass interface (seed inheritance, parent-child mapping) <!-- id: 903 -->
+    - [x] ShotVersionStack interface (UI version display) <!-- id: 904 -->
+    - [x] Quality presets (draft/review/master with model + cost mappings) <!-- id: 905 -->
+
+- [x] **RenderQueueService.ts** - Core service <!-- id: 910 -->
+    - [x] createRenderJob() - Create passes for scene chain segments <!-- id: 911 -->
+    - [x] startJob() / processQueue() - Queue management <!-- id: 912 -->
+    - [x] promoteShot() - Upgrade with seed inheritance <!-- id: 913 -->
+    - [x] getVersionStack() / getAllVersionStacks() <!-- id: 914 -->
+    - [x] getCostComparison() - Savings calculation <!-- id: 915 -->
+
+- [x] **renderQueueRoutes.ts** - API endpoints <!-- id: 920 -->
+    - [x] GET /version-stacks <!-- id: 921 -->
+    - [x] POST /shots/:shotId/promote <!-- id: 922 -->
+
+- [x] **RenderQueuePanel.tsx** - UI <!-- id: 930 -->
+    - [x] Version stacking display (D/R/M badges) <!-- id: 931 -->
+    - [x] handlePromoteShot() with loading state <!-- id: 932 -->
+    - [x] Cost comparison display <!-- id: 933 -->
+
+### 2. Semantic Search (CLIP/Vision Indexing) <!-- id: 950 -->
+*Gallery becomes a searchable database - NOT STARTED*
+
+- [ ] **SemanticSearchService.ts** <!-- id: 951 -->
+    - [ ] CLIP embedding generation <!-- id: 952 -->
+    - [ ] Vector storage <!-- id: 953 -->
+    - [ ] Similarity search algorithm <!-- id: 954 -->
+
+- [ ] **Auto-Tagging on Generation** <!-- id: 960 -->
+    - [ ] Vision model for Technical Description <!-- id: 961 -->
+    - [ ] Store tags with generation record <!-- id: 962 -->
+
+- [ ] **Search UI** <!-- id: 970 -->
+    - [ ] Natural language search bar <!-- id: 971 -->
+    - [ ] "Find Similar" button on GenerationCard <!-- id: 972 -->
+
+---
+
+## Strategic Notes (from Batch #5 planning)
+
+### Director's Timeline Strategy
+> Don't build Premiere Pro. Build a "Non-Linear Storyboard."
+> Focus on "Rhythm" - let users set shot durations (3s, 5s, 8s) and see total "Story Length" instantly.
+
+### Semantic Search Priority
+> This is the next big win. As images generate, send to low-cost Vision model for "Technical Description."
+> Gallery becomes a searchable database for pros.

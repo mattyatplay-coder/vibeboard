@@ -10,6 +10,60 @@ const router = express.Router();
 const upload = multer({ dest: 'uploads_local_temp/' });
 const memoryUpload = multer({ storage: multer.memoryStorage() });
 
+// ============================================
+// TEMP IMAGE UPLOAD (for lighting analysis, etc.)
+// ============================================
+
+/**
+ * POST /api/process/upload-temp
+ * Upload a temporary image for analysis (no project required)
+ * Returns the URL to the uploaded image
+ */
+router.post('/upload-temp', upload.single('file'), async (req: Request, res: Response) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+
+        // Move from temp to permanent uploads folder with unique name
+        const ext = path.extname(req.file.originalname) || '.jpg';
+        const filename = `temp_${Date.now()}_${Math.random().toString(36).substring(7)}${ext}`;
+        const destDir = path.join(process.cwd(), 'uploads', 'temp_analysis');
+        const destPath = path.join(destDir, filename);
+
+        // Ensure directory exists
+        if (!fs.existsSync(destDir)) {
+            fs.mkdirSync(destDir, { recursive: true });
+        }
+
+        // Move file - use copy+delete for cross-device compatibility (EXDEV error)
+        try {
+            fs.renameSync(req.file.path, destPath);
+        } catch (renameErr: any) {
+            if (renameErr.code === 'EXDEV') {
+                // Cross-device link - copy then delete
+                fs.copyFileSync(req.file.path, destPath);
+                fs.unlinkSync(req.file.path);
+            } else {
+                throw renameErr;
+            }
+        }
+
+        const fileUrl = `/uploads/temp_analysis/${filename}`;
+        console.log(`[ProcessRoutes] Temp image uploaded: ${fileUrl}`);
+
+        res.json({
+            success: true,
+            fileUrl,
+            filename
+        });
+
+    } catch (error: any) {
+        console.error('[ProcessRoutes] Temp upload error:', error);
+        res.status(500).json({ error: error.message || 'Failed to upload image' });
+    }
+});
+
 // Store active rotoscope sessions (sessionId -> session info)
 const rotoscopeSessions: Map<
   string,

@@ -16,6 +16,13 @@ import llmRoutes from './routes/llmRoutes';
 import providerRoutes from './routes/providerRoutes';
 import promptRoutes from './routes/promptRoutes';
 import storyEditorRoutes from './routes/storyEditorRoutes';
+import storyStyleRoutes from './routes/storyStyleRoutes';
+import storyRoutes from './routes/storyRoutes';
+import extendVideoRoutes from './routes/extendVideoRoutes';
+import continuityRoutes from './routes/continuityRoutes';
+import lightingRoutes from './routes/lightingRoutes';
+import renderQueueRoutes from './routes/renderQueueRoutes';
+import searchRoutes from './routes/searchRoutes';
 import path from 'path';
 import { validateStorage, getStorageStatus } from './utils/storageValidation';
 
@@ -72,6 +79,19 @@ app.use('/api/llm', llmRoutes);
 app.use('/api/providers', providerRoutes);
 app.use('/api/prompts', promptRoutes);
 app.use('/api/story-editor', storyEditorRoutes);
+app.use('/api/story-style', storyStyleRoutes);
+// Nested route for stories: /api/projects/:projectId/stories
+app.use('/api/projects/:projectId/stories', storyRoutes);
+// Video extension workflow routes
+app.use('/api/extend-video', extendVideoRoutes);
+// Continuity checking routes
+app.use('/api/continuity', continuityRoutes);
+// Virtual Gaffer lighting analysis
+app.use('/api/lighting', lightingRoutes);
+// Multi-Pass Render Queue
+app.use('/api/projects/:projectId/render-queue', renderQueueRoutes);
+// Semantic Search
+app.use('/api', searchRoutes);
 app.get('/api/elements', require('./controllers/elementController').getAllElements);
 
 app.get('/api/health', (req, res) => {

@@ -529,6 +529,171 @@
                 "backend/src/routes/trainingRoutes.ts",
                 "frontend/src/app/projects/[id]/train/page.tsx"
             ]
+        },
+        {
+            "id": "WHT-001",
+            "timestamp": "2025-12-21T23:00:00Z",
+            "topic": "Weight Hint Tooltip for Prompt Weighting",
+            "context": {
+                "symptom": "Users didn't have a visual reference for the prompt weighting feature when using Cmd/Ctrl + Arrow keys.",
+                "user_intent": "Display weight-to-repetition mapping table when modifier key is held while focused on prompt textarea.",
+                "constraints": [
+                    "Tooltip should not block UI interaction (pointer-events-none)",
+                    "Should align with prompt toolbar left edge",
+                    "Should auto-detect Mac vs Windows for correct key display"
+                ]
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Create WeightHintTooltip Component",
+                    "file": "frontend/src/components/prompts/WeightHintTooltip.tsx",
+                    "change_type": "New Component",
+                    "details": "Created animated tooltip showing weight-to-repetition mapping table. Displays keyboard shortcuts and explains T5-based model weight conversion."
+                },
+                {
+                    "step": 2,
+                    "action": "Update usePromptWeighting Hook",
+                    "file": "frontend/src/hooks/usePromptWeighting.ts",
+                    "change_type": "Feature Addition",
+                    "details": "Added isModifierHeld state tracking via global keydown/keyup listeners. Handles window blur to reset state when switching tabs."
+                },
+                {
+                    "step": 3,
+                    "action": "Integrate into Generate Page",
+                    "file": "frontend/src/app/projects/[id]/generate/page.tsx",
+                    "change_type": "Integration",
+                    "details": "Imported WeightHintTooltip, destructured isModifierHeld from hook, added tooltip that shows when modifier is held AND prompt textarea is focused."
+                },
+                {
+                    "step": 4,
+                    "action": "Position Adjustment",
+                    "description": "Iteratively adjusted tooltip position to align with prompt toolbar.",
+                    "final_position": "left: calc(256px + 2rem), bottom: 180px"
+                }
+            ],
+            "architectural_decision": {
+                "decision": "Global modifier key tracking in usePromptWeighting hook",
+                "rationale": "Allows tooltip to show immediately when modifier is held, before any keydown action on the textarea. Window blur handling prevents stuck state when user switches tabs while holding modifier."
+            },
+            "weight_mapping": {
+                "1.0-1.1": "0 extra repetitions (just removes syntax)",
+                "1.2-1.3": "1 extra repetition",
+                "1.4-1.5": "2 extra repetitions",
+                "1.6+": "3 extra repetitions"
+            },
+            "files_created": [
+                "frontend/src/components/prompts/WeightHintTooltip.tsx"
+            ],
+            "files_modified": [
+                "frontend/src/hooks/usePromptWeighting.ts",
+                "frontend/src/app/projects/[id]/generate/page.tsx"
+            ]
+        },
+        {
+            "id": "SSL-001",
+            "timestamp": "2025-12-23T18:00:00Z",
+            "topic": "Script Library & Genre Style System",
+            "context": {
+                "symptom": "User wanted to organize scripts by genre and train LLM on storytelling styles from Pixar, director cinematography, etc.",
+                "user_intent": "Create comprehensive script library with genre organization and a style guide system that combines Pixar storytelling rules, director visual styles, and cinematographer techniques.",
+                "constraints": [
+                    "Follow Pixar 22 Rules of Storytelling",
+                    "Reference visual styles of directors like Wes Anderson, Denis Villeneuve",
+                    "Use knowledge from Pixar Disney Prompt engineer & Master Prompt Engineer Claude projects"
+                ]
+            },
+            "execution_log": [
+                {
+                    "step": 1,
+                    "action": "Folder Structure Creation",
+                    "description": "Created Script Library folder structure at /Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/Script Library/",
+                    "details": "Created 16 genre subfolders: Action, Animation, Comedy, Commercial, Documentary, Drama, Fantasy, Horror, Musical, Noir, Romance, Sci-Fi, Thriller, Video, Western, plus _analyses cache folder."
+                },
+                {
+                    "step": 2,
+                    "action": "Script Organization",
+                    "description": "Organized 34+ existing scripts from Movie Scripts folder into appropriate genre folders.",
+                    "details": "Animation: 22 scripts (Pixar, Disney, DreamWorks), Comedy: 10 scripts, Action: 2 scripts"
+                },
+                {
+                    "step": 3,
+                    "action": "Create GenreStyleGuide.ts",
+                    "file": "backend/src/services/story/GenreStyleGuide.ts",
+                    "change_type": "New File",
+                    "details": "Created 900+ line file with: Pixar 22 Rules (full with application guidance), 12 Director Visual Styles (Wes Anderson, Denis Villeneuve, Christopher Nolan, Quentin Tarantino, Hayao Miyazaki, Guillermo del Toro, Ridley Scott, Stanley Kubrick, David Fincher, Terrence Malick, Park Chan-wook, Alfonso Cuarón), 5 Cinematographer Styles (Roger Deakins, Emmanuel Lubezki, etc.), 14 Genre Guides with conventions, tropes, archetypes, and prompt prefixes."
+                },
+                {
+                    "step": 4,
+                    "action": "Create ScriptAnalyzer.ts",
+                    "file": "backend/src/services/story/ScriptAnalyzer.ts",
+                    "change_type": "New File",
+                    "details": "Created 650+ line service with: analyzeScript() for voice/pattern extraction, generateStoryOutline() combining script style, genre, director, Pixar rules, generateScenePrompts() for First Frame, Last Frame, Video prompts."
+                },
+                {
+                    "step": 5,
+                    "action": "Create storyStyleRoutes.ts",
+                    "file": "backend/src/routes/storyStyleRoutes.ts",
+                    "change_type": "New File",
+                    "details": "Created API routes: GET genres/directors/cinematographers/pixar-rules/scripts, POST build-prefix/scripts/analyze/generate-outline/generate-scene-prompts"
+                },
+                {
+                    "step": 6,
+                    "action": "Route Registration",
+                    "file": "backend/src/index.ts",
+                    "change_type": "Update",
+                    "details": "Added import and app.use for /api/story-style routes"
+                },
+                {
+                    "step": 7,
+                    "action": "Fix Import Errors",
+                    "description": "Fixed LLMService import path and added missing CINEMATOGRAPHER_STYLES import in ScriptAnalyzer.ts"
+                },
+                {
+                    "step": 8,
+                    "action": "Full Pipeline Test",
+                    "description": "Tested complete Story Editor pipeline with 'Tide Whisperer' concept (Hawaiian surfer girl + sea turtles + Miyazaki style)",
+                    "results": {
+                        "outline": "3 Acts, 14 story beats following Pixar structure",
+                        "script": "Full screenplay with 18 scenes",
+                        "breakdown": "Shot-level breakdowns with camera presets",
+                        "prompts": "First Frame, Last Frame, Video prompts with Ghibli style"
+                    }
+                }
+            ],
+            "architectural_decision": {
+                "decision": "Layered Style Composition with Director Prompt Prefixes",
+                "rationale": "Each director style includes a promptPrefix field that can be injected into generation prompts. This allows combining genre conventions + director visual style + cinematographer techniques into cohesive prompt generation. Genre guides also have recommendedMoves and avoidedMoves for camera preset filtering."
+            },
+            "director_styles": {
+                "wes-anderson": "Symmetrical framing, pastel colors, centered subjects, flat compositions",
+                "denis-villeneuve": "Atmospheric, muted palette, epic scale, silhouettes, slow pacing",
+                "hayao-miyazaki": "Hand-drawn, watercolor backgrounds, environmental themes, magical realism",
+                "christopher-nolan": "Practical effects, IMAX, non-linear narrative, blue/gray palette",
+                "quentin-tarantino": "Pop culture references, chapter cards, extreme close-ups, stylized violence"
+            },
+            "pixar_rules_highlights": [
+                "Rule 1: Admiration over success - show characters struggling, failing, persisting",
+                "Rule 4: Once upon a time... Every day... One day... Because of that... Until finally",
+                "Rule 6: Know your ending before you start",
+                "Rule 16: Stakes - what does your character stand to lose?",
+                "Rule 22: What's the essence? Most economical telling."
+            ],
+            "files_created": [
+                "backend/src/services/story/GenreStyleGuide.ts",
+                "backend/src/services/story/ScriptAnalyzer.ts",
+                "backend/src/routes/storyStyleRoutes.ts"
+            ],
+            "files_modified": [
+                "backend/src/index.ts"
+            ],
+            "folders_created": [
+                "/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/Script Library/",
+                "/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/Script Library/Action/",
+                "/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/Script Library/Animation/",
+                "/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/Script Library/Comedy/",
+                "/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/Script Library/_analyses/"
+            ]
         }
     ]
 }

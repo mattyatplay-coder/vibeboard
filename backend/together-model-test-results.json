@@ -1,0 +1,80 @@
+{
+  "timestamp": "2025-12-24T21:02:43.290Z",
+  "summary": {
+    "total": 10,
+    "successful": 8,
+    "failed": 2
+  },
+  "results": [
+    {
+      "model": "Flux Schnell ($0.003)",
+      "endpoint": "black-forest-labs/FLUX.1-schnell",
+      "status": "success",
+      "duration": 3505,
+      "outputUrl": "https://api.together.ai/shrt/vQbBZVQOsRSsRgvd"
+    },
+    {
+      "model": "Flux Dev",
+      "endpoint": "black-forest-labs/FLUX.1-dev",
+      "status": "success",
+      "duration": 2503,
+      "outputUrl": "https://api.together.ai/shrt/y51YabH0wLYqXIpc"
+    },
+    {
+      "model": "SD 3 ($0.0019)",
+      "endpoint": "stabilityai/stable-diffusion-3",
+      "status": "failed",
+      "error": "404 {\"id\":\"oQYHdJp-2kFHot-9b3309752acbbcf2-PDX\",\"error\":{\"message\":\"Unable to access model stabilityai/stable-diffusion-3. Please visit https://api.together.ai/models to view the list of supported models.\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":\"model_not_available\"}}",
+      "duration": 667
+    },
+    {
+      "model": "SDXL ($0.0019)",
+      "endpoint": "stabilityai/sdxl",
+      "status": "failed",
+      "error": "404 {\"id\":\"oQYHeQ7-2kFHot-9b33098c1dc3bcf2-PDX\",\"error\":{\"message\":\"Unable to access model stabilityai/sdxl. Please visit https://api.together.ai/models to view the list of supported models.\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":\"model_not_available\"}}",
+      "duration": 589
+    },
+    {
+      "model": "Dreamshaper ($0.0006)",
+      "endpoint": "Lykon/DreamShaper",
+      "status": "success",
+      "duration": 3643,
+      "outputUrl": "https://api.together.ai/shrt/8ihxaRVE7DkaHD0i"
+    },
+    {
+      "model": "HiDream I1 Full ($0.009)",
+      "endpoint": "HiDream-ai/HiDream-I1-Full",
+      "status": "success",
+      "duration": 4638,
+      "outputUrl": "https://api.together.ai/shrt/cei8i6PVuuMq8Vzr"
+    },
+    {
+      "model": "HiDream I1 Dev ($0.0045)",
+      "endpoint": "HiDream-ai/HiDream-I1-Dev",
+      "status": "success",
+      "duration": 3779,
+      "outputUrl": "https://api.together.ai/shrt/vSCxlOFrdBBIPuup"
+    },
+    {
+      "model": "HiDream I1 Fast ($0.0032)",
+      "endpoint": "HiDream-ai/HiDream-I1-Fast",
+      "status": "success",
+      "duration": 3540,
+      "outputUrl": "https://api.together.ai/shrt/s6jwG8jXH2nXG5AP"
+    },
+    {
+      "model": "Juggernaut Pro Flux ($0.0049)",
+      "endpoint": "RunDiffusion/Juggernaut-Pro-Flux",
+      "status": "success",
+      "duration": 2188,
+      "outputUrl": "https://api.together.ai/shrt/WV5lXtlvJAS3cm76"
+    },
+    {
+      "model": "Juggernaut Lightning ($0.0017)",
+      "endpoint": "RunDiffusion/Juggernaut-Lightning-Flux",
+      "status": "success",
+      "duration": 2349,
+      "outputUrl": "https://api.together.ai/shrt/JAAYGMjSJMCko16Z"
+    }
+  ]
+}

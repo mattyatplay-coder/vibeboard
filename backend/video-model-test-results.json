@@ -1,0 +1,248 @@
+{
+  "timestamp": "2025-12-24T19:24:21.179Z",
+  "summary": {
+    "total": 34,
+    "successful": 13,
+    "failed": 21
+  },
+  "results": [
+    {
+      "model": "Wan 2.2",
+      "endpoint": "fal-ai/wan-t2v",
+      "status": "success",
+      "duration": 66236,
+      "outputUrl": "https://v3b.fal.media/files/b/0a879e74/up5KGjRjLPQ92x5cdshZD_tmp60zsq4e0.mp4"
+    },
+    {
+      "model": "Wan 2.5",
+      "endpoint": "fal-ai/wan-25-preview/text-to-video",
+      "status": "success",
+      "duration": 179207,
+      "outputUrl": "https://v3b.fal.media/files/b/0a879e86/4lcTg3vgCZR2OkOWwybTI_sfBlbvZT.mp4"
+    },
+    {
+      "model": "Wan 2.6",
+      "endpoint": "fal-ai/wan/v2.6/text-to-video",
+      "status": "failed",
+      "error": "Not Found",
+      "duration": 824
+    },
+    {
+      "model": "Wan Pro",
+      "endpoint": "fal-ai/wan-pro/text-to-video",
+      "status": "success",
+      "duration": 59015,
+      "outputUrl": "https://v3b.fal.media/files/b/0a879e8c/XTeoOIlAhVpo9eD1Tpvrc_output.mp4"
+    },
+    {
+      "model": "LTX Video",
+      "endpoint": "fal-ai/ltx-video",
+      "status": "success",
+      "duration": 15156,
+      "outputUrl": "https://v3b.fal.media/files/b/0a879e8d/JxYFTe-FYXmY6J5MZrfDX_tmpndyauh4u.mp4"
+    },
+    {
+      "model": "Kling 2.1 Master",
+      "endpoint": "fal-ai/kling-video/v2.1/master/text-to-video",
+      "status": "success",
+      "duration": 194537,
+      "outputUrl": "https://v3b.fal.media/files/b/0a879ea1/zWTfhO4lm_uDLhr9fRGjg_output.mp4"
+    },
+    {
+      "model": "Kling 2.6 Pro",
+      "endpoint": "fal-ai/kling-video/v2.6/pro/text-to-video",
+      "status": "success",
+      "duration": 69500,
+      "outputUrl": "https://v3b.fal.media/files/b/0a879ea8/IE97E9lG5Z0GHQSdZDcbX_output.mp4"
+    },
+    {
+      "model": "Vidu Q1",
+      "endpoint": "fal-ai/vidu/q1/text-to-video",
+      "status": "success",
+      "duration": 448598,
+      "outputUrl": "https://v3b.fal.media/files/b/0a879ed5/-rY0H_LAwsbfyoUa62K69_output.mp4"
+    },
+    {
+      "model": "Hunyuan Video",
+      "endpoint": "fal-ai/hunyuan-video",
+      "status": "success",
+      "duration": 990901,
+      "outputUrl": "https://v3b.fal.media/files/b/0a879f38/4yONXGnb2ezUAEI7cBMqp_video-1766602792.mp4"
+    },
+    {
+      "model": "MiniMax Hailuo",
+      "endpoint": "fal-ai/minimax-video",
+      "status": "success",
+      "duration": 193860,
+      "outputUrl": "https://v3b.fal.media/files/b/0a879f4b/KqIZQHrfirb4kVfat8Psq_output.mp4"
+    },
+    {
+      "model": "Luma Dream Machine",
+      "endpoint": "fal-ai/luma-dream-machine",
+      "status": "success",
+      "duration": 58096,
+      "outputUrl": "https://v3b.fal.media/files/b/0a879f51/dfzOQDz-QQtDKIPJFXCA__output.mp4"
+    },
+    {
+      "model": "Luma Ray 2",
+      "endpoint": "fal-ai/luma-dream-machine/ray-2",
+      "status": "success",
+      "duration": 56684,
+      "outputUrl": "https://v3b.fal.media/files/b/0a879f57/hF8j2bOWnAK8TCxNbD7cE_output.mp4"
+    },
+    {
+      "model": "Veo 3",
+      "endpoint": "fal-ai/veo3",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 837
+    },
+    {
+      "model": "Pixverse V4.5",
+      "endpoint": "fal-ai/pixverse/v4.5/text-to-video",
+      "status": "success",
+      "duration": 37703,
+      "outputUrl": "https://v3b.fal.media/files/b/0a879f5b/mYekPx3s7mcFtiXvC0FGz_output.mp4"
+    },
+    {
+      "model": "Magi",
+      "endpoint": "fal-ai/magi",
+      "status": "success",
+      "duration": 695250,
+      "outputUrl": "https://v3b.fal.media/files/b/0a879fa0/hw8e3YqMUB3Hw58SUaT7T_e5d7c320-0a4f-4ff6-8437-3e2ab5f3320a.mp4"
+    },
+    {
+      "model": "Wan 2.2 I2V",
+      "endpoint": "fal-ai/wan/v2.2-a14b/image-to-video",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 2085
+    },
+    {
+      "model": "Wan 2.2 I2V + LoRA",
+      "endpoint": "fal-ai/wan/v2.2-a14b/image-to-video/lora",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 2160
+    },
+    {
+      "model": "Wan 2.5 I2V",
+      "endpoint": "fal-ai/wan-25-preview/image-to-video",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 28180
+    },
+    {
+      "model": "Wan 2.6 I2V",
+      "endpoint": "fal-ai/wan/v2.6/image-to-video",
+      "status": "failed",
+      "error": "Not Found",
+      "duration": 846
+    },
+    {
+      "model": "Wan Pro I2V",
+      "endpoint": "fal-ai/wan-pro/image-to-video",
+      "status": "failed",
+      "error": "Bad Request",
+      "duration": 2073
+    },
+    {
+      "model": "LTX Video I2V",
+      "endpoint": "fal-ai/ltx-video/image-to-video",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 928
+    },
+    {
+      "model": "LTX Video 13B I2V",
+      "endpoint": "fal-ai/ltx-video-13b-distilled/image-to-video",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 1644
+    },
+    {
+      "model": "Kling 2.1 Standard I2V",
+      "endpoint": "fal-ai/kling-video/v2.1/standard/image-to-video",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 813
+    },
+    {
+      "model": "Kling 2.1 Master I2V",
+      "endpoint": "fal-ai/kling-video/v2.1/master/image-to-video",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 847
+    },
+    {
+      "model": "Kling 2.6 Pro I2V",
+      "endpoint": "fal-ai/kling-video/v2.6/pro/image-to-video",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 832
+    },
+    {
+      "model": "Kling O1 I2V",
+      "endpoint": "fal-ai/kling-video/o1/image-to-video",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 911
+    },
+    {
+      "model": "MiniMax Hailuo I2V",
+      "endpoint": "fal-ai/minimax-video/image-to-video",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 1509
+    },
+    {
+      "model": "Luma Dream Machine I2V",
+      "endpoint": "fal-ai/luma-dream-machine/image-to-video",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 834
+    },
+    {
+      "model": "Luma Ray 2 I2V",
+      "endpoint": "fal-ai/luma-dream-machine/ray-2/image-to-video",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 1207
+    },
+    {
+      "model": "Runway Gen3 Turbo I2V",
+      "endpoint": "fal-ai/runway-gen3/turbo/image-to-video",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 831
+    },
+    {
+      "model": "Hunyuan I2V",
+      "endpoint": "fal-ai/hunyuan-video-image-to-video",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 353981
+    },
+    {
+      "model": "Vidu I2V",
+      "endpoint": "fal-ai/vidu/image-to-video",
+      "status": "failed",
+      "error": "Bad Request",
+      "duration": 12502
+    },
+    {
+      "model": "Vidu Q2 Multi-Reference",
+      "endpoint": "fal-ai/vidu/q2/reference-to-video",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 884
+    },
+    {
+      "model": "Pixverse V4.5 I2V",
+      "endpoint": "fal-ai/pixverse/v4.5/image-to-video",
+      "status": "failed",
+      "error": "Unprocessable Entity",
+      "duration": 1433
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "timestamp": "2025-12-24T21:15:47.082Z",
+  "summary": {
+    "total": 5,
+    "successful": 3,
+    "failed": 2
+  },
+  "results": [
+    {
+      "model": "Auraflow",
+      "modelId": "urn:air:flux1:checkpoint:civitai:618692@691639",
+      "status": "failed",
+      "error": "Internal Server Error",
+      "duration": 197
+    },
+    {
+      "model": "SDXL 1.0",
+      "modelId": "urn:air:sdxl:checkpoint:civitai:101055@128078",
+      "status": "success",
+      "duration": 17760,
+      "outputUrl": "https://blobs-temp.sfo3.digitaloceanspaces.com/A5403F1591D76953E524EC82EE17616BEFD311449425E21C5524B174B3D8545D?X-Amz-Expires=3600&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=DO00F84RAAYEUTBJ6D9L%2F20251224%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251224T211420Z&X-Amz-SignedHeaders=host&X-Amz-Signature=2a0d8526c116622c043c514842acb8b6faaf3d40567a4f141996c26b9be2e1dd"
+    },
+    {
+      "model": "SDXL Lightning",
+      "modelId": "urn:air:sdxl:checkpoint:civitai:413081@462695",
+      "status": "failed",
+      "error": "Image not available yet (still processing)",
+      "duration": 43764
+    },
+    {
+      "model": "Pony Diffusion",
+      "modelId": "urn:air:pony:checkpoint:civitai:257749@290640",
+      "status": "success",
+      "duration": 16049,
+      "outputUrl": "https://blobs-temp.sfo3.digitaloceanspaces.com/2439C411D15299D643282028DC2FC2445BBB4F953BB2166A259E765A5653708A?X-Amz-Expires=3600&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=DO00F84RAAYEUTBJ6D9L%2F20251224%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251224T211530Z&X-Amz-SignedHeaders=host&X-Amz-Signature=a3f03c3d11eef0d7a90a6e0b7665fb1c625593726556739bc9d637346785f050"
+    },
+    {
+      "model": "Realistic Vision",
+      "modelId": "urn:air:sd1:checkpoint:civitai:4201@130072",
+      "status": "success",
+      "duration": 6500,
+      "outputUrl": "https://blobs-temp.sfo3.digitaloceanspaces.com/C13FA400AC1C5D56783C7B2B8E0CE13040BCA8FD77CA63D6D880C5D358E69456?X-Amz-Expires=3600&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=DO00F84RAAYEUTBJ6D9L%2F20251224%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251224T211541Z&X-Amz-SignedHeaders=host&X-Amz-Signature=9de16a3fda842ab3e81b0be68f7e6565bacb994cbe45b5e4ff7b745ec0e0ee60"
+    }
+  ]
+}
