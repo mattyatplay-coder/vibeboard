@@ -327,6 +327,97 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
     cameraPreferences: ['Hero Shot', 'Product Shot', 'Macro'],
     styleNotes: ['Clean background', 'Perfect lighting', 'High key'],
   },
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MATURE CONTENT - Only visible when allowNSFW is enabled
+  // ═══════════════════════════════════════════════════════════════════════════
+  adult: {
+    id: 'adult',
+    name: 'Adult / OnlyFans',
+    icon: '🔞',
+    description: 'Intimate, sensual content for mature audiences. Glamour and boudoir aesthetics.',
+    recommendedTags: [
+      'glam',
+      'beauty_lighting',
+      'soft_focus',
+      'bokeh',
+      'rim_light',
+      'dolly_in',
+      'arc_left',
+      'arc_right',
+      'close_up',
+      'eyes_in',
+      'warm_golden',
+      'pastel_dream',
+      'low_key',
+      'candlelight',
+      'intimate',
+      'sensual',
+      'romantic',
+      'dreamy',
+      'seductive',
+    ],
+    avoidedTags: ['dutch_angle', 'shaky_intense', 'horror', 'aggressive', 'documentary'],
+    defaultStyle:
+      'intimate boudoir, sensual lighting, glamour photography, soft focus, romantic atmosphere',
+    colorPalette: ['#FF4081', '#E91E63', '#F8BBD0', '#880E4F', '#4A148C'],
+    cameraPreferences: ['Close Up', 'Arc Shot', 'Soft Focus', 'Beauty Shot', 'Dolly In'],
+    styleNotes: [
+      'Soft, flattering lighting is essential',
+      'Use shallow depth of field for intimacy',
+      'Warm color palette creates sensuality',
+      'Slow camera movements enhance mood',
+      'Focus on expressions and body language',
+    ],
+  },
+  hardcore: {
+    id: 'hardcore',
+    name: 'XXX / Hardcore',
+    icon: '🔥',
+    description:
+      'Explicit XXX adult content. Graphic sexual acts with professional pornographic production values.',
+    recommendedTags: [
+      'extreme_close_up',
+      'pov',
+      'gonzo',
+      'handheld',
+      'tracking_shot',
+      'low_angle',
+      'high_angle',
+      'reverse_angle',
+      'two_shot',
+      'three_shot',
+      'high_key',
+      'ring_light',
+      'practical_lights',
+      'overhead',
+      'explicit',
+      'graphic',
+      'raw',
+      'intense',
+      'primal',
+      'uninhibited',
+    ],
+    avoidedTags: ['horror', 'dutch_angle', 'desaturated', 'cold_steel', 'noir', 'soft_focus'],
+    defaultStyle:
+      'XXX pornographic film, explicit graphic content, clear genital visibility, money shot coverage, professional adult production',
+    colorPalette: ['#FF1744', '#D50000', '#FF6D00', '#000000', '#FFFFFF'],
+    cameraPreferences: [
+      'POV',
+      'Extreme Close Up',
+      'Gonzo',
+      'Reverse Cowgirl Angle',
+      'Missionary Angle',
+      'Doggy Angle',
+    ],
+    styleNotes: [
+      'Crystal clear footage of all action',
+      'Graphic close-ups of penetration and genitals',
+      'Money shot / cumshot coverage is essential',
+      'Multiple angles for position changes',
+      'POV for immersive first-person experience',
+      'Well-lit to show all explicit details',
+    ],
+  },
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -361,15 +452,23 @@ export function isCameraPresetAvoided(presetId: string, genre: Genre): boolean {
   return GENRE_TEMPLATES[genre].avoidedTags.includes(presetId);
 }
 
+// Genres that require mature content flag to be visible
+export const MATURE_GENRES: Genre[] = ['adult', 'hardcore'];
+
 /**
  * Get genre options for dropdowns
+ * @param includeMature - When true, includes adult/NSFW genres. Default: false
  */
-export function getGenreOptions(): { value: Genre; label: string; icon: string }[] {
-  return Object.values(GENRE_TEMPLATES).map(template => ({
-    value: template.id,
-    label: template.name,
-    icon: template.icon,
-  }));
+export function getGenreOptions(
+  includeMature: boolean = false
+): { value: Genre; label: string; icon: string }[] {
+  return Object.values(GENRE_TEMPLATES)
+    .filter(template => includeMature || !MATURE_GENRES.includes(template.id))
+    .map(template => ({
+      value: template.id,
+      label: template.name,
+      icon: template.icon,
+    }));
 }
 
 /**

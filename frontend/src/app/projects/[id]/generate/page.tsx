@@ -23,11 +23,16 @@ import {
   Music,
   FilePlus,
   Tag as TagIcon,
+  Code2,
+  Package,
+  GitBranch,
+  Lightbulb,
 } from 'lucide-react';
 import { Element, Generation, Scene } from '@/lib/store';
 import { clsx } from 'clsx';
 import { GenerationCard } from '@/components/generations/GenerationCard';
-import { ShotNavigator } from '@/components/generations/ShotNavigator';
+import { GenerationSearch } from '@/components/generations/GenerationSearch';
+import { ShotNavigator, ShotNavigatorRef } from '@/components/generations/ShotNavigator';
 import { ElementReferencePicker } from '@/components/storyboard/ElementReferencePicker';
 import { StyleSelectorModal, StyleConfig } from '@/components/storyboard/StyleSelectorModal';
 import { useSession } from '@/context/SessionContext';
@@ -41,7 +46,10 @@ import {
   DragEndEvent,
   DragOverEvent,
   pointerWithin,
+  useDraggable,
 } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
+import { snapCenterToCursor } from '@dnd-kit/modifiers';
 
 import { SaveElementModal } from '@/components/generations/SaveElementModal';
 import { EditElementModal } from '@/components/elements/EditElementModal';
@@ -58,6 +66,17 @@ import { useEngineConfigStore } from '@/lib/engineConfigStore';
 import { costTracker } from '@/lib/CostTracker';
 import { usePromptWeighting } from '@/hooks/usePromptWeighting';
 import { WeightHintTooltip } from '@/components/prompts/WeightHintTooltip';
+import { usePromptVariablesStore, detectUnexpandedVariables } from '@/lib/promptVariablesStore';
+import { PromptVariablesPanel } from '@/components/prompts/PromptVariablesPanel';
+import { DynamicRatioIcon } from '@/components/ui/DynamicRatioIcon';
+import { LensKitSelector } from '@/components/generation/LensKitSelector';
+import { LensPreset, LENS_EFFECTS, buildLensPrompt } from '@/data/LensPresets';
+import { usePropBinStore } from '@/lib/propBinStore';
+import { PropBinPanel } from '@/components/prompts/PropBinPanel';
+import { usePromptTreeStore } from '@/lib/promptTreeStore';
+import { PromptTreePanel } from '@/components/prompts/PromptTreePanel';
+import { useLightingStore } from '@/lib/lightingStore';
+import { LightingStage } from '@/components/lighting/LightingStage';
 
 interface PipelineStage {
   id: string;
@@ -68,6 +87,67 @@ interface PipelineStage {
   audioUrl?: string | null;
   model?: string; // Added for script parsing
   prompt?: string; // Added for script parsing
+}
+
+// Draggable Element Thumbnail - for dragging elements into Shot Navigator frame slots
+interface DraggableElementThumbnailProps {
+  element: Element;
+  isSelected: boolean;
+  onToggle: () => void;
+}
+
+function DraggableElementThumbnail({
+  element,
+  isSelected,
+  onToggle,
+}: DraggableElementThumbnailProps) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `element-${element.id}`,
+    data: {
+      type: 'element',
+      element: element,
+      imageUrl: element.url || element.fileUrl || element.thumbnail,
+    },
+  });
+
+  const style = transform
+    ? {
+        transform: CSS.Translate.toString(transform),
+        opacity: isDragging ? 0 : 1,
+        zIndex: isDragging ? 100 : undefined,
+      }
+    : undefined;
+
+  return (
+    <button
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      onClick={onToggle}
+      className={clsx(
+        'relative h-16 w-16 flex-shrink-0 cursor-grab overflow-hidden rounded-lg border-2 transition-all active:cursor-grabbing',
+        isSelected
+          ? 'border-blue-500 ring-1 ring-blue-500/50'
+          : 'border-transparent opacity-60 hover:opacity-100'
+      )}
+      title={`${element.name} (drag to Shot Navigator)`}
+    >
+      {element.type === 'video' ? (
+        <video src={element.url} className="h-full w-full object-cover" />
+      ) : (
+        <img
+          src={element.url || element.fileUrl || element.thumbnail}
+          className="h-full w-full object-cover"
+        />
+      )}
+      {isSelected && (
+        <div className="absolute inset-0 flex items-center justify-center bg-blue-500/20">
+          <div className="h-1.5 w-1.5 rounded-full bg-blue-500 shadow-lg" />
+        </div>
+      )}
+    </button>
+  );
 }
 
 export default function GeneratePage() {
@@ -90,6 +170,8 @@ export default function GeneratePage() {
   const [guidanceScale, setGuidanceScale] = useState(7.5);
   const [selectedElementIds, setSelectedElementIds] = useState<string[]>([]);
   const [selectedGenerationIds, setSelectedGenerationIds] = useState<string[]>([]); // Added missing state
+  const [searchResults, setSearchResults] = useState<Generation[] | null>(null); // Semantic search results
+  const [searchQuery, setSearchQuery] = useState<string>(''); // Current search query
   const [referenceCreativity, setReferenceCreativity] = useState(0.6); // Default reference strength
   const [elementStrengths, setElementStrengths] = useState<Record<string, number>>({}); // Per-element strength
   const [motionScale, setMotionScale] = useState(0.5); // Motion scale for video models (0-1)
@@ -120,6 +202,9 @@ export default function GeneratePage() {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [isOverShotNavigator, setIsOverShotNavigator] = useState(false);
 
+  // Shot Navigator ref for calling methods from drag handler
+  const shotNavigatorRef = useRef<ShotNavigatorRef>(null);
+
   // Autocomplete state
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestionQuery, setSuggestionQuery] = useState('');
@@ -132,6 +217,27 @@ export default function GeneratePage() {
   const recordedCostIds = useRef<Set<string>>(new Set());
   const initialLoadComplete = useRef<boolean>(false);
 
+  // Prompt Variables: $VariableName expansion
+  const { expandPrompt, variables: promptVariables } = usePromptVariablesStore();
+
+  // Prop Bin: #PropName expansion for object consistency
+  const { expandPropReferences, props: propBinItems } = usePropBinStore();
+  const [isPropBinOpen, setIsPropBinOpen] = useState(false);
+
+  // Prompt Tree: Version control for prompts
+  const { addNode: addPromptNode, getTree, activeNodeId: treeActiveNodeId } = usePromptTreeStore();
+  const promptTreeNodes = getTree(projectId);
+  const [isPromptTreeOpen, setIsPromptTreeOpen] = useState(false);
+
+  // Virtual Gaffer: 3-point lighting designer
+  const {
+    lights,
+    isEnabled: lightingEnabled,
+    generatePromptModifier: getLightingModifier,
+    getLightingDescription,
+  } = useLightingStore();
+  const [isLightingStageOpen, setIsLightingStageOpen] = useState(false);
+
   // Prompt Weighting: Ctrl/Cmd + Arrow Up/Down to adjust weights (word:1.1)
   const { handleKeyDown: handleWeightingKeyDown, isModifierHeld } = usePromptWeighting({
     value: prompt,
@@ -143,6 +249,12 @@ export default function GeneratePage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPromptBuilderOpen, setIsPromptBuilderOpen] = useState(false);
   const [isTagSelectorOpen, setIsTagSelectorOpen] = useState(false);
+  const [isVariablesPanelOpen, setIsVariablesPanelOpen] = useState(false);
+
+  // Lens Kit State
+  const [selectedLens, setSelectedLens] = useState<LensPreset | null>(null);
+  const [selectedLensEffects, setSelectedLensEffects] = useState<string[]>([]);
+  const [isAnamorphic, setIsAnamorphic] = useState(false);
 
   // Engine State
   const [engineConfig, setEngineConfig] = useState<{ provider: string; model: string }>({
@@ -349,6 +461,28 @@ export default function GeneratePage() {
     if (!prompt.trim()) return;
     setIsGenerating(true);
     try {
+      // Expand prompt variables ($VariableName -> actual value)
+      let expandedPrompt = expandPrompt(prompt);
+
+      // Expand prop references (#PropName -> prop description)
+      expandedPrompt = expandPropReferences(expandedPrompt);
+
+      // Add Lens Kit modifiers to the prompt (using buildLensPrompt helper)
+      if (selectedLens || selectedLensEffects.length > 0 || isAnamorphic) {
+        const lensPrompt = buildLensPrompt(selectedLens, isAnamorphic, selectedLensEffects);
+        if (lensPrompt.positive) {
+          expandedPrompt = `${expandedPrompt}, ${lensPrompt.positive}`;
+        }
+        // Note: lensPrompt.negative can be added to negative prompt if needed
+      }
+
+      // Add Virtual Gaffer lighting modifiers
+      if (lightingEnabled && lights.length > 0) {
+        const lightingModifier = getLightingModifier();
+        if (lightingModifier) {
+          expandedPrompt = `${expandedPrompt}, ${lightingModifier}`;
+        }
+      }
       // Handle Source Image Upload from Style Config
       let sourceImageUrl = null;
       if (styleConfig?.referenceImage) {
@@ -512,7 +646,7 @@ export default function GeneratePage() {
         method: 'POST',
         body: JSON.stringify({
           mode,
-          inputPrompt: prompt,
+          inputPrompt: expandedPrompt,
           aspectRatio,
           sourceElementIds: selectedElementIds,
           sourceImages: sourceImageUrl ? [sourceImageUrl] : undefined, // Pass source image
@@ -546,6 +680,18 @@ export default function GeneratePage() {
               : undefined,
         }),
       });
+
+      // Save prompt to Prompt Tree for version control
+      addPromptNode(projectId, prompt, {
+        negativePrompt: styleConfig?.negativePrompt,
+        metadata: {
+          model: engineConfig.model,
+          aspectRatio,
+          lensPreset: selectedLens?.name,
+          selectedElements: selectedElementIds,
+        },
+      });
+
       setPrompt('');
       loadGenerations();
     } catch (err) {
@@ -577,6 +723,25 @@ export default function GeneratePage() {
       console.error('Failed to delete generation', err);
     }
   };
+
+  // Search handlers
+  const handleSearchResults = (results: any[], query: string) => {
+    setSearchResults(results as Generation[]);
+    setSearchQuery(query);
+  };
+
+  const handleClearSearch = () => {
+    setSearchResults(null);
+    setSearchQuery('');
+  };
+
+  // Displayed generations - either search results or all
+  const displayedGenerations = useMemo(() => {
+    if (searchResults !== null) {
+      return searchResults;
+    }
+    return generations;
+  }, [searchResults, generations]);
 
   const handleIterateGeneration = async (newPrompt: string) => {
     if (!newPrompt.trim()) return;
@@ -982,8 +1147,6 @@ export default function GeneratePage() {
         overId === 'drop-empty' ||
         overId === 'shot-navigator-container';
 
-      // Debug log to trace drag over events
-
       setIsOverShotNavigator(isInShotNavigator);
     } else {
       setIsOverShotNavigator(false);
@@ -998,15 +1161,78 @@ export default function GeneratePage() {
 
     console.log('Drag End:', { active, over });
 
+    // Handle element drops (from Element strip)
+    if (over && active.data.current?.type === 'element') {
+      const { shotId, frameType } = over.data.current || {};
+      if (shotId && frameType) {
+        // Get image URL directly from the element data
+        let imageUrl = active.data.current.imageUrl;
+
+        // Ensure URL is absolute
+        if (imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith('data:')) {
+          imageUrl = `http://localhost:3001${imageUrl}`;
+        }
+
+        if (imageUrl && shotNavigatorRef.current) {
+          const element = active.data.current.element;
+          console.log(
+            `Dropping element "${element?.name}" into ${frameType} frame of shot ${shotId}:`,
+            imageUrl
+          );
+          await shotNavigatorRef.current.handleFrameDrop(shotId, frameType, imageUrl);
+        } else {
+          console.warn('No image URL found for element:', active.data.current.element?.id);
+        }
+      }
+      return;
+    }
+
+    // Handle generation drops
     if (over && active.data.current?.type === 'generation') {
       const generationId = active.id as string;
+      const generation = generations.find(g => g.id === generationId);
+
+      // Check if dropping on a frame slot (beginning/ending)
+      const { shotId, frameType } = over.data.current || {};
+      if (shotId && frameType && generation) {
+        // Get the image URL from the generation
+        // Priority: 1) image type, 2) video thumbnail, 3) any output url
+        let imageUrl: string | null = null;
+        const outputs = generation.outputs;
+        if (Array.isArray(outputs) && outputs.length > 0) {
+          // First, try to find an image output
+          const imageOutput = outputs.find((o: any) => o.type === 'image');
+          if (imageOutput?.url) {
+            imageUrl = imageOutput.url;
+          } else {
+            // Fall back to video thumbnail or first output URL
+            const firstOutput = outputs[0];
+            imageUrl = firstOutput?.thumbnail_url || firstOutput?.url || null;
+          }
+        }
+
+        // Ensure URL is absolute
+        if (imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith('data:')) {
+          imageUrl = `http://localhost:3001${imageUrl}`;
+        }
+
+        if (imageUrl && shotNavigatorRef.current) {
+          console.log(`Dropping generation into ${frameType} frame of shot ${shotId}:`, imageUrl);
+          // Call the ShotNavigator's handleFrameDrop method via ref
+          await shotNavigatorRef.current.handleFrameDrop(shotId, frameType, imageUrl);
+        } else {
+          console.warn('No image URL found for generation:', generation.id, outputs);
+        }
+        return;
+      }
+
+      // Legacy: dropping on scene/index for old shot navigator
       const { sceneId, index } = over.data.current || {};
 
       console.log('Dropping generation:', { generationId, sceneId, index });
 
       if (sceneId && typeof index === 'number') {
         // Optimistic Update
-        const generation = generations.find(g => g.id === generationId);
         if (generation) {
           setScenes(prevScenes => {
             return prevScenes.map(scene => {
@@ -1218,6 +1444,8 @@ export default function GeneratePage() {
             {/* Shot Navigator */}
             <div className="relative z-20 flex-shrink-0 border-b border-white/10 bg-black/50 backdrop-blur-sm">
               <ShotNavigator
+                ref={shotNavigatorRef}
+                projectId={projectId}
                 scenes={scenes}
                 activeDragId={activeDragId}
                 isOverNavigator={isOverShotNavigator}
@@ -1227,33 +1455,60 @@ export default function GeneratePage() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-8 pb-32">
-              <header className="mb-8 flex items-center justify-between">
-                <div>
-                  <h1 className="mb-2 text-3xl font-bold tracking-tight">Generate</h1>
-                  <p className="mt-2 text-gray-400">Create new shots using AI.</p>
+              <header className="mb-8">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h1 className="mb-2 text-3xl font-bold tracking-tight">Generate</h1>
+                    <p className="mt-2 text-gray-400">Create new shots using AI.</p>
+                  </div>
+                  {generations.length > 0 && (
+                    <button
+                      onClick={
+                        selectedGenerationIds.length === generations.length
+                          ? deselectAllGenerations
+                          : selectAllGenerations
+                      }
+                      className="text-sm text-blue-400 hover:text-blue-300"
+                    >
+                      {selectedGenerationIds.length === generations.length
+                        ? 'Deselect All'
+                        : 'Select All'}
+                    </button>
+                  )}
                 </div>
-                {generations.length > 0 && (
-                  <button
-                    onClick={
-                      selectedGenerationIds.length === generations.length
-                        ? deselectAllGenerations
-                        : selectAllGenerations
-                    }
-                    className="text-sm text-blue-400 hover:text-blue-300"
-                  >
-                    {selectedGenerationIds.length === generations.length
-                      ? 'Deselect All'
-                      : 'Select All'}
-                  </button>
-                )}
+
+                {/* Semantic Search Bar */}
+                <div className="max-w-xl">
+                  <GenerationSearch
+                    projectId={projectId}
+                    onSearchResults={handleSearchResults}
+                    onClearSearch={handleClearSearch}
+                  />
+                </div>
               </header>
 
               <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
                 {/* Results Column */}
                 <div className="lg:col-span-3">
-                  <h2 className="mb-4 text-xl font-bold">Recent Generations</h2>
-                  <div className="grid grid-cols-6 gap-3">
-                    {generations.map((gen, index) => (
+                  {/* Dynamic heading based on search state */}
+                  <h2 className="mb-4 flex items-center gap-2 text-xl font-bold">
+                    {searchQuery ? (
+                      <>
+                        <Database className="h-5 w-5 text-purple-400" />
+                        Results for "{searchQuery}"
+                        <span className="text-sm font-normal text-white/50">
+                          ({displayedGenerations.length} found)
+                        </span>
+                      </>
+                    ) : (
+                      'Recent Generations'
+                    )}
+                  </h2>
+                  <div
+                    className="grid gap-3"
+                    style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}
+                  >
+                    {displayedGenerations.map((gen, index) => (
                       <GenerationCard
                         key={gen.id || `gen-${index}`}
                         generation={gen}
@@ -1431,41 +1686,72 @@ export default function GeneratePage() {
                         <div className="flex gap-2 overflow-x-auto pb-2">
                           {elements
                             .filter(el => el.projectId === projectId)
-                            .map((el, index) => {
-                              const isSelected = selectedElementIds.includes(el.id);
-                              return (
-                                <button
-                                  key={el.id || `el-${index}`}
-                                  onClick={() => toggleElement(el)}
-                                  className={clsx(
-                                    'relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border-2 transition-all',
-                                    isSelected
-                                      ? 'border-blue-500 ring-1 ring-blue-500/50'
-                                      : 'border-transparent opacity-60 hover:opacity-100'
-                                  )}
-                                  title={el.name}
-                                >
-                                  {el.type === 'video' ? (
-                                    <video src={el.url} className="h-full w-full object-cover" />
-                                  ) : (
-                                    <img src={el.url} className="h-full w-full object-cover" />
-                                  )}
-                                  {isSelected && (
-                                    <div className="absolute inset-0 flex items-center justify-center bg-blue-500/20">
-                                      <div className="h-1.5 w-1.5 rounded-full bg-blue-500 shadow-lg" />
-                                    </div>
-                                  )}
-                                </button>
-                              );
-                            })}
+                            .map((el, index) => (
+                              <DraggableElementThumbnail
+                                key={el.id || `el-${index}`}
+                                element={el}
+                                isSelected={selectedElementIds.includes(el.id)}
+                                onToggle={() => toggleElement(el)}
+                              />
+                            ))}
                         </div>
                       )}
                     </div>
                   )}
 
-                  {/* Unified Prompt Bar */}
+                  {/* Unified Prompt Bar - Director's Viewfinder */}
                   <div className="flex items-end gap-2">
-                    <div className="relative min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 transition-all focus-within:border-blue-500/50 focus-within:ring-1 focus-within:ring-blue-500/50">
+                    <div className="group relative min-w-0 flex-1 rounded-xl bg-white/5 transition-all">
+                      {/* Focus Brackets - Director's Viewfinder Corners */}
+                      <div
+                        className={clsx(
+                          'pointer-events-none absolute top-0 left-0 h-3 w-3 border-t-2 border-l-2 transition-all duration-300',
+                          isFocused ? 'h-4 w-4 border-purple-500/70' : 'border-zinc-600/50'
+                        )}
+                      />
+                      <div
+                        className={clsx(
+                          'pointer-events-none absolute top-0 right-0 h-3 w-3 border-t-2 border-r-2 transition-all duration-300',
+                          isFocused ? 'h-4 w-4 border-purple-500/70' : 'border-zinc-600/50'
+                        )}
+                      />
+                      <div
+                        className={clsx(
+                          'pointer-events-none absolute bottom-0 left-0 h-3 w-3 border-b-2 border-l-2 transition-all duration-300',
+                          isFocused ? 'h-4 w-4 border-purple-500/70' : 'border-zinc-600/50'
+                        )}
+                      />
+                      <div
+                        className={clsx(
+                          'pointer-events-none absolute right-0 bottom-0 h-3 w-3 border-r-2 border-b-2 transition-all duration-300',
+                          isFocused ? 'h-4 w-4 border-purple-500/70' : 'border-zinc-600/50'
+                        )}
+                      />
+
+                      {/* Ghost Frame - Aspect Ratio Preview */}
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden rounded-xl">
+                        <div
+                          className={clsx(
+                            'rounded-sm border bg-white/[0.015] transition-all duration-500',
+                            isFocused ? 'opacity-100' : 'opacity-40',
+                            // Dynamic aspect ratio classes
+                            aspectRatio === '16:9' && 'aspect-video w-full max-w-[90%]',
+                            aspectRatio === '9:16' && 'aspect-[9/16] h-[85%]',
+                            aspectRatio === '1:1' && 'aspect-square h-[85%]',
+                            aspectRatio === '4:3' && 'aspect-[4/3] w-full max-w-[85%]',
+                            aspectRatio === '3:4' && 'aspect-[3/4] h-[85%]',
+                            aspectRatio === '21:9' && 'aspect-[21/9] w-full max-w-[95%]',
+                            aspectRatio === '2.35:1' && 'aspect-[2.35/1] w-full max-w-[95%]',
+                            // Prompt length feedback - changes border color
+                            prompt.length > 500
+                              ? 'border-amber-500/30'
+                              : prompt.length > 300
+                                ? 'border-yellow-500/20'
+                                : 'border-white/10'
+                          )}
+                        />
+                      </div>
+
                       <textarea
                         ref={textareaRef}
                         value={prompt}
@@ -1537,17 +1823,105 @@ export default function GeneratePage() {
                         <TagIcon className="h-5 w-5" />
                       </button>
 
-                      {/* 3. Style & Aspect Ratio */}
+                      {/* 2b. Prompt Variables */}
+                      <button
+                        onClick={() => setIsVariablesPanelOpen(true)}
+                        className={clsx(
+                          'flex h-10 items-center justify-center gap-1.5 rounded-xl border px-2.5 transition-all hover:scale-105',
+                          promptVariables.length > 0
+                            ? 'border-cyan-500/20 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'
+                            : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                        )}
+                        title="Prompt Variables ($MainLook syntax)"
+                      >
+                        <Code2 className="h-4 w-4" />
+                        <span className="text-xs font-medium">${promptVariables.length}</span>
+                      </button>
+
+                      {/* 2c. Lens Kit - Focal Length & Anamorphic */}
+                      <LensKitSelector
+                        selectedLens={selectedLens}
+                        selectedEffects={selectedLensEffects}
+                        isAnamorphic={isAnamorphic}
+                        onLensChange={setSelectedLens}
+                        onEffectsChange={setSelectedLensEffects}
+                        onAnamorphicChange={value => {
+                          setIsAnamorphic(value);
+                          // Auto-lock to 21:9 aspect ratio when anamorphic is enabled
+                          if (value) {
+                            setAspectRatio('21:9');
+                          }
+                        }}
+                        onAspectRatioLock={ratio => setAspectRatio(ratio)}
+                      />
+
+                      {/* 2d. Prop Bin - Object Consistency */}
+                      <button
+                        onClick={() => setIsPropBinOpen(true)}
+                        className={clsx(
+                          'flex h-10 items-center justify-center gap-1.5 rounded-xl border px-2.5 transition-all hover:scale-105',
+                          propBinItems.length > 0
+                            ? 'border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
+                            : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                        )}
+                        title="Prop Bin (#PropName syntax for object consistency)"
+                      >
+                        <Package className="h-4 w-4" />
+                        <span className="text-xs font-medium">#{propBinItems.length}</span>
+                      </button>
+
+                      {/* 2e. Prompt Tree - Version Control */}
+                      <button
+                        onClick={() => setIsPromptTreeOpen(true)}
+                        className={clsx(
+                          'flex h-10 items-center justify-center gap-1.5 rounded-xl border px-2.5 transition-all hover:scale-105',
+                          promptTreeNodes.length > 0
+                            ? 'border-purple-500/20 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20'
+                            : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                        )}
+                        title="Prompt Tree (Version Control for Prompts)"
+                      >
+                        <GitBranch className="h-4 w-4" />
+                        <span className="text-xs font-medium">{promptTreeNodes.length}</span>
+                      </button>
+
+                      {/* 3. Style & Aspect Ratio - with Dynamic Icon */}
                       <button
                         onClick={() => setIsStyleModalOpen(true)}
-                        className="flex h-10 items-center gap-2 rounded-xl border border-white/5 bg-black/20 px-3 text-gray-400 transition-all hover:bg-white/5 hover:text-white"
+                        className="group flex h-10 items-center gap-2 rounded-xl border border-white/5 bg-black/20 px-3 text-gray-400 transition-all hover:bg-white/5 hover:text-white"
                       >
                         <SlidersHorizontal className="h-4 w-4" />
                         <span className="hidden text-sm font-medium sm:inline">Style</span>
                         <div className="mx-1 h-4 w-px bg-white/10" />
-                        <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-xs text-gray-300">
-                          {aspectRatio}
-                        </span>
+                        {/* Dynamic Ratio Icon - morphs to show actual aspect ratio */}
+                        <DynamicRatioIcon
+                          ratio={aspectRatio}
+                          size="sm"
+                          className="text-gray-400 transition-colors group-hover:text-white"
+                        />
+                        <span className="font-mono text-[10px] text-gray-500">{aspectRatio}</span>
+                      </button>
+
+                      {/* Virtual Gaffer: 3-Point Lighting Designer */}
+                      <button
+                        onClick={() => setIsLightingStageOpen(true)}
+                        className={clsx(
+                          'flex h-10 items-center gap-2 rounded-xl border px-3 transition-all',
+                          lightingEnabled && lights.length > 0
+                            ? 'border-amber-500/30 bg-amber-500/20 text-amber-300'
+                            : 'border-white/5 bg-black/20 text-gray-400 hover:bg-white/5 hover:text-white'
+                        )}
+                        title={
+                          lightingEnabled
+                            ? getLightingDescription()
+                            : 'Virtual Gaffer - Lighting Designer'
+                        }
+                      >
+                        <Lightbulb className="h-4 w-4" />
+                        <span className="hidden text-sm font-medium sm:inline">Light</span>
+                        {lightingEnabled && lights.length > 0 && (
+                          <span className="ml-1 text-[10px] text-amber-400">{lights.length}</span>
+                        )}
                       </button>
 
                       {/* 3. Reference Elements (Users) */}
@@ -1883,70 +2257,70 @@ export default function GeneratePage() {
       </div>
 
       {/* Modals and Overlays - Moved outside pointer-events-none container */}
-      <DragOverlay
-        dropAnimation={{
-          duration: 250,
-          easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
-        }}
-        modifiers={[
-          ({ transform, activatorEvent, activeNodeRect }) => {
-            if (!activatorEvent || !activeNodeRect) {
-              return transform;
-            }
-
-            const activator = activatorEvent as MouseEvent | TouchEvent;
-            const clientX =
-              'clientX' in activator
-                ? activator.clientX
-                : activator.touches
-                  ? activator.touches[0].clientX
-                  : 0;
-            const clientY =
-              'clientY' in activator
-                ? activator.clientY
-                : activator.touches
-                  ? activator.touches[0].clientY
-                  : 0;
-
-            const offsetX = clientX - activeNodeRect.left;
-            const offsetY = clientY - activeNodeRect.top;
-
-            // Center the 32rem (128px) x 72px thumbnail
-            // We subtract the "pickup" offset to reset to top-left, then subtract half the thumbnail size
-            return {
-              ...transform,
-              x: transform.x + offsetX - 64, // 128px / 2
-              y: transform.y + offsetY - 36, // 72px / 2
-            };
-          },
-        ]}
-      >
+      {/* Small thumbnail follows cursor while dragging - maintains aspect ratio, cursor centered */}
+      <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
         {activeDragId
           ? (() => {
+              // Check if dragging an element (starts with "element-")
+              const isElement =
+                typeof activeDragId === 'string' && activeDragId.startsWith('element-');
+
+              if (isElement) {
+                // Element drag overlay
+                const elementId = activeDragId.replace('element-', '');
+                const element = elements.find(e => e.id === elementId);
+                const rawUrl = element?.url || element?.fileUrl || element?.thumbnail;
+                const mediaUrl = rawUrl
+                  ? rawUrl.startsWith('http') || rawUrl.startsWith('data:')
+                    ? rawUrl
+                    : `http://localhost:3001${rawUrl}`
+                  : undefined;
+
+                // Elements are typically square, use 64x64
+                const size = 64;
+                return (
+                  <div
+                    className="pointer-events-none overflow-hidden rounded-lg border-2 border-purple-500 bg-black shadow-xl"
+                    style={{ width: size, height: size }}
+                  >
+                    {mediaUrl ? (
+                      <img src={mediaUrl} className="h-full w-full object-cover" alt="" />
+                    ) : (
+                      <div className="h-full w-full bg-white/10" />
+                    )}
+                  </div>
+                );
+              }
+
+              // Generation drag overlay
               const generation = generations.find(g => g.id === activeDragId);
               const output = generation?.outputs?.[0];
-              const rawUrl = output?.url;
+              const rawUrl = output?.thumbnail_url || output?.url;
               const mediaUrl = rawUrl
                 ? rawUrl.startsWith('http') || rawUrl.startsWith('data:')
                   ? rawUrl
                   : `http://localhost:3001${rawUrl}`
                 : undefined;
-              const isVideo = output?.type === 'video';
+
+              // Calculate aspect ratio from generation or use 16:9 default
+              // Thumbnail max size: 80px on longest edge
+              const maxSize = 80;
+              const genAspect = generation?.aspectRatio || aspectRatio || '16:9';
+              const [w, h] = genAspect.split(':').map(Number);
+              const isLandscape = w >= h;
+              const thumbWidth = isLandscape ? maxSize : Math.round(maxSize * (w / h));
+              const thumbHeight = isLandscape ? Math.round(maxSize * (h / w)) : maxSize;
 
               return (
-                <div className="relative aspect-video w-32 overflow-hidden rounded-lg border-2 border-blue-500 bg-black shadow-2xl">
+                <div
+                  className="pointer-events-none overflow-hidden rounded-lg border-2 border-blue-500 bg-black shadow-xl"
+                  style={{ width: thumbWidth, height: thumbHeight }}
+                >
                   {mediaUrl ? (
-                    isVideo ? (
-                      <video src={mediaUrl} className="h-full w-full object-cover" muted />
-                    ) : (
-                      <img src={mediaUrl} className="h-full w-full object-cover" />
-                    )
+                    <img src={mediaUrl} className="h-full w-full object-cover" alt="" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-white/10">
-                      <Loader2 className="h-4 w-4 animate-spin text-white/50" />
-                    </div>
+                    <div className="h-full w-full bg-white/10" />
                   )}
-                  <div className="absolute inset-0 bg-blue-500/10" />
                 </div>
               );
             })()
@@ -1960,7 +2334,12 @@ export default function GeneratePage() {
         initialAspectRatio={aspectRatio}
         projectId={projectId}
         config={styleConfig || undefined} // Pass current config to sync modal state
+        currentModelId={engineConfig.model} // For LoRA base model auto-filtering
+        isAnamorphicLocked={isAnamorphic} // Lock to 21:9 when anamorphic glass is enabled
       />
+
+      {/* Virtual Gaffer: 3-Point Lighting Designer Stage */}
+      <LightingStage isOpen={isLightingStageOpen} onClose={() => setIsLightingStageOpen(false)} />
 
       <EditElementModal
         element={
@@ -2095,6 +2474,28 @@ export default function GeneratePage() {
           const tagText = tags.map(t => t.promptKeyword || t.name.toLowerCase()).join(', ');
           setPrompt(prev => (prev.trim() ? `${prev.trim()}, ${tagText}` : tagText));
           setIsTagSelectorOpen(false);
+        }}
+      />
+
+      {/* Prompt Variables Panel */}
+      <PromptVariablesPanel
+        isOpen={isVariablesPanelOpen}
+        onClose={() => setIsVariablesPanelOpen(false)}
+      />
+
+      {/* Prop Bin Panel */}
+      <PropBinPanel isOpen={isPropBinOpen} onClose={() => setIsPropBinOpen(false)} />
+
+      {/* Prompt Tree Panel */}
+      <PromptTreePanel
+        isOpen={isPromptTreeOpen}
+        onClose={() => setIsPromptTreeOpen(false)}
+        projectId={projectId}
+        onLoadPrompt={(loadedPrompt, negPrompt) => {
+          setPrompt(loadedPrompt);
+          if (negPrompt && styleConfig) {
+            setStyleConfig({ ...styleConfig, negativePrompt: negPrompt });
+          }
         }}
       />
 

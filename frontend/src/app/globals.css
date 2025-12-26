@@ -2,7 +2,7 @@
 
 :root {
   /* Core Palette - Midnight & Neon */
-  --background: #050505; /* Deep Black */
+  --background: #09090b; /* Zinc-950 - slightly warmer than pure black */
   --foreground: #ffffff;
 
   --accent-primary: #6366f1; /* Indigo 500 */
@@ -80,4 +80,25 @@ body {
 ::selection {
   background: var(--accent-primary);
   color: white;
+}
+
+/* Hide scrollbars completely - used by scrollbar-none utility */
+.scrollbar-none {
+  -ms-overflow-style: none !important; /* IE and Edge */
+  scrollbar-width: none !important; /* Firefox */
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Proxy Placeholder Shimmer Animation */
+@keyframes shimmer {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(400%);
+  }
 }

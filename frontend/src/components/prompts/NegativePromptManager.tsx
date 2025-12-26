@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks */
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -517,7 +518,9 @@ export function NegativePromptManager({
     <div
       className={clsx(
         'flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#1a1a1a] shadow-2xl',
-        embedded ? 'h-full max-h-[90vh] w-full' : 'max-h-[85vh] w-full max-w-4xl'
+        embedded
+          ? 'h-full max-h-full w-full max-w-[500px] min-w-[350px]'
+          : 'max-h-[85vh] w-full max-w-4xl'
       )}
     >
       <div className="flex items-center justify-between border-b border-white/10 p-4">

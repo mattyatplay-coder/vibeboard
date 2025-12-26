@@ -10,7 +10,7 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
 
   return (
     <SessionProvider>
-      <div className="min-h-screen bg-black">
+      <div className="min-h-screen bg-zinc-950">
         <Sidebar />
         <main
           className={clsx(

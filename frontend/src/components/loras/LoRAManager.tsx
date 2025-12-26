@@ -11,6 +11,10 @@ import {
   ChevronDown,
   ChevronRight,
   Pencil,
+  Filter,
+  Image,
+  Video,
+  X,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -110,6 +114,78 @@ const BASE_MODEL_OPTIONS = [
   { value: 'Other', label: 'Other' },
 ];
 
+// Grouped filter options for the title bar dropdown
+const BASE_MODEL_FILTER_GROUPS = [
+  {
+    label: 'Image Models',
+    icon: 'image',
+    options: [
+      { value: 'Flux.1 D', label: 'Flux Dev' },
+      { value: 'Flux.1 S', label: 'Flux Schnell' },
+      { value: 'SDXL 1.0', label: 'SDXL 1.0' },
+      { value: 'SD 3.5 Large', label: 'SD 3.5 Large' },
+      { value: 'SD 3', label: 'SD 3' },
+      { value: 'SD 1.5', label: 'SD 1.5' },
+      { value: 'Pony', label: 'Pony' },
+      { value: 'Illustrious', label: 'Illustrious' },
+    ],
+  },
+  {
+    label: 'Video Models',
+    icon: 'video',
+    options: [
+      { value: 'Wan Video', label: 'Wan Video (All)' },
+      { value: 'Wan Video 2.2 T2V-A14B', label: 'Wan T2V-A14B' },
+      { value: 'Wan Video 2.2 I2V-A14B', label: 'Wan I2V-A14B' },
+      { value: 'Hunyuan Video', label: 'Hunyuan Video' },
+      { value: 'SVD', label: 'SVD' },
+    ],
+  },
+];
+
+// Map generation model IDs to their compatible LoRA base models
+function getBaseModelFromModelId(modelId: string | undefined): string | null {
+  if (!modelId) return null;
+  const lower = modelId.toLowerCase();
+
+  // Flux models
+  if (lower.includes('flux') && lower.includes('dev')) return 'Flux.1 D';
+  if (lower.includes('flux') && lower.includes('schnell')) return 'Flux.1 S';
+  if (lower.includes('flux')) return 'Flux.1 D'; // Default Flux to Dev
+
+  // Wan Video models
+  if (lower.includes('wan') && lower.includes('t2v')) return 'Wan Video 2.2 T2V-A14B';
+  if (lower.includes('wan') && lower.includes('i2v')) return 'Wan Video 2.2 I2V-A14B';
+  if (lower.includes('wan')) return 'Wan Video';
+
+  // Hunyuan
+  if (lower.includes('hunyuan')) return 'Hunyuan Video';
+
+  // SVD / Stable Video Diffusion
+  if (lower.includes('svd') || lower.includes('stable-video')) return 'SVD';
+
+  // SDXL
+  if (lower.includes('sdxl') || lower.includes('sd-xl')) return 'SDXL 1.0';
+
+  // SD 3.5
+  if (lower.includes('sd3.5') || lower.includes('sd-3.5')) return 'SD 3.5 Large';
+
+  // SD 3
+  if (lower.includes('sd3') || lower.includes('sd-3')) return 'SD 3';
+
+  // SD 1.5
+  if (lower.includes('sd1.5') || lower.includes('sd-1.5') || lower.includes('stable-diffusion-v1'))
+    return 'SD 1.5';
+
+  // Pony
+  if (lower.includes('pony')) return 'Pony';
+
+  // Illustrious
+  if (lower.includes('illustrious')) return 'Illustrious';
+
+  return null;
+}
+
 // Normalize CivitAI base model to our standard format
 function normalizeCivitaiBaseModel(civitaiBase: string): string {
   if (!civitaiBase) return 'Other';
@@ -184,6 +260,7 @@ interface LoRAManagerProps {
   onToggle?: (lora: LoRA) => void;
   embedded?: boolean;
   filterBaseModel?: string;
+  currentModelId?: string; // Current generation model ID for auto-filtering
 }
 
 export function LoRAManager({
@@ -194,6 +271,7 @@ export function LoRAManager({
   onToggle,
   embedded = false,
   filterBaseModel,
+  currentModelId,
 }: LoRAManagerProps) {
   const [loras, setLoras] = useState<LoRA[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -202,14 +280,36 @@ export function LoRAManager({
   const [editingLora, setEditingLora] = useState<LoRA | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  // localBaseModelFilter: null = use auto-detection, '' = explicitly cleared, string = user selection
+  const [localBaseModelFilter, setLocalBaseModelFilter] = useState<string | null>(null);
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+
+  // Auto-detect base model from currentModelId
+  const autoDetectedBaseModel = useMemo(
+    () => getBaseModelFromModelId(currentModelId),
+    [currentModelId]
+  );
+
+  // Priority: prop filter > local filter (if explicitly set) > auto-detected
+  // Empty string '' means user explicitly cleared the filter
+  const activeBaseModelFilter =
+    filterBaseModel ||
+    (localBaseModelFilter !== null ? localBaseModelFilter || null : autoDetectedBaseModel);
+
+  // LoRAs filtered by base model only (for category counts)
+  const baseModelFilteredLoras = useMemo(() => {
+    if (!activeBaseModelFilter) return loras;
+    return loras.filter(lora => {
+      if (activeBaseModelFilter === 'Wan Video') {
+        return lora.baseModel.includes('Wan');
+      }
+      return lora.baseModel === activeBaseModelFilter || lora.baseModel === 'Other';
+    });
+  }, [loras, activeBaseModelFilter]);
 
   // Filter LoRAs based on category AND baseModel
   const filteredLoras = useMemo(() => {
-    return loras.filter(lora => {
-      // Base Model Filter
-      if (filterBaseModel && lora.baseModel !== filterBaseModel && lora.baseModel !== 'Other')
-        return false;
-
+    return baseModelFilteredLoras.filter(lora => {
       // Category Filter
       if (activeCategory === 'all') return true;
       if (activeCategory === 'checkpoint') return lora.type === 'checkpoint';
@@ -218,10 +318,44 @@ export function LoRAManager({
       // For standard categories, check the category field
       return (lora.category || 'other').toLowerCase() === activeCategory;
     });
-  }, [loras, filterBaseModel, activeCategory]);
+  }, [baseModelFilteredLoras, activeCategory]);
 
   // Group filtered LoRAs by base name for version grouping
   const groupedLoras = useMemo(() => groupLoRAs(filteredLoras), [filteredLoras]);
+
+  // All unique categories (for edit/add dropdowns) - combines predefined + dynamic from LoRA data
+  const allCategoryOptions = useMemo(() => {
+    const predefinedIds = new Set(CATEGORIES.map(c => c.id));
+    const dynamicCategories = new Set<string>();
+
+    // Collect categories from all LoRAs (not just filtered)
+    loras.forEach(l => {
+      const cat = (l.category || 'other').toLowerCase();
+      if (!predefinedIds.has(cat) && cat !== 'all') {
+        dynamicCategories.add(cat);
+      }
+    });
+
+    // Combine predefined (except 'all') with dynamic categories
+    const options = CATEGORIES.filter(c => c.id !== 'all').map(c => ({
+      id: c.id,
+      label: c.label,
+    }));
+
+    // Add dynamic categories
+    dynamicCategories.forEach(cat => {
+      options.push({
+        id: cat,
+        label: cat
+          .split('-')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' '),
+      });
+    });
+
+    // Sort alphabetically by label
+    return options.sort((a, b) => a.label.localeCompare(b.label));
+  }, [loras]);
 
   const toggleGroupExpanded = (baseName: string) => {
     setExpandedGroups(prev => {
@@ -487,23 +621,163 @@ export function LoRAManager({
   const content = (
     <div
       className={clsx(
-        'flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#1a1a1a] shadow-2xl',
-        embedded ? 'h-[90vh] w-[700px]' : 'max-h-[80vh] w-full max-w-2xl'
+        'flex flex-col rounded-xl border border-white/10 bg-[#1a1a1a] shadow-2xl',
+        embedded
+          ? 'scrollbar-none h-full max-h-full w-full max-w-[700px] min-w-[400px] overflow-y-auto'
+          : 'max-h-[80vh] w-full max-w-2xl overflow-hidden'
       )}
     >
       <div className="flex items-center justify-between border-b border-white/10 p-4">
         <h2 className="text-lg font-bold text-white">Models & LoRAs</h2>
-        <button onClick={onClose} className="text-gray-400 hover:text-white">
-          ✕
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Base Model Filter Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+              className={clsx(
+                'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
+                activeBaseModelFilter
+                  ? 'border-blue-500/50 bg-blue-600/20 text-blue-300'
+                  : 'border-white/10 bg-white/5 text-gray-400 hover:border-white/20 hover:text-white'
+              )}
+            >
+              <Filter className="h-3.5 w-3.5" />
+              {activeBaseModelFilter ? (
+                <>
+                  <span className="max-w-[100px] truncate">{activeBaseModelFilter}</span>
+                  {!filterBaseModel && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={e => {
+                        e.stopPropagation();
+                        setLocalBaseModelFilter('');
+                        setShowFilterDropdown(false);
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.stopPropagation();
+                          setLocalBaseModelFilter('');
+                          setShowFilterDropdown(false);
+                        }
+                      }}
+                      className="ml-1 cursor-pointer rounded p-0.5 hover:bg-white/10"
+                    >
+                      <X className="h-3 w-3" />
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span>Base Model</span>
+              )}
+              <ChevronDown
+                className={clsx('h-3 w-3 transition-transform', showFilterDropdown && 'rotate-180')}
+              />
+            </button>
+
+            {/* Dropdown Menu */}
+            {showFilterDropdown && (
+              <div className="absolute top-full right-0 z-50 mt-1 w-56 overflow-hidden rounded-lg border border-white/10 bg-[#1a1a1a] shadow-xl">
+                {/* Clear Filter Option */}
+                {activeBaseModelFilter && !filterBaseModel && (
+                  <button
+                    onClick={() => {
+                      setLocalBaseModelFilter('');
+                      setShowFilterDropdown(false);
+                    }}
+                    className="flex w-full items-center gap-2 border-b border-white/10 px-3 py-2 text-left text-xs text-gray-400 hover:bg-white/5 hover:text-white"
+                  >
+                    <X className="h-3 w-3" />
+                    Clear Filter
+                  </button>
+                )}
+
+                {/* Grouped Options */}
+                {BASE_MODEL_FILTER_GROUPS.map(group => (
+                  <div key={group.label}>
+                    <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 text-[10px] font-bold tracking-wider text-gray-500 uppercase">
+                      {group.icon === 'image' ? (
+                        <Image className="h-3 w-3" />
+                      ) : (
+                        <Video className="h-3 w-3" />
+                      )}
+                      {group.label}
+                    </div>
+                    {group.options.map(opt => {
+                      const count = loras.filter(l => {
+                        if (opt.value === 'Wan Video') return l.baseModel.includes('Wan');
+                        return l.baseModel === opt.value;
+                      }).length;
+
+                      return (
+                        <button
+                          key={opt.value}
+                          onClick={() => {
+                            setLocalBaseModelFilter(opt.value);
+                            setShowFilterDropdown(false);
+                          }}
+                          className={clsx(
+                            'flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-white/5',
+                            activeBaseModelFilter === opt.value
+                              ? 'bg-blue-500/10 text-blue-400'
+                              : 'text-gray-300'
+                          )}
+                        >
+                          <span>{opt.label}</span>
+                          <span
+                            className={clsx(
+                              'rounded px-1.5 py-0.5 text-[10px]',
+                              count > 0 ? 'bg-white/10 text-gray-400' : 'text-gray-600'
+                            )}
+                          >
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} className="p-1 text-gray-400 hover:text-white">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
-        {/* Filter Warning */}
-        {filterBaseModel && (
-          <div className="mb-4 flex items-center gap-2 rounded border border-yellow-500/20 bg-yellow-500/10 p-2 text-xs text-yellow-200">
-            <span className="font-bold">Note:</span> Showing only LoRAs compatible with{' '}
-            {filterBaseModel}
+      <div
+        className={clsx('flex-1 p-4', embedded ? 'overflow-hidden' : 'overflow-y-auto')}
+        onClick={() => setShowFilterDropdown(false)}
+      >
+        {/* Filter Status */}
+        {activeBaseModelFilter && (
+          <div
+            className={clsx(
+              'mb-4 flex items-center justify-between rounded p-2 text-xs',
+              filterBaseModel
+                ? 'border border-yellow-500/20 bg-yellow-500/10 text-yellow-200'
+                : 'border border-blue-500/20 bg-blue-500/10 text-blue-200'
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <Filter className="h-3 w-3" />
+              <span>
+                Showing LoRAs for <span className="font-bold">{activeBaseModelFilter}</span>
+              </span>
+              <span className="text-white/50">
+                ({filteredLoras.length} of {loras.length})
+              </span>
+            </div>
+            {!filterBaseModel && (
+              <button
+                onClick={() => setLocalBaseModelFilter('')}
+                className="flex items-center gap-1 text-blue-300 hover:text-white"
+              >
+                <X className="h-3 w-3" />
+                Clear
+              </button>
+            )}
           </div>
         )}
 
@@ -572,7 +846,7 @@ export function LoRAManager({
                     onChange={e => setEditCategory(e.target.value)}
                     className="w-full rounded-lg border border-white/10 bg-black/50 px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
                   >
-                    {CATEGORIES.filter(c => c.id !== 'all').map(cat => (
+                    {allCategoryOptions.map(cat => (
                       <option key={cat.id} value={cat.id}>
                         {cat.label}
                       </option>
@@ -720,7 +994,7 @@ export function LoRAManager({
                   onChange={e => setNewCategory(e.target.value)}
                   className="w-full rounded-lg border border-white/10 bg-black/50 px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
                 >
-                  {CATEGORIES.filter(c => c.id !== 'all').map(cat => (
+                  {allCategoryOptions.map(cat => (
                     <option key={cat.id} value={cat.id}>
                       {cat.label}
                     </option>
@@ -773,13 +1047,13 @@ export function LoRAManager({
                 )}
               >
                 <span>{CATEGORY_ICONS['all']}</span>
-                All <span className="opacity-50">({loras.length})</span>
+                All <span className="opacity-50">({baseModelFilteredLoras.length})</span>
               </button>
 
-              {/* Dynamic Categories */}
+              {/* Dynamic Categories - based on base model filtered LoRAs */}
               {Array.from(
                 new Set(
-                  loras.map(l => {
+                  baseModelFilteredLoras.map(l => {
                     if (l.type === 'checkpoint') return 'checkpoint';
                     if (l.type === 'embedding') return 'embedding';
                     return (l.category || 'other').toLowerCase();
@@ -789,7 +1063,7 @@ export function LoRAManager({
                 .sort()
                 .map(catId => {
                   if (catId === 'all') return null; // Already handled
-                  const count = loras.filter(l => {
+                  const count = baseModelFilteredLoras.filter(l => {
                     if (catId === 'checkpoint') return l.type === 'checkpoint';
                     if (catId === 'embedding') return l.type === 'embedding';
                     return (l.category || 'other').toLowerCase() === catId;

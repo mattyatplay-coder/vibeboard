@@ -19,6 +19,7 @@ export interface ModelInfo {
   tier?: 'fast' | 'quality' | 'pro';
   supportedDurations?: string[]; // e.g. ['5s', '10s']
   supportedQuantities?: number[]; // e.g. [1, 2, 3, 4]
+  bestFor?: string; // Quick tag like "Photorealism", "Typography", "Fast Iteration"
 }
 
 export interface ProviderDefinition {
@@ -99,6 +100,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'image',
     desc: '12B parameter rectified flow transformer for high-quality image generation',
     supportedQuantities: [1, 2, 3, 4],
+    bestFor: 'Photorealism',
   },
   {
     id: 'fal-ai/flux/schnell',
@@ -107,6 +109,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'Fastest FLUX model, optimized for rapid iteration and local development',
+    bestFor: 'Fast Iteration',
   },
   {
     id: 'fal-ai/flux-pro',
@@ -115,6 +118,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'Excellent image quality, prompt adherence, and output diversity',
+    bestFor: 'Prompt Adherence',
   },
   {
     id: 'fal-ai/flux-pro/v1.1-ultra',
@@ -123,6 +127,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'Generates images up to 4 megapixels with enhanced photorealism',
+    bestFor: 'High Resolution',
   },
   {
     id: 'fal-ai/flux-2-pro',
@@ -131,6 +136,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'High-quality generation with 8 reference image support for character consistency',
+    bestFor: 'Character Consistency',
   },
   {
     id: 'fal-ai/flux-2-flex',
@@ -139,6 +145,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'Max-quality generation with 10 reference image support for precise control',
+    bestFor: 'Multi-Reference',
   },
   {
     id: 'fal-ai/gpt-image-1.5/edit',
@@ -147,6 +154,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'Advanced prompt understanding for complex image generation and editing',
+    bestFor: 'Complex Prompts',
   },
   {
     id: 'fal-ai/recraft-v3',
@@ -156,6 +164,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'image',
     desc: 'Professional design and illustration with long text rendering capability',
     supportedQuantities: [1, 2, 3, 4, 5, 6],
+    bestFor: 'Design & Illustration',
   },
   {
     id: 'fal-ai/ideogram/v2',
@@ -165,6 +174,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'image',
     desc: 'Exceptional typography with accurate text rendering in images',
     supportedQuantities: [1, 2, 3, 4],
+    bestFor: 'Typography',
   },
   {
     id: 'fal-ai/ideogram/v3',
@@ -174,6 +184,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'image',
     desc: 'Advanced typography and realistic outputs with improved detail',
     supportedQuantities: [1, 2, 3, 4],
+    bestFor: 'Typography & Signs',
   },
   {
     id: 'fal-ai/ideogram/character',
@@ -183,6 +194,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'image',
     desc: 'Specialized for character sheets, turnarounds, and reference poses',
     tier: 'quality',
+    bestFor: 'Character Sheets',
   },
   {
     id: 'fal-ai/flux-kontext/dev',
@@ -191,6 +203,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'image-editing',
     type: 'image',
     desc: 'Text-based image editing with character consistency preservation',
+    bestFor: 'Style Transfer',
   },
   {
     id: 'fal-ai/flux-pro/kontext',
@@ -200,6 +213,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'image',
     desc: 'State-of-the-art text-based editing with excellent prompt adherence',
     tier: 'pro',
+    bestFor: 'Scene Transfer',
   },
   {
     id: 'fal-ai/flux-kontext-max',
@@ -209,6 +223,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'image',
     desc: 'Premium text-based editing with improved typography generation',
     tier: 'pro',
+    bestFor: 'Premium Editing',
   },
   {
     id: 'fal-ai/ip-adapter-face-id',
@@ -217,6 +232,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'image-editing',
     type: 'image',
     desc: 'Face identity preservation for consistent character generation',
+    bestFor: 'Face Consistency',
   },
   {
     id: 'fal-ai/stable-diffusion-v35-large',
@@ -226,6 +242,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'image',
     desc: 'High-resolution generation with improved quality and performance',
     supportedQuantities: [1, 2, 3, 4],
+    bestFor: 'Versatile',
   },
   {
     id: 'fal-ai/imagen3',
@@ -234,6 +251,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: "Google's highest quality text-to-image model for photorealism",
+    bestFor: 'Photorealism',
   },
   {
     id: 'fal-ai/imagen4/preview',
@@ -242,6 +260,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: "Google's latest text-to-image model with improved quality",
+    bestFor: 'Latest Quality',
   },
   {
     id: 'fal-ai/hidream-i1-full',
@@ -250,6 +269,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'High-resolution image generation with exceptional detail',
+    bestFor: 'Detail & Clarity',
   },
   {
     id: 'fal-ai/janus',
@@ -258,6 +278,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'Multimodal understanding and generation for creative workflows',
+    bestFor: 'Multimodal',
   },
 
   // Image Editing - FLUX Models
@@ -268,6 +289,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'image-editing',
     type: 'image',
     desc: 'Multi-reference image editing with up to 10 reference images',
+    bestFor: 'Multi-Reference Edit',
   },
   {
     id: 'fal-ai/flux/dev/image-to-image',
@@ -276,6 +298,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'image-editing',
     type: 'image',
     desc: 'Transform and restyle existing images with high fidelity',
+    bestFor: 'Style Transform',
   },
   {
     id: 'fal-ai/flux/dev/inpainting',
@@ -284,6 +307,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'image-editing',
     type: 'image',
     desc: 'Edit specific regions with seamless blending',
+    bestFor: 'Object Removal',
   },
   {
     id: 'fal-ai/flux-fill-pro',
@@ -292,6 +316,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'image-editing',
     type: 'image',
     desc: 'Inpainting and outpainting with seamless object removal',
+    bestFor: 'Inpainting',
   },
   {
     id: 'fal-ai/flux-depth-pro',
@@ -300,6 +325,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'image-editing',
     type: 'image',
     desc: 'Structure-preserving edits maintaining spatial relationships',
+    bestFor: 'Depth Control',
   },
   {
     id: 'fal-ai/flux-canny-pro',
@@ -308,6 +334,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'image-editing',
     type: 'image',
     desc: 'Edge-guided generation using Canny detection for controlled composition',
+    bestFor: 'Edge Control',
   },
   {
     id: 'fal-ai/flux-redux-dev',
@@ -316,6 +343,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'image-editing',
     type: 'image',
     desc: 'Image variation tool creating new versions while preserving elements',
+    bestFor: 'Variations',
   },
   {
     id: 'fal-ai/kling-image/o1',
@@ -324,6 +352,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'Multi-reference image generation with up to 4 character references',
+    bestFor: 'Character Consistency',
   },
   {
     id: 'fal-ai/creative-upscaler',
@@ -332,6 +361,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'image-editing',
     type: 'image',
     desc: 'AI-enhanced 4x upscaling that adds detail and improves quality',
+    bestFor: '4x Upscale',
   },
   {
     id: 'fal-ai/clarity-upscaler',
@@ -340,6 +370,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'image-editing',
     type: 'image',
     desc: 'Sharp, faithful upscaling preserving original image integrity',
+    bestFor: 'Sharp Upscale',
   },
 
   // Video Text-to-Video - Wan Models (Alibaba)
@@ -351,6 +382,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: "Alibaba's video model with realistic motion and cinematic quality",
     supportedDurations: ['5s', '10s', '15s'],
+    bestFor: 'Cinematic Motion',
   },
   {
     id: 'fal-ai/wan-25-preview/text-to-video',
@@ -360,6 +392,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Latest Wan with improved quality, motion coherence, and text alignment (no LoRA support)',
     supportedDurations: ['5s', '10s'],
+    bestFor: 'Motion Coherence',
   },
   {
     id: 'fal-ai/wan/v2.6/text-to-video',
@@ -369,6 +402,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Multi-shot video with native audio sync, 1080p support, and extended 15s duration',
     supportedDurations: ['5s', '10s', '15s'],
+    bestFor: 'Audio Sync',
   },
   {
     id: 'fal-ai/wan-2.1-t2v-1.3b',
@@ -378,6 +412,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Efficient 1.3B parameter model for fast video generation',
     supportedDurations: ['5s', '10s', '15s'],
+    bestFor: 'Fast Video',
   },
   {
     id: 'fal-ai/wan-pro/text-to-video',
@@ -387,6 +422,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Professional video generation with enhanced visual fidelity',
     supportedDurations: ['5s', '10s', '15s'],
+    bestFor: 'Pro Quality',
   },
   // Video Text-to-Video - Other Providers
   {
@@ -397,6 +433,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Fast, high-quality video generation optimized for rapid iteration',
     supportedDurations: ['5s'],
+    bestFor: 'Quick Iteration',
   },
   {
     id: 'fal-ai/kling-video/v2.1/master/text-to-video',
@@ -406,6 +443,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Premium text-to-video with unparalleled motion fluidity and cinematic visuals',
     supportedDurations: ['5s', '10s'],
+    bestFor: 'Motion Fluidity',
   },
   {
     id: 'fal-ai/kling-video/v2.6/pro/text-to-video',
@@ -415,6 +453,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Latest Kling with native audio generation support',
     supportedDurations: ['5s', '10s'],
+    bestFor: 'Native Audio',
   },
   {
     id: 'fal-ai/vidu/q1/text-to-video',
@@ -424,6 +463,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'High-quality text-to-video with music and sound effect generation',
     supportedDurations: ['4s', '8s'],
+    bestFor: 'Sound Effects',
   },
   {
     id: 'fal-ai/vidu/q2/reference-to-video',
@@ -433,6 +473,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Supports up to 7 reference images for character-consistent video',
     supportedDurations: ['4s', '8s'],
+    bestFor: '7-Ref Consistency',
   },
   {
     id: 'fal-ai/hunyuan-video',
@@ -442,6 +483,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Open-source model with high visual quality and motion diversity',
     supportedDurations: ['4s'],
+    bestFor: 'Open Source',
   },
   {
     id: 'fal-ai/minimax-video',
@@ -451,6 +493,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Expressive motion with natural physics and camera control',
     supportedDurations: ['6s'],
+    bestFor: 'Physics & Camera',
   },
   {
     id: 'fal-ai/luma-dream-machine',
@@ -460,6 +503,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Smooth, coherent motion with dreamlike visual quality',
     supportedDurations: ['5s', '9s'],
+    bestFor: 'Dreamlike Motion',
   },
   {
     id: 'fal-ai/luma-dream-machine/ray-2',
@@ -469,6 +513,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Latest Luma with realistic visuals and natural camera control',
     supportedDurations: ['5s', '9s'],
+    bestFor: 'Realistic Motion',
   },
   {
     id: 'fal-ai/veo3',
@@ -478,6 +523,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: "Google DeepMind's most advanced video model with native audio",
     supportedDurations: ['5s', '10s'],
+    bestFor: 'Flagship Quality',
   },
   {
     id: 'fal-ai/pixverse/v4.5/text-to-video',
@@ -487,6 +533,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Advanced text-to-video with high quality motion generation',
     supportedDurations: ['5s', '10s'],
+    bestFor: 'Motion Quality',
   },
   {
     id: 'fal-ai/magi',
@@ -496,6 +543,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Creative video generation with artistic style capabilities',
     supportedDurations: ['5s'],
+    bestFor: 'Artistic Style',
   },
 
   // Video Image-to-Video (Animation) - Wan Models
@@ -507,6 +555,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Animate still images with natural motion and physics',
     supportedDurations: ['5s', '10s', '15s'],
+    bestFor: 'Natural Motion',
   },
   {
     id: 'fal-ai/wan/v2.2-a14b/image-to-video/lora',
@@ -516,6 +565,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Image animation with custom LoRA character support',
     supportedDurations: ['5s', '10s', '15s'],
+    bestFor: 'LoRA Support',
   },
   {
     id: 'fal-ai/wan-25-preview/image-to-video',
@@ -525,6 +575,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Latest Wan image animation with improved quality and motion (no LoRA support)',
     supportedDurations: ['5s', '10s'],
+    bestFor: 'Latest Quality',
   },
   {
     id: 'fal-ai/wan/v2.6/image-to-video',
@@ -534,6 +585,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Multi-shot image animation with native audio sync and 1080p support',
     supportedDurations: ['5s', '10s', '15s'],
+    bestFor: '1080p Animation',
   },
   {
     id: 'fal-ai/wan/v2.6/reference-to-video',
@@ -543,6 +595,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Reference-to-video with 1-3 reference videos for character consistency (@Video1, @Video2, @Video3)',
     supportedDurations: ['5s', '10s', '15s'],
+    bestFor: 'Video References',
   },
   {
     id: 'fal-ai/wan-2.1-i2v-14b',
@@ -552,6 +605,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'High-quality 14B parameter image-to-video generation',
     supportedDurations: ['5s', '10s', '15s'],
+    bestFor: 'High Quality',
   },
   {
     id: 'fal-ai/wan-pro/image-to-video',
@@ -561,6 +615,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Professional image animation with enhanced visual fidelity',
     supportedDurations: ['5s', '10s', '15s'],
+    bestFor: 'Pro Animation',
   },
   // Video Image-to-Video - LTX
   {
@@ -571,6 +626,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Fast, high-quality image-to-video conversion',
     supportedDurations: ['5s'],
+    bestFor: 'Fast Animation',
   },
   {
     id: 'fal-ai/ltx-video-13b-distilled/image-to-video',
@@ -580,6 +636,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Distilled 13B model for fast image animation',
     supportedDurations: ['5s', '10s'],
+    bestFor: 'Distilled Speed',
   },
   // Video Image-to-Video - Kling
   {
@@ -590,6 +647,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Balanced quality and speed for image animation',
     supportedDurations: ['5s', '10s'],
+    bestFor: 'Balanced',
   },
   {
     id: 'fal-ai/kling-video/v2.1/master/image-to-video',
@@ -599,6 +657,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Premium image-to-video with unparalleled motion fluidity',
     supportedDurations: ['5s', '10s'],
+    bestFor: 'Premium Fluidity',
   },
   {
     id: 'fal-ai/kling-video/v2.6/pro/image-to-video',
@@ -608,6 +667,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Latest Kling with native audio for image animation',
     supportedDurations: ['5s', '10s'],
+    bestFor: 'Audio + Animation',
   },
   {
     id: 'fal-ai/kling-video/o1/image-to-video',
@@ -617,6 +677,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'State-of-the-art video editing and image animation',
     supportedDurations: ['5s', '10s'],
+    bestFor: 'State-of-Art',
   },
   // Video Image-to-Video - Other Providers
   {
@@ -627,6 +688,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Lively animations with natural physics and motion',
     supportedDurations: ['6s'],
+    bestFor: 'Lively Motion',
   },
   {
     id: 'fal-ai/luma-dream-machine/image-to-video',
@@ -636,6 +698,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Smooth, dreamlike image animation',
     supportedDurations: ['5s', '9s'],
+    bestFor: 'Dreamlike',
   },
   {
     id: 'fal-ai/luma-dream-machine/ray-2/image-to-video',
@@ -645,6 +708,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Latest Luma with realistic motion and camera control',
     supportedDurations: ['5s', '9s'],
+    bestFor: 'Camera Control',
   },
   {
     id: 'fal-ai/runway-gen3/turbo/image-to-video',
@@ -654,6 +718,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Fast cinematic-style image animation',
     supportedDurations: ['5s', '10s'],
+    bestFor: 'Cinematic Fast',
   },
   {
     id: 'fal-ai/hunyuan-video-image-to-video',
@@ -663,6 +728,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Open-source image-to-video with motion diversity',
     supportedDurations: ['4s'],
+    bestFor: 'Open Source',
   },
   {
     id: 'fal-ai/vidu/image-to-video',
@@ -672,6 +738,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'High-quality image animation with sound generation',
     supportedDurations: ['4s', '8s'],
+    bestFor: 'Sound Generation',
   },
   {
     id: 'fal-ai/pixverse/v4.5/image-to-video',
@@ -681,6 +748,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Advanced image-to-video with high quality motion',
     supportedDurations: ['5s', '10s'],
+    bestFor: 'Quality Motion',
   },
 
   // Avatar / Character / Lip Sync
@@ -692,6 +760,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Pose-driven character animation from reference video',
     supportedDurations: ['5s'],
+    bestFor: 'Pose Transfer',
   },
   {
     id: 'fal-ai/wan-video-2.2-animate-move',
@@ -701,6 +770,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Character motion transfer from driving video',
     supportedDurations: ['5s'],
+    bestFor: 'Motion Transfer',
   },
   {
     id: 'fal-ai/kling-video/ai-avatar/v2/pro',
@@ -710,6 +780,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Premium talking head with audio-driven lip sync',
     supportedDurations: ['10s', '30s', '60s'],
+    bestFor: 'Premium Lip Sync',
   },
   {
     id: 'fal-ai/kling-video/ai-avatar/v2/standard',
@@ -719,6 +790,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Fast talking head generation with lip sync',
     supportedDurations: ['10s', '30s', '60s'],
+    bestFor: 'Fast Lip Sync',
   },
   {
     id: 'fal-ai/creatify/aurora',
@@ -728,6 +800,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'High-fidelity portrait animation with natural expressions',
     supportedDurations: ['10s', '60s'],
+    bestFor: 'Natural Expressions',
   },
 
   // Video Editing
@@ -739,6 +812,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Video inpainting with mask-guided object removal',
     supportedDurations: ['5s', '15s'],
+    bestFor: 'Video Inpaint',
   },
   {
     id: 'fal-ai/kling-video/o1/video-to-video/edit',
@@ -748,6 +822,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'State-of-the-art video editing and style transfer',
     supportedDurations: ['5s', '10s'],
+    bestFor: 'Video Style Transfer',
   },
 
   // === HUGGINGFACE ===
@@ -762,6 +837,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'image',
     desc: 'Advanced object removal and image editing',
     tier: 'quality',
+    bestFor: 'Object Removal',
   },
 
   // === REPLICATE ===
@@ -774,6 +850,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'image',
     desc: 'High-quality generation with 8 reference image support',
     supportedQuantities: [1, 2, 3, 4],
+    bestFor: 'Character Consistency',
   },
   {
     id: 'black-forest-labs/flux-2-flex',
@@ -783,6 +860,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'image',
     desc: 'Max-quality with 10 reference image support for control',
     supportedQuantities: [1, 2, 3, 4],
+    bestFor: 'Multi-Reference',
   },
   {
     id: 'black-forest-labs/flux-2-dev',
@@ -792,6 +870,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'image',
     desc: 'Quality generation with reference image editing support',
     supportedQuantities: [1, 2, 3, 4],
+    bestFor: 'Reference Editing',
   },
   {
     id: 'black-forest-labs/flux-1.1-pro-ultra',
@@ -801,6 +880,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'image',
     desc: 'Up to 4 megapixel output with enhanced photorealism',
     supportedQuantities: [1, 2, 3, 4],
+    bestFor: 'High Resolution',
   },
   {
     id: 'black-forest-labs/flux-1.1-pro',
@@ -810,6 +890,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'image',
     desc: 'Faster, better FLUX Pro with excellent prompt adherence',
     supportedQuantities: [1, 2, 3, 4],
+    bestFor: 'Prompt Adherence',
   },
   {
     id: 'black-forest-labs/flux-dev',
@@ -819,6 +900,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'image',
     desc: '12B parameter rectified flow transformer',
     supportedQuantities: [1, 2, 3, 4],
+    bestFor: 'Photorealism',
   },
   {
     id: 'black-forest-labs/flux-schnell',
@@ -827,6 +909,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'Fastest FLUX model for rapid iteration and local use',
+    bestFor: 'Fast Iteration',
   },
   // Image Generation - FLUX Editing Models
   {
@@ -836,6 +919,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'image-editing',
     type: 'image',
     desc: 'Inpainting and outpainting with seamless removal',
+    bestFor: 'Inpainting',
   },
   {
     id: 'black-forest-labs/flux-depth-pro',
@@ -844,6 +928,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'image-editing',
     type: 'image',
     desc: 'Structure-preserving edits with depth awareness',
+    bestFor: 'Depth Control',
   },
   {
     id: 'black-forest-labs/flux-canny-pro',
@@ -852,6 +937,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'image-editing',
     type: 'image',
     desc: 'Edge-guided generation for controlled composition',
+    bestFor: 'Edge Control',
   },
   {
     id: 'black-forest-labs/flux-kontext-max',
@@ -861,6 +947,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'image',
     desc: 'Premium text-based editing with typography support',
     tier: 'pro',
+    bestFor: 'Premium Editing',
   },
   {
     id: 'black-forest-labs/flux-kontext-pro',
@@ -870,6 +957,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'image',
     desc: 'State-of-the-art text-based image editing',
     tier: 'pro',
+    bestFor: 'Scene Transfer',
   },
   {
     id: 'black-forest-labs/flux-redux-dev',
@@ -878,6 +966,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'image-editing',
     type: 'image',
     desc: 'Image variation while preserving original elements',
+    bestFor: 'Variations',
   },
   // Image Generation - Other Providers
   {
@@ -887,6 +976,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'High-definition features with accurate colors and contrast',
+    bestFor: 'Accurate Colors',
   },
   {
     id: 'stability-ai/stable-diffusion-3.5-large',
@@ -895,6 +985,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'High-resolution generation with fine detail support',
+    bestFor: 'Fine Details',
   },
   {
     id: 'google/imagen-4',
@@ -903,6 +994,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: "Google's flagship image generation model",
+    bestFor: 'Flagship Quality',
   },
   {
     id: 'google/imagen-4-fast',
@@ -911,6 +1003,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'Fast version of Imagen 4 for rapid iteration',
+    bestFor: 'Fast Iteration',
   },
   {
     id: 'google/imagen-3',
@@ -919,6 +1012,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: "Google's highest quality photorealistic model",
+    bestFor: 'Photorealism',
   },
   {
     id: 'ideogram-ai/ideogram-v3-turbo',
@@ -927,6 +1021,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'Fastest, cheapest Ideogram v3 for rapid iteration',
+    bestFor: 'Fast Typography',
   },
   {
     id: 'recraft-ai/recraft-v3',
@@ -935,6 +1030,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'Professional design with long text rendering capability',
+    bestFor: 'Design & Illustration',
   },
   {
     id: 'luma/photon',
@@ -943,6 +1039,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'High-quality image generation optimized for photorealism',
+    bestFor: 'Photorealism',
   },
   {
     id: 'nvidia/sana',
@@ -951,6 +1048,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'Fast image model with wide artistic range',
+    bestFor: 'Artistic Range',
   },
   {
     id: 'bytedance/seedream-4',
@@ -959,6 +1057,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'Unified text-to-image with precise style control',
+    bestFor: 'Style Control',
   },
   {
     id: 'qwen/qwen-image',
@@ -967,6 +1066,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'Image generation foundation model from Qwen series',
+    bestFor: 'Foundation Model',
   },
   // Image Generation - Character Consistency
   {
@@ -977,6 +1077,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'image',
     desc: 'Multi-pose character generation with style consistency',
     tier: 'quality',
+    bestFor: 'Multi-Pose',
   },
   // Video Generation
   {
@@ -987,6 +1088,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Alibaba Wan video generation via Replicate',
     supportedDurations: ['5s', '10s', '15s'],
+    bestFor: 'Replicate T2V',
   },
   {
     id: 'wan-2.5-i2v',
@@ -996,6 +1098,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Alibaba Wan image animation via Replicate',
     supportedDurations: ['5s', '10s', '15s'],
+    bestFor: 'Replicate I2V',
   },
 
   // === GOOGLE (Direct API) ===
@@ -1006,6 +1109,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: "Google's highest quality photorealistic image model",
+    bestFor: 'Photorealism',
   },
   {
     id: 'imagen-4',
@@ -1014,6 +1118,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: "Google's latest text-to-image with improved quality",
+    bestFor: 'Latest Quality',
   },
   {
     id: 'veo-2',
@@ -1023,6 +1128,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'High-quality video with realistic motion',
     supportedDurations: ['4s', '8s'],
+    bestFor: 'Realistic Motion',
   },
   {
     id: 'veo-3',
@@ -1032,6 +1138,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Most advanced video model with native audio support',
     supportedDurations: ['4s', '8s'],
+    bestFor: 'Native Audio',
   },
 
   // === OPENAI ===
@@ -1042,6 +1149,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'Creative concept generation with strong prompt following',
+    bestFor: 'Creative Concepts',
   },
   {
     id: 'gpt-image-1',
@@ -1050,6 +1158,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'Latest OpenAI image model with advanced understanding',
+    bestFor: 'Prompt Understanding',
   },
   {
     id: 'sora-2-pro',
@@ -1059,6 +1168,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'High-fidelity cinematic video with complex scenes',
     supportedDurations: ['4s', '8s', '12s'],
+    bestFor: 'Cinematic',
   },
   {
     id: 'sora-2',
@@ -1068,6 +1178,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Standard video generation with realistic motion',
     supportedDurations: ['4s', '8s', '12s'],
+    bestFor: 'Realistic Motion',
   },
   {
     id: 'sora',
@@ -1077,6 +1188,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Original Sora model for video generation',
     supportedDurations: ['4s', '8s', '12s'],
+    bestFor: 'Legacy Support',
   },
 
   // === COMFYUI (Local) ===
@@ -1087,6 +1199,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'Run SDXL locally with full control and no API costs',
+    bestFor: 'Free & Local',
   },
   {
     id: 'flux-dev',
@@ -1095,6 +1208,7 @@ export const ALL_MODELS: ModelInfo[] = [
     capability: 'text-to-image',
     type: 'image',
     desc: 'Run FLUX locally with custom LoRAs and workflows',
+    bestFor: 'Custom LoRAs',
   },
   {
     id: 'ltx-video',
@@ -1104,6 +1218,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Fast local video generation with ComfyUI',
     supportedDurations: ['5s'],
+    bestFor: 'Fast Local Video',
   },
   {
     id: 'wan-2.2',
@@ -1113,6 +1228,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Local image animation with Alibaba Wan model',
     supportedDurations: ['5s'],
+    bestFor: 'Local Animation',
   },
   {
     id: 'hunyuan-video',
@@ -1122,6 +1238,7 @@ export const ALL_MODELS: ModelInfo[] = [
     type: 'video',
     desc: 'Open-source video generation running locally',
     supportedDurations: ['4s'],
+    bestFor: 'Open Source Local',
   },
 ];
 

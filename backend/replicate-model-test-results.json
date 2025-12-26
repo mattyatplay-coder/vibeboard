@@ -1,0 +1,73 @@
+{
+  "timestamp": "2025-12-24T20:03:25.180Z",
+  "summary": {
+    "total": 9,
+    "successful": 7,
+    "failed": 2
+  },
+  "results": [
+    {
+      "model": "Flux Schnell (Replicate)",
+      "endpoint": "black-forest-labs/flux-schnell",
+      "status": "success",
+      "duration": 958,
+      "outputUrl": "[function]"
+    },
+    {
+      "model": "Flux Dev (Replicate)",
+      "endpoint": "black-forest-labs/flux-dev",
+      "status": "success",
+      "duration": 1718,
+      "outputUrl": "[function]"
+    },
+    {
+      "model": "Flux 1.1 Pro (Replicate)",
+      "endpoint": "black-forest-labs/flux-1.1-pro",
+      "status": "success",
+      "duration": 3716,
+      "outputUrl": "[ReadableStream]"
+    },
+    {
+      "model": "Flux 1.1 Pro Ultra (Replicate)",
+      "endpoint": "black-forest-labs/flux-1.1-pro-ultra",
+      "status": "success",
+      "duration": 7830,
+      "outputUrl": "[ReadableStream]"
+    },
+    {
+      "model": "SDXL (Stability AI)",
+      "endpoint": "stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
+      "status": "success",
+      "duration": 42616,
+      "outputUrl": "[function]"
+    },
+    {
+      "model": "Juggernaut XL v9",
+      "endpoint": "lucataco/juggernaut-xl-v9:bea09cf018e513cef0841719559ea86d2299e05448633ac8fe270b5d5cd6777e",
+      "status": "success",
+      "duration": 57105,
+      "outputUrl": "[function]"
+    },
+    {
+      "model": "Consistent Character",
+      "endpoint": "fofr/consistent-character:1e6e9ed2880c22a82a8ee72a8dd0c5a4c11da1cf5e4e246d825cef7ff1f87e09",
+      "status": "failed",
+      "error": "Request to https://api.replicate.com/v1/predictions failed with status 422 Unprocessable Entity: {\"title\":\"Invalid version or not permitted\",\"detail\":\"The specified version does not exist (or perhaps you don't have permission to use it?)\",\"status\":422}\n.",
+      "duration": 211
+    },
+    {
+      "model": "LTX Video (Replicate)",
+      "endpoint": "fofr/ltx-video:983ec70a06fd872ef4c29bb6b728556fc2454125a5b2c68ab51eb8a2a9eaa46a",
+      "status": "success",
+      "duration": 77258,
+      "outputUrl": "[function]"
+    },
+    {
+      "model": "AnimateDiff",
+      "endpoint": "lucataco/animate-diff:beecf59c4aee8d81bf04f0381033dfa10dc16e845b4ae00d281e2fa377e48571",
+      "status": "failed",
+      "error": "Request to https://api.replicate.com/v1/predictions failed with status 422 Unprocessable Entity: {\"title\":\"Invalid version or not permitted\",\"detail\":\"The specified version does not exist (or perhaps you don't have permission to use it?)\",\"status\":422}\n.",
+      "duration": 260
+    }
+  ]
+}

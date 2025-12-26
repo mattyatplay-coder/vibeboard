@@ -1,0 +1,61 @@
+{
+  "version": "1.0",
+  "description": "Searchable registry of fixes with reproducible steps. Add entries via /checkpoint or manually.",
+  "fixes": [
+    {
+      "id": "FIX-001",
+      "date": "2025-12-22",
+      "title": "WiFi Latency Spikes (311ms max)",
+      "category": "infrastructure",
+      "tags": ["wifi", "network", "latency", "channel"],
+      "symptom": "WiFi latency spikes every ~11 seconds, 311ms max latency, 17ms average",
+      "root_cause": "Channel 161 conflict with neighbor network at -41 dBm signal strength",
+      "solution": {
+        "summary": "Changed WiFi channels to avoid interference",
+        "steps": [
+          "Identified Mac was connected to Netgear AP 'Wifi672 5G', not Xfinity gateway",
+          "Changed Netgear 5GHz channel from 161 to 36 (UNII-1 band)",
+          "Changed Xfinity gateway 5GHz channel to 149 (UNII-3 band) to avoid self-interference",
+          "Verified latency dropped to 4ms avg / 8ms max"
+        ],
+        "commands": [
+          "ping -c 100 8.8.8.8 | tail -5  # Test latency",
+          "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I  # Check WiFi info"
+        ]
+      },
+      "files_modified": [],
+      "verification": "ping test shows <10ms max latency, no spikes",
+      "related_entities": ["Home Network Optimization Dec 22 2025", "Mac Network Hardware"]
+    },
+    {
+      "id": "FIX-002",
+      "date": "2025-12-21",
+      "title": "2am LaunchAgent Backup Failing (Exit Code 78)",
+      "category": "infrastructure",
+      "tags": ["backup", "launchd", "smb", "cron"],
+      "symptom": "2am backup LaunchAgent never successfully ran, exit code 78",
+      "root_cause": "SMB share not mounted at 2am when Mac is sleeping, script exits immediately",
+      "solution": {
+        "summary": "Added SMB mount retry logic with 5 attempts and 30s delays",
+        "steps": [
+          "Added is_share_accessible() function to check if backup dir exists",
+          "Added attempt_mount() function to open SMB URL",
+          "Added retry loop with MAX_MOUNT_RETRIES=5 and MOUNT_RETRY_DELAY=30",
+          "Added macOS notification on failure",
+          "Configured Mac mini power settings to prevent sleep"
+        ],
+        "commands": [
+          "launchctl list | grep vibeboard  # Check if LaunchAgent is loaded",
+          "cat ~/Library/LaunchAgents/com.vibeboard.backup.plist  # View config",
+          "pmset -g  # Check power settings"
+        ]
+      },
+      "files_modified": [
+        "/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/chathistory/backup-chat-history.sh",
+        "~/Library/LaunchAgents/com.vibeboard.backup.plist"
+      ],
+      "verification": "Manual run of backup script succeeds, logs show retry logic working",
+      "related_entities": ["Session Dec 21 2025", "Checkpoint Slash Command"]
+    }
+  ]
+}

@@ -147,6 +147,37 @@ Add a new session entry with:
 }
 ```
 
+### Step 5b: Add to Fix Registry (If Bug/Issue Fixed)
+**Location**: `/Users/matthenrichmacbook/Antigravity/vibeboard/.agent/fix_registry.json`
+
+If this session fixed a bug or resolved an issue, add an entry:
+```json
+{
+    "id": "FIX-XXX",
+    "date": "YYYY-MM-DD",
+    "title": "Short descriptive title",
+    "category": "frontend|backend|infrastructure|api|database",
+    "tags": ["searchable", "keywords"],
+    "symptom": "What was broken or wrong",
+    "root_cause": "Why it was broken",
+    "solution": {
+        "summary": "One-line fix description",
+        "steps": [
+            "Step 1: What to do first",
+            "Step 2: What to do next"
+        ],
+        "commands": [
+            "any shell commands used"
+        ]
+    },
+    "files_modified": ["list/of/files.ts"],
+    "verification": "How to confirm the fix worked",
+    "related_entities": ["Memory MCP entity names"]
+}
+```
+
+**Purpose**: Makes fixes searchable by tags, reproducible via steps, and linked to Memory MCP.
+
 ### Step 6: Update vibeboard.md (if needed)
 **Location**: `/Users/matthenrichmacbook/Antigravity/vibeboard/vibeboard.md`
 
@@ -212,7 +243,27 @@ The session export includes:
 - User requests summary
 - Tool usage statistics
 
-### Step 10: Session Continuity Summary
+### Step 10: Sync All Sessions to Memory MCP
+**IMPORTANT**: Run the unified sync script to push all Claude AND Gemini sessions to Memory MCP.
+
+```bash
+# Sync all chat history to Memory MCP (run after backup)
+node "/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/chathistory/sync-to-memory.js"
+
+# Options:
+#   --dry-run      Preview without saving
+#   --gemini-only  Only process Gemini brain files
+#   --claude-only  Only process Claude sessions
+```
+
+The script:
+- Processes Claude JSONL sessions from backup directories
+- Processes Gemini brain markdown files from `~/.gemini/antigravity/brain/`
+- Extracts insights: bug fixes, features, API endpoints, key files, learnings
+- Saves to `memory_mcp_sync.json` for Memory MCP import
+- Tracks processed sessions to avoid duplicates
+
+### Step 11: Session Continuity Summary
 Provide brief summary:
 - What was accomplished
 - What to focus on next

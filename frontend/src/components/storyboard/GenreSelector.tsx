@@ -17,6 +17,8 @@ interface GenreSelectorProps {
   onSelect: (genre: Genre | null) => void;
   showStylePreview?: boolean;
   className?: string;
+  /** When true, shows adult/NSFW genres like "Adult / OnlyFans" */
+  includeMature?: boolean;
 }
 
 export function GenreSelector({
@@ -24,11 +26,12 @@ export function GenreSelector({
   onSelect,
   showStylePreview = true,
   className,
+  includeMature = false,
 }: GenreSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const selectedTemplate = selectedGenre ? GENRE_TEMPLATES[selectedGenre] : null;
-  const genreOptions = getGenreOptions();
+  const genreOptions = getGenreOptions(includeMature);
 
   return (
     <div className={clsx('space-y-2', className)}>
@@ -258,11 +261,18 @@ interface GenrePillsProps {
   selectedGenre: Genre | null;
   onSelect: (genre: Genre | null) => void;
   maxVisible?: number;
+  /** When true, shows adult/NSFW genres like "Adult / OnlyFans" */
+  includeMature?: boolean;
 }
 
-export function GenrePills({ selectedGenre, onSelect, maxVisible = 6 }: GenrePillsProps) {
+export function GenrePills({
+  selectedGenre,
+  onSelect,
+  maxVisible = 6,
+  includeMature = false,
+}: GenrePillsProps) {
   const [showAll, setShowAll] = useState(false);
-  const genreOptions = getGenreOptions();
+  const genreOptions = getGenreOptions(includeMature);
   const visibleOptions = showAll ? genreOptions : genreOptions.slice(0, maxVisible);
 
   return (

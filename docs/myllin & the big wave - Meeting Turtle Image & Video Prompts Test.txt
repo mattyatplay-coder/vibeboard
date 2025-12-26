@@ -1,0 +1,303 @@
+STORYBOARD-READY SHOT LIST
+SCENE: TURTLE MEETS MYLLIN (Underwater After Wipeout)
+
+SHOT 1: THE TUMBLE
+Duration: 10 seconds Camera: Wide, tumbling POV style, rotating with Myllin Angle: Dynamic, disorienting—camera spins 360° following Myllin's momentum
+
+FIRST FRAME - IMAGE PROMPT:
+
+A 14-year-old boy (Myllin character) tumbling violently underwater in murky blue-green ocean water at Pipeline reef, Hawaii. Dynamic action shot with the boy's body horizontal in mid-spin, arms and legs flailing outward in different directions. His wetsuit is dark blue, his blonde spiky hair streams in the turbulent water. Debris and bubbles swirl around him in a vortex pattern. Fragments of coral, sand particles, and white foam create motion trails. His red and white surfboard tumbles separately in the background, out of focus. Shafts of filtered sunlight pierce down from above, creating dramatic god rays through the murky water. The background shows blurred coral reef structures in deep teal and brown tones. His face shows terror and disorientation, eyes wide, mouth open in a silent scream releasing bubbles. Pixar/Disney animation style, cinematic underwater lighting, dramatic composition with diagonal movement across frame, photorealistic water physics, volumetric lighting through particulate matter.
+
+VIDEO PROMPT (First Frame → Last Frame):
+
+10-second underwater action sequence in Pixar/Disney CGI animation style. The camera tumbles and rotates following a 14-year-old surfer boy (Myllin) as he ragdolls violently through murky blue-green ocean water. 
+
+MOTION SEQUENCE:
+- Seconds 0-3: Myllin cartwheels rapidly through frame, body rotating clockwise, limbs flailing in all directions. Camera spins with him maintaining his position in frame center. Bubbles and reef debris (coral fragments, sand, kelp) spiral past camera creating motion blur trails.
+- Seconds 3-5: His red and white surfboard tumbles past camera left-to-right, spinning end-over-end. Myllin continues rotating, his wetsuit catching light as he spins.
+- Seconds 5-7: Myllin's trajectory curves downward toward the reef. Camera follows the arc, beginning to stabilize rotation. Water becomes slightly clearer as turbulence decreases.
+- Seconds 7-8: IMPACT - Myllin's body SLAMS sideways into a coral outcropping. His body compresses on impact, then whips to the side from the force. Coral fragments explode outward. Camera shake on impact.
+- Seconds 8-10: Camera settles into a slow drift. Myllin's body goes completely limp, floating face-down, arms spread wide. Small bubbles escape his wetsuit and nose. Reef debris slowly settles around him. Camera comes to rest in a static wide shot.
+
+TECHNICAL DETAILS:
+- Realistic underwater particle physics with bubbles rising at proper speeds
+- Myllin's hair and wetsuit react to water resistance and turbulence
+- Volumetric god rays from surface penetrate and move with water disturbance
+- Coral and debris have weight and momentum
+- Sound design: muffled underwater rumble transitioning to eerie silence
+- Color grading: murky teal-green with warmer sun shafts from above
+- Depth of field shifts from motion blur to sharp focus as camera settles
+
+LAST FRAME - IMAGE PROMPT:
+
+Static underwater wide shot of a 14-year-old boy (Myllin character) floating unconscious face-down in clear blue-green ocean water above Pipeline reef. His body is completely limp and motionless, arms spread wide in a T-pose, legs slightly bent. He wears a dark blue wetsuit with small tears visible on the shoulder and leg. His blonde spiky hair drifts gently in the current. Small silver bubbles escape slowly from his nose and wetsuit seams, rising toward the surface. The coral reef below is in sharp focus - browns, teals, and purple sea urchins visible on the rocks approximately 8 feet below him. Shafts of golden sunlight pierce down from the rippling surface above, creating caustic light patterns that dance across his wetsuit and the reef below. Tiny fish scatter in the mid-ground. Floating reef debris (small coral pieces, suspended sand particles) drifts in the current around him. His surfboard is visible in the far background, slowly sinking. The water is clearer now after the turbulence, with excellent visibility. Myllin has small cuts visible on his face and arms with tiny wisps of blood beginning to leak. His expression is unconscious - eyes closed, mouth slightly open with a bubble just escaping. Pixar/Disney animation style, cinematic underwater photography, peaceful but ominous mood, photorealistic water rendering with proper caustic light patterns, volumetric god rays, subtle depth of field with Myllin in sharp focus.
+
+SHOT 2: BODY GOING LIMP
+Duration: 10 seconds Camera: Slow push-in, camera dollies from wide to close-up on Myllin's face Angle: Side profile angle, camera at Myllin's eye level, moving left to right around him
+
+FIRST FRAME - IMAGE PROMPT:
+
+Underwater medium-wide shot of unconscious 14-year-old surfer boy (Myllin character) floating in clear blue-green ocean water, photographed from a side profile angle. His body is suspended horizontally in the water column, face turned toward camera, completely limp. He wears a torn dark blue wetsuit. His blonde spiky hair drifts loosely in the gentle current. His arms float outward from his body, hands relaxed and fingers slightly curled. Pipeline coral reef visible 8 feet below him - detailed texture of brain coral, staghorn coral, and purple sea urchins. Shafts of golden sunlight penetrate from the rippling surface above, creating animated caustic patterns across his wetsuit and skin. Small bubbles rise slowly from his wetsuit. Tiny tropical fish (yellow tangs, small reef fish) swim in the mid-ground, unbothered. Crystal clear water with excellent visibility showing depth layers. His face is peaceful but lifeless - eyes closed, mouth slightly parted, small cuts visible on his cheek and forehead with thin ribbons of blood beginning to leak and drift upward. Pixar/Disney CGI animation style, cinematic underwater cinematography, beautiful but ominous lighting, photorealistic water rendering, volumetric god rays, depth of field with Myllin in focus and reef slightly soft.
+
+VIDEO PROMPT (First Frame → Last Frame):
+
+10-second slow, intimate underwater shot in Pixar/Disney CGI animation style. Camera slowly pushes in from medium-wide to extreme close-up on an unconscious 14-year-old surfer's face (Myllin) as his body drifts and rotates gently in the current.
+
+MOTION SEQUENCE:
+- Seconds 0-2: Camera begins slow dolly movement toward Myllin's face. His entire body rotates very slowly clockwise in the water, responding to gentle current. Small bubbles rise from his wetsuit at regular intervals.
+- Seconds 2-4: Camera continues push-in. Myllin's body completes a slow quarter-rotation, his face coming into better profile view. Caustic light patterns from the surface above dance across his features. His hair drifts and sways.
+- Seconds 4-6: Close-up now. His eyes remain closed but we see micro-movements - eyelids flutter very slightly (REM-like movement). One small bubble escapes his nostril and rises past his face.
+- Seconds 6-7: Extreme close-up on his face. Tiny details visible: water droplets on eyelashes, small cuts on his cheek leaking thin ribbons of blood that drift upward like smoke. His lips are slightly parted.
+- Seconds 7-8: His right hand drifts into bottom of frame, fingers twitch once - a survival reflex - then goes still again.
+- Seconds 8-10: Camera holds on extreme close-up. His eyes begin to roll back slightly beneath closed eyelids (showing white through the lids). Final bubble escapes his nose. His expression goes completely slack. Camera holds, creating dread.
+
+TECHNICAL DETAILS:
+- Very slow, smooth camera movement (gimbal-stabilized feel)
+- Realistic fluid dynamics on hair and blood wisps
+- Caustic light patterns continuously animate across his skin
+- Subtle floating/bobbing motion of his body in current
+- Micro-expressions: eyelid flutter, slight muscle relaxation
+- Sound design: Myllin's slowing heartbeat (internal POV sound), muffled distant wave crash, wet struggling gasps becoming shallower
+- Color grading: Warmer tones on his skin from god rays, cooler blue-green in shadows
+- Depth of field gradually shallows as camera pushes in
+
+LAST FRAME - IMAGE PROMPT:
+
+Extreme close-up underwater shot of unconscious 14-year-old boy's face (Myllin character) in crystal-clear blue-green ocean water. Frame fills with his face from forehead to chin, photographed from a slight side angle. His eyes are closed with eyelids showing subtle translucency in the backlit water - whites of eyes just barely visible rolling back beneath the lids. His blonde hair floats and drifts across his forehead in flowing strands. Skin is pale with a bluish tint from oxygen deprivation. Small fresh cuts visible on his right cheek and forehead - one cut leaks a thin ribbon of blood that drifts upward past his temple like crimson smoke in water. Water droplets cling to his eyelashes. His mouth is slightly open, lips parted, completely slack. One small silver bubble has just escaped from his nostril and floats near his nose, catching golden light. Animated caustic light patterns from the water's surface above dance across his face - bright organic shapes shifting and moving. The background is soft-focus blue-green water with suspended particles creating bokeh effects. Golden god rays penetrate from above at a 45-degree angle. His expression is completely lifeless and peaceful. Pixar/Disney CGI animation style, intimate cinematic underwater macro photography, dramatic lighting creating both beauty and dread, photorealistic skin rendering with subsurface scattering, volumetric lighting, razor-sharp focus on face with background beautifully blurred.
+
+SHOT 3: TURTLE ENTERS
+Duration: 10 seconds Camera: Static medium shot, locked-off camera Angle: Straight-on profile view, camera perpendicular to action, showing both coral below and open water above
+
+FIRST FRAME - IMAGE PROMPT:
+
+Static underwater medium-wide establishing shot showing empty blue-green ocean water with Pipeline coral reef. Frame is divided horizontally: bottom third shows detailed coral reef environment (brain coral, staghorn coral, purple sea urchins, orange cup corals, small darting reef fish), middle third shows open clear water column with suspended particles catching light, top third shows the rippling ocean surface with golden sunlight penetrating down creating dramatic god rays. The right side of frame shows unconscious 14-year-old surfer (Myllin character) floating face-down in the mid-ground, body limp, arms spread, approximately 8 feet above the reef. He is small in frame, positioned screen-right. The left and center of frame show empty water - a clear entrance path. Shafts of volumetric light cut diagonally through the water from upper-left to lower-right. Small bubbles rise lazily from the reef and from Myllin's wetsuit. Tiny silver fish school in the background. Water is crystal clear with excellent visibility showing depth layers and atmospheric perspective. Color palette: teal-green water, golden sun rays, brown and purple reef, Myllin's dark blue wetsuit as a small color accent. Pixar/Disney animation style, cinematic composition with negative space, peaceful ambiance, photorealistic underwater rendering, caustic light patterns animating across all surfaces.
+
+VIDEO PROMPT (First Frame → Last Frame):
+
+10-second static underwater shot in Pixar/Disney CGI animation style. Camera is locked-off in a medium-wide profile view. A sea turtle enters frame and investigates an unconscious floating boy with casual curiosity.
+
+MOTION SEQUENCE:
+- Seconds 0-2: Frame is still, showing only gentle water movement, drifting particles, and caustic light patterns. Myllin floats motionless screen-right. Small bubbles rise. Reef fish dart below.
+- Seconds 2-4: TURTLE ENTERS from screen-left, gliding smoothly into frame at mid-level. He's a Hawaiian green sea turtle, approximately 3 feet shell diameter, weathered shell with beautiful green-brown mottling and barnacle details. He swims with slow, graceful flipper strokes - both front flippers moving in synchronized rowing motion. His movement is relaxed and unhurried, like a Sunday swim.
+- Seconds 4-6: Turtle glides toward center frame, then spots Myllin. He slows his swimming, front flippers do one more stroke then pause. His head tilts to the left (camera-facing side) in a curious "huh?" gesture. His large expressive eyes blink once -nictitating membrane slides across.
+- Seconds 6-8: Turtle begins a slow circular swim around Myllin, maintaining distance. He completes approximately 180 degrees of the circle, moving from screen-left, around Myllin's head (passing between Myllin and camera), ending up screen-right of Myllin. His flippers paddle lazily. His head tracks Myllin the entire time, eyes following. Expression: mildly interested but unbothered, like inspecting a curious rock.
+- Seconds 8-10: Turtle completes his inspection circle and stops directly in front of Myllin's face (between Myllin and camera). He hovers there with gentle flipper adjustments to maintain position. His head tilts right, then left - examining Myllin. A few bubbles escape Turtle's nostrils. He settles into a hovering position, front flippers slowly fanning to stay stationary. Camera holds.
+
+TECHNICAL DETAILS:
+- Turtle has realistic swimming physics - flipper undulation, shell bobbing, slight head movement with each stroke
+- Water displaced by turtle's movement creates subtle current ripples
+- Turtle's shell has detailed texture: scutes, barnacles, algae growth
+- His eyes are large and expressive (Disney-style character eyes but naturalistic)
+- Caustic light patterns play across his shell as he moves
+- Sound design: Gentle flipper whoosh sounds, faint creak of shell cartilage, ambient reef sounds (distant clicks, pops)
+- Myllin remains completely still in background throughout
+- Small fish react to turtle's presence, scattering slightly
+- Bubbles from both characters rise at different rates
+- Color interaction: Turtle's green-brown shell contrasts with blue water and Myllin's dark wetsuit
+
+LAST FRAME - IMAGE PROMPT:
+
+Static underwater medium shot showing a large Hawaiian green sea turtle hovering in clear blue-green ocean water, facing camera, with an unconscious 14-year-old surfer (Myllin character) floating in the background. COMPOSITION: Turtle is positioned screen-center in the foreground (approximately 6 feet from camera), his shell taking up roughly one-third of the frame. He is photographed from a front three-quarter angle, his left side slightly toward camera. His front flippers are extended outward in a hovering position, gently fanning to maintain stability. His head is tilted slightly to the right in a curious examining gesture. His large expressive eyes (Disney-style character eyes) are focused intently on Myllin. TURTLE DETAILS: Beautiful weathered shell with green-brown mottling, visible scutes (shell segments), small barnacles on shell, patches of algae growth. His flippers show detailed texture - scales, wrinkles, barnacle scars. His face has character - wise, old, slightly skeptical expression with one eye ridge raised. Small bubbles escape his nostrils. BACKGROUND: Myllin floats unconscious in the mid-ground behind turtle, body limp and face-down, positioned screen-right and slightly higher in frame. He is soft-focus but recognizable. ENVIRONMENT: Golden god rays penetrate from rippling surface above, creating volumetric light shafts that pass between turtle and Myllin. Caustic light patterns animate across turtle's shell. Pipeline coral reef visible at bottom of frame with small darting fish. Suspended particles create atmospheric depth. LIGHTING: Dramatic rim lighting on turtle's shell and flippers from god rays, creating a slight glow. Fill light from diffuse water creates soft shadows. Myllin backlit by sun rays. Pixar/Disney CGI animation style, cinematic underwater cinematography, photorealistic rendering with character stylization on turtle's face, beautiful depth and layering, warm golden light contrasting with cool blue-green water.
+
+SHOT 4: THE POKE
+Duration: 10 seconds Camera: Close-up, over-the-shoulder of Turtle Angle: Camera positioned behind and slightly above turtle's right shoulder, looking at Myllin's face
+
+FIRST FRAME - IMAGE PROMPT:
+
+Close-up underwater shot from over the shoulder of a Hawaiian green sea turtle, looking at the unconscious face of a 14-year-old boy (Myllin character). FRAMING: Bottom-right quarter of frame shows the turtle's weathered shell (out of focus) with beautiful green-brown mottling and barnacles, providing a foreground frame element. The turtle's right front flipper is visible extending forward into frame from bottom-right, positioned near but not yet touching Myllin's face. MYLLIN: Center-frame in sharp focus, his face photographed in three-quarter profile view, floating horizontally. His eyes are closed, expression completely slack and lifeless. Blonde spiky hair drifts in water. Small cuts on his cheek leak thin blood wisps. His mouth is slightly open. His wetsuit collar visible at bottom of frame. ENVIRONMENT: Background shows blurred blue-green water with golden god rays creating diagonal light streaks. Bubbles rise slowly past his face. Caustic light patterns dance across his skin. Suspended particles create depth. The rippling ocean surface visible as a bright blurred area in the upper background. LIGHTING: Myllin's face is beautifully lit by diffused god rays from above-left, creating soft modeling on his features. Rim light catches his hair. Turtle's shell and flipper in foreground are in slight shadow but with highlights on the textured scales. Pixar/Disney CGI animation style, intimate cinematography, photorealistic water and skin rendering, shallow depth of field with Myllin in razor-sharp focus and turtle's shell softly blurred, warm golden key light with cool blue-green fill, volumetric god rays.
+
+VIDEO PROMPT (First Frame → Last Frame):
+
+10-second intimate underwater close-up shot in Pixar/Disney CGI animation style, filmed from over a sea turtle's shoulder as he attempts to wake an unconscious boy through increasingly insistent pokes.
+
+MOTION SEQUENCE:
+- Seconds 0-2: Static frame. Turtle's flipper is extended toward Myllin's face but not yet touching. Both subjects float gently with micro-movements from water current. Bubbles rise past frame. Caustic light patterns shift across Myllin's face.
+- Seconds 2-3: FIRST POKE - Turtle's left front flipper extends fully and gently taps Myllin's cheek. The flipper compresses slightly on contact showing soft tissue physics. Myllin's skin dimples where poked, creating a small ripple in his cheek. SOUND: Soft "bloop" sound effect. Myllin's head rocks slightly to the right from the gentle force, then settles back. His expression doesn't change - still unconscious.
+- Seconds 3-4: Beat of stillness. Turtle's flipper withdraws back to starting position. Turtle visible in soft-focus foreground - we can see his head tilt slightly in a "really?" gesture of mild annoyance.
+- Seconds 4-5: SECOND POKE - Turtle's flipper extends again, this time poking harder and faster. BONK - the flipper hits Myllin's cheek with more force. Myllin's whole head lolls dramatically to the left from the impact, his hair whipping in the water. His body rotates slightly. SOUND: Slightly louder "bonk" sound. Tiny bubble escapes Myllin's nose from the force. Still no conscious response.
+- Seconds 5-7: Turtle's flipper withdraws again. In the soft-focus foreground, turtle's head tilts back and he releases a big sigh - large bubbles stream from his nostrils and rise past camera. His expression (barely visible in blur) reads as exasperated annoyance.
+- Seconds 7-8: THIRD POKE WIND-UP - Turtle's flipper raises up higher, preparing for a stronger poke. The flipper pulls back like winding up for a punch. Turtle's body shifts slightly as he prepares to really give it to this kid.
+- Seconds 8-9: Just before contact, Myllin's eyelids FLUTTER. Micro-movement - his eyeballs move beneath the lids (REM motion). His fingers twitch slightly in background.
+- Seconds 9-10: Myllin's eyes crack open just barely - thin slits showing unfocused pupils. His eyes are rolled back, showing mostly white. Turtle's flipper freezes mid-extension, inches from Myllin's face. Both subjects hold position. Camera holds tight on Myllin's barely-conscious face.
+
+TECHNICAL DETAILS:
+- Realistic contact physics on pokes - skin compression, ripple waves through cheek tissue
+- Myllin's hair and body react naturally to physical impacts
+- Turtle's shell and flippers show subtle movement as he repositions for pokes
+- Bubbles from turtle's sigh rise at proper velocity
+- Caustic light patterns continuously animate
+- Sound design: Three distinct poke sounds increasing in volume/impact, turtle's exasperated bubble-sigh, Myllin's wet garbled breathing
+- Depth of field maintains turtle's shoulder/shell soft, Myllin's face sharp
+- Micro-expressions on Myllin's unconscious face - slight eyebrow twitch, lip movement
+
+LAST FRAME - IMAGE PROMPT:
+
+Extreme close-up underwater shot of an unconscious 14-year-old boy's face (Myllin character) at the moment of barely regaining consciousness, photographed from slightly below looking up. FRAMING: Myllin's face fills 80% of frame from forehead to chin. The out-of-focus edge of a sea turtle's barnacle-covered flipper is frozen in the bottom-right corner, inches from his face, mid-poke motion. MYLLIN'S FACE: His eyes are just barely cracked open - thin horizontal slits showing his eyeballs. His pupils are rolled back showing mostly the whites of his eyes with just a hint of blue iris visible at the bottom. His eyelids are heavy and struggling to stay open. His eyelashes have water droplets. Expression is completely unfocused and disoriented - no awareness or consciousness yet, purely instinctive eye-opening reflex. His mouth remains slightly open. His blonde hair floats wildly around his face in various directions. Fresh cuts on his cheek and forehead show thin blood ribbons drifting upward. His skin has a pale, bluish-gray tone from oxygen deprivation. LIGHTING: Dramatic backlight from god rays above-left creates rim lighting on his hair and profile. Beautiful caustic light patterns dance across his face - organic shifting shapes of light and shadow. His face is primarily lit by diffused blue-green ambient light with golden highlights. Small bubbles suspended in water near his face catch light. ENVIRONMENT: Background is completely out-of-focus blue-green water with bokeh effects from suspended particles and bubbles. Blurred golden god rays create diagonal streaks of light through frame. Soft-focus turtle flipper provides organic frame element bottom-right. Pixar/Disney CGI animation style, extreme intimate macro cinematography, photorealistic skin rendering with subsurface scattering, razor-sharp focus on eyes and facial details, beautiful contrast between warm golden highlights and cool blue-green shadows, volumetric lighting, wet texture on skin showing water surface tension.
+
+SHOT 5: THE LINE
+Duration: 10 seconds Camera: Two-shot medium close-up, static camera Angle: Profile angle perpendicular to both characters, showing turtle screen-left and Myllin screen-right
+
+FIRST FRAME - IMAGE PROMPT:
+
+Underwater medium close-up two-shot in profile view showing a Hawaiian green sea turtle (screen-left) and barely-conscious 14-year-old boy (Myllin, screen-right) facing each other in clear blue-green ocean water. COMPOSITION: Frame is divided vertically down the center. Left 50% of frame: Turtle photographed in left-facing profile, his weathered green-brown shell dominating the left side, his head extended toward Myllin, large expressive character eyes focused intently on the boy, beak-like mouth closed. His left front flipper is raised and extended toward center-frame, pointing upward at a 45-degree angle toward the rippling surface above. Detailed texture visible: shell scutes, barnacles, flipper scales, wrinkled neck skin. Right 50% of frame: Myllin in right-facing profile, floating vertically in the water, his face at same vertical level as turtle's head creating perfect profile-to-profile composition. His eyes are half-open, unfocused, pupils dilated and rolled slightly back. Expression is dazed and confused. His blonde hair drifts upward. Small cuts visible on his face with blood wisps. His wetsuit visible at bottom of frame. ENVIRONMENT: Background shows depth-layered blue-green water with golden god rays penetrating from the rippling surface above (visible at top of frame). Volumetric light shafts cut diagonally through the space between the two characters. Caustic light patterns dance across both turtle's shell and Myllin's face. Small bubbles rise slowly from both characters. Pipeline coral reef visible at very bottom of frame, soft focus. Suspended particles create atmospheric depth and three-dimensionality. LIGHTING: Both characters are beautifully backlit from the surface, creating rim lighting on their profiles. Key light from above-left creates dramatic modeling. The space between them is illuminated by filtered god rays. Pixar/Disney CGI animation style, classic two-shot composition with strong negative space between subjects, cinematic underwater photography, photorealistic rendering, medium depth of field keeping both subjects in focus with background slightly soft.
+
+VIDEO PROMPT (First Frame → Last Frame):
+
+10-second dialogue scene in Pixar/Disney CGI animation style, static camera two-shot profile composition. A wise-cracking sea turtle gives casual directions to a barely-conscious drowning teenager.
+
+MOTION SEQUENCE:
+- Seconds 0-1: Both subjects float gently with water current. Myllin's eyes are half-open but unfocused, staring vaguely in turtle's direction. Turtle's flipper is already raised, pointing upward. Small bubbles rise between them. Caustic light shifts across both characters.
+
+- Seconds 1-3: TURTLE SPEAKS - "Da surface stay dat way, cuz."
+  * Turtle's beak mouth opens and closes with lip-sync matching Hawaiian pidgin dialogue
+  * His head bobs slightly with speech rhythm - one bob per syllable
+  * His raised flipper remains pointing up, but he gestures slightly with it on the word "dat" (slight upward thrust)
+  * His eyes remain locked on Myllin with deadpan expression
+  * Bubbles escape turtle's mouth as he speaks
+  * SOUND: Turtle's voice is calm, slightly nasal, thick Hawaiian pidgin accent, with underwater reverb
+
+- Seconds 3-4: Beat of silence. Turtle holds his pointing gesture. Myllin's unfocused eyes remain static, staring past the turtle. No recognition that anything was said. Silence except gentle water ambiance.
+
+- Seconds 4-5: Turtle's free right flipper comes up to his chin in a contemplative gesture - he scratches thoughtfully beneath his beak with the tip of his flipper, like stroking a beard. His head tilts slightly left, eyes still on Myllin. Thinking beat.
+
+- Seconds 5-7: TURTLE SPEAKS AGAIN - "Unless you like make house wit' da reef."
+  * Turtle's mouth opens wider this time, more animated lip-sync
+  * His head tilts more dramatically to the left on "unless"
+  * Both flippers gesture slightly: left flipper points down toward the reef on "reef," right flipper gestures conversationally
+  * His eyes widen slightly for emphasis on "house" - comic beat
+  * Expression shifts from deadpan to slightly amused at his own joke
+  * More bubbles escape his mouth
+  * SOUND: Same voice, but slightly more helpful/explanatory tone, still completely calm
+
+- Seconds 7-8: Myllin's delayed reaction begins. His unfocused eyes slowly track from staring-past-turtle to actually focusing ON turtle's face. His eyebrows draw together slightly - micro-expression of confusion forming. His mouth moves slightly - bubbles escape.
+
+- Seconds 8-9: MYLLIN's garbled response: Muffled, underwater distorted sounds as his mouth moves, releasing a stream of bubbles. Not intelligible words - just "glub-blub-wha?" type sounds. His eyes are now FOCUSED on turtle, widening slowly. The "wait... what?" expression begins to dawn.
+
+- Seconds 9-10: Final beat - both subjects hold position. Myllin's eyes are now WIDE OPEN, fully focused on the turtle, his expression frozen in complete disbelief: "Did that turtle just TALK to me?!" Turtle remains deadpan, casual, unimpressed. Both float in silence. Camera holds.
+
+TECHNICAL DETAILS:
+- Turtle's mouth has realistic lip-sync to pidgin dialogue with proper mouth shapes (labials for "m" sounds, open jaw for "ah" sounds)
+- Turtle's eyes blink once during the scene using secondary eyelid (nictitating membrane)
+- Character animation: turtle has casual, unbothered body language vs Myllin's growing alarm
+- Bubbles emerge realistically from speaking mouths, rising at proper velocity
+- Caustic light patterns continuously animate across both characters
+- Myllin's hair continues gentle floating movement throughout
+- Both characters have micro-movements: slight bobbing in current, breathing movements
+- Sound design: Underwater reverb on dialogue, water ambience, bubble sounds, distant muffled wave crash
+- Subtle depth of field keeps both subjects sharp with background slightly soft
+- Color interaction: turtle's warm green-brown tones vs Myllin's cool blue wetsuit and pale skin
+
+LAST FRAME - IMAGE PROMPT:
+
+Underwater medium close-up two-shot profile composition showing a Hawaiian green sea turtle (screen-left) and wide-eyed shocked 14-year-old boy (Myllin, screen-right) frozen in a moment of surreal underwater conversation. COMPOSITION: Perfect left-right split composition. TURTLE (left 50% of frame): Photographed in left-facing profile, his large weathered shell taking up most of the left frame. His head is extended forward, turned slightly toward camera showing his large expressive eye looking at Myllin with a deadpan, completely unbothered expression. His beak-like mouth is closed in a neutral position (just finished speaking). His left front flipper remains raised, still pointing upward at a 45-degree angle toward the surface. His right flipper is lowered, relaxed. Shell details: green-brown mottling, visible scutes, barnacles, algae patches. His face shows character - wise, old, slightly amused, like he's said this a thousand times. MYLLIN (right 50% of frame): In right-facing profile, his face is now fully alert and conscious, eyes WIDE OPEN staring directly at the turtle with shocked disbelief. His blue eyes are crystal clear and focused, pupils normal size. His eyebrows are raised high, forehead wrinkled in a "WHAT?!" expression. His mouth is slightly open in shock, with a stream of bubbles just escaping. His expression reads pure confusion and alarm: "Did that turtle just SPEAK?!" His blonde hair floats upward wildly. The cuts on his face are still bleeding thin wisps but his skin color is less gray - consciousness returning. ENVIRONMENT: Blue-green water between them with multiple shafts of golden god rays cutting diagonally through the space, creating volumetric light beams. The rippling surface visible at top of frame as bright undulating caustics. Beautiful caustic light patterns dance across both subjects - the turtle's shell shows intricate shifting light patterns, Myllin's face shows dappled moving light. Small bubbles suspended in the water between them, frozen mid-rise. Pipeline coral reef visible at bottom edge of frame, soft focus with purple and brown tones. Suspended particles create atmospheric depth between the two subjects. LIGHTING: Both subjects beautifully backlit from surface creating golden rim light on their profiles. Three-point lighting with dramatic key from above-left, soft fill from reflected light below, rim from surface. The space between them glows with transmitted light through the water. Pixar/Disney CGI animation style, classic profile two-shot with perfect visual balance, cinematic underwater photography, photorealistic rendering with character-stylized facial expressions, both subjects in sharp focus with background in soft focus, warm golden highlights contrasting cool blue-green shadows, volumetric god rays, perfect comedic timing captured in still moment.
+
+SHOT 6: THE BUTTON
+Duration: 10 seconds Camera: Wide shot, static locked-off camera Angle: Profile angle showing full bodies of both characters, ocean surface visible at top, reef visible at bottom
+
+FIRST FRAME - IMAGE PROMPT:
+
+Wide underwater establishing shot showing full bodies of a Hawaiian green sea turtle (screen-left) and shocked 14-year-old boy (Myllin, screen-right) suspended in clear blue-green ocean water, with Pipeline coral reef visible below and rippling surface above. COMPOSITION: Vertical frame showing full water column from reef to surface. TURTLE (left third of frame): Complete turtle visible in left-facing profile, floating at mid-depth approximately 8 feet above reef. His shell is approximately 3 feet in diameter. His front flippers are extended in a hovering position, his back flippers visible beneath. His head is turned toward Myllin with his mouth beginning to open wide - start of yawn motion. His expression is transitioning from deadpan to tired. MYLLIN (right third of frame): Full body visible in right-facing profile, floating vertically in the water at same depth as turtle. His wetsuit-clad body is slim and athletic. Arms floating slightly away from his body. His face shows the shocked/confused expression, eyes wide, staring at the turtle. Small bubbles rising from his wetsuit. Center third of frame: Open blue-green water creating negative space between subjects, filled with beautiful volumetric god rays cutting diagonally from surface to reef. ENVIRONMENT: TOP third of frame shows the rippling ocean surface with bright golden sunlight creating caustic patterns and strong god rays penetrating downward. BOTTOM third shows detailed Pipeline coral reef - brain coral, staghorn coral, purple sea urchins, small darting yellow tang fish. The reef is in good focus showing texture and color. Water clarity is excellent with visible depth layers - atmospheric perspective showing distance. Suspended particles throughout create three-dimensional depth. Small bubbles rise from various points. LIGHTING: Strong directional god rays from above-left create dramatic diagonal light shafts through the entire frame. Both subjects are backlit with rim lighting. Caustic patterns animate across all surfaces. Warm golden tones from sunlight contrast with cool blue-green water. Pixar/Disney CGI animation style, wide cinematic composition with strong depth and layering, photorealistic underwater environment, balanced composition with subjects on thirds, beautiful light and color.
+
+VIDEO PROMPT (First Frame → Last Frame):
+
+10-second wide comedic beat in Pixar/Disney CGI animation style. Static camera locked-off wide shot captures a sea turtle's hilariously casual exit after delivering life-saving advice to a still-shocked drowning teenager.
+
+MOTION SEQUENCE:
+- Seconds 0-2: THE YAWN
+  * Turtle's mouth opens WIDE in a big, slow yawn - his beak spreading to show the interior and small turtle teeth
+  * His head tilts back slightly with the yawn
+  * His eyes squint closed in a satisfied "ahhh" expression
+  * SOUND: Squeaky turtle yawn sound - high-pitched, almost whistling
+  * Myllin remains frozen in his shocked stare, unmoving, processing what just happened
+  * Both subjects bob gently in current
+
+- Seconds 2-4: THE STRETCH
+  * Turtle closes his mouth and brings his right back flipper forward and UP toward his shell - stretching
+  * His flipper reaches up and begins scratching the back edge of his shell - that hard-to-reach spot
+  * His neck extends with pleasure, eyes close to half-mast in blissful satisfaction
+  * Scratch-scratch-scratch motion - flipper rubs back and forth on shell
+  * His body rotates slightly left with the scratching motion
+  * SOUND: Scraping/scratching sound of rough flipper on rough shell
+  * Myllin's eyes track the turtle's movements, his expression shifting from shock to complete bewilderment
+
+- Seconds 4-5: THE BLISS
+  * Turtle continues scratching, really getting into it
+  * His mouth opens slightly in a satisfied expression
+  * His eyes close completely - pure contentment
+  * His whole body sways slightly with the vigorous scratching
+  * This moment lingers - the turtle has completely forgotten about Myllin
+  * Small bubbles escape the turtle's nostrils in contentment
+
+- Seconds 5-6: THE GLANCE
+  * Turtle stops scratching, opens his eyes
+  * His head turns back toward Myllin - remembers he's there
+  * Makes brief eye contact with Myllin
+  * Turtle's expression: mildly annoyed recognition, like "oh yeah, you"
+  * Beat of silence - the two lock eyes
+
+- Seconds 6-7: THE MUTTER
+  * Turtle's head turns away from Myllin (looking screen-left, his exit direction)
+  * His mouth moves slightly - muttering
+  * SOUND: Barely audible, grumpy mutter - "Haoles..." (Hawaiian term for outsiders/tourists)
+  * Turtle shakes his head slightly side-to-side - the universal "tourists" gesture
+  * His front flippers begin paddling motion - preparing to swim
+  * Myllin's expression: still frozen in shock, doesn't even register the insult
+
+- Seconds 7-8: THE EXIT
+  * Turtle begins swimming screen-left (away from Myllin) with slow, graceful flipper strokes
+  * His back flippers kick, front flippers row in synchronized motion
+  * He moves horizontally across frame, maintaining depth
+  * Swimming is casual, unhurried - Sunday afternoon pace
+  * His shell rotates slightly with swimming motion
+  * Myllin remains motionless, watching him go
+
+- Seconds 8-9: MYLLIN'S REACTION DELAYED
+  * Turtle is now at far screen-left edge of frame, about to exit
+  * Myllin's face suddenly REACTS - his eyes go EVEN WIDER
+  * His eyebrows shoot up, mouth drops fully open
+  * Internal thought visible on his face: "WAIT - DID THAT JUST HAPPEN?!"
+  * His body suddenly jerks - survival instinct kicks in
+  * He looks upward toward the surface
+  * His arms begin to move - preparing to swim
+
+- Seconds 9-10: THE KICK
+  * Turtle exits frame screen-left completely - gone
+  * Myllin's legs begin kicking frantically - sudden explosive motion
+  * His arms claw at the water
+  * His whole body rotates from horizontal to vertical, orienting toward surface
+  * Bubbles EXPLODE from his movements
+  * His expression: pure panic and survival instinct
+  * Camera holds wide as Myllin begins his desperate ascent
+  * Reef remains calm at bottom, surface ripples above
+  * Turtle is gone - just empty water where he was
+
+TECHNICAL DETAILS:
+- Turtle's yawn shows interior mouth detail with proper anatomy
+- Scratching motion has realistic physics - shell doesn't bend but flipper compresses against it
+- Turtle's swimming uses proper sea turtle locomotion - simultaneous front flipper rowing
+- Water displaced by turtle's movement creates subtle current ripples and particle movement
+- Myllin's delayed reaction shows proper comedic timing beat
+- Myllin's sudden movement creates turbulence - bubbles, water disturbance
+- Caustic light patterns continuously animate across all surfaces throughout
+- Depth is maintained: reef stays in focus throughout showing it's not that deep
+- Sound design: Yawn squeak, shell scratch, muttered line (barely audible with underwater reverb), sudden frantic splashing
+- Both characters maintain proper buoyancy and floating physics throughout
+- Small environmental details continue: reef fish darting, bubbles rising, god rays shifting
+- Color grading: turtle's exit takes warmth with him, leaving cooler blue tones as Myllin panics
+
+LAST FRAME - IMAGE PROMPT
+
+Wide underwater shot showing a panicked 14-year-old boy (Myllin) beginning a desperate vertical swim toward the surface while a sea turtle has just exited frame, leaving empty blue water. COMPOSITION: Vertical frame showing ocean layers from Pipeline reef (bottom) to rippling surface (top). MYLLIN (positioned right-center of frame): His body is captured mid-movement in a dynamic vertical orientation, having just rotated from horizontal to vertical position. His legs are bent in mid-kick, about to thrust downward. His arms are raised above his head, hands clawing upward at the water in desperate swimming motion. His full wetsuit-clad body shows tension and explosive energy. His blonde hair streams downward (appearing to float up relative to his inverted position). His face is tilted upward toward the surface, expression showing pure survival panic and determination - eyes wide, mouth open releasing a large stream of bubbles, eyebrows raised. His body language screams "GET TO AIR NOW!" LEFT side of frame (where turtle was): Empty blue-green water with residual current disturbance - swirls and eddies in the water showing the turtle just passed through. A few lingering bubbles from turtle's exit drift in the empty space. The negative space emphasizes the turtle's casual abandonment of the scene. ENVIRONMENT: Crystal clear blue-green water with excellent visibility showing full depth. Multiple diagonal god rays cut through the water from upper-left to lower-right, creating dramatic volumetric light shafts. The rippling ocean surface at top of frame shows as bright undulating caustic patterns with golden sunlight penetrating. Pipeline coral reef at bottom of frame in sharp focus - detailed brain coral, purple sea urchins, small yellow fish darting (unbothered by the drama above). The reef is approximately 12 feet below Myllin. WATER DISTURBANCE: Cloud of bubbles EXPLODES around Myllin from his sudden violent movement - large and small bubbles rising rapidly. Water around him shows turbulence and current swirls from his thrashing. Suspended particles are disturbed, creating motion trails. LIGHTING: Dramatic backlighting from surface creates rim light on Myllin's ascending form. God rays create theatrical diagonal light beams cutting through the scene. Caustic patterns dance across Myllin's wetsuit, the reef, and through the open water. Strong contrast between bright surface area (top quarter of frame) and darker reef area (bottom quarter) with Myllin illuminated in the mid-zone. Pixar/Disney CGI animation style, dynamic action composition with strong vertical movement, cinematic underwater photography, photorealistic water physics with proper bubble behavior, dramatic lighting creating urgency, good depth of field keeping both Myllin and reef in focus, beautiful color palette of golden light and blue-green water, visual storytelling showing abandonment (empty turtle space) and survival (Myllin's panic).
+
+END OF STORYBOARD
+Total Scene Duration: ~60 seconds (6 shots × 10 seconds)
+Key Handoff Notes for Animation/VFX:
+	•	All shots maintain consistent underwater lighting (god rays from upper-left)
+	•	Water clarity and color remain consistent (clear blue-green, excellent visibility)
+	•	Myllin's injuries (reef cuts, blood wisps) should be tracked across all shots
+	•	Turtle's character design: weathered shell, barnacles, expressive Disney-style eyes
+	•	Caustic patterns should be generated from same rippling surface throughout scene
+	•	Bubble physics must be consistent (slower rise speed underwater, proper size variation)
+Character LoRA Requirements:
+	•	Myllin: 14-year-old, blonde spiky hair, slim athletic build, dark blue wetsuit, reef cuts/injuries
+	•	Turtle: Hawaiian green sea turtle, 3ft shell diameter, weathered/barnacled, expressive face, Hawaiian pidgin speaker

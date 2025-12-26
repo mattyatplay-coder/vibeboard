@@ -1,6 +1,8 @@
+import { useState, useMemo } from 'react';
 import { Generation, Element } from '@/lib/store';
 import { GenerationCard } from '@/components/generations/GenerationCard';
-import { Copy, FilePlus, Trash2, CheckSquare, X, Download } from 'lucide-react';
+import { GenerationSearch } from '@/components/generations/GenerationSearch';
+import { Copy, FilePlus, Trash2, CheckSquare, X, Download, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface GenerationResultsProps {
@@ -30,6 +32,7 @@ interface GenerationResultsProps {
   sessions: { id: string; name: string }[];
   onEdit: (gen: Generation) => void;
   onSaveElement: (url: string, type: 'image' | 'video') => void;
+  projectId: string;
 }
 
 export function GenerationResults({
@@ -53,7 +56,32 @@ export function GenerationResults({
   sessions,
   onEdit,
   onSaveElement,
+  projectId,
 }: GenerationResultsProps) {
+  // Search state
+  const [searchResults, setSearchResults] = useState<any[] | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Display either search results or all generations
+  const displayedGenerations = useMemo(() => {
+    if (searchResults !== null) {
+      // Map search results back to Generation type
+      // Search results include extra fields like searchScore
+      return searchResults as Generation[];
+    }
+    return generations;
+  }, [searchResults, generations]);
+
+  const handleSearchResults = (results: any[], query: string) => {
+    setSearchResults(results);
+    setSearchQuery(query);
+  };
+
+  const handleClearSearch = () => {
+    setSearchResults(null);
+    setSearchQuery('');
+  };
+
   const handleBatchCopyLinks = () => {
     const selectedGens = generations.filter(g => selectedGenerationIds.includes(g.id));
     const links = selectedGens
@@ -81,30 +109,57 @@ export function GenerationResults({
 
   return (
     <div className="flex-1 overflow-y-auto p-8 pb-32">
-      <header className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="mb-2 text-3xl font-bold tracking-tight">Generate</h1>
-          <p className="mt-2 text-gray-400">Create new shots using AI.</p>
+      <header className="mb-8">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h1 className="mb-2 text-3xl font-bold tracking-tight">Generate</h1>
+            <p className="mt-2 text-gray-400">Create new shots using AI.</p>
+          </div>
+          {generations.length > 0 && (
+            <button
+              onClick={
+                selectedGenerationIds.length === generations.length
+                  ? deselectAllGenerations
+                  : selectAllGenerations
+              }
+              className="text-sm text-blue-400 hover:text-blue-300"
+            >
+              {selectedGenerationIds.length === generations.length ? 'Deselect All' : 'Select All'}
+            </button>
+          )}
         </div>
-        {generations.length > 0 && (
-          <button
-            onClick={
-              selectedGenerationIds.length === generations.length
-                ? deselectAllGenerations
-                : selectAllGenerations
-            }
-            className="text-sm text-blue-400 hover:text-blue-300"
-          >
-            {selectedGenerationIds.length === generations.length ? 'Deselect All' : 'Select All'}
-          </button>
-        )}
+
+        {/* Semantic Search Bar */}
+        <div className="max-w-xl">
+          <GenerationSearch
+            projectId={projectId}
+            onSearchResults={handleSearchResults}
+            onClearSearch={handleClearSearch}
+          />
+        </div>
       </header>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
         <div className="lg:col-span-3">
-          <h2 className="mb-4 text-xl font-bold">Recent Generations</h2>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
-            {generations.map((gen, index) => (
+          {/* Dynamic heading based on search state */}
+          <h2 className="mb-4 flex items-center gap-2 text-xl font-bold">
+            {searchQuery ? (
+              <>
+                <Search className="h-5 w-5 text-purple-400" />
+                Results for "{searchQuery}"
+                <span className="text-sm font-normal text-white/50">
+                  ({displayedGenerations.length} found)
+                </span>
+              </>
+            ) : (
+              'Recent Generations'
+            )}
+          </h2>
+          <div
+            className="grid gap-3"
+            style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}
+          >
+            {displayedGenerations.map((gen, index) => (
               <GenerationCard
                 key={gen.id || `gen-${index}`}
                 generation={gen}

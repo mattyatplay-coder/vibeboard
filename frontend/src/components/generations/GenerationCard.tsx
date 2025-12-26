@@ -22,11 +22,16 @@ import {
   Film,
   ThumbsUp,
   ThumbsDown,
+  Copy,
+  GitFork,
+  Clock,
+  Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import {
@@ -55,10 +60,32 @@ interface GenerationCardProps {
 }
 
 // Upscale options
-const UPSCALE_OPTIONS = [
+const UPSCALE_OPTIONS: Array<{ id: string; name: string; description: string }> = [
   { id: 'fal-ai/clarity-upscaler', name: 'Clarity 2x', description: 'Sharp, detailed upscale' },
   { id: 'fal-ai/creative-upscaler', name: 'Clarity 4x', description: 'Maximum quality upscale' },
   { id: 'fal-ai/aura-sr', name: 'Aura SR', description: 'Fast AI upscaling' },
+];
+
+// Enhance video options
+const ENHANCE_ITEMS: Array<{
+  mode: 'full' | 'audio-only' | 'smooth-only';
+  emoji: string;
+  title: string;
+  description: string;
+}> = [
+  {
+    mode: 'audio-only',
+    emoji: '🔊',
+    title: 'Add Audio Only',
+    description: 'MMAudio (no speed change)',
+  },
+  {
+    mode: 'smooth-only',
+    emoji: '🎬',
+    title: 'Smooth Only',
+    description: 'RIFE interpolation (24fps)',
+  },
+  { mode: 'full', emoji: '✨', title: 'Full Enhancement', description: 'Smooth + Audio' },
 ];
 
 export function GenerationCard({
@@ -90,7 +117,7 @@ export function GenerationCard({
   const style = transform
     ? {
         transform: CSS.Translate.toString(transform),
-        opacity: isDragging ? 0.5 : 1,
+        opacity: isDragging ? 0 : 1, // Hide original card while dragging
         zIndex: isDragging ? 100 : undefined,
       }
     : undefined;
@@ -98,7 +125,9 @@ export function GenerationCard({
   const [isHovered, setIsHovered] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [scrubPosition, setScrubPosition] = useState(0); // 0-1 position for scrub indicator
   const [editedPrompt, setEditedPrompt] = useState(generation.inputPrompt);
   const [isEditing, setIsEditing] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -116,6 +145,67 @@ export function GenerationCard({
     onUseSettings(generation);
     setIsRestoring(false);
     setShowPopup(false);
+  };
+
+  // Copy Recipe: Format all generation settings as shareable JSON
+  const handleCopyRecipe = async () => {
+    const recipe = {
+      // Core prompt
+      prompt: generation.inputPrompt,
+      negativePrompt: generation.usedLoras?.negativePrompt || null,
+
+      // Model settings
+      model: generation.usedLoras?.model || 'unknown',
+      provider: generation.usedLoras?.provider || 'unknown',
+
+      // Generation parameters
+      aspectRatio: generation.aspectRatio,
+      seed: generation.usedLoras?.seed || 'random',
+      steps: generation.usedLoras?.steps || null,
+      guidanceScale: generation.usedLoras?.guidanceScale || null,
+      strength: generation.usedLoras?.strength || null,
+
+      // Sampler/Scheduler
+      sampler:
+        typeof generation.usedLoras?.sampler === 'object'
+          ? (generation.usedLoras.sampler as any).value ||
+            (generation.usedLoras.sampler as any).name
+          : generation.usedLoras?.sampler || null,
+      scheduler:
+        typeof generation.usedLoras?.scheduler === 'object'
+          ? (generation.usedLoras.scheduler as any).value ||
+            (generation.usedLoras.scheduler as any).name
+          : generation.usedLoras?.scheduler || null,
+
+      // LoRAs
+      loras:
+        generation.usedLoras?.loras?.map((lora: any) => ({
+          id: lora.id,
+          name: lora.name,
+          path: lora.path,
+          strength: lora.strength,
+          triggerWord: lora.triggerWord,
+        })) || [],
+
+      // Reference images (IDs only for privacy)
+      referenceStrengths: generation.usedLoras?.referenceStrengths || {},
+
+      // Metadata
+      _vibeboardRecipe: true,
+      _version: '1.0',
+      _createdAt: generation.createdAt,
+    };
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(recipe, null, 2));
+      toast.success('Recipe copied to clipboard!', {
+        description: 'Paste into any text editor or share with others',
+        duration: 3000,
+      });
+    } catch (err) {
+      console.error('Failed to copy recipe:', err);
+      toast.error('Failed to copy recipe');
+    }
   };
 
   // Feedback State for Analysis
@@ -591,6 +681,45 @@ export function GenerationCard({
       ? getFailureAdvice(generation.failureReason, modelId, generation.usedLoras)
       : null;
 
+  // Proxy Placeholder: Estimate generation time based on model
+  const getEstimatedTime = (
+    model?: string
+  ): { label: string; isVideo: boolean; isSlow: boolean } => {
+    if (!model) return { label: '~30s', isVideo: false, isSlow: false };
+
+    const lowerModel = model.toLowerCase();
+
+    // Premium video models - 1-5 minutes
+    if (lowerModel.includes('kling') || lowerModel.includes('veo') || lowerModel.includes('luma')) {
+      return { label: '2-5 min', isVideo: true, isSlow: true };
+    }
+    if (
+      lowerModel.includes('wan') ||
+      lowerModel.includes('minimax') ||
+      lowerModel.includes('ltx')
+    ) {
+      return { label: '1-3 min', isVideo: true, isSlow: true };
+    }
+
+    // Image models
+    if (lowerModel.includes('flux')) {
+      return { label: '~15s', isVideo: false, isSlow: false };
+    }
+    if (lowerModel.includes('sd') || lowerModel.includes('stable')) {
+      return { label: '~10s', isVideo: false, isSlow: false };
+    }
+
+    // Default
+    return { label: '~30s', isVideo: false, isSlow: false };
+  };
+
+  const estimatedTime = getEstimatedTime(modelId);
+  const elapsedSeconds = Math.floor((Date.now() - new Date(generation.createdAt).getTime()) / 1000);
+  const elapsedDisplay =
+    elapsedSeconds < 60
+      ? `${elapsedSeconds}s`
+      : `${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`;
+
   // Reset edited prompt when popup opens/closes or generation changes
   useEffect(() => {
     setEditedPrompt(generation.inputPrompt);
@@ -622,22 +751,29 @@ export function GenerationCard({
         : `http://localhost:3001${rawUrl}`
       : undefined;
 
+  // Hover-Scrub: Move mouse horizontally to scrub through video frames
+  const handleVideoScrub = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isVideo || !videoRef.current || !videoContainerRef.current) return;
+
+    const rect = videoContainerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, x / rect.width));
+
+    // Update scrub indicator position
+    setScrubPosition(percentage);
+
+    // Seek video to corresponding time
+    if (videoRef.current.duration && !isNaN(videoRef.current.duration)) {
+      videoRef.current.currentTime = percentage * videoRef.current.duration;
+    }
+  };
+
+  // Reset video on mouse leave
   useEffect(() => {
     if (isVideo && videoRef.current) {
-      if (isHovered) {
+      if (!isHovered) {
         videoRef.current.currentTime = 0;
-        videoRef.current.play().catch(() => {});
-        // Stop after 5 seconds
-        const timeout = setTimeout(() => {
-          if (videoRef.current) {
-            videoRef.current.pause();
-            videoRef.current.currentTime = 0;
-          }
-        }, 5000);
-        return () => clearTimeout(timeout);
-      } else {
-        videoRef.current.pause();
-        videoRef.current.currentTime = 0;
+        setScrubPosition(0);
       }
     }
   }, [isHovered, isVideo]);
@@ -719,17 +855,13 @@ export function GenerationCard({
         {...listeners}
         {...attributes}
         className={clsx(
-          'group relative cursor-pointer touch-none rounded-xl border bg-white/5 transition-all',
+          'group @container relative cursor-pointer touch-none rounded-xl border bg-white/5 transition-all',
           isSelected
             ? 'border-blue-500 ring-1 ring-blue-500'
             : 'border-white/10 hover:border-blue-500/50'
         )}
         onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => {
-          setIsHovered(false);
-          setShowUpscaleMenu(false);
-          setShowEnhanceMenu(false);
-        }}
+        onMouseLeave={() => setIsHovered(false)}
         onClick={e => {
           if (onToggleSelection && (e.ctrlKey || e.metaKey || isSelected)) {
             e.stopPropagation();
@@ -739,295 +871,329 @@ export function GenerationCard({
           }
         }}
       >
-        {/* TOP LEFT: Selection Checkbox + Favorite Heart - Responsive sizing */}
         <div
-          className={clsx(
-            'absolute top-[4%] left-[3%] z-20 flex items-center gap-[2%] transition-opacity duration-200',
-            isHovered || isSelected || generation.isFavorite ? 'opacity-100' : 'opacity-0'
-          )}
-        >
-          {onToggleSelection && (
-            <div
-              onClick={e => {
-                e.stopPropagation();
-                onToggleSelection(e);
-              }}
-              className={clsx(
-                'flex aspect-square w-[clamp(20px,7%,32px)] cursor-pointer items-center justify-center rounded border-2 backdrop-blur-sm transition-colors',
-                isSelected
-                  ? 'border-blue-500 bg-blue-500'
-                  : 'border-white/60 bg-black/40 hover:border-white hover:bg-black/60'
-              )}
-            >
-              {isSelected && <Check className="h-[65%] w-[65%] text-white" />}
-            </div>
-          )}
-          {generation.status === 'succeeded' && (
-            <button
-              onClick={toggleFavorite}
-              className={clsx(
-                'flex aspect-square w-[clamp(20px,7%,32px)] items-center justify-center rounded backdrop-blur-sm transition-colors',
-                generation.isFavorite ? 'bg-red-500/80' : 'bg-black/40 hover:bg-red-500/50'
-              )}
-            >
-              <Heart
-                className={clsx(
-                  'h-[65%] w-[65%]',
-                  generation.isFavorite ? 'fill-white text-white' : 'text-white'
-                )}
-              />
-            </button>
-          )}
-        </div>
-
-        {/* TOP RIGHT: Action Buttons - Responsive sizing based on container */}
-        <div
-          className={clsx(
-            'absolute top-[4%] right-[3%] z-20 flex items-center gap-[2%] transition-opacity duration-200',
-            isHovered ? 'opacity-100' : 'opacity-0'
-          )}
-        >
-          {/* Fullscreen (Success only) */}
-          {generation.status === 'succeeded' && (
-            <button
-              onClick={e => {
-                e.stopPropagation();
-                setShowPopup(true);
-                setIsFullscreen(true);
-              }}
-              className="flex aspect-square w-[clamp(24px,8%,40px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-white/20"
-              title="Fullscreen"
-              aria-label="View fullscreen"
-            >
-              <Maximize2 className="h-[60%] w-[60%] text-white" />
-            </button>
-          )}
-
-          {/* Upscale (Success + Image only) */}
-          {generation.status === 'succeeded' && !isVideo && onUpscale && (
-            <div className="relative">
-              <button
-                onClick={e => {
-                  e.stopPropagation();
-                  setShowUpscaleMenu(!showUpscaleMenu);
-                }}
-                className="flex aspect-square w-[clamp(24px,8%,40px)] items-center justify-center rounded bg-green-600/80 backdrop-blur-sm transition-colors hover:bg-green-500"
-                title="Upscale"
-                aria-label="Upscale image"
-                aria-haspopup="true"
-                aria-expanded={showUpscaleMenu}
-              >
-                <ZoomIn className="h-[60%] w-[60%] text-white" />
-              </button>
-
-              {/* Upscale Dropdown */}
-              <AnimatePresence>
-                {showUpscaleMenu && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                    className="absolute top-full right-0 z-50 mt-1 w-44 overflow-hidden rounded-lg border border-white/20 bg-[#1a1a1a] shadow-xl"
-                    onClick={e => e.stopPropagation()}
-                    role="menu"
-                  >
-                    {UPSCALE_OPTIONS.map(option => (
-                      <button
-                        key={option.id}
-                        onClick={e => handleUpscale(e, option.id)}
-                        className="w-full border-b border-white/5 px-3 py-2 text-left transition-colors last:border-0 hover:bg-green-500/20"
-                        role="menuitem"
-                        aria-label={`Upscale with ${option.name}`}
-                      >
-                        <div className="text-sm font-medium text-white">{option.name}</div>
-                        <div className="text-[10px] text-gray-500">{option.description}</div>
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
-
-          {/* Animate (Success + Image only) */}
-          {generation.status === 'succeeded' && !isVideo && onAnimate && (
-            <button
-              onClick={e => {
-                e.stopPropagation();
-                if (mediaUrl) onAnimate(mediaUrl);
-              }}
-              className="flex aspect-square w-[clamp(24px,8%,40px)] items-center justify-center rounded bg-purple-600/80 backdrop-blur-sm transition-colors hover:bg-purple-500"
-              title="Animate"
-              aria-label="Animate image"
-            >
-              <Play className="h-[60%] w-[60%] fill-current text-white" />
-            </button>
-          )}
-
-          {/* Enhance Video Menu (Success + Video only) */}
-          {generation.status === 'succeeded' && isVideo && onEnhanceVideo && (
-            <div className="relative">
-              <button
-                onClick={e => {
-                  e.stopPropagation();
-                  setShowEnhanceMenu(!showEnhanceMenu);
-                }}
-                className="flex aspect-square w-[clamp(24px,8%,40px)] items-center justify-center rounded bg-gradient-to-r from-purple-600/80 to-pink-600/80 backdrop-blur-sm transition-colors hover:from-purple-500 hover:to-pink-500 focus:ring-2 focus:ring-purple-400 focus:outline-none"
-                aria-label="Enhance video options"
-                title="Enhance video"
-                aria-haspopup="true"
-                aria-expanded={showEnhanceMenu}
-              >
-                <Wand2 className="h-[60%] w-[60%] text-white" />
-              </button>
-              {showEnhanceMenu && (
-                <div className="absolute right-0 bottom-full z-50 mb-2 min-w-[180px] overflow-hidden rounded-lg border border-gray-700 bg-gray-900 shadow-xl">
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      onEnhanceVideo(generation.id, 'audio-only');
-                      setShowEnhanceMenu(false);
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-white hover:bg-purple-600/50"
-                    aria-label="Add audio only"
-                  >
-                    <span className="text-lg">🔊</span>
-                    <div>
-                      <div className="font-medium">Add Audio Only</div>
-                      <div className="text-xs text-gray-400">MMAudio (no speed change)</div>
-                    </div>
-                  </button>
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      onEnhanceVideo(generation.id, 'smooth-only');
-                      setShowEnhanceMenu(false);
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-white hover:bg-purple-600/50"
-                    aria-label="Apply smoothing only"
-                  >
-                    <span className="text-lg">🎬</span>
-                    <div>
-                      <div className="font-medium">Smooth Only</div>
-                      <div className="text-xs text-gray-400">RIFE interpolation (24fps)</div>
-                    </div>
-                  </button>
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      onEnhanceVideo(generation.id, 'full');
-                      setShowEnhanceMenu(false);
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-white hover:bg-purple-600/50"
-                    aria-label="Apply full enhancement"
-                  >
-                    <span className="text-lg">✨</span>
-                    <div>
-                      <div className="font-medium">Full Enhancement</div>
-                      <div className="text-xs text-gray-400">Smooth + Audio</div>
-                    </div>
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Roto & Paint (Success + Image only) */}
-          {generation.status === 'succeeded' && !isVideo && mediaUrl && (
-            <button
-              onClick={e => {
-                e.stopPropagation();
-                // Encode the URL for safe passing via query params
-                const encodedUrl = encodeURIComponent(mediaUrl);
-                router.push(
-                  `/projects/${generation.projectId}/process?url=${encodedUrl}&tool=eraser`
-                );
-              }}
-              className="flex aspect-square w-[clamp(24px,8%,40px)] items-center justify-center rounded bg-orange-600/80 backdrop-blur-sm transition-colors hover:bg-orange-500"
-              title="Roto & Paint"
-              aria-label="Edit in Roto & Paint"
-            >
-              <Paintbrush className="h-[60%] w-[60%] text-white" />
-            </button>
-          )}
-
-          {/* Rotoscope (Success + Video only) */}
-          {generation.status === 'succeeded' && isVideo && mediaUrl && (
-            <button
-              onClick={e => {
-                e.stopPropagation();
-                const encodedUrl = encodeURIComponent(mediaUrl);
-                router.push(
-                  `/projects/${generation.projectId}/process?video=${encodedUrl}&tool=rotoscope`
-                );
-              }}
-              className="flex aspect-square w-[clamp(24px,8%,40px)] items-center justify-center rounded bg-cyan-600/80 backdrop-blur-sm transition-colors hover:bg-cyan-500"
-              title="Rotoscope"
-              aria-label="Edit in Rotoscope"
-            >
-              <Film className="h-[60%] w-[60%] text-white" />
-            </button>
-          )}
-
-          {/* Save as Element (Success only) */}
-          {generation.status === 'succeeded' && onSaveAsElement && (
-            <button
-              onClick={e => {
-                e.stopPropagation();
-                if (mediaUrl) onSaveAsElement(mediaUrl, isVideo ? 'video' : 'image');
-              }}
-              className="flex aspect-square w-[clamp(24px,8%,40px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-blue-500/50"
-              title="Save as Element"
-              aria-label="Save as Element"
-            >
-              <FilePlus className="h-[60%] w-[60%] text-white" />
-            </button>
-          )}
-
-          {/* Download (Success only) */}
-          {generation.status === 'succeeded' && (
-            <button
-              onClick={handleDownload}
-              className="flex aspect-square w-[clamp(24px,8%,40px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-white/20"
-              title="Download"
-              aria-label="Download media"
-            >
-              <Download className="h-[60%] w-[60%] text-white" />
-            </button>
-          )}
-
-          {/* Delete (ALWAYS VISIBLE) */}
-          <button
-            onClick={handleDelete}
-            className="flex aspect-square w-[clamp(24px,8%,40px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-red-500/50"
-            title="Delete"
-            aria-label="Delete generation"
-          >
-            <Trash2 className="h-[60%] w-[60%] text-red-400" />
-          </button>
-        </div>
-
-        <div
-          className="relative overflow-hidden bg-black/50"
+          className="@container relative overflow-hidden rounded-t-xl bg-black/50"
           style={{ aspectRatio: generation.aspectRatio?.replace(':', '/') || '16/9' }}
         >
+          {/* FULL WIDTH TOOLBAR: Inside image container with container-relative sizing */}
+          <div
+            className={clsx(
+              'absolute z-20 flex items-center justify-between transition-opacity duration-200',
+              'top-[clamp(6px,2cqh,12px)] right-[clamp(6px,2cqw,12px)] left-[clamp(6px,2cqw,12px)]',
+              isHovered || isSelected || generation.isFavorite || showUpscaleMenu || showEnhanceMenu
+                ? 'opacity-100'
+                : 'opacity-0'
+            )}
+          >
+            {/* LEFT: Selection Checkbox + Favorite Heart */}
+            <div className="flex items-center gap-[clamp(4px,1.2cqw,8px)]">
+              {onToggleSelection && (
+                <div
+                  onClick={e => {
+                    e.stopPropagation();
+                    onToggleSelection(e);
+                  }}
+                  className={clsx(
+                    'flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] cursor-pointer items-center justify-center rounded border-2 backdrop-blur-sm transition-colors',
+                    isSelected
+                      ? 'border-blue-500 bg-blue-500'
+                      : 'border-white/60 bg-black/40 hover:border-white hover:bg-black/60'
+                  )}
+                >
+                  {isSelected && <Check className="h-[60%] w-[60%] text-white" />}
+                </div>
+              )}
+              {generation.status === 'succeeded' && (
+                <button
+                  onClick={toggleFavorite}
+                  className={clsx(
+                    'flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded backdrop-blur-sm transition-colors',
+                    generation.isFavorite ? 'bg-red-500/80' : 'bg-black/40 hover:bg-red-500/50'
+                  )}
+                >
+                  <Heart
+                    className={clsx(
+                      'h-[60%] w-[60%]',
+                      generation.isFavorite ? 'fill-white text-white' : 'text-white'
+                    )}
+                  />
+                </button>
+              )}
+            </div>
+
+            {/* RIGHT: Action Buttons */}
+            <div className="flex items-center gap-[clamp(4px,1.2cqw,8px)]">
+              {/* Fullscreen (Success only) */}
+              {generation.status === 'succeeded' && (
+                <button
+                  onClick={e => {
+                    e.stopPropagation();
+                    setShowPopup(true);
+                    setIsFullscreen(true);
+                  }}
+                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-white/20"
+                  title="Fullscreen"
+                  aria-label="View fullscreen"
+                >
+                  <Maximize2 className="h-[60%] w-[60%] text-white" />
+                </button>
+              )}
+
+              {/* Upscale (Success + Image only) - Radix Portal Dropdown */}
+              {generation.status === 'succeeded' && !isVideo && onUpscale && (
+                <DropdownMenu.Root open={showUpscaleMenu} onOpenChange={setShowUpscaleMenu}>
+                  <DropdownMenu.Trigger asChild>
+                    <button
+                      onClick={e => e.stopPropagation()}
+                      onPointerDown={e => e.stopPropagation()}
+                      className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-green-600/80 backdrop-blur-sm transition-colors hover:bg-green-500"
+                      title="Upscale"
+                      aria-label="Upscale image"
+                    >
+                      <ZoomIn className="h-[60%] w-[60%] text-white" />
+                    </button>
+                  </DropdownMenu.Trigger>
+
+                  <AnimatePresence>
+                    {showUpscaleMenu && (
+                      <DropdownMenu.Portal forceMount>
+                        <DropdownMenu.Content
+                          asChild
+                          side="bottom"
+                          align="end"
+                          sideOffset={6}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <motion.div
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="z-[9999] w-44 overflow-hidden rounded-lg border border-white/20 bg-[#1a1a1a] shadow-xl"
+                          >
+                            {UPSCALE_OPTIONS.map((option, idx) => (
+                              <DropdownMenu.Item key={option.id} asChild>
+                                <button
+                                  onClick={e => handleUpscale(e, option.id)}
+                                  className={clsx(
+                                    'w-full px-3 py-2 text-left transition-colors outline-none hover:bg-green-500/20',
+                                    idx < UPSCALE_OPTIONS.length - 1 && 'border-b border-white/5'
+                                  )}
+                                >
+                                  <div className="text-sm font-medium text-white">
+                                    {option.name}
+                                  </div>
+                                  <div className="text-[10px] text-gray-500">
+                                    {option.description}
+                                  </div>
+                                </button>
+                              </DropdownMenu.Item>
+                            ))}
+                          </motion.div>
+                        </DropdownMenu.Content>
+                      </DropdownMenu.Portal>
+                    )}
+                  </AnimatePresence>
+                </DropdownMenu.Root>
+              )}
+
+              {/* Animate (Success + Image only) */}
+              {generation.status === 'succeeded' && !isVideo && onAnimate && (
+                <button
+                  onClick={e => {
+                    e.stopPropagation();
+                    if (mediaUrl) onAnimate(mediaUrl);
+                  }}
+                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-purple-600/80 backdrop-blur-sm transition-colors hover:bg-purple-500"
+                  title="Animate"
+                  aria-label="Animate image"
+                >
+                  <Play className="h-[60%] w-[60%] fill-current text-white" />
+                </button>
+              )}
+
+              {/* Enhance Video Menu (Success + Video only) - Radix Portal Dropdown */}
+              {generation.status === 'succeeded' && isVideo && onEnhanceVideo && (
+                <DropdownMenu.Root open={showEnhanceMenu} onOpenChange={setShowEnhanceMenu}>
+                  <DropdownMenu.Trigger asChild>
+                    <button
+                      onClick={e => e.stopPropagation()}
+                      onPointerDown={e => e.stopPropagation()}
+                      className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-gradient-to-r from-purple-600/80 to-pink-600/80 backdrop-blur-sm transition-colors hover:from-purple-500 hover:to-pink-500 focus:ring-2 focus:ring-purple-400 focus:outline-none"
+                      aria-label="Enhance video options"
+                      title="Enhance video"
+                    >
+                      <Wand2 className="h-[60%] w-[60%] text-white" />
+                    </button>
+                  </DropdownMenu.Trigger>
+
+                  <AnimatePresence>
+                    {showEnhanceMenu && (
+                      <DropdownMenu.Portal forceMount>
+                        <DropdownMenu.Content
+                          asChild
+                          side="top"
+                          align="end"
+                          sideOffset={8}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <motion.div
+                            initial={{ opacity: 0, y: 5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 5 }}
+                            className="z-[9999] min-w-[180px] overflow-hidden rounded-lg border border-gray-700 bg-gray-900 shadow-xl"
+                          >
+                            {ENHANCE_ITEMS.map((item, idx) => (
+                              <DropdownMenu.Item key={item.mode} asChild>
+                                <button
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    onEnhanceVideo(generation.id, item.mode);
+                                    setShowEnhanceMenu(false);
+                                  }}
+                                  className={clsx(
+                                    'flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-white outline-none hover:bg-purple-600/50',
+                                    idx < ENHANCE_ITEMS.length - 1 && 'border-b border-gray-700'
+                                  )}
+                                >
+                                  <span className="text-lg">{item.emoji}</span>
+                                  <div>
+                                    <div className="font-medium">{item.title}</div>
+                                    <div className="text-xs text-gray-400">{item.description}</div>
+                                  </div>
+                                </button>
+                              </DropdownMenu.Item>
+                            ))}
+                          </motion.div>
+                        </DropdownMenu.Content>
+                      </DropdownMenu.Portal>
+                    )}
+                  </AnimatePresence>
+                </DropdownMenu.Root>
+              )}
+
+              {/* Roto & Paint (Success + Image only) */}
+              {generation.status === 'succeeded' && !isVideo && mediaUrl && (
+                <button
+                  onClick={e => {
+                    e.stopPropagation();
+                    // Encode the URL for safe passing via query params
+                    const encodedUrl = encodeURIComponent(mediaUrl);
+                    router.push(
+                      `/projects/${generation.projectId}/process?url=${encodedUrl}&tool=eraser`
+                    );
+                  }}
+                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-orange-600/80 backdrop-blur-sm transition-colors hover:bg-orange-500"
+                  title="Roto & Paint"
+                  aria-label="Edit in Roto & Paint"
+                >
+                  <Paintbrush className="h-[60%] w-[60%] text-white" />
+                </button>
+              )}
+
+              {/* Rotoscope (Success + Video only) */}
+              {generation.status === 'succeeded' && isVideo && mediaUrl && (
+                <button
+                  onClick={e => {
+                    e.stopPropagation();
+                    const encodedUrl = encodeURIComponent(mediaUrl);
+                    router.push(
+                      `/projects/${generation.projectId}/process?video=${encodedUrl}&tool=rotoscope`
+                    );
+                  }}
+                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-cyan-600/80 backdrop-blur-sm transition-colors hover:bg-cyan-500"
+                  title="Rotoscope"
+                  aria-label="Edit in Rotoscope"
+                >
+                  <Film className="h-[60%] w-[60%] text-white" />
+                </button>
+              )}
+
+              {/* Save as Element (Success only) */}
+              {generation.status === 'succeeded' && onSaveAsElement && (
+                <button
+                  onClick={e => {
+                    e.stopPropagation();
+                    if (mediaUrl) onSaveAsElement(mediaUrl, isVideo ? 'video' : 'image');
+                  }}
+                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-blue-500/50"
+                  title="Save as Element"
+                  aria-label="Save as Element"
+                >
+                  <FilePlus className="h-[60%] w-[60%] text-white" />
+                </button>
+              )}
+
+              {/* Download (Success only) */}
+              {generation.status === 'succeeded' && (
+                <button
+                  onClick={handleDownload}
+                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-white/20"
+                  title="Download"
+                  aria-label="Download media"
+                >
+                  <Download className="h-[60%] w-[60%] text-white" />
+                </button>
+              )}
+
+              {/* Delete (ALWAYS VISIBLE) */}
+              <button
+                onClick={handleDelete}
+                className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-red-500/50"
+                title="Delete"
+                aria-label="Delete generation"
+              >
+                <Trash2 className="h-[60%] w-[60%] text-red-400" />
+              </button>
+            </div>
+          </div>
+
+          {/* Media content */}
           {generation.status === 'succeeded' && mediaUrl ? (
             isVideo ? (
-              <video
-                ref={videoRef}
-                src={mediaUrl}
-                className="h-full w-full object-cover"
-                muted
-                loop
-                playsInline
-                onContextMenu={e => e.stopPropagation()}
-                onPointerDown={e => {
-                  // Stop propagation for right click (button 2) to prevent dnd-kit from grabbing it
-                  if (e.button === 2) {
-                    e.stopPropagation();
-                  }
-                }}
-              />
+              <div
+                ref={videoContainerRef}
+                className="relative h-full w-full"
+                onMouseMove={handleVideoScrub}
+              >
+                <video
+                  ref={videoRef}
+                  src={mediaUrl}
+                  className="h-full w-full object-cover"
+                  muted
+                  loop
+                  playsInline
+                  preload="metadata"
+                  onContextMenu={e => e.stopPropagation()}
+                  onPointerDown={e => {
+                    // Stop propagation for right click (button 2) to prevent dnd-kit from grabbing it
+                    if (e.button === 2) {
+                      e.stopPropagation();
+                    }
+                  }}
+                />
+                {/* Hover-Scrub Indicator */}
+                {isHovered && (
+                  <>
+                    {/* Scrub position line */}
+                    <div
+                      className="pointer-events-none absolute top-0 bottom-0 z-10 w-0.5 bg-white/80 transition-transform duration-75"
+                      style={{ left: `${scrubPosition * 100}%` }}
+                    />
+                    {/* Progress bar at bottom */}
+                    <div className="pointer-events-none absolute right-0 bottom-0 left-0 z-10 h-1 bg-black/50">
+                      <div
+                        className="h-full bg-blue-500 transition-all duration-75"
+                        style={{ width: `${scrubPosition * 100}%` }}
+                      />
+                    </div>
+                    {/* Film strip icon indicator */}
+                    <div className="pointer-events-none absolute right-2 bottom-2 z-10 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white/70 backdrop-blur-sm">
+                      <Film className="h-3 w-3" />
+                      <span>Scrub</span>
+                    </div>
+                  </>
+                )}
+              </div>
             ) : (
               <img
                 src={mediaUrl}
@@ -1045,7 +1211,65 @@ export function GenerationCard({
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
               {generation.status === 'queued' || generation.status === 'running' ? (
-                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                /* Proxy Placeholder - Enhanced loading state */
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-800/50 to-zinc-900">
+                  {/* Animated background effect for slow video models */}
+                  {estimatedTime.isSlow && (
+                    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                      <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-transparent via-blue-500/5 to-transparent" />
+                      <div
+                        className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/3 to-transparent"
+                        style={{
+                          animation: 'shimmer 2s infinite',
+                          left: '-33%',
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Main spinner */}
+                  <div className="relative">
+                    <Loader2
+                      className={clsx(
+                        'animate-spin',
+                        estimatedTime.isSlow ? 'h-10 w-10 text-purple-400' : 'h-8 w-8 text-blue-500'
+                      )}
+                    />
+                    {estimatedTime.isVideo && (
+                      <Film className="absolute -right-1 -bottom-1 h-4 w-4 text-purple-300" />
+                    )}
+                  </div>
+
+                  {/* Status and time info */}
+                  <div className="mt-3 flex flex-col items-center gap-1">
+                    <span className="text-xs font-medium text-white/80 capitalize">
+                      {generation.status === 'queued' ? 'In Queue' : 'Generating'}
+                    </span>
+
+                    {/* Model name badge */}
+                    {modelId && (
+                      <span className="max-w-[120px] truncate text-[10px] text-gray-500">
+                        {modelId.split('/').pop()?.split('-').slice(0, 2).join('-')}
+                      </span>
+                    )}
+
+                    {/* Time display */}
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <Clock className="h-3 w-3 text-gray-500" />
+                      <span className="text-[10px] text-gray-400">
+                        {elapsedDisplay} / {estimatedTime.label}
+                      </span>
+                    </div>
+
+                    {/* Slow model warning */}
+                    {estimatedTime.isSlow && elapsedSeconds > 60 && (
+                      <div className="mt-1 flex items-center gap-1 text-[9px] text-amber-400/70">
+                        <Zap className="h-2.5 w-2.5" />
+                        <span>Premium model - please wait</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               ) : (
                 <div className="flex flex-col items-center gap-2 px-4 text-center">
                   <span className="font-medium text-red-500">Failed</span>
@@ -1215,30 +1439,42 @@ export function GenerationCard({
                           <div>
                             <div className="mb-4 flex items-center justify-between">
                               <h3 className="text-lg font-bold text-white">What Went Wrong</h3>
-                              {onUseSettings && (
+                              <div className="flex gap-3">
+                                {/* Copy Recipe Button */}
                                 <button
-                                  onClick={handleRestoreSettings}
-                                  className={clsx(
-                                    'flex items-center gap-1.5 text-sm font-medium transition-all duration-200',
-                                    isRestoring
-                                      ? 'scale-105 text-green-400'
-                                      : 'text-purple-400 hover:text-purple-300'
-                                  )}
-                                  title="Load these settings and try again"
+                                  onClick={handleCopyRecipe}
+                                  className="flex items-center gap-1.5 text-sm font-medium text-gray-400 transition-colors hover:text-white"
+                                  title="Copy recipe as JSON"
                                 >
-                                  {isRestoring ? (
-                                    <>
-                                      <Check className="h-3.5 w-3.5" />
-                                      Restored!
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Wand2 className="h-3.5 w-3.5" />
-                                      Use Settings & Retry
-                                    </>
-                                  )}
+                                  <Copy className="h-3.5 w-3.5" />
+                                  Copy
                                 </button>
-                              )}
+                                {/* Fork Recipe Button */}
+                                {onUseSettings && (
+                                  <button
+                                    onClick={handleRestoreSettings}
+                                    className={clsx(
+                                      'flex items-center gap-1.5 text-sm font-medium transition-all duration-200',
+                                      isRestoring
+                                        ? 'scale-105 text-green-400'
+                                        : 'text-purple-400 hover:text-purple-300'
+                                    )}
+                                    title="Fork this recipe - load settings and retry"
+                                  >
+                                    {isRestoring ? (
+                                      <>
+                                        <Check className="h-3.5 w-3.5" />
+                                        Forked!
+                                      </>
+                                    ) : (
+                                      <>
+                                        <GitFork className="h-3.5 w-3.5" />
+                                        Fork & Retry
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+                              </div>
                             </div>
 
                             {/* Raw Error Message */}
@@ -1341,7 +1577,17 @@ export function GenerationCard({
                           <>
                             <div className="mb-4 flex items-center justify-between">
                               <h3 className="text-lg font-bold text-white">Generation Details</h3>
-                              <div className="flex gap-4">
+                              <div className="flex gap-3">
+                                {/* Copy Recipe Button */}
+                                <button
+                                  onClick={handleCopyRecipe}
+                                  className="flex items-center gap-1.5 text-sm font-medium text-gray-400 transition-colors hover:text-white"
+                                  title="Copy recipe as JSON"
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                  Copy
+                                </button>
+                                {/* Fork Recipe Button */}
                                 {onUseSettings && (
                                   <button
                                     onClick={handleRestoreSettings}
@@ -1351,17 +1597,17 @@ export function GenerationCard({
                                         ? 'scale-105 text-green-400'
                                         : 'text-purple-400 hover:text-purple-300'
                                     )}
-                                    title="Load these settings into the generator"
+                                    title="Fork this recipe - load exact settings into generator"
                                   >
                                     {isRestoring ? (
                                       <>
                                         <Check className="h-3.5 w-3.5" />
-                                        Restored!
+                                        Forked!
                                       </>
                                     ) : (
                                       <>
-                                        <Wand2 className="h-3.5 w-3.5" />
-                                        Use Settings
+                                        <GitFork className="h-3.5 w-3.5" />
+                                        Fork Recipe
                                       </>
                                     )}
                                   </button>

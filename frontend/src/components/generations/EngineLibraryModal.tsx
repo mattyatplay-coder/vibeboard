@@ -37,12 +37,12 @@ interface EngineLibraryModalProps {
   onAudioChange?: (file: File | null) => void;
 }
 
-const CATEGORIES: { id: ModelCapability | 'all'; label: string; icon: React.ElementType }[] = [
-  { id: 'all', label: 'All Uses', icon: Sparkles },
-  { id: 'text-to-image', label: 'Image Generation', icon: ImageIcon },
-  { id: 'text-to-video', label: 'Text to Video', icon: Video },
-  { id: 'image-to-video', label: 'Animation (I2V)', icon: Film },
-  { id: 'avatar', label: 'Character & Avatar', icon: User },
+const CATEGORIES = [
+  { id: 'all' as const, label: 'All Uses', icon: Sparkles },
+  { id: 'text-to-image' as ModelCapability, label: 'Image Generation', icon: ImageIcon },
+  { id: 'text-to-video' as ModelCapability, label: 'Text to Video', icon: Video },
+  { id: 'image-to-video' as ModelCapability, label: 'Animation (I2V)', icon: Film },
+  { id: 'avatar' as ModelCapability, label: 'Character & Avatar', icon: User },
 ];
 
 export function EngineLibraryModal({
@@ -445,6 +445,11 @@ export function EngineLibraryModal({
                         <h3 className="mb-1 text-base font-bold text-white transition-colors group-hover:text-blue-400">
                           {model.name}
                         </h3>
+                        {model.bestFor && (
+                          <span className="mb-2 inline-block rounded bg-cyan-500/20 px-1.5 py-0.5 text-[10px] font-medium text-cyan-300">
+                            Best for: {model.bestFor}
+                          </span>
+                        )}
                         <p className="mb-4 text-xs text-gray-400">
                           {model.desc || 'No description available.'}
                         </p>

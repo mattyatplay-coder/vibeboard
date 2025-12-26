@@ -20,7 +20,7 @@ import { clsx } from 'clsx';
 
 interface SidebarItem {
   id: string;
-  icon: React.ElementType;
+  icon: React.ComponentType<{ className?: string }>;
   label: string;
   href: string;
   disabled?: boolean;

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks */
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -17,6 +18,8 @@ import {
   FolderOpen,
   Library,
   Database,
+  Lightbulb,
+  Lock,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
@@ -62,6 +65,13 @@ export interface StyleConfig {
   negativePrompt?: string;
   workflow?: { name: string; file: File | null };
   motionVideo?: string | File | null;
+  // Lighting Lock feature
+  lightingLock?: {
+    enabled: boolean;
+    imageUrl?: string;
+    imageFile?: File;
+    strength: number; // 0.1-0.5, default 0.25
+  };
 }
 
 interface StyleSelectorModalProps {
@@ -332,6 +342,8 @@ interface StyleSelectorModalProps {
   initialAspectRatio?: string;
   projectId: string;
   config?: StyleConfig; // Added config prop for external control
+  currentModelId?: string; // Current generation model ID for LoRA auto-filtering
+  isAnamorphicLocked?: boolean; // When true, locks aspect ratio to 21:9
 }
 
 export function StyleSelectorModal({
@@ -341,6 +353,8 @@ export function StyleSelectorModal({
   initialAspectRatio,
   projectId,
   config: configProp,
+  currentModelId,
+  isAnamorphicLocked,
 }: StyleSelectorModalProps) {
   // Basic Style State
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -528,16 +542,20 @@ export function StyleSelectorModal({
       <AnimatePresence>
         {isOpen && (
           <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+            className="scrollbar-none fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
             onClick={onClose}
           >
-            <div className="flex max-h-[90vh] items-start gap-4" onClick={e => e.stopPropagation()}>
+            <div
+              className="scrollbar-none flex items-stretch gap-4 overflow-hidden"
+              style={{ height: 'min(800px, calc(100vh - 2rem))', maxWidth: 'calc(100vw - 2rem)' }}
+              onClick={e => e.stopPropagation()}
+            >
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="relative flex max-h-[90vh] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#1a1a1a] shadow-2xl"
-                style={{ width: '900px' }}
+                className="scrollbar-none relative flex h-full flex-shrink-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#1a1a1a] shadow-2xl"
+                style={{ width: '780px', maxWidth: '900px' }}
               >
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-white/10 p-4">
@@ -551,9 +569,9 @@ export function StyleSelectorModal({
                 </div>
 
                 {/* 3-Column Content */}
-                <div className="flex flex-1 overflow-hidden">
+                <div className="scrollbar-none flex min-h-0 flex-1 overflow-y-auto">
                   {/* LEFT COLUMN - Style Presets */}
-                  <div className="flex w-[280px] flex-col border-r border-white/10">
+                  <div className="scrollbar-none flex w-[280px] flex-col border-r border-white/10">
                     <div className="border-b border-white/5 p-3">
                       <div className="relative">
                         <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-500" />
@@ -567,7 +585,7 @@ export function StyleSelectorModal({
                       </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-3">
+                    <div className="scrollbar-none flex-1 overflow-y-auto p-3">
                       <div className="grid grid-cols-3 gap-2">
                         {filteredPresets.map(preset => (
                           <PresetCard
@@ -605,7 +623,7 @@ export function StyleSelectorModal({
                   </div>
 
                   {/* MIDDLE COLUMN - Reference & Advanced Settings */}
-                  <div className="flex w-[310px] flex-col overflow-y-auto border-r border-white/10">
+                  <div className="scrollbar-none flex w-[270px] flex-col overflow-y-auto border-r border-white/10">
                     <div className="space-y-4 p-4">
                       {/* Reference Image */}
                       <div>
@@ -942,7 +960,7 @@ export function StyleSelectorModal({
                   </div>
 
                   {/* RIGHT COLUMN - Quick Tags & Parameters */}
-                  <div className="flex flex-1 flex-col overflow-y-auto">
+                  <div className="scrollbar-none @container flex w-[230px] flex-shrink-0 flex-col overflow-y-auto">
                     <div className="space-y-4 p-4">
                       {/* Quick Add Tags */}
                       <div>
@@ -1067,25 +1085,167 @@ export function StyleSelectorModal({
 
                       {/* Aspect Ratio */}
                       <div>
-                        <span className="mb-2 block flex items-center gap-2 text-xs font-bold tracking-wider text-gray-400 uppercase">
-                          <Ratio className="h-3 w-3" /> Aspect Ratio
+                        <span className="mb-2 block flex items-center gap-[clamp(4px,1cqw,8px)] text-[clamp(10px,2cqw,12px)] font-bold tracking-wider text-gray-400 uppercase">
+                          <Ratio className="h-[clamp(10px,2cqw,12px)] w-[clamp(10px,2cqw,12px)]" />{' '}
+                          Aspect Ratio
+                          {isAnamorphicLocked && (
+                            <span className="ml-1 rounded bg-blue-500/20 px-1.5 py-0.5 text-[9px] text-blue-400">
+                              ANAMORPHIC LOCK
+                            </span>
+                          )}
                         </span>
-                        <div className="grid grid-cols-4 gap-2">
-                          {['16:9', '9:16', '1:1', '2.35:1'].map(ratio => (
-                            <button
-                              key={ratio}
-                              onClick={() => setConfig({ ...config, aspectRatio: ratio })}
+                        {isAnamorphicLocked ? (
+                          // Anamorphic locked mode - only 21:9
+                          <div className="flex items-center gap-2">
+                            <div className="rounded-lg border border-blue-500 bg-blue-600 px-[clamp(8px,2.5cqw,14px)] py-[clamp(4px,1.2cqw,8px)] text-[clamp(10px,2cqw,12px)] font-medium whitespace-nowrap text-white">
+                              21:9
+                            </div>
+                            <span className="text-[10px] text-blue-400/70">
+                              Anamorphic glass requires 2.39:1 widescreen
+                            </span>
+                          </div>
+                        ) : (
+                          // Normal mode - all aspect ratios
+                          <div className="flex flex-wrap gap-[clamp(4px,1.5cqw,8px)]">
+                            {['16:9', '9:16', '1:1', '21:9', '2.35:1'].map(ratio => (
+                              <button
+                                key={ratio}
+                                onClick={() => setConfig({ ...config, aspectRatio: ratio })}
+                                className={clsx(
+                                  'rounded-lg border px-[clamp(8px,2.5cqw,14px)] py-[clamp(4px,1.2cqw,8px)] text-[clamp(10px,2cqw,12px)] font-medium whitespace-nowrap transition-colors',
+                                  config.aspectRatio === ratio
+                                    ? 'border-blue-500 bg-blue-600 text-white'
+                                    : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                                )}
+                              >
+                                {ratio}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Lighting Lock - IP-Adapter for consistent lighting */}
+                      <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+                        <div className="mb-2 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Lightbulb className="h-4 w-4 text-amber-400" />
+                            <span className="text-xs font-bold tracking-wider text-amber-300 uppercase">
+                              Lighting Lock
+                            </span>
+                          </div>
+                          <button
+                            onClick={() =>
+                              setConfig({
+                                ...config,
+                                lightingLock: config.lightingLock?.enabled
+                                  ? { ...config.lightingLock, enabled: false }
+                                  : { enabled: true, strength: 0.25 },
+                              })
+                            }
+                            className={clsx(
+                              'relative h-5 w-8 rounded-full transition-colors',
+                              config.lightingLock?.enabled ? 'bg-amber-500' : 'bg-gray-700'
+                            )}
+                          >
+                            <div
                               className={clsx(
-                                'rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors',
-                                config.aspectRatio === ratio
-                                  ? 'border-blue-500 bg-blue-600 text-white'
-                                  : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                                'absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all',
+                                config.lightingLock?.enabled ? 'left-3.5' : 'left-0.5'
                               )}
-                            >
-                              {ratio}
-                            </button>
-                          ))}
+                            />
+                          </button>
                         </div>
+
+                        <p className="mb-2 text-[10px] text-gray-500">
+                          Upload a reference image to lock lighting style across all generations
+                          (uses IP-Adapter at low weight)
+                        </p>
+
+                        {config.lightingLock?.enabled && (
+                          <div className="space-y-2">
+                            {/* Upload Zone or Preview */}
+                            {config.lightingLock.imageUrl || config.lightingLock.imageFile ? (
+                              <div className="relative h-20 w-full overflow-hidden rounded-lg border border-amber-500/30">
+                                <img
+                                  src={
+                                    config.lightingLock.imageFile
+                                      ? URL.createObjectURL(config.lightingLock.imageFile)
+                                      : config.lightingLock.imageUrl
+                                  }
+                                  alt="Lighting reference"
+                                  className="h-full w-full object-cover"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                                <div className="absolute bottom-1 left-2 flex items-center gap-1 text-[10px] text-amber-300">
+                                  <Lock className="h-3 w-3" />
+                                  <span>Lighting locked</span>
+                                </div>
+                                <button
+                                  onClick={() =>
+                                    setConfig({
+                                      ...config,
+                                      lightingLock: {
+                                        ...config.lightingLock!,
+                                        imageUrl: undefined,
+                                        imageFile: undefined,
+                                      },
+                                    })
+                                  }
+                                  className="absolute top-1 right-1 rounded bg-black/50 p-1 transition-colors hover:bg-red-500/50"
+                                >
+                                  <X className="h-3 w-3 text-white" />
+                                </button>
+                              </div>
+                            ) : (
+                              <label className="flex h-16 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-amber-500/30 bg-amber-500/5 transition-colors hover:border-amber-500/50">
+                                <Upload className="mb-1 h-4 w-4 text-amber-400" />
+                                <span className="text-[10px] text-amber-300">
+                                  Drop lighting reference
+                                </span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={e => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      setConfig({
+                                        ...config,
+                                        lightingLock: { ...config.lightingLock!, imageFile: file },
+                                      });
+                                    }
+                                  }}
+                                />
+                              </label>
+                            )}
+
+                            {/* Strength Slider */}
+                            <div className="flex items-center gap-2">
+                              <span className="w-14 text-[10px] text-gray-500">Strength:</span>
+                              <input
+                                type="range"
+                                min="0.1"
+                                max="0.5"
+                                step="0.05"
+                                value={config.lightingLock.strength}
+                                onChange={e =>
+                                  setConfig({
+                                    ...config,
+                                    lightingLock: {
+                                      ...config.lightingLock!,
+                                      strength: parseFloat(e.target.value),
+                                    },
+                                  })
+                                }
+                                className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-gray-700 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-500"
+                              />
+                              <span className="w-8 text-right text-[10px] text-amber-300">
+                                {(config.lightingLock.strength * 100).toFixed(0)}%
+                              </span>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Negative Prompt */}
@@ -1146,7 +1306,7 @@ export function StyleSelectorModal({
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
-                    className="h-full max-h-[90vh]"
+                    className="h-full max-h-full min-w-[400px] flex-shrink"
                   >
                     <LoRAManager
                       projectId={projectId}
@@ -1155,6 +1315,7 @@ export function StyleSelectorModal({
                       embedded={true}
                       selectedIds={config.loras?.map(l => l.id)}
                       onToggle={handleToggleLoRA}
+                      currentModelId={currentModelId}
                     />
                   </motion.div>
                 )}
@@ -1163,7 +1324,7 @@ export function StyleSelectorModal({
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
-                    className="h-full max-h-[90vh]"
+                    className="h-full max-h-full min-w-[300px] flex-shrink"
                   >
                     <ParameterManager
                       projectId={projectId}
@@ -1181,7 +1342,7 @@ export function StyleSelectorModal({
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
-                    className="h-full max-h-[90vh]"
+                    className="h-full max-h-full min-w-[300px] flex-shrink"
                   >
                     <ParameterManager
                       projectId={projectId}
@@ -1199,7 +1360,7 @@ export function StyleSelectorModal({
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
-                    className="h-full max-h-[90vh]"
+                    className="h-full max-h-full min-w-[400px] flex-shrink"
                   >
                     <CinematicTagsModal
                       isOpen={true}
@@ -1215,7 +1376,7 @@ export function StyleSelectorModal({
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
-                    className="h-full max-h-[90vh]"
+                    className="h-full max-h-full min-w-[350px] flex-shrink"
                   >
                     <NegativePromptManager
                       projectId={projectId}

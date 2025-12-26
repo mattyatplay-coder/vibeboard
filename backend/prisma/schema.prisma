@@ -25,6 +25,38 @@ model Project {
   workflows   Workflow[]
   trainingJobs TrainingJob[]
   customPosePresets CustomPosePreset[]
+  characters  Character[]
+  sceneChains SceneChain[]
+  stories     Story[]
+}
+
+// Story drafts from Story Editor
+model Story {
+  id              String   @id @default(uuid())
+  projectId       String
+  name            String
+  genre           String   // 'action', 'horror', 'adult', 'hardcore', etc.
+  concept         String   // Original concept/logline
+
+  // Generated content (JSON strings for SQLite)
+  outline         String?  // JSON: StoryOutline with acts, beats, characters
+  script          String?  // Full screenplay text
+  scenes          String?  // JSON: Array of scene breakdowns with shots
+  prompts         String?  // JSON: Array of generated prompts
+
+  // Settings
+  allowNSFW       Boolean  @default(false)
+  targetDuration  Int?     // Target duration in seconds
+  directorStyle   String?  // Selected director style
+
+  // State
+  status          String   @default("draft") // 'draft', 'outline', 'script', 'breakdown', 'complete', 'exported'
+  exportedAt      DateTime? // When exported to storyboard
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project         Project  @relation(fields: [projectId], references: [id])
 }
 
 model Session {
@@ -120,6 +152,11 @@ model Generation {
   rating             Int?     // 1-5 stars
   aiAnalysis         String?  // JSON string from Grok
   feedbackNotes      String?  // User manual notes
+
+  // Semantic Search fields
+  visualDescription  String?  // JSON: { description, subjects, colors, mood, composition, objects }
+  indexedAt          DateTime? // When the visual description was generated
+
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -268,4 +305,127 @@ model CustomPosePreset {
   updatedAt   DateTime @updatedAt
 
   project     Project? @relation(fields: [projectId], references: [id])
+}
+
+// Character profiles for consistency across generations
+model Character {
+  id              String   @id @default(uuid())
+  projectId       String
+  name            String
+  description     String?
+
+  // Reference images for this character
+  referenceImages String   // JSON array of image URLs
+  primaryImageUrl String?  // Main headshot/reference
+
+  // Character attributes for prompt injection
+  attributes      String?  // JSON: { age, gender, ethnicity, hairColor, eyeColor, distinguishingFeatures }
+
+  // LoRA/Embedding association
+  loraId          String?  // If trained LoRA exists
+  triggerWord     String?  // Trigger word for this character
+
+  // Wardrobe/outfit definitions
+  outfits         String?  // JSON array: [{ name, description, imageUrl }]
+  defaultOutfitId String?
+
+  // Consistency settings
+  faceWeight      Float    @default(0.8)  // IP-Adapter face strength
+  styleWeight     Float    @default(0.5)  // Style preservation strength
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project         Project  @relation(fields: [projectId], references: [id])
+  sceneChainCharacters SceneChainCharacter[]
+
+  @@unique([projectId, name])
+}
+
+// Scene Chain for video extension workflows
+model SceneChain {
+  id              String   @id @default(uuid())
+  projectId       String
+  name            String
+  description     String?
+
+  // Chain configuration
+  targetDuration  Int?     // Total target duration in seconds
+  transitionStyle String   @default("smooth") // 'smooth', 'cut', 'fade', 'morph'
+
+  // Style consistency
+  styleGuideId    String?
+  colorGrading    String?  // Color grading preset
+  aspectRatio     String   @default("16:9")
+
+  // Model preferences
+  preferredModel  String?  // Preferred generation model
+
+  status          String   @default("draft") // 'draft', 'generating', 'complete', 'failed'
+
+  // Final stitched video output
+  finalVideoUrl   String?  // URL of the final stitched video
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project         Project  @relation(fields: [projectId], references: [id])
+  segments        SceneChainSegment[]
+  characters      SceneChainCharacter[]
+}
+
+// Individual segment in a scene chain
+model SceneChainSegment {
+  id              String   @id @default(uuid())
+  sceneChainId    String
+
+  // Position in chain
+  orderIndex      Int
+
+  // Content
+  prompt          String
+  duration        Int      @default(5)  // seconds
+
+  // Reference frames for generation guidance
+  firstFrameUrl   String?  // Reference image for the first frame
+  lastFrameUrl    String?  // Reference image for the last frame (for continuity)
+
+  // Source (if extending from existing video/generation)
+  sourceType      String?  // 'generation', 'upload', 'none'
+  sourceId        String?  // ID of generation or uploaded video
+  sourceUrl       String?  // Direct URL if uploaded
+
+  // Output
+  generationId    String?  // ID of generated result
+  outputUrl       String?  // Final output URL
+
+  // Transition to next segment
+  transitionType  String   @default("smooth") // Override chain default
+
+  status          String   @default("pending") // 'pending', 'generating', 'complete', 'failed'
+  failureReason   String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  sceneChain      SceneChain @relation(fields: [sceneChainId], references: [id], onDelete: Cascade)
+}
+
+// Junction table for characters in scene chains
+model SceneChainCharacter {
+  id            String   @id @default(uuid())
+  sceneChainId  String
+  characterId   String
+
+  // Override character settings for this chain
+  overrideFaceWeight  Float?
+  overrideStyleWeight Float?
+  overrideOutfitId    String?
+
+  createdAt     DateTime @default(now())
+
+  sceneChain    SceneChain @relation(fields: [sceneChainId], references: [id], onDelete: Cascade)
+  character     Character  @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([sceneChainId, characterId])
 }

@@ -118,7 +118,9 @@ export function ParameterManager({
     <div
       className={clsx(
         'flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#1a1a1a] shadow-2xl',
-        embedded ? 'h-full max-h-[90vh] w-full' : 'max-h-[85vh] w-full max-w-4xl'
+        embedded
+          ? 'h-full max-h-full w-full max-w-[400px] min-w-[300px]'
+          : 'max-h-[85vh] w-full max-w-4xl'
       )}
     >
       <div className="flex items-center justify-between border-b border-white/10 p-4">

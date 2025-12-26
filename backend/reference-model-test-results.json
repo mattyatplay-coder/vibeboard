@@ -1,0 +1,38 @@
+{
+  "timestamp": "2025-12-24T20:15:47.459Z",
+  "summary": {
+    "total": 4,
+    "successful": 4,
+    "failed": 0
+  },
+  "results": [
+    {
+      "model": "Flux Kontext Dev",
+      "endpoint": "fal-ai/flux-kontext/dev",
+      "status": "success",
+      "duration": 3020,
+      "outputUrl": "https://v3b.fal.media/files/b/0a87a0f8/VbVvq8evHgE_ppD2LtVjO.jpg"
+    },
+    {
+      "model": "Flux Pro Kontext",
+      "endpoint": "fal-ai/flux-pro/kontext",
+      "status": "success",
+      "duration": 9746,
+      "outputUrl": "https://v3b.fal.media/files/b/0a87a0f9/FoWZA1d1_OCah-bQor_km_c19a185a64a741b9b52c5ef7bf452612.jpg"
+    },
+    {
+      "model": "Kling O1 Image",
+      "endpoint": "fal-ai/kling-image/o1",
+      "status": "success",
+      "duration": 37683,
+      "outputUrl": "https://v3b.fal.media/files/b/0a87a0fd/Z22A6vvne71PWQaK_FN8o_a2b307fedc12457ab4c9abac64656b23.png"
+    },
+    {
+      "model": "Ideogram Character",
+      "endpoint": "fal-ai/ideogram/character",
+      "status": "success",
+      "duration": 15765,
+      "outputUrl": "https://v3b.fal.media/files/b/0a87a0fe/cp_3A7CqbevWGNAHRzF-m_image.png"
+    }
+  ]
+}

@@ -1,0 +1,183 @@
+{
+  "version": "1.0",
+  "description": "UI Component Registry - Visual documentation with screenshots, exact layout specs, and protected elements. MUST READ before modifying any UI component.",
+  "lastUpdated": "2025-12-22",
+
+  "components": {
+    "Generate Page Toolbar": {
+      "status": "FROZEN",
+      "owner": "Matt",
+      "file": "frontend/src/app/projects/[id]/generate/page.tsx",
+      "screenshot": "/Users/matthenrichmacbook/.gemini/antigravity/brain/0e86b1df-e2c7-4d2e-9d14-7875efeff7d5/element_picker_and_toolbar_1766115865092.png",
+      "description": "Unified prompt bar with inline controls, element picker, and engine selector",
+      "layout": {
+        "structure": [
+          "1. Prompt textarea (auto-expanding) with inline element pills (@element)",
+          "2. Sparkles button (pink) attached to prompt bar for Smart Prompt Builder",
+          "3. Bottom row: Style button | Duration dropdown | Quantity dropdown | Element Picker toggle",
+          "4. Engine Selector V2 (compact pill: Provider Icon + Model Name)",
+          "5. Generate button (right side)"
+        ],
+        "positioning": "Fixed bottom toolbar, full width minus sidebar",
+        "height": "Auto-expanding based on prompt content"
+      },
+      "doNotRemove": [
+        "Unified prompt bar with attached Sparkles button",
+        "Element pills showing @element references inline",
+        "Bottom row inline controls (Style, Duration, Quantity, Element Picker)",
+        "Engine Selector V2 compact pill design",
+        "NO separate mode switcher (removed Dec 19, 2025 - mode auto-detects from model)"
+      ],
+      "doNotAdd": [
+        "Mode switcher toggle (Image/Video) - this was intentionally removed",
+        "Separate prompt input and controls - must stay unified",
+        "Multiple rows of controls - keep compact single bottom row"
+      ],
+      "referencedComponents": [
+        "EngineSelectorV2",
+        "PromptBuilder",
+        "ElementReferencePicker",
+        "WeightHintTooltip"
+      ],
+      "history": [
+        {"date": "2025-12-19", "change": "Removed mode switcher, auto-detect from model selection"},
+        {"date": "2025-12-19", "change": "Added inline element pills to prompt textarea"},
+        {"date": "2025-12-21", "change": "Added WeightHintTooltip showing on Cmd/Ctrl hold"}
+      ]
+    },
+
+    "Engine Library Modal": {
+      "status": "FROZEN",
+      "owner": "Matt",
+      "file": "frontend/src/components/generations/EngineLibraryModal.tsx",
+      "screenshot": "/Users/matthenrichmacbook/.gemini/antigravity/brain/0e86b1df-e2c7-4d2e-9d14-7875efeff7d5/model_library_sidebar_1766111613154.png",
+      "description": "Full-page modal for browsing and selecting AI models",
+      "layout": {
+        "structure": [
+          "1. Left sidebar: USE CASE filters (All, Image, Video, I2V, Character)",
+          "2. Left sidebar: Favorites section with count badge",
+          "3. Left sidebar: MAKER section with provider checkboxes and counts",
+          "4. Main area: Model cards in grid (3-4 columns)",
+          "5. Each card: Model name, provider icon, capability badges",
+          "6. LoRA filter toggle (purple button) with model count"
+        ],
+        "width": "Full screen with sidebar",
+        "categories": "All Uses, Image Generation, Text to Video, Animation (I2V), Character & Avatar"
+      },
+      "doNotRemove": [
+        "Category sidebar with All/Image/Video/I2V/Character filters",
+        "Favorites section with count",
+        "MAKER section with multi-select provider checkboxes",
+        "Amber LoRA badges on compatible models",
+        "Purple LoRA filter toggle button"
+      ],
+      "doNotAdd": [
+        "Mode-based filtering that hides categories"
+      ],
+      "history": [
+        {"date": "2025-12-19", "change": "Removed mode-based category filtering, show ALL categories always"},
+        {"date": "2025-12-21", "change": "Added LoRA filter toggle and amber LoRA badges"}
+      ]
+    },
+
+    "Smart Prompt Builder": {
+      "status": "FROZEN",
+      "owner": "Matt",
+      "file": "frontend/src/components/prompts/PromptBuilder.tsx",
+      "screenshot": null,
+      "description": "AI prompt enhancement modal with context display",
+      "layout": {
+        "structure": [
+          "1. Current prompt display (read-only)",
+          "2. LoRA Models & Trigger Words section with 'Will prepend:' indicator",
+          "3. Character Reference section with element thumbnails and PRIMARY badge",
+          "4. Pink 'Enhance' button (ONLY button - no 'Use Enhanced Prompt')",
+          "5. Enhancement auto-applies and closes modal on success"
+        ]
+      },
+      "doNotRemove": [
+        "Auto-apply enhancement on success (setPrompt, onPromptChange, onClose)",
+        "Will prepend: indicator showing trigger words in yellow chips",
+        "Character Reference section with 40x40px thumbnails",
+        "PRIMARY badge on first element reference"
+      ],
+      "doNotAdd": [
+        "'Use Enhanced Prompt' button - enhancement auto-applies",
+        "Manual copy/paste flow - it's automatic now"
+      ],
+      "history": [
+        {"date": "2025-12-20", "change": "Removed 'Use Enhanced Prompt' button, auto-apply on success"},
+        {"date": "2025-12-20", "change": "Added LoRA trigger word display with 'Will prepend:' indicator"},
+        {"date": "2025-12-20", "change": "Added Character Reference section with thumbnails"}
+      ]
+    },
+
+    "Element Picker": {
+      "status": "FROZEN",
+      "owner": "Matt",
+      "file": "frontend/src/app/projects/[id]/generate/page.tsx",
+      "screenshot": "/Users/matthenrichmacbook/.gemini/antigravity/brain/0e86b1df-e2c7-4d2e-9d14-7875efeff7d5/element_picker_and_toolbar_1766115865092.png",
+      "description": "Horizontal strip of project elements for character reference",
+      "layout": {
+        "structure": [
+          "1. Toggle button in toolbar controls",
+          "2. Horizontal scrollable strip when visible",
+          "3. Element cards with thumbnails and names",
+          "4. Selection state with checkmarks",
+          "5. Selected elements appear as pills in prompt textarea"
+        ],
+        "positioning": "Above toolbar, horizontal scroll"
+      },
+      "doNotRemove": [
+        "Toggle visibility from toolbar",
+        "Horizontal scrollable layout",
+        "Selection sync with prompt textarea pills"
+      ]
+    },
+
+    "Autocomplete Popup": {
+      "status": "FROZEN",
+      "owner": "Matt",
+      "file": "frontend/src/app/projects/[id]/generate/page.tsx",
+      "screenshot": "/Users/matthenrichmacbook/.gemini/antigravity/brain/0e86b1df-e2c7-4d2e-9d14-7875efeff7d5/autocomplete_popup_visible_1766112819686.png",
+      "description": "@ mention autocomplete for quick element reference",
+      "layout": {
+        "structure": [
+          "1. Appears when typing '@' in prompt",
+          "2. Dropdown list of project elements",
+          "3. Thumbnails + names",
+          "4. Keyboard navigation (arrow keys + enter)"
+        ],
+        "positioning": "Floating above prompt textarea at cursor position"
+      },
+      "doNotRemove": [
+        "Trigger on '@' character",
+        "Keyboard navigation",
+        "Element thumbnails in dropdown"
+      ]
+    }
+  },
+
+  "screenshotLocations": {
+    "primary": "/Users/matthenrichmacbook/.gemini/antigravity/brain/0e86b1df-e2c7-4d2e-9d14-7875efeff7d5/",
+    "backup": "/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/screenshots/"
+  },
+
+  "rules": {
+    "beforeModifyingUI": [
+      "1. READ this registry to understand current component state",
+      "2. CHECK the screenshot to see EXACTLY what it looks like",
+      "3. READ the doNotRemove list for protected elements",
+      "4. READ the doNotAdd list for things intentionally excluded",
+      "5. If component is FROZEN, get explicit approval before changes",
+      "6. After changes, UPDATE this registry with new screenshot and history entry"
+    ],
+    "afterModifyingUI": [
+      "1. Take new screenshot and save to screenshot location",
+      "2. Update screenshot path in this registry",
+      "3. Add history entry with date and change description",
+      "4. Verify all doNotRemove items still exist",
+      "5. Update Memory MCP with component changes"
+    ]
+  }
+}

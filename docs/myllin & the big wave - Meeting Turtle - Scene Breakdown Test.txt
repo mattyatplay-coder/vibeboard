@@ -1,0 +1,116 @@
+SCENE: TURTLE MEETS MYLLIN (Underwater After Wipeout)
+Scene Overview
+Location: Underwater, Pipeline reef Time: Day (filtered sunlight cutting through murky water) Emotional arc: Terror → Confusion → Disbelief → Desperate action Total runtime: ~50-60 seconds (5-6 shots @ 10 sec each)
+
+SHOT 1: THE TUMBLE (10 seconds)
+Camera: Wide, tumbling with Myllin POV style Action:
+	•	Myllin cartwheels violently through murky blue-green water
+	•	Bubbles, reef debris, and his surfboard flash past camera
+	•	His limbs flail—he's ragdolling, totally out of control
+	•	SLAM—he hits coral, body whipping sideways
+	•	Camera settles, drifting with the current
+	•	Myllin floats limp, face-down, arms spread
+Audio:
+	•	Muffled underwater rumble (wave above)
+	•	Impact thud on coral
+	•	Silence as he goes still
+Comedy beat: The contrast between violent chaos and sudden stillness Emotional beat: We feel the danger—he's hurt, maybe drowning
+
+SHOT 2: BODY GOING LIMP (10 seconds)
+Camera: Slow push-in on Myllin's face, side angle Action:
+	•	Myllin's body drifts, rotating gently in the current
+	•	His eyes flutter—half-conscious
+	•	Small cuts on his face and arms leak tiny ribbons of blood
+	•	Bubbles escape his nose—he's running out of air
+	•	His hand twitches once, then goes still
+	•	Camera holds on his face: eyes rolling back
+Audio:
+	•	Myllin's muffled heartbeat (internal sound)
+	•	Faint, distant wave crash above
+	•	His breathing slows (wet, struggling gasps)
+Comedy beat: None—this is the "oh no" moment Emotional beat: Real stakes. The audience worries.
+
+SHOT 3: TURTLE ENTERS (10 seconds)
+Camera: Medium shot, static—framing the coral and open water Action:
+	•	Turtle glides into frame from screen right, totally chill
+	•	He's bobbing gently with the current, like he's taking a Sunday swim
+	•	Spots Myllin floating limp
+	•	Tilts his head—curious, but unbothered
+	•	Swims closer, circling Myllin once (inspecting him like "huh, tourist")
+	•	Stops in front of Myllin's face
+Audio:
+	•	Gentle water ambience
+	•	Turtle's flippers make soft whoosh sounds
+	•	Faint creak of his shell as he tilts his head
+Comedy beat: Turtle's total nonchalance vs. Myllin's near-death state Emotional beat: Tonal shift—help has arrived, but it's... weird?
+
+SHOT 4: THE POKE (10 seconds)
+Camera: Close-up, over Turtle's shoulder on Myllin's face Action:
+	•	Turtle extends his left front flipper
+	•	BOOP—pokes Myllin's cheek
+	•	Myllin doesn't respond
+	•	Turtle pokes again, harder—Myllin's head lolls to the side
+	•	Turtle sighs (bubbles escape his nose)
+	•	Raises flipper for a third poke—
+MYLLIN'S EYES FLUTTER OPEN (just barely)
+Audio:
+	•	Soft bloop sound on first poke
+	•	Slightly louder bonk on second poke
+	•	Turtle's sigh (like "dis guy...")
+Comedy beat: The repeated poke escalation + Turtle's exasperation Emotional beat: Myllin's alive—barely
+
+SHOT 5: THE LINE (10 seconds)
+Camera: Two-shot, medium close-up—Turtle in foreground (screen left), Myllin in background (screen right), both in profile Action:
+	•	Myllin's eyes are half-open, unfocused
+	•	Turtle points up with his flipper (lazy, casual gesture)
+TURTLE (deadpan Hawaiian pidgin): "Da surface stay dat way, cuz."
+	•	Beat. Turtle scratches his chin with his flipper, thinking.
+TURTLE (adds helpfully): "Unless you like make house wit' da reef."
+	•	Myllin's eyes slowly track to Turtle's face
+	•	Bubbles escape Myllin's mouth (muffled sound)
+	•	His expression shifts: Wait... what?
+Audio:
+	•	Turtle's voice: calm, slightly nasal, thick pidgin accent
+	•	Underwater reverb on dialogue
+	•	Myllin's muffled gargle/bubble sound
+Comedy beat: The absurd politeness of Turtle's directions Emotional beat: Myllin's confusion cuts through his panic—is this real?
+
+SHOT 6: THE BUTTON (10 seconds)
+Camera: Wide shot, profile angle—Turtle screen left, Myllin screen right, surface visible above Action:
+	•	Turtle yawns (mouth wide open, tiny turtle teeth visible)
+	•	Stretches, then brings his back flipper up to scratch behind his shell
+	•	Scratches lazily, eyes half-closed (total bliss)
+	•	Stops scratching, glances at Myllin one more time
+TURTLE (mutters, almost to himself): "Haoles..." (shakes his head)
+	•	Turtle paddles off-screen left, super casual
+	•	Myllin just floats there, staring after him
+	•	His eyes go WIDE—Did that just happen?!
+	•	Beat.
+	•	Myllin's survival instinct kicks in—he starts kicking toward the surface
+Audio:
+	•	Turtle's yawn (squeaky turtle sound)
+	•	Scratching sound (shell on flipper)
+	•	Turtle's muttered line (almost inaudible)
+	•	Sudden frantic splashing as Myllin kicks
+Comedy beat: Turtle's complete indifference + casual exit Emotional beat: Myllin snaps back to reality—I gotta MOVE
+
+OPTIONAL SHOT 7: THE SCRAMBLE (10 seconds - if you want to extend)
+Camera: Low angle, shooting up toward the surface—Myllin kicking frantically Action:
+	•	Myllin claws at the water, kicking hard
+	•	He's uncoordinated, panicked, burning his last oxygen
+	•	Camera follows him up
+	•	Bubbles stream past camera
+	•	Myllin's silhouette breaks the surface—
+SMASH CUT TO: (Next scene: Myllin gasping on the surface, coughing, looking around for the turtle)
+Audio:
+	•	Desperate kicking/splashing
+	•	Myllin's internal monologue (if you want): "Not real not real not real—"
+	•	GASP as he breaks surface
+Comedy beat: Myllin's unhinged scramble vs. Turtle's chill exit Emotional beat: Relief (he's alive) + lingering WTF (did I just talk to a turtle?)
+
+Summary
+Total shots: 6 (or 7 with optional scramble) Runtime: ~60-70 seconds Comedy beats: 5 major (tumble contrast, pokes, line delivery, scratch/yawn, muttered "haoles") Emotional spine: Danger → rescue → surreal confusion → action
+Setup/Payoff potential:
+	•	Turtle's casual attitude established (will contrast with later mentor moments)
+	•	"Make house wit' da reef" line can callback when Myllin wipes out again later
+	•	Myllin's disbelief sets up their eventual friendship ("I thought you were a hallucination!")

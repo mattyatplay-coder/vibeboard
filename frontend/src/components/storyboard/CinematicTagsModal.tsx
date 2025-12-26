@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks */
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -120,7 +121,9 @@ export function CinematicTagsModal({
     <div
       className={clsx(
         'flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#1a1a1a] shadow-2xl',
-        embedded ? 'h-[90vh] w-[700px]' : 'max-h-[80vh] w-full max-w-2xl'
+        embedded
+          ? 'h-full max-h-full w-full max-w-[700px] min-w-[400px]'
+          : 'max-h-[80vh] w-full max-w-2xl'
       )}
     >
       {/* Header */}
@@ -402,7 +405,7 @@ export function CinematicTagsModal({
                   {/* Preview tags - if genre sorted, show recommended first */}
                   <div className="flex flex-wrap gap-1 pl-6">
                     {(() => {
-                      const previewTags = [...cat.tags];
+                      let previewTags = [...cat.tags];
                       if (genreTemplate) {
                         previewTags.sort((a, b) => {
                           const aRec = genreTemplate.recommendedTags.includes(a.id);

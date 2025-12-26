@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
@@ -23,10 +23,43 @@ import {
   Clock,
   Upload,
   PenTool,
+  Users,
+  X,
+  Plus,
+  Save,
+  FolderOpen,
+  Trash2,
 } from 'lucide-react';
-import { fetchAPI } from '@/lib/api';
+import { fetchAPI, BACKEND_URL } from '@/lib/api';
 import { GenreSelector, GenrePills } from '@/components/storyboard/GenreSelector';
 import { Genre, GENRE_TEMPLATES, getGenreTemplate } from '@/data/GenreTemplates';
+
+// Story character for prompt injection
+interface StoryCharacter {
+  name: string;
+  elementId?: string;
+  loraId?: string;
+  triggerWord?: string;
+  visualDescription: string;
+  referenceImageUrl?: string;
+  role?: 'protagonist' | 'antagonist' | 'supporting' | 'minor';
+}
+
+// Element from project library
+interface ProjectElement {
+  id: string;
+  name: string;
+  type: string;
+  url?: string;
+  fileUrl?: string;
+  thumbnail?: string;
+  metadata?: {
+    triggerWord?: string;
+    loraId?: string;
+    visualDescription?: string;
+    [key: string]: any;
+  };
+}
 
 // Pipeline stages
 type PipelineStage = 'concept' | 'outline' | 'script' | 'breakdown' | 'prompts' | 'complete';
@@ -77,6 +110,55 @@ export default function StoryEditorPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Story save/load state
+  const [currentStoryId, setCurrentStoryId] = useState<string | null>(null);
+  const [storyName, setStoryName] = useState('');
+  const [savedStories, setSavedStories] = useState<any[]>([]);
+  const [showStoriesModal, setShowStoriesModal] = useState(false);
+  const [loadingStories, setLoadingStories] = useState(false);
+
+  // Character management state
+  const [projectElements, setProjectElements] = useState<ProjectElement[]>([]);
+  const [selectedCharacters, setSelectedCharacters] = useState<StoryCharacter[]>([]);
+  const [showCharacterPicker, setShowCharacterPicker] = useState(false);
+  const [loadingElements, setLoadingElements] = useState(false);
+
+  // Progress tracking for long-running stages
+  const [progressInfo, setProgressInfo] = useState<{
+    stage: 'breakdown' | 'prompts' | null;
+    current: number;
+    total: number;
+    sceneName?: string;
+  } | null>(null);
+
+  // Load project elements on mount
+  useEffect(() => {
+    const loadElements = async () => {
+      if (!projectId) {
+        console.log('[StoryEditor] No projectId, skipping element load');
+        return;
+      }
+      console.log('[StoryEditor] Loading elements for project:', projectId);
+      setLoadingElements(true);
+      try {
+        const elements = await fetchAPI(`/projects/${projectId}/elements`);
+        console.log('[StoryEditor] Raw elements response:', elements?.length, 'elements');
+        // Filter to only character-type elements or those with triggerWord
+        const characterElements = (elements || []).filter(
+          (e: ProjectElement) =>
+            e.type === 'character' || e.type === 'image' || e.metadata?.triggerWord
+        );
+        console.log('[StoryEditor] Filtered character elements:', characterElements.length);
+        setProjectElements(characterElements);
+      } catch (error) {
+        console.error('[StoryEditor] Failed to load project elements:', error);
+      } finally {
+        setLoadingElements(false);
+      }
+    };
+    loadElements();
+  }, [projectId]);
+
   const toggleSection = (section: string) => {
     setExpandedSections(prev =>
       prev.includes(section) ? prev.filter(s => s !== section) : [...prev, section]
@@ -88,6 +170,199 @@ export default function StoryEditorPage() {
       ...prev,
       [stage]: { ...prev[stage], ...update },
     }));
+  };
+
+  // Character management functions
+  const addCharacterFromElement = (element: ProjectElement) => {
+    // Check if already added
+    if (selectedCharacters.find(c => c.elementId === element.id)) return;
+
+    const newCharacter: StoryCharacter = {
+      name: element.name,
+      elementId: element.id,
+      loraId: element.metadata?.loraId,
+      triggerWord: element.metadata?.triggerWord,
+      visualDescription: element.metadata?.visualDescription || `${element.name} character`,
+      referenceImageUrl: element.url || element.fileUrl || element.thumbnail,
+      role: 'supporting',
+    };
+
+    setSelectedCharacters(prev => [...prev, newCharacter]);
+  };
+
+  const removeCharacter = (elementId: string) => {
+    setSelectedCharacters(prev => prev.filter(c => c.elementId !== elementId));
+  };
+
+  const updateCharacter = (elementId: string, updates: Partial<StoryCharacter>) => {
+    setSelectedCharacters(prev =>
+      prev.map(c => (c.elementId === elementId ? { ...c, ...updates } : c))
+    );
+  };
+
+  // Story save/load functions
+  const loadSavedStories = async () => {
+    if (!projectId) return;
+    setLoadingStories(true);
+    try {
+      const stories = await fetchAPI(`/projects/${projectId}/stories`);
+      setSavedStories(stories || []);
+    } catch (error) {
+      console.error('Failed to load stories:', error);
+    } finally {
+      setLoadingStories(false);
+    }
+  };
+
+  const saveStory = async () => {
+    if (!projectId || !concept || !selectedGenre) {
+      alert('Please enter a concept and select a genre before saving');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const storyData = {
+        name: storyName || `${selectedGenre} story - ${new Date().toLocaleString()}`,
+        genre: selectedGenre,
+        concept,
+        outline,
+        script,
+        scenes,
+        prompts,
+        allowNSFW,
+        targetDuration: targetDurationSeconds,
+        status:
+          prompts.length > 0
+            ? 'complete'
+            : scenes.length > 0
+              ? 'breakdown'
+              : script
+                ? 'script'
+                : outline
+                  ? 'outline'
+                  : 'draft',
+      };
+
+      let savedStory;
+      if (currentStoryId) {
+        // Update existing story
+        savedStory = await fetchAPI(`/projects/${projectId}/stories/${currentStoryId}`, {
+          method: 'PATCH',
+          body: JSON.stringify(storyData),
+        });
+      } else {
+        // Create new story
+        savedStory = await fetchAPI(`/projects/${projectId}/stories`, {
+          method: 'POST',
+          body: JSON.stringify(storyData),
+        });
+        setCurrentStoryId(savedStory.id);
+      }
+
+      setStoryName(savedStory.name);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (error) {
+      console.error('Failed to save story:', error);
+      alert('Failed to save story: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const loadStory = async (storyId: string) => {
+    if (!projectId) return;
+
+    try {
+      const story = await fetchAPI(`/projects/${projectId}/stories/${storyId}`);
+
+      // Restore all state
+      setCurrentStoryId(story.id);
+      setStoryName(story.name);
+      setConcept(story.concept);
+      setSelectedGenre(story.genre as Genre);
+      setAllowNSFW(story.allowNSFW || false);
+      if (story.targetDuration) {
+        setTargetDurationSeconds(story.targetDuration);
+        setTargetDuration(`${Math.floor(story.targetDuration / 60)}m`);
+      }
+      if (story.outline) setOutline(story.outline);
+      if (story.script) setScript(story.script);
+      if (story.scenes) setScenes(story.scenes);
+      if (story.prompts) setPrompts(story.prompts);
+
+      // Update stage based on what's loaded
+      if (story.prompts?.length > 0) {
+        setCurrentStage('complete');
+        updateStageStatus('outline', { status: 'complete' });
+        updateStageStatus('script', { status: 'complete' });
+        updateStageStatus('breakdown', { status: 'complete' });
+        updateStageStatus('prompts', { status: 'complete' });
+      } else if (story.scenes?.length > 0) {
+        setCurrentStage('prompts');
+        updateStageStatus('outline', { status: 'complete' });
+        updateStageStatus('script', { status: 'complete' });
+        updateStageStatus('breakdown', { status: 'complete' });
+      } else if (story.script) {
+        setCurrentStage('breakdown');
+        updateStageStatus('outline', { status: 'complete' });
+        updateStageStatus('script', { status: 'complete' });
+      } else if (story.outline) {
+        setCurrentStage('script');
+        updateStageStatus('outline', { status: 'complete' });
+      }
+
+      setShowStoriesModal(false);
+    } catch (error) {
+      console.error('Failed to load story:', error);
+      alert('Failed to load story: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
+  };
+
+  const deleteStory = async (storyId: string) => {
+    if (!projectId) return;
+    if (!confirm('Are you sure you want to delete this story?')) return;
+
+    try {
+      await fetchAPI(`/projects/${projectId}/stories/${storyId}`, {
+        method: 'DELETE',
+      });
+
+      // Refresh list
+      await loadSavedStories();
+
+      // If we deleted the current story, reset
+      if (currentStoryId === storyId) {
+        setCurrentStoryId(null);
+        setStoryName('');
+      }
+    } catch (error) {
+      console.error('Failed to delete story:', error);
+      alert(
+        'Failed to delete story: ' + (error instanceof Error ? error.message : 'Unknown error')
+      );
+    }
+  };
+
+  const newStory = () => {
+    setCurrentStoryId(null);
+    setStoryName('');
+    setConcept('');
+    setSelectedGenre(null);
+    setOutline(null);
+    setScript('');
+    setScenes([]);
+    setPrompts([]);
+    setCurrentStage('concept');
+    setStages({
+      concept: { status: 'pending' },
+      outline: { status: 'pending' },
+      script: { status: 'pending' },
+      breakdown: { status: 'pending' },
+      prompts: { status: 'pending' },
+      complete: { status: 'pending' },
+    });
   };
 
   // Parse duration string to seconds (e.g., "5s", "2m", "90min", "1h30m", "1:30")
@@ -225,9 +500,23 @@ export default function StoryEditorPage() {
 
       // Break down each scene
       const breakdowns = [];
-      console.log(`Breaking down ${parseResponse.scenes.length} scenes...`);
+      const totalScenes = parseResponse.scenes.length;
+      console.log(`Breaking down ${totalScenes} scenes...`);
 
-      for (let i = 0; i < parseResponse.scenes.length; i++) {
+      for (let i = 0; i < totalScenes; i++) {
+        // Update progress for UI feedback
+        const sceneHeading = parseResponse.scenes[i];
+        const sceneName =
+          typeof sceneHeading === 'object'
+            ? sceneHeading?.location || `Scene ${i + 1}`
+            : sceneHeading || `Scene ${i + 1}`;
+        setProgressInfo({
+          stage: 'breakdown',
+          current: i + 1,
+          total: totalScenes,
+          sceneName: String(sceneName).slice(0, 40),
+        });
+
         console.log(`Breaking down scene ${i + 1}:`, parseResponse.scenes[i]);
 
         const breakdownResponse = await fetchAPI('/story-editor/breakdown', {
@@ -237,13 +526,7 @@ export default function StoryEditorPage() {
             heading: parseResponse.scenes[i],
             sceneText: parseResponse.sceneTexts[i] || '',
             genre: selectedGenre,
-            config: {
-              pace,
-              style,
-              targetDuration: targetDurationSeconds,
-              totalScenes: parseResponse.scenes.length,
-              allowNSFW,
-            },
+            config: { pace, style, targetDuration: targetDurationSeconds, totalScenes, allowNSFW },
           }),
         });
 
@@ -254,6 +537,9 @@ export default function StoryEditorPage() {
         breakdowns.push(breakdownResponse);
       }
 
+      // Clear breakdown progress
+      setProgressInfo(null);
+
       console.log(
         `Total breakdowns: ${breakdowns.length}, Total shots: ${breakdowns.reduce((sum: number, b: any) => sum + (b.suggestedShots?.length || 0), 0)}`
       );
@@ -263,36 +549,46 @@ export default function StoryEditorPage() {
       // Stage 4: Generate Prompts
       setCurrentStage('prompts');
       updateStageStatus('prompts', { status: 'in_progress' });
-      setExpandedSections(['prompts']);
 
       const allPrompts: any[] = [];
-      console.log(`Starting prompt generation for ${breakdowns.length} scene breakdowns`);
+      const totalBreakdowns = breakdowns.length;
+      console.log(`Starting prompt generation for ${totalBreakdowns} scene breakdowns`);
 
-      for (let i = 0; i < breakdowns.length; i++) {
+      for (let i = 0; i < totalBreakdowns; i++) {
         const breakdown = breakdowns[i];
+
+        // Update progress for UI feedback
+        const sceneHeading = breakdown.heading || parseResponse.scenes[i];
+        const sceneName =
+          typeof sceneHeading === 'object'
+            ? sceneHeading?.location || `Scene ${i + 1}`
+            : sceneHeading || `Scene ${i + 1}`;
+        setProgressInfo({
+          stage: 'prompts',
+          current: i + 1,
+          total: totalBreakdowns,
+          sceneName: String(sceneName).slice(0, 40),
+        });
+
         console.log(`Scene ${i + 1} breakdown:`, JSON.stringify(breakdown, null, 2).slice(0, 500));
 
-        const shots = breakdown.suggestedShots || [];
         const heading = breakdown.heading || parseResponse.scenes[i];
 
-        console.log(`Scene ${i + 1}: ${shots.length} shots, heading:`, heading);
+        // Get shots from various possible keys
+        let shotsToUse =
+          breakdown.suggestedShots ||
+          breakdown.shots ||
+          breakdown.shot_list ||
+          breakdown.shotList ||
+          [];
+        console.log(`Scene ${i + 1}: ${shotsToUse.length} shots found, heading:`, heading);
 
-        if (shots.length === 0) {
-          console.warn(
-            `Scene ${i + 1} has no suggestedShots array, checking for alternate keys...`
-          );
-          // Check for alternate shot array keys the LLM might use
-          const altShots = breakdown.shots || breakdown.shot_list || breakdown.shotList || [];
-          if (altShots.length > 0) {
-            console.log(`Found ${altShots.length} shots under alternate key`);
-            breakdown.suggestedShots = altShots;
-          } else {
-            console.warn(`Scene ${i + 1} truly has no shots, skipping`);
-            continue;
-          }
+        if (shotsToUse.length === 0) {
+          console.warn(`Scene ${i + 1} has no shots under any known key, skipping`);
+          console.log(`Available keys in breakdown:`, Object.keys(breakdown));
+          continue;
         }
 
-        const shotsToUse = breakdown.suggestedShots || [];
         console.log(`Generating prompts for scene ${i + 1} with ${shotsToUse.length} shots`);
 
         try {
@@ -304,6 +600,8 @@ export default function StoryEditorPage() {
               genre: selectedGenre,
               style,
               allowNSFW,
+              // Include selected characters for prompt injection
+              characters: selectedCharacters.length > 0 ? selectedCharacters : undefined,
             }),
           });
 
@@ -330,6 +628,9 @@ export default function StoryEditorPage() {
         }
       }
 
+      // Clear prompts progress
+      setProgressInfo(null);
+
       console.log(`Generated ${allPrompts.length} total prompts`);
 
       if (allPrompts.length === 0) {
@@ -342,15 +643,16 @@ export default function StoryEditorPage() {
       // Complete!
       setCurrentStage('complete');
       updateStageStatus('complete', { status: 'complete' });
-      setExpandedSections(['prompts', 'complete']);
     } catch (error) {
       console.error('Pipeline error:', error);
+      setProgressInfo(null); // Clear progress on error
       updateStageStatus(currentStage, {
         status: 'error',
         error: error instanceof Error ? error.message : 'Unknown error',
       });
     } finally {
       setIsRunning(false);
+      setProgressInfo(null); // Ensure progress is cleared
     }
   };
 
@@ -390,9 +692,23 @@ export default function StoryEditorPage() {
 
       // Break down each scene
       const breakdowns = [];
-      console.log(`Breaking down ${parseResponse.scenes.length} scenes...`);
+      const totalScenes = parseResponse.scenes.length;
+      console.log(`Breaking down ${totalScenes} scenes...`);
 
-      for (let i = 0; i < parseResponse.scenes.length; i++) {
+      for (let i = 0; i < totalScenes; i++) {
+        // Update progress for UI feedback
+        const sceneHeading = parseResponse.scenes[i];
+        const sceneName =
+          typeof sceneHeading === 'object'
+            ? sceneHeading?.location || `Scene ${i + 1}`
+            : sceneHeading || `Scene ${i + 1}`;
+        setProgressInfo({
+          stage: 'breakdown',
+          current: i + 1,
+          total: totalScenes,
+          sceneName: String(sceneName).slice(0, 40),
+        });
+
         console.log(`Breaking down scene ${i + 1}:`, parseResponse.scenes[i]);
 
         const breakdownResponse = await fetchAPI('/story-editor/breakdown', {
@@ -402,13 +718,7 @@ export default function StoryEditorPage() {
             heading: parseResponse.scenes[i],
             sceneText: parseResponse.sceneTexts[i] || '',
             genre: selectedGenre,
-            config: {
-              pace,
-              style,
-              targetDuration: targetDurationSeconds,
-              totalScenes: parseResponse.scenes.length,
-              allowNSFW,
-            },
+            config: { pace, style, targetDuration: targetDurationSeconds, totalScenes, allowNSFW },
           }),
         });
 
@@ -419,6 +729,9 @@ export default function StoryEditorPage() {
         breakdowns.push(breakdownResponse);
       }
 
+      // Clear breakdown progress
+      setProgressInfo(null);
+
       console.log(
         `Total breakdowns: ${breakdowns.length}, Total shots: ${breakdowns.reduce((sum: number, b: any) => sum + (b.suggestedShots?.length || 0), 0)}`
       );
@@ -428,27 +741,42 @@ export default function StoryEditorPage() {
       // Stage 2: Generate Prompts
       setCurrentStage('prompts');
       updateStageStatus('prompts', { status: 'in_progress' });
-      setExpandedSections(['prompts']);
 
       const allPrompts: any[] = [];
-      console.log(`Starting prompt generation for ${breakdowns.length} scene breakdowns`);
+      const totalBreakdowns = breakdowns.length;
+      console.log(`Starting prompt generation for ${totalBreakdowns} scene breakdowns`);
 
-      for (let i = 0; i < breakdowns.length; i++) {
+      for (let i = 0; i < totalBreakdowns; i++) {
         const breakdown = breakdowns[i];
-        const shots = breakdown.suggestedShots || [];
-        const heading = breakdown.heading || parseResponse.scenes[i];
 
-        if (shots.length === 0) {
-          const altShots = breakdown.shots || breakdown.shot_list || breakdown.shotList || [];
-          if (altShots.length > 0) {
-            breakdown.suggestedShots = altShots;
-          } else {
-            console.warn(`Scene ${i + 1} has no shots, skipping`);
-            continue;
-          }
+        // Update progress for UI feedback
+        const heading = breakdown.heading || parseResponse.scenes[i];
+        const sceneName =
+          typeof heading === 'object'
+            ? heading?.location || `Scene ${i + 1}`
+            : heading || `Scene ${i + 1}`;
+        setProgressInfo({
+          stage: 'prompts',
+          current: i + 1,
+          total: totalBreakdowns,
+          sceneName: String(sceneName).slice(0, 40),
+        });
+
+        // Get shots from various possible keys
+        let shotsToUse =
+          breakdown.suggestedShots ||
+          breakdown.shots ||
+          breakdown.shot_list ||
+          breakdown.shotList ||
+          [];
+        console.log(`Scene ${i + 1}: ${shotsToUse.length} shots found`);
+
+        if (shotsToUse.length === 0) {
+          console.warn(`Scene ${i + 1} has no shots under any known key, skipping`);
+          console.log(`Available keys in breakdown:`, Object.keys(breakdown));
+          continue;
         }
 
-        const shotsToUse = breakdown.suggestedShots || [];
         console.log(`Generating prompts for scene ${i + 1} with ${shotsToUse.length} shots`);
 
         try {
@@ -460,6 +788,8 @@ export default function StoryEditorPage() {
               genre: selectedGenre,
               style,
               allowNSFW,
+              // Include selected characters for prompt injection
+              characters: selectedCharacters.length > 0 ? selectedCharacters : undefined,
             }),
           });
 
@@ -473,6 +803,9 @@ export default function StoryEditorPage() {
         }
       }
 
+      // Clear prompts progress
+      setProgressInfo(null);
+
       console.log(`Generated ${allPrompts.length} total prompts`);
       setPrompts(allPrompts);
       updateStageStatus('prompts', { status: 'complete', data: allPrompts });
@@ -480,15 +813,16 @@ export default function StoryEditorPage() {
       // Complete!
       setCurrentStage('complete');
       updateStageStatus('complete', { status: 'complete' });
-      setExpandedSections(['prompts', 'complete']);
     } catch (error) {
       console.error('Pipeline error:', error);
+      setProgressInfo(null); // Clear progress on error
       updateStageStatus(currentStage, {
         status: 'error',
         error: error instanceof Error ? error.message : 'Unknown error',
       });
     } finally {
       setIsRunning(false);
+      setProgressInfo(null); // Ensure progress is cleared
     }
   };
 
@@ -572,25 +906,73 @@ export default function StoryEditorPage() {
       return;
     }
 
+    if (!selectedGenre) {
+      alert('Please select a genre before exporting');
+      return;
+    }
+
     setIsSaving(true);
     setSaveSuccess(false);
 
     try {
-      // Create a scene for each scene breakdown
+      // FIRST: Auto-save the story so it persists
+      const storyData = {
+        name: storyName || `${selectedGenre} story - ${new Date().toLocaleString()}`,
+        genre: selectedGenre,
+        concept,
+        outline,
+        script,
+        scenes,
+        prompts,
+        allowNSFW,
+        targetDuration: targetDurationSeconds,
+        status: 'exported',
+      };
+
+      let savedStoryId = currentStoryId;
+      if (currentStoryId) {
+        // Update existing story
+        await fetchAPI(`/projects/${projectId}/stories/${currentStoryId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ ...storyData, exportedAt: new Date().toISOString() }),
+        });
+      } else {
+        // Create new story
+        const savedStory = await fetchAPI(`/projects/${projectId}/stories`, {
+          method: 'POST',
+          body: JSON.stringify(storyData),
+        });
+        savedStoryId = savedStory.id;
+        setCurrentStoryId(savedStory.id);
+        setStoryName(savedStory.name);
+      }
+
+      console.log('Story auto-saved before export:', savedStoryId);
+
+      // THEN: Create scene chains and segments for the storyboard
+      // Create one scene chain per scene (or one for the whole story)
       for (let i = 0; i < scenes.length; i++) {
         const sceneBreakdown = scenes[i];
         const sceneName = sceneBreakdown.heading
           ? `${sceneBreakdown.heading.intExt}. ${sceneBreakdown.heading.location} - ${sceneBreakdown.heading.timeOfDay}`
           : `Scene ${i + 1}`;
 
-        // Create the scene
-        const newScene = await fetchAPI(`/projects/${projectId}/scenes`, {
+        // Calculate target duration for this scene based on shots
+        const sceneDuration = (sceneBreakdown.suggestedShots?.length || 0) * 5; // 5 seconds per shot
+
+        // Create a scene chain for this scene
+        const sceneChain = await fetchAPI(`/projects/${projectId}/scene-chains`, {
           method: 'POST',
           body: JSON.stringify({
             name: sceneName,
-            description: sceneBreakdown.description || '',
+            description: sceneBreakdown.description || sceneBreakdown.action || '',
+            targetDuration: sceneDuration,
+            aspectRatio: '16:9',
+            status: 'draft',
           }),
         });
+
+        console.log(`Created scene chain: ${sceneName}`, sceneChain.id);
 
         // Get the prompts for this scene's shots
         const scenePrompts = prompts.filter((p: any) => {
@@ -603,43 +985,37 @@ export default function StoryEditorPage() {
           return p.shotNumber >= startShot && p.shotNumber <= endShot;
         });
 
-        // Create generations for each shot in this scene
+        // Create segments for each shot in this scene chain
         for (let j = 0; j < (sceneBreakdown.suggestedShots?.length || 0); j++) {
           const shot = sceneBreakdown.suggestedShots[j];
           const promptData = scenePrompts[j] || prompts[j];
 
           if (promptData) {
-            // Create a generation record for this shot
-            const generation = await fetchAPI(`/projects/${projectId}/generations`, {
+            // Create a segment for this shot
+            await fetchAPI(`/projects/${projectId}/scene-chains/${sceneChain.id}/segments`, {
               method: 'POST',
               body: JSON.stringify({
-                mode: 'text_to_image',
-                inputPrompt: promptData.prompt,
-                negativePrompt: promptData.negativePrompt,
-                shotType: shot.cameraPresetId,
-                cameraAngle: shot.cameraDescription,
-                lighting: shot.lighting,
-                status: 'draft', // Not generated yet, just saved
-                name: `Shot ${shot.shotNumber}: ${shot.description?.slice(0, 50) || 'Untitled'}`,
-                tags: [selectedGenre || '', promptData.cameraMove].filter(Boolean),
+                prompt: promptData.prompt,
+                duration: shot.duration || 5,
+                orderIndex: j,
+                transitionType: 'smooth',
+                // Store additional metadata in the segment
+                sourceType: 'story-editor',
+                sourceId: savedStoryId,
               }),
             });
 
-            // Add shot to scene
-            await fetchAPI(`/projects/${projectId}/scenes/${newScene.id}/shots`, {
-              method: 'POST',
-              body: JSON.stringify({
-                generationId: generation.id,
-                index: j + 1,
-                notes: shot.description,
-              }),
-            });
+            console.log(`Created segment ${j + 1} for scene ${i + 1}`);
           }
         }
       }
 
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+
+      // Auto-navigate to storyboard after successful export
+      setTimeout(() => {
+        window.location.href = `/projects/${projectId}/storyboard`;
+      }, 1000); // Brief delay to show success state
     } catch (error) {
       console.error('Failed to save storyboard:', error);
       alert(
@@ -656,17 +1032,145 @@ export default function StoryEditorPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black p-8 text-white">
+    <div className="min-h-screen bg-zinc-950 p-8 text-white">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="mb-2 flex items-center gap-3 text-3xl font-bold">
-          <FileText className="h-8 w-8 text-blue-400" />
-          Story Editor
-        </h1>
-        <p className="text-gray-400">
-          Transform concepts into complete storyboards with AI-powered screenplay generation
-        </p>
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="mb-2 flex items-center gap-3 text-3xl font-bold">
+            <FileText className="h-8 w-8 text-blue-400" />
+            Story Editor
+            {currentStoryId && storyName && (
+              <span className="text-lg font-normal text-gray-400">— {storyName}</span>
+            )}
+          </h1>
+          <p className="text-gray-400">
+            Transform concepts into complete storyboards with AI-powered screenplay generation
+          </p>
+        </div>
+
+        {/* Save/Load Buttons */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={newStory}
+            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-300 hover:bg-white/10"
+          >
+            <Plus className="h-4 w-4" />
+            New
+          </button>
+          <button
+            onClick={() => {
+              loadSavedStories();
+              setShowStoriesModal(true);
+            }}
+            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-300 hover:bg-white/10"
+          >
+            <FolderOpen className="h-4 w-4" />
+            Open
+          </button>
+          <button
+            onClick={saveStory}
+            disabled={isSaving || !concept || !selectedGenre}
+            className={clsx(
+              'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+              saveSuccess
+                ? 'bg-green-600 text-white'
+                : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-600 disabled:text-gray-400'
+            )}
+          >
+            {isSaving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : saveSuccess ? (
+              <Check className="h-4 w-4" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            {saveSuccess ? 'Saved!' : currentStoryId ? 'Save' : 'Save As'}
+          </button>
+        </div>
       </div>
+
+      {/* Stories Modal */}
+      <AnimatePresence>
+        {showStoriesModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-8">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-xl border border-white/10 bg-[#1a1a1a]"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 p-6">
+                <h2 className="flex items-center gap-2 text-xl font-bold">
+                  <FolderOpen className="h-5 w-5 text-blue-400" />
+                  Saved Stories
+                </h2>
+                <button
+                  onClick={() => setShowStoriesModal(false)}
+                  className="rounded-lg p-2 hover:bg-white/10"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="max-h-[60vh] overflow-y-auto p-6">
+                {loadingStories ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+                  </div>
+                ) : savedStories.length === 0 ? (
+                  <div className="py-12 text-center text-gray-500">
+                    <FileText className="mx-auto mb-4 h-12 w-12 opacity-50" />
+                    <p>No saved stories yet</p>
+                    <p className="mt-2 text-sm">Create a story and click Save to see it here</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {savedStories.map(story => (
+                      <div
+                        key={story.id}
+                        className={clsx(
+                          'flex items-start justify-between gap-4 rounded-lg border p-4 transition-colors hover:bg-white/5',
+                          currentStoryId === story.id
+                            ? 'border-blue-500/50 bg-blue-500/10'
+                            : 'border-white/10'
+                        )}
+                      >
+                        <div className="flex-1 cursor-pointer" onClick={() => loadStory(story.id)}>
+                          <h3 className="flex items-center gap-2 font-medium">
+                            {story.name}
+                            <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-gray-400">
+                              {story.genre}
+                            </span>
+                            {story.allowNSFW && (
+                              <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-xs text-red-400">
+                                NSFW
+                              </span>
+                            )}
+                          </h3>
+                          <p className="mt-1 line-clamp-2 text-sm text-gray-400">{story.concept}</p>
+                          <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
+                            <span>Status: {story.status}</span>
+                            <span>Updated: {new Date(story.updatedAt).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            deleteStory(story.id);
+                          }}
+                          className="rounded-lg p-2 text-gray-500 hover:bg-red-500/10 hover:text-red-400"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
         {/* Left Column - Input */}
@@ -760,6 +1264,7 @@ The parser will automatically detect scenes and break them down into shots."
                 selectedGenre={selectedGenre}
                 onSelect={setSelectedGenre}
                 showStylePreview={false}
+                includeMature={allowNSFW}
               />
             </div>
 
@@ -832,6 +1337,144 @@ The parser will automatically detect scenes and break them down into shots."
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Character Selector */}
+              <div>
+                <label className="mb-2 block text-xs font-bold tracking-wider text-gray-400 uppercase">
+                  Characters (Optional)
+                </label>
+
+                {/* Selected Characters */}
+                {selectedCharacters.length > 0 && (
+                  <div className="mb-3 space-y-2">
+                    {selectedCharacters.map(char => (
+                      <div
+                        key={char.elementId}
+                        className="flex items-center gap-3 rounded-lg border border-blue-500/30 bg-blue-500/10 p-2"
+                      >
+                        {/* Thumbnail */}
+                        {char.referenceImageUrl && (
+                          <img
+                            src={char.referenceImageUrl}
+                            alt={char.name}
+                            className="h-10 w-10 rounded object-cover"
+                          />
+                        )}
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-sm font-medium text-white">
+                              {char.name}
+                            </span>
+                            {char.triggerWord && (
+                              <span className="rounded bg-amber-500/20 px-1.5 py-0.5 font-mono text-[10px] text-amber-300">
+                                {char.triggerWord}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Role selector */}
+                          <select
+                            value={char.role || 'supporting'}
+                            onChange={e =>
+                              updateCharacter(char.elementId!, {
+                                role: e.target.value as StoryCharacter['role'],
+                              })
+                            }
+                            className="mt-1 w-full rounded border border-white/10 bg-black/50 px-2 py-1 text-[10px] text-gray-300"
+                          >
+                            <option value="protagonist">Protagonist</option>
+                            <option value="antagonist">Antagonist</option>
+                            <option value="supporting">Supporting</option>
+                            <option value="minor">Minor</option>
+                          </select>
+                        </div>
+
+                        <button
+                          onClick={() => removeCharacter(char.elementId!)}
+                          className="rounded p-1 text-gray-400 transition-colors hover:bg-red-500/20 hover:text-red-400"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add Character Button */}
+                <button
+                  onClick={() => setShowCharacterPicker(!showCharacterPicker)}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+                >
+                  {showCharacterPicker ? (
+                    <>
+                      <X className="h-4 w-4" />
+                      Close Picker
+                    </>
+                  ) : (
+                    <>
+                      <Users className="h-4 w-4" />
+                      Add Characters from Library
+                    </>
+                  )}
+                </button>
+
+                {/* Character Picker Panel */}
+                {showCharacterPicker && (
+                  <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-white/10 bg-black/50 p-3">
+                    {loadingElements ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                      </div>
+                    ) : projectElements.length === 0 ? (
+                      <div className="py-4 text-center">
+                        <p className="text-xs text-gray-500">
+                          No character/image elements in this project yet.
+                        </p>
+                        <p className="mt-1 text-[10px] text-gray-600">
+                          Add images to your library on the Generate page first.
+                        </p>
+                        <p className="mt-2 font-mono text-[10px] text-gray-700">
+                          Project: {projectId?.slice(0, 8)}...
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        {projectElements
+                          .filter(e => !selectedCharacters.find(c => c.elementId === e.id))
+                          .map(element => (
+                            <button
+                              key={element.id}
+                              onClick={() => addCharacterFromElement(element)}
+                              className="flex w-full items-center gap-3 rounded-lg p-2 transition-colors hover:bg-white/10"
+                            >
+                              {(element.url || element.fileUrl || element.thumbnail) && (
+                                <img
+                                  src={element.url || element.fileUrl || element.thumbnail}
+                                  alt={element.name}
+                                  className="h-8 w-8 rounded object-cover"
+                                />
+                              )}
+                              <div className="flex-1 text-left">
+                                <span className="text-sm text-white">{element.name}</span>
+                                {element.metadata?.triggerWord && (
+                                  <span className="ml-2 font-mono text-[10px] text-amber-400">
+                                    {element.metadata.triggerWord}
+                                  </span>
+                                )}
+                              </div>
+                              <Plus className="h-4 w-4 text-gray-500" />
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <p className="mt-1 text-[10px] text-gray-600">
+                  Link story characters to Elements for consistent prompt injection
+                </p>
               </div>
 
               {/* NSFW Toggle */}
@@ -955,17 +1598,42 @@ The parser will automatically detect scenes and break them down into shots."
                         <Icon className="h-4 w-4" />
                       )}
                     </div>
-                    <span
-                      className={clsx(
-                        'text-sm font-medium',
-                        stage.status === 'complete' && 'text-green-400',
-                        stage.status === 'error' && 'text-red-400',
-                        stage.status === 'in_progress' && 'text-blue-400',
-                        stage.status === 'pending' && 'text-gray-500'
-                      )}
-                    >
-                      {label}
-                    </span>
+                    <div className="min-w-0 flex-1">
+                      <span
+                        className={clsx(
+                          'text-sm font-medium',
+                          stage.status === 'complete' && 'text-green-400',
+                          stage.status === 'error' && 'text-red-400',
+                          stage.status === 'in_progress' && 'text-blue-400',
+                          stage.status === 'pending' && 'text-gray-500'
+                        )}
+                      >
+                        {label}
+                      </span>
+                      {/* Show per-scene progress for breakdown and prompts stages */}
+                      {stage.status === 'in_progress' &&
+                        progressInfo &&
+                        progressInfo.stage === key && (
+                          <div className="mt-1.5">
+                            <div className="mb-1 flex items-center justify-between text-[10px] text-gray-400">
+                              <span className="max-w-[100px] truncate">
+                                {progressInfo.sceneName}
+                              </span>
+                              <span className="font-mono">
+                                {progressInfo.current}/{progressInfo.total}
+                              </span>
+                            </div>
+                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                              <div
+                                className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-300 ease-out"
+                                style={{
+                                  width: `${(progressInfo.current / progressInfo.total) * 100}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                    </div>
                   </div>
                 );
               })}
@@ -1134,23 +1802,27 @@ The parser will automatically detect scenes and break them down into shots."
             </CollapsibleSection>
           )}
 
-          {/* Scene Breakdown Section */}
+          {/* Scene Breakdown Section - Each scene gets its own collapsible */}
           {scenes.length > 0 && (
-            <CollapsibleSection
-              title={`Scene Breakdown (${scenes.length} scenes)`}
-              icon={Film}
-              isExpanded={expandedSections.includes('breakdown')}
-              onToggle={() => toggleSection('breakdown')}
-              status={stages.breakdown.status}
-            >
-              <div className="space-y-4">
-                {scenes.map((scene, i) => (
-                  <div key={i} className="rounded-lg bg-black/30 p-4">
-                    <div className="mb-2 flex items-center justify-between">
-                      <h4 className="font-bold text-white">
-                        Scene {scene.sceneNumber}: {scene.heading?.intExt}.{' '}
-                        {scene.heading?.location}
-                      </h4>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 px-2 py-1">
+                <Film className="h-4 w-4 text-blue-400" />
+                <span className="text-xs font-bold tracking-wider text-gray-400 uppercase">
+                  Scene Breakdown ({scenes.length} scenes)
+                </span>
+              </div>
+              {scenes.map((scene, i) => (
+                <CollapsibleSection
+                  key={i}
+                  title={`Scene ${scene.sceneNumber}: ${scene.heading?.intExt || 'INT'}. ${scene.heading?.location || 'LOCATION'}`}
+                  icon={Film}
+                  isExpanded={expandedSections.includes(`scene-${i}`)}
+                  onToggle={() => toggleSection(`scene-${i}`)}
+                  status={stages.breakdown.status}
+                >
+                  <div className="space-y-3">
+                    {/* Scene metadata */}
+                    <div className="flex items-center justify-between">
                       <span
                         className={clsx(
                           'rounded px-2 py-0.5 text-[10px] font-bold uppercase',
@@ -1161,22 +1833,23 @@ The parser will automatically detect scenes and break them down into shots."
                       >
                         {scene.emotionalBeat || 'neutral'}
                       </span>
+                      <span className="text-xs text-gray-500">
+                        {scene.suggestedShots?.length || 0} shots
+                      </span>
                     </div>
 
-                    <p className="mb-3 text-sm text-gray-400">{scene.description}</p>
+                    <p className="text-sm text-gray-400">{scene.description}</p>
 
                     {scene.characters?.length > 0 && (
-                      <div className="mb-3">
+                      <div>
                         <span className="text-[10px] text-gray-500">Characters: </span>
                         <span className="text-xs text-gray-300">{scene.characters.join(', ')}</span>
                       </div>
                     )}
 
-                    {/* Shots */}
-                    <div className="space-y-2">
-                      <span className="text-[10px] font-bold text-gray-500 uppercase">
-                        Shots ({scene.suggestedShots?.length || 0})
-                      </span>
+                    {/* Shots list */}
+                    <div className="space-y-2 border-t border-white/10 pt-2">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase">Shots</span>
                       {scene.suggestedShots?.map((shot: any, j: number) => (
                         <div
                           key={j}
@@ -1197,36 +1870,109 @@ The parser will automatically detect scenes and break them down into shots."
                       ))}
                     </div>
                   </div>
-                ))}
-              </div>
-            </CollapsibleSection>
+                </CollapsibleSection>
+              ))}
+            </div>
           )}
 
-          {/* Prompts Section */}
+          {/* Prompts Section - Each shot prompt gets its own collapsible */}
           {prompts.length > 0 && (
-            <CollapsibleSection
-              title={`Generation Prompts (${prompts.length} shots)`}
-              icon={Camera}
-              isExpanded={expandedSections.includes('prompts')}
-              onToggle={() => toggleSection('prompts')}
-              status={stages.prompts.status}
-            >
-              <div className="space-y-3">
-                {prompts.map((prompt, i) => (
-                  <div key={i} className="rounded-lg bg-black/30 p-4">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-sm font-bold text-white">Shot {prompt.shotNumber}</span>
-                      <span className="rounded bg-purple-500/20 px-2 py-0.5 text-[10px] text-purple-300">
-                        {prompt.cameraMove}
-                      </span>
-                    </div>
-                    <p className="mb-2 rounded bg-green-500/10 p-2 text-xs text-green-300">
-                      {prompt.prompt}
-                    </p>
-                    <p className="text-[10px] text-red-300/60">Negative: {prompt.negativePrompt}</p>
-                  </div>
-                ))}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 px-2 py-1">
+                <Camera className="h-4 w-4 text-purple-400" />
+                <span className="text-xs font-bold tracking-wider text-gray-400 uppercase">
+                  Shot Prompts ({prompts.length} shots)
+                </span>
               </div>
+              {prompts.map((prompt, i) => (
+                <CollapsibleSection
+                  key={i}
+                  title={`SHOT ${prompt.shotNumber || i + 1}: ${prompt.shotTitle || prompt.cameraMove || 'UNTITLED'}`}
+                  icon={Camera}
+                  isExpanded={expandedSections.includes(`prompt-${i}`)}
+                  onToggle={() => toggleSection(`prompt-${i}`)}
+                  status={stages.prompts.status}
+                >
+                  <div className="space-y-4">
+                    {/* Shot Header with metadata */}
+                    <div className="flex items-center gap-2 border-b border-white/10 pb-2">
+                      {prompt.duration && (
+                        <span className="rounded bg-blue-500/20 px-2 py-0.5 text-[10px] font-bold text-blue-300">
+                          {prompt.duration}s
+                        </span>
+                      )}
+                      {prompt.cameraDescription && (
+                        <span className="rounded bg-purple-500/20 px-2 py-0.5 text-[10px] text-purple-300">
+                          {prompt.cameraDescription}
+                        </span>
+                      )}
+                      {prompt.style && (
+                        <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-300">
+                          {prompt.style}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* FIRST FRAME - IMAGE PROMPT */}
+                    <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
+                      <div className="mb-2 flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-emerald-400"></div>
+                        <span className="text-xs font-bold tracking-wider text-emerald-400 uppercase">
+                          First Frame - Image Prompt
+                        </span>
+                      </div>
+                      <p className="font-mono text-sm leading-relaxed whitespace-pre-wrap text-emerald-200/90">
+                        {prompt.firstFramePrompt ||
+                          prompt.prompt ||
+                          'No first frame prompt generated'}
+                      </p>
+                    </div>
+
+                    {/* LAST FRAME - IMAGE PROMPT */}
+                    <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 p-4">
+                      <div className="mb-2 flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-violet-400"></div>
+                        <span className="text-xs font-bold tracking-wider text-violet-400 uppercase">
+                          Last Frame - Image Prompt
+                        </span>
+                      </div>
+                      <p className="font-mono text-sm leading-relaxed whitespace-pre-wrap text-violet-200/90">
+                        {prompt.lastFramePrompt || 'No last frame prompt generated'}
+                      </p>
+                    </div>
+
+                    {/* VIDEO PROMPT (First Frame → Last Frame) */}
+                    <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-4">
+                      <div className="mb-2 flex items-center gap-2">
+                        <div className="h-2 w-2 animate-pulse rounded-full bg-cyan-400"></div>
+                        <span className="text-xs font-bold tracking-wider text-cyan-400 uppercase">
+                          Video Prompt (First Frame → Last Frame)
+                        </span>
+                      </div>
+                      <p className="font-mono text-sm leading-relaxed whitespace-pre-wrap text-cyan-200/90">
+                        {prompt.videoPrompt || 'No video prompt generated'}
+                      </p>
+                    </div>
+
+                    {/* Negative Prompt (collapsed) */}
+                    {prompt.negativePrompt && (
+                      <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+                        <span className="mb-1 block text-[10px] font-bold text-red-400 uppercase">
+                          Negative Prompt
+                        </span>
+                        <p className="font-mono text-xs text-red-300/70">{prompt.negativePrompt}</p>
+                      </div>
+                    )}
+
+                    {/* Camera Move */}
+                    {prompt.cameraMove && (
+                      <div className="border-t border-white/5 pt-2 text-xs text-gray-500">
+                        <span className="font-bold">Camera:</span> {prompt.cameraMove}
+                      </div>
+                    )}
+                  </div>
+                </CollapsibleSection>
+              ))}
 
               {/* Export to Storyboard */}
               <div className="mt-4 rounded-lg border border-blue-500/20 bg-gradient-to-r from-blue-500/10 to-purple-500/10 p-4">
@@ -1267,7 +2013,7 @@ The parser will automatically detect scenes and break them down into shots."
                   )}
                 </div>
               </div>
-            </CollapsibleSection>
+            </div>
           )}
 
           {/* Empty State */}
@@ -1284,6 +2030,7 @@ The parser will automatically detect scenes and break them down into shots."
                   selectedGenre={selectedGenre}
                   onSelect={setSelectedGenre}
                   maxVisible={6}
+                  includeMature={allowNSFW}
                 />
               </div>
             </div>

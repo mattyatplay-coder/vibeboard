@@ -41,7 +41,9 @@ export type Genre =
   | 'music_video'
   | 'commercial'
   | 'western'
-  | 'fantasy';
+  | 'fantasy'
+  | 'adult' // Mature content - only visible when allowNSFW is enabled
+  | 'hardcore'; // Explicit adult content - only visible when allowNSFW is enabled
 
 export const CAMERA_PRESETS: Record<string, CameraCategory> = {
   // ═══════════════════════════════════════════════════════════════════

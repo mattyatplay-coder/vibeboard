@@ -65,7 +65,7 @@ export default function ProjectSelector() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-black text-white">
+      <div className="flex h-screen items-center justify-center bg-zinc-950 text-white">
         <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
       </div>
     );
@@ -88,7 +88,7 @@ export default function ProjectSelector() {
   };
 
   return (
-    <div className="min-h-screen bg-black p-8 text-white">
+    <div className="min-h-screen bg-zinc-950 p-8 text-white">
       <div className="mx-auto max-w-5xl">
         <header className="mb-12 flex items-center justify-between">
           <div>
