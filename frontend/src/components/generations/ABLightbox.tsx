@@ -141,8 +141,19 @@ export function ABLightbox({
   const [magnifierEnabled, setMagnifierEnabled] = useState(false);
   const [magnifierPos, setMagnifierPos] = useState({ x: 0, y: 0 });
   const [showMagnifier, setShowMagnifier] = useState(false);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const MAGNIFIER_SIZE = 180; // Diameter in pixels
   const MAGNIFIER_ZOOM = 4; // 4x zoom inside the lens
+
+  // Update container size when needed (for magnifier)
+  useEffect(() => {
+    if (containerRef.current && magnifierEnabled) {
+      setContainerSize({
+        width: containerRef.current.offsetWidth,
+        height: containerRef.current.offsetHeight,
+      });
+    }
+  }, [magnifierEnabled, isOpen, comparison]);
 
   // Fetch available comparisons
   useEffect(() => {
@@ -891,7 +902,7 @@ export function ABLightbox({
               )}
 
               {/* Magnifier Lens - The "Pixel-Peeper" */}
-              {magnifierEnabled && showMagnifier && containerRef.current && (
+              {magnifierEnabled && showMagnifier && containerSize.width > 0 && (
                 <div
                   className="pointer-events-none absolute z-30 overflow-hidden rounded-full border-2 border-purple-400/80 shadow-xl"
                   style={{
@@ -907,8 +918,8 @@ export function ABLightbox({
                   <div
                     className="absolute"
                     style={{
-                      width: containerRef.current.offsetWidth,
-                      height: containerRef.current.offsetHeight,
+                      width: containerSize.width,
+                      height: containerSize.height,
                       transform: `scale(${MAGNIFIER_ZOOM})`,
                       transformOrigin: `${magnifierPos.x}px ${magnifierPos.y}px`,
                       left: -magnifierPos.x + MAGNIFIER_SIZE / 2,
