@@ -26,8 +26,6 @@ import {
   GitFork,
   Clock,
   Zap,
-  Layers,
-  Sun,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -59,8 +57,6 @@ interface GenerationCardProps {
   onEnhanceVideo?: (generationId: string, mode: 'full' | 'audio-only' | 'smooth-only') => void;
   isSelected?: boolean;
   onToggleSelection?: (e: React.MouseEvent) => void;
-  onFindSimilarComposition?: () => void;
-  onFindSimilarLighting?: () => void;
 }
 
 // Upscale options
@@ -108,8 +104,6 @@ export function GenerationCard({
   onEnhanceVideo,
   isSelected,
   onToggleSelection,
-  onFindSimilarComposition,
-  onFindSimilarLighting,
 }: GenerationCardProps) {
   const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -750,38 +744,6 @@ export function GenerationCard({
   const output = generation.outputs?.[0];
   const isVideo = output?.type === 'video';
   const rawUrl = output?.url;
-
-  // Quilted Grid: Fixed row height, variable column spans
-  // Portrait/Square = 1 column, Landscape = 2 columns
-  // Images are hard-cropped with object-fit: cover
-  const { isVerticalCard, colSpan } = (() => {
-    const ar = generation.aspectRatio;
-
-    // Parse aspect ratio to get w:h numbers
-    let w = 16, h = 9; // default landscape
-    if (ar) {
-      if (ar.includes(':')) {
-        [w, h] = ar.split(':').map(Number);
-      } else if (ar.startsWith('portrait') || ar === '9/16') {
-        w = 9; h = 16;
-      } else if (ar === 'square' || ar === '1:1') {
-        w = 1; h = 1;
-      } else if (ar.startsWith('landscape') || ar === '16/9') {
-        w = 16; h = 9;
-      }
-    }
-
-    const isVertical = h > w;
-    const isSquare = w === h;
-
-    // Column span: landscape = 2, portrait/square = 1
-    const span = (!isVertical && !isSquare) ? 2 : 1;
-
-    return {
-      isVerticalCard: isVertical,
-      colSpan: span
-    };
-  })();
   const mediaUrl =
     rawUrl && typeof rawUrl === 'string'
       ? rawUrl.startsWith('http') || rawUrl.startsWith('data:')
@@ -893,9 +855,7 @@ export function GenerationCard({
         {...listeners}
         {...attributes}
         className={clsx(
-          'group @container relative h-full cursor-pointer touch-none overflow-hidden rounded-xl border transition-all',
-          // Quilted grid: span columns based on orientation
-          colSpan === 2 ? 'col-span-2' : 'col-span-1',
+          'group @container relative cursor-pointer touch-none rounded-xl border bg-white/5 transition-all',
           isSelected
             ? 'border-blue-500 ring-1 ring-blue-500'
             : 'border-white/10 hover:border-blue-500/50'
@@ -912,20 +872,21 @@ export function GenerationCard({
         }}
       >
         <div
-          className="@container relative h-full w-full"
+          className="@container relative overflow-hidden rounded-t-xl bg-black/50"
+          style={{ aspectRatio: generation.aspectRatio?.replace(':', '/') || '16/9' }}
         >
-          {/* COMPACT TOOLBAR: Horizontal top layout for all cards */}
+          {/* FULL WIDTH TOOLBAR: Inside image container with container-relative sizing */}
           <div
             className={clsx(
-              'absolute z-20 transition-opacity duration-200',
-              'top-1.5 right-1.5 left-1.5 flex items-center justify-between',
-              isHovered || isSelected || showUpscaleMenu || showEnhanceMenu
+              'absolute z-20 flex items-center justify-between transition-opacity duration-200',
+              'top-[clamp(6px,2cqh,12px)] right-[clamp(6px,2cqw,12px)] left-[clamp(6px,2cqw,12px)]',
+              isHovered || isSelected || generation.isFavorite || showUpscaleMenu || showEnhanceMenu
                 ? 'opacity-100'
                 : 'opacity-0'
             )}
           >
             {/* LEFT: Selection Checkbox + Favorite Heart */}
-            <div className="flex flex-row items-center gap-1">
+            <div className="flex items-center gap-[clamp(4px,1.2cqw,8px)]">
               {onToggleSelection && (
                 <div
                   onClick={e => {
@@ -933,26 +894,26 @@ export function GenerationCard({
                     onToggleSelection(e);
                   }}
                   className={clsx(
-                    'flex h-6 w-6 cursor-pointer items-center justify-center rounded border-2 backdrop-blur-sm transition-colors',
+                    'flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] cursor-pointer items-center justify-center rounded border-2 backdrop-blur-sm transition-colors',
                     isSelected
                       ? 'border-blue-500 bg-blue-500'
                       : 'border-white/60 bg-black/40 hover:border-white hover:bg-black/60'
                   )}
                 >
-                  {isSelected && <Check className="h-3.5 w-3.5 text-white" />}
+                  {isSelected && <Check className="h-[60%] w-[60%] text-white" />}
                 </div>
               )}
               {generation.status === 'succeeded' && (
                 <button
                   onClick={toggleFavorite}
                   className={clsx(
-                    'flex h-6 w-6 items-center justify-center rounded backdrop-blur-sm transition-colors',
+                    'flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded backdrop-blur-sm transition-colors',
                     generation.isFavorite ? 'bg-red-500/80' : 'bg-black/40 hover:bg-red-500/50'
                   )}
                 >
                   <Heart
                     className={clsx(
-                      'h-3.5 w-3.5',
+                      'h-[60%] w-[60%]',
                       generation.isFavorite ? 'fill-white text-white' : 'text-white'
                     )}
                   />
@@ -961,8 +922,8 @@ export function GenerationCard({
             </div>
 
             {/* RIGHT: Action Buttons */}
-            <div className="flex flex-row items-center gap-1">
-              {/* Fullscreen (Success only) - Always show */}
+            <div className="flex items-center gap-[clamp(4px,1.2cqw,8px)]">
+              {/* Fullscreen (Success only) */}
               {generation.status === 'succeeded' && (
                 <button
                   onClick={e => {
@@ -970,26 +931,26 @@ export function GenerationCard({
                     setShowPopup(true);
                     setIsFullscreen(true);
                   }}
-                  className="flex h-6 w-6 items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-white/20"
+                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-white/20"
                   title="Fullscreen"
                   aria-label="View fullscreen"
                 >
-                  <Maximize2 className="h-3.5 w-3.5 text-white" />
+                  <Maximize2 className="h-[60%] w-[60%] text-white" />
                 </button>
               )}
 
-              {/* Upscale (Success + Image only) - Hide on portrait */}
+              {/* Upscale (Success + Image only) - Radix Portal Dropdown */}
               {generation.status === 'succeeded' && !isVideo && onUpscale && (
                 <DropdownMenu.Root open={showUpscaleMenu} onOpenChange={setShowUpscaleMenu}>
                   <DropdownMenu.Trigger asChild>
                     <button
                       onClick={e => e.stopPropagation()}
                       onPointerDown={e => e.stopPropagation()}
-                      className="flex h-6 w-6 items-center justify-center rounded bg-green-600/80 backdrop-blur-sm transition-colors hover:bg-green-500"
+                      className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-green-600/80 backdrop-blur-sm transition-colors hover:bg-green-500"
                       title="Upscale"
                       aria-label="Upscale image"
                     >
-                      <ZoomIn className="h-3.5 w-3.5 text-white" />
+                      <ZoomIn className="h-[60%] w-[60%] text-white" />
                     </button>
                   </DropdownMenu.Trigger>
 
@@ -1035,33 +996,33 @@ export function GenerationCard({
                 </DropdownMenu.Root>
               )}
 
-              {/* Animate (Success + Image only) - Always show */}
+              {/* Animate (Success + Image only) */}
               {generation.status === 'succeeded' && !isVideo && onAnimate && (
                 <button
                   onClick={e => {
                     e.stopPropagation();
                     if (mediaUrl) onAnimate(mediaUrl);
                   }}
-                  className="flex h-6 w-6 items-center justify-center rounded bg-purple-600/80 backdrop-blur-sm transition-colors hover:bg-purple-500"
+                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-purple-600/80 backdrop-blur-sm transition-colors hover:bg-purple-500"
                   title="Animate"
                   aria-label="Animate image"
                 >
-                  <Play className="h-3.5 w-3.5 fill-current text-white" />
+                  <Play className="h-[60%] w-[60%] fill-current text-white" />
                 </button>
               )}
 
-              {/* Enhance Video Menu (Success + Video only) - Hide on portrait */}
+              {/* Enhance Video Menu (Success + Video only) - Radix Portal Dropdown */}
               {generation.status === 'succeeded' && isVideo && onEnhanceVideo && (
                 <DropdownMenu.Root open={showEnhanceMenu} onOpenChange={setShowEnhanceMenu}>
                   <DropdownMenu.Trigger asChild>
                     <button
                       onClick={e => e.stopPropagation()}
                       onPointerDown={e => e.stopPropagation()}
-                      className="flex h-6 w-6 items-center justify-center rounded bg-gradient-to-r from-purple-600/80 to-pink-600/80 backdrop-blur-sm transition-colors hover:from-purple-500 hover:to-pink-500 focus:ring-2 focus:ring-purple-400 focus:outline-none"
+                      className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-gradient-to-r from-purple-600/80 to-pink-600/80 backdrop-blur-sm transition-colors hover:from-purple-500 hover:to-pink-500 focus:ring-2 focus:ring-purple-400 focus:outline-none"
                       aria-label="Enhance video options"
                       title="Enhance video"
                     >
-                      <Wand2 className="h-3.5 w-3.5 text-white" />
+                      <Wand2 className="h-[60%] w-[60%] text-white" />
                     </button>
                   </DropdownMenu.Trigger>
 
@@ -1110,7 +1071,7 @@ export function GenerationCard({
                 </DropdownMenu.Root>
               )}
 
-              {/* Roto & Paint (Success + Image only) - Hide on portrait */}
+              {/* Roto & Paint (Success + Image only) */}
               {generation.status === 'succeeded' && !isVideo && mediaUrl && (
                 <button
                   onClick={e => {
@@ -1121,15 +1082,15 @@ export function GenerationCard({
                       `/projects/${generation.projectId}/process?url=${encodedUrl}&tool=eraser`
                     );
                   }}
-                  className="flex h-6 w-6 items-center justify-center rounded bg-orange-600/80 backdrop-blur-sm transition-colors hover:bg-orange-500"
+                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-orange-600/80 backdrop-blur-sm transition-colors hover:bg-orange-500"
                   title="Roto & Paint"
                   aria-label="Edit in Roto & Paint"
                 >
-                  <Paintbrush className="h-3.5 w-3.5 text-white" />
+                  <Paintbrush className="h-[60%] w-[60%] text-white" />
                 </button>
               )}
 
-              {/* Rotoscope (Success + Video only) - Hide on portrait */}
+              {/* Rotoscope (Success + Video only) */}
               {generation.status === 'succeeded' && isVideo && mediaUrl && (
                 <button
                   onClick={e => {
@@ -1139,79 +1100,49 @@ export function GenerationCard({
                       `/projects/${generation.projectId}/process?video=${encodedUrl}&tool=rotoscope`
                     );
                   }}
-                  className="flex h-6 w-6 items-center justify-center rounded bg-cyan-600/80 backdrop-blur-sm transition-colors hover:bg-cyan-500"
+                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-cyan-600/80 backdrop-blur-sm transition-colors hover:bg-cyan-500"
                   title="Rotoscope"
                   aria-label="Edit in Rotoscope"
                 >
-                  <Film className="h-3.5 w-3.5 text-white" />
+                  <Film className="h-[60%] w-[60%] text-white" />
                 </button>
               )}
 
-              {/* Save as Element (Success only) - Always show */}
+              {/* Save as Element (Success only) */}
               {generation.status === 'succeeded' && onSaveAsElement && (
                 <button
                   onClick={e => {
                     e.stopPropagation();
                     if (mediaUrl) onSaveAsElement(mediaUrl, isVideo ? 'video' : 'image');
                   }}
-                  className="flex h-6 w-6 items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-blue-500/50"
+                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-blue-500/50"
                   title="Save as Element"
                   aria-label="Save as Element"
                 >
-                  <FilePlus className="h-3.5 w-3.5 text-white" />
+                  <FilePlus className="h-[60%] w-[60%] text-white" />
                 </button>
               )}
 
-              {/* Find Similar Composition (Success only, Images) - Hide on portrait */}
-              {generation.status === 'succeeded' && !isVideo && onFindSimilarComposition && (
-                <button
-                  onClick={e => {
-                    e.stopPropagation();
-                    onFindSimilarComposition();
-                  }}
-                  className="flex h-6 w-6 items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-purple-500/50"
-                  title="Find Similar Composition"
-                  aria-label="Find Similar Composition"
-                >
-                  <Layers className="h-3.5 w-3.5 text-purple-300" />
-                </button>
-              )}
-
-              {/* Find Similar Lighting (Success only, Images) - Hide on portrait */}
-              {generation.status === 'succeeded' && !isVideo && onFindSimilarLighting && (
-                <button
-                  onClick={e => {
-                    e.stopPropagation();
-                    onFindSimilarLighting();
-                  }}
-                  className="flex h-6 w-6 items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-amber-500/50"
-                  title="Find Similar Lighting"
-                  aria-label="Find Similar Lighting"
-                >
-                  <Sun className="h-3.5 w-3.5 text-amber-300" />
-                </button>
-              )}
-
-              {/* Download (Success only) - Always show */}
+              {/* Download (Success only) */}
               {generation.status === 'succeeded' && (
                 <button
                   onClick={handleDownload}
-                  className="flex h-6 w-6 items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-white/20"
+                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-white/20"
                   title="Download"
                   aria-label="Download media"
                 >
-                  <Download className="h-3.5 w-3.5 text-white" />
+                  <Download className="h-[60%] w-[60%] text-white" />
                 </button>
               )}
 
               {/* Delete (ALWAYS VISIBLE) */}
               <button
                 onClick={handleDelete}
-                className="flex h-6 w-6 items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-red-500/50"
+                className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-red-500/50"
                 title="Delete"
                 aria-label="Delete generation"
               >
-                <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                <Trash2 className="h-[60%] w-[60%] text-red-400" />
               </button>
             </div>
           </div>
@@ -1367,15 +1298,9 @@ export function GenerationCard({
           </AnimatePresence>
         </div>
 
-        {/* Bottom Info Overlay - Shows on hover */}
-        <div
-          className={clsx(
-            'absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-3 pt-8 transition-opacity duration-200',
-            isHovered ? 'opacity-100' : 'opacity-0'
-          )}
-        >
-          <p className="line-clamp-2 text-xs text-gray-200">{generation.inputPrompt}</p>
-          <div className="mt-1 text-[10px] text-gray-500">
+        <div className="p-3">
+          <p className="line-clamp-2 text-sm text-gray-300">{generation.inputPrompt}</p>
+          <div className="mt-2 text-xs text-gray-500">
             {new Date(generation.createdAt).toLocaleTimeString()}
           </div>
         </div>

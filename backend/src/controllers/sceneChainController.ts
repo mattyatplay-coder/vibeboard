@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { GenerationService } from '../services/GenerationService';
 import { videoStitcher, TransitionStyle } from '../services/VideoStitcher';
-import { bakeMasterPass, ClipSpec, BakeOptions } from '../services/export/BakeMasterPass';
 import path from 'path';
 import fs from 'fs';
 
@@ -274,15 +273,7 @@ export const updateSegment = async (req: Request, res: Response) => {
             orderIndex,
             status,
             firstFrameUrl,
-            lastFrameUrl,
-            // NLE Trimming fields (Phase 2)
-            trimStart,
-            trimEnd,
-            // Audio L-Cut fields (Phase 3)
-            audioUrl,
-            audioTrimStart,
-            audioTrimEnd,
-            audioGain
+            lastFrameUrl
         } = req.body;
 
         const updateData: any = {};
@@ -298,14 +289,6 @@ export const updateSegment = async (req: Request, res: Response) => {
         // Reference frame images for guiding generation
         if (firstFrameUrl !== undefined) updateData.firstFrameUrl = firstFrameUrl || null;
         if (lastFrameUrl !== undefined) updateData.lastFrameUrl = lastFrameUrl || null;
-        // NLE Trimming fields
-        if (trimStart !== undefined) updateData.trimStart = parseFloat(trimStart);
-        if (trimEnd !== undefined) updateData.trimEnd = parseFloat(trimEnd);
-        // Audio L-Cut fields
-        if (audioUrl !== undefined) updateData.audioUrl = audioUrl || null;
-        if (audioTrimStart !== undefined) updateData.audioTrimStart = parseFloat(audioTrimStart);
-        if (audioTrimEnd !== undefined) updateData.audioTrimEnd = parseFloat(audioTrimEnd);
-        if (audioGain !== undefined) updateData.audioGain = parseFloat(audioGain);
 
         const segment = await prisma.sceneChainSegment.update({
             where: { id: segmentId },
@@ -1010,219 +993,3 @@ async function generateSingleSegment(segment: any, aspectRatio: string) {
         });
     }
 }
-
-// =============================================================================
-// NLE TIMELINE BAKE ENDPOINTS (Phase 4)
-// =============================================================================
-
-// POST /api/projects/:projectId/scene-chains/:id/bake
-// Bake the timeline with all trim/audio edits applied via FFmpeg
-export const bakeChain = async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params;
-        const {
-            fps = 24,
-            codec = 'h264',
-            quality = 'master',
-            includeAudio = true,
-            outputFormat = 'mp4'
-        } = req.body;
-
-        // Get chain with all segments
-        const chain = await prisma.sceneChain.findUnique({
-            where: { id },
-            include: {
-                segments: {
-                    orderBy: { orderIndex: 'asc' }
-                }
-            }
-        });
-
-        if (!chain) {
-            return res.status(404).json({ error: 'Scene chain not found' });
-        }
-
-        // Filter to only complete segments with output URLs
-        const completeSegments = chain.segments.filter(
-            s => s.status === 'complete' && s.outputUrl
-        );
-
-        if (completeSegments.length === 0) {
-            return res.status(400).json({
-                error: 'No complete segments to bake',
-                totalSegments: chain.segments.length
-            });
-        }
-
-        // Convert segments to ClipSpec format
-        const clips: ClipSpec[] = completeSegments.map((seg) => {
-            // Ensure URL is absolute
-            const videoUrl = seg.outputUrl!.startsWith('http')
-                ? seg.outputUrl!
-                : `${process.env.BACKEND_URL || 'http://localhost:3001'}${seg.outputUrl}`;
-
-            const audioUrl = seg.audioUrl
-                ? (seg.audioUrl.startsWith('http')
-                    ? seg.audioUrl
-                    : `${process.env.BACKEND_URL || 'http://localhost:3001'}${seg.audioUrl}`)
-                : undefined;
-
-            return {
-                id: seg.id,
-                videoUrl,
-                duration: seg.duration,
-                trimStart: seg.trimStart,
-                trimEnd: seg.trimEnd,
-                audioUrl,
-                audioTrimStart: seg.audioTrimStart,
-                audioTrimEnd: seg.audioTrimEnd,
-                audioGain: seg.audioGain,
-                transitionType: (seg.transitionType as any) || 'cut',
-                transitionDuration: 0.5
-            };
-        });
-
-        console.log(`[BakeChain] Starting bake for chain ${id} with ${clips.length} clips`);
-
-        // Execute bake
-        const result = await bakeMasterPass.bake(clips, {
-            fps,
-            codec,
-            quality,
-            includeAudio,
-            outputFormat
-        });
-
-        if (!result.success) {
-            return res.status(500).json({
-                error: 'Bake failed',
-                logs: result.logs
-            });
-        }
-
-        // Move output to uploads folder
-        const uploadsDir = path.join(process.cwd(), 'uploads', 'baked');
-        if (!fs.existsSync(uploadsDir)) {
-            fs.mkdirSync(uploadsDir, { recursive: true });
-        }
-
-        const finalFilename = `bake-${chain.id}-${Date.now()}.${outputFormat}`;
-        const finalPath = path.join(uploadsDir, finalFilename);
-        fs.copyFileSync(result.outputPath, finalPath);
-
-        // Cleanup temp files
-        bakeMasterPass.cleanup(result.outputPath);
-
-        const finalUrl = `/uploads/baked/${finalFilename}`;
-
-        // Update chain with baked video URL
-        await prisma.sceneChain.update({
-            where: { id },
-            data: { finalVideoUrl: finalUrl }
-        });
-
-        console.log(`[BakeChain] Bake complete: ${finalUrl}`);
-
-        res.json({
-            success: true,
-            finalVideoUrl: finalUrl,
-            duration: result.duration,
-            resolution: result.resolution,
-            fileSize: result.fileSize,
-            clipsProcessed: clips.length,
-            logs: result.logs
-        });
-
-    } catch (error: any) {
-        console.error('Error baking chain:', error);
-        res.status(500).json({
-            error: 'Failed to bake timeline',
-            message: error.message
-        });
-    }
-};
-
-// POST /api/projects/:projectId/scene-chains/:id/bake-preview
-// Quick preview bake (draft quality, no audio) for scrubbing
-export const bakePreview = async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params;
-        const { startTime, endTime } = req.body;
-
-        // Get chain with segments
-        const chain = await prisma.sceneChain.findUnique({
-            where: { id },
-            include: {
-                segments: {
-                    orderBy: { orderIndex: 'asc' }
-                }
-            }
-        });
-
-        if (!chain) {
-            return res.status(404).json({ error: 'Scene chain not found' });
-        }
-
-        // Filter to complete segments
-        const completeSegments = chain.segments.filter(
-            s => s.status === 'complete' && s.outputUrl
-        );
-
-        if (completeSegments.length === 0) {
-            return res.status(400).json({ error: 'No complete segments' });
-        }
-
-        // If time range specified, filter segments within range
-        let segmentsToProcess = completeSegments;
-        if (startTime !== undefined && endTime !== undefined) {
-            let accumulatedTime = 0;
-            segmentsToProcess = [];
-
-            for (const seg of completeSegments) {
-                const effectiveDuration = seg.duration - seg.trimStart - seg.trimEnd;
-                const segStart = accumulatedTime;
-                const segEnd = accumulatedTime + effectiveDuration;
-
-                // Include if overlaps with requested range
-                if (segEnd > startTime && segStart < endTime) {
-                    segmentsToProcess.push(seg);
-                }
-
-                accumulatedTime += effectiveDuration;
-            }
-        }
-
-        // Convert to clips
-        const clips: ClipSpec[] = segmentsToProcess.map((seg) => ({
-            id: seg.id,
-            videoUrl: seg.outputUrl!.startsWith('http')
-                ? seg.outputUrl!
-                : `${process.env.BACKEND_URL || 'http://localhost:3001'}${seg.outputUrl}`,
-            duration: seg.duration,
-            trimStart: seg.trimStart,
-            trimEnd: seg.trimEnd,
-            transitionType: 'cut' // Fast cuts for preview
-        }));
-
-        // Quick draft bake
-        const result = await bakeMasterPass.bake(clips, {
-            fps: 24,
-            codec: 'h264',
-            quality: 'draft',
-            includeAudio: false,
-            outputFormat: 'mp4'
-        });
-
-        // Return preview directly (don't save to uploads)
-        res.json({
-            success: true,
-            previewPath: result.outputPath,
-            duration: result.duration,
-            clipsProcessed: clips.length
-        });
-
-    } catch (error: any) {
-        console.error('Error creating preview:', error);
-        res.status(500).json({ error: 'Failed to create preview' });
-    }
-};

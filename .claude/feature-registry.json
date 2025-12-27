@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "description": "VibeBoard Feature Registry - Protected features and files that require user approval before modification",
-  "lastUpdated": "2025-12-26",
+  "lastUpdated": "2025-12-20",
 
   "protectedFeatures": {
     "AI Feedback Learning System": {
@@ -165,77 +165,6 @@
         "Will prepend: indicator showing trigger words",
         "Character Reference section with element thumbnails",
         "initialLoRAs prop passing from GenerationForm to PromptBuilder"
-      ]
-    },
-
-    "Victory Lap Export System": {
-      "description": "Professional export pipeline with FFmpeg muxing, EPK generation, and sidecar metadata",
-      "status": "stable",
-      "owner": "Matt",
-      "criticalFiles": [
-        "backend/src/services/export/MasterExportService.ts",
-        "backend/src/routes/exportRoutes.ts"
-      ],
-      "apis": [
-        "POST /api/projects/:projectId/export/bake",
-        "POST /api/projects/:projectId/export/epk",
-        "GET /api/exports/:exportId/epk"
-      ],
-      "doNotRemove": [
-        "bakeSceneChain() FFmpeg pipeline",
-        "24fps CFR enforcement (-r 24 -vsync cfr)",
-        "generateEPK() HTML generation",
-        "generateEPKHtml() with Glass Studio theme",
-        "Sidecar JSON with Shot DNA",
-        "CMX 3600 EDL generation",
-        "Continuity heatmap scoring (hasFirstFrame, hasLastFrame, linkedToPrev, linkedToNext)"
-      ]
-    },
-
-    "Directors Loupe VideoScopes": {
-      "description": "Professional RGB Histogram and Luma Waveform scopes for A/B Lightbox",
-      "status": "stable",
-      "owner": "Matt",
-      "criticalFiles": [
-        "frontend/src/components/generations/VideoScopes.tsx",
-        "frontend/src/components/generations/ABLightbox.tsx"
-      ],
-      "doNotRemove": [
-        "RGB Histogram canvas rendering",
-        "Luma Waveform with BT.709 calculation",
-        "Clipping indicators (crushed blacks, clipped highlights)",
-        "scopesEnabled state with 'S' keyboard shortcut",
-        "animationFrameRef = useRef<number | undefined>(undefined)"
-      ]
-    },
-
-    "Semantic Search Visual Librarian": {
-      "description": "Vision-powered search with cinematic terminology for generations gallery",
-      "status": "stable",
-      "owner": "Matt",
-      "criticalFiles": [
-        "backend/src/services/search/SemanticIndexService.ts",
-        "backend/src/routes/searchRoutes.ts",
-        "frontend/src/components/generations/GenerationSearch.tsx",
-        "frontend/src/components/generations/GenerationCard.tsx",
-        "frontend/src/components/generations/GenerationResults.tsx"
-      ],
-      "apis": [
-        "GET /api/projects/:projectId/search",
-        "GET /api/projects/:projectId/search/stats",
-        "GET /api/projects/:projectId/search/suggestions",
-        "POST /api/projects/:projectId/search/index",
-        "POST /api/projects/:projectId/search/retry-failed",
-        "GET /api/projects/:projectId/search/similar/composition/:id",
-        "GET /api/projects/:projectId/search/similar/lighting/:id"
-      ],
-      "doNotRemove": [
-        "CINEMATIC_EXTRACTION_PROMPT for Grok Vision",
-        "shouldIndex() re-indexing safety check",
-        "indexStatus field (pending/indexed/failed/skipped)",
-        "Smart suggestion pills with category coloring",
-        "Find Similar Composition button (Layers icon)",
-        "Find Similar Lighting button (Sun icon)"
       ]
     }
   },

@@ -280,20 +280,6 @@ function getPositionDescription(x: number, y: number): string {
   // Y-axis: low Y = back of stage, high Y = front (near camera)
   const depth = y < 0.35 ? 'back' : y > 0.65 ? 'front' : 'side';
 
-  // CENTRALITY LOGIC: Detect overhead/top light (centered horizontally, anywhere vertically)
-  // A light near x=0.5 is directly above the subject when combined with any Y position
-  const isCentered = x >= 0.4 && x <= 0.6;
-
-  // True overhead/top down: centered AND at the top (low Y = above/behind subject)
-  if (isCentered && y <= 0.25) {
-    return 'from directly above (overhead/top light)';
-  }
-
-  // Centered at middle height: top-center lighting (butterfly/paramount)
-  if (isCentered && y > 0.25 && y <= 0.45) {
-    return 'from above-center (butterfly/paramount)';
-  }
-
   // For lights behind subject (low Y), use rim/backlight terminology
   if (y < 0.35) {
     if (horizontal === 'center') return 'from behind (backlight)';
@@ -309,18 +295,6 @@ function getPositionDescription(x: number, y: number): string {
   // Side lighting (middle Y range)
   if (horizontal === 'center') return 'from the side';
   return `from ${horizontal}`;
-}
-
-// Helper to check if a light is in overhead/top position (for UI labels)
-export function isOverheadPosition(x: number, y: number): boolean {
-  const isCentered = x >= 0.4 && x <= 0.6;
-  return isCentered && y <= 0.25;
-}
-
-// Helper to check if a light is in butterfly/paramount position
-export function isButterflyPosition(x: number, y: number): boolean {
-  const isCentered = x >= 0.4 && x <= 0.6;
-  return isCentered && y > 0.25 && y <= 0.45;
 }
 
 // Convert Kelvin to color description

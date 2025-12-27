@@ -196,31 +196,6 @@ DATABASE_URL=file:./dev.db
 
 ## Recent Updates
 
-### December 2025 (Victory Lap)
-- **Master Export System**: Professional-grade video export pipeline
-  - FFmpeg muxing with 24fps constant frame rate for NLE compatibility
-  - ProRes 422 HQ codec option for professional workflows
-  - Sidecar JSON with Shot DNA (seed, model, prompt, Gaffer coordinates)
-  - CMX 3600 EDL generation for timeline import
-- **Electronic Press Kit (EPK)**: Self-contained HTML pitch tool
-  - Shot breakdown cards with Lens & Lighting recipes
-  - Continuity Heatmap with color-coded scores (0-100%)
-  - Glass Studio theme styling
-- **Director's Loupe (VideoScopes)**: Professional video analysis
-  - RGB Histogram for color channel distribution
-  - Luma Waveform with BT.709 calculation
-  - Clipping indicators (crushed blacks/clipped highlights)
-  - 'S' keyboard shortcut in A/B Lightbox
-- **Visual Librarian (Semantic Search)**: Gallery search with cinematic terminology
-  - Grok Vision indexing with professional DP terminology
-  - Framing detection (ECU, CU, MCU, MS, WS)
-  - Lighting analysis (Low-Key, Chiaroscuro, Rim-lit)
-  - Find Similar Composition/Lighting buttons
-- **Multi-Pass Render Queue**: Draft → Review → Master workflow
-  - Seed inheritance for visual consistency
-  - 85% cost savings on iterations
-  - Version stacking with D/R/M badges
-
 ### December 2024
 - **Character Foundry**: Single-image to full training dataset generation
   - 7 pose presets (Universal, Swimwear, Casual, Formal, Fantasy, Anime, Cartoon)
@@ -241,4 +216,4 @@ DATABASE_URL=file:./dev.db
 - UI improvements: scrollbar hiding, GenerationCard layout, upscale modal
 
 ## Deployment Status
-Last updated: Thu Dec 26 18:00:00 EST 2025
+Last updated: Tue Dec 17 12:00:00 EST 2024

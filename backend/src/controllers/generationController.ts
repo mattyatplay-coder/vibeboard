@@ -564,27 +564,12 @@ export const createGeneration = async (req: Request, res: Response) => {
 export const getGenerations = async (req: Request, res: Response) => {
   try {
     const { projectId } = req.params;
-    const { sessionId, status, mode } = req.query;
-    console.log(`[getGenerations] projectId=${projectId}, sessionId=${sessionId}, status=${status}, mode=${mode}`);
+    const { sessionId } = req.query;
+    console.log(`[getGenerations] projectId=${projectId}, sessionId=${sessionId}`);
 
     const where: any = { projectId };
     if (sessionId) {
       where.sessionId = sessionId;
-    }
-    // Filter by status (supports 'succeeded', 'failed', 'running', 'queued')
-    if (status) {
-      where.status = status;
-    }
-    // Filter by mode ('image', 'video', 'text_to_image', 'text_to_video', 'image_to_video')
-    if (mode) {
-      // Handle both specific modes and general 'video' filter
-      if (mode === 'video') {
-        where.mode = { in: ['text_to_video', 'image_to_video', 'video'] };
-      } else if (mode === 'image') {
-        where.mode = { in: ['text_to_image', 'image', 'image_to_image'] };
-      } else {
-        where.mode = mode;
-      }
     }
     console.log(`[getGenerations] where clause:`, JSON.stringify(where));
 

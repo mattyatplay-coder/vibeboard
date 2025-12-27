@@ -17,9 +17,7 @@ import {
     uploadSegmentFrame,
     getSegment,
     generateSegment,
-    stitchChain,
-    bakeChain,
-    bakePreview
+    stitchChain
 } from '../controllers/sceneChainController';
 
 const router = Router({ mergeParams: true });
@@ -58,9 +56,5 @@ router.get('/:id/status', getChainStatus);
 
 // Video stitching
 router.post('/:id/stitch', stitchChain);
-
-// NLE Timeline Bake (Phase 4)
-router.post('/:id/bake', bakeChain);
-router.post('/:id/bake-preview', bakePreview);
 
 export default router;

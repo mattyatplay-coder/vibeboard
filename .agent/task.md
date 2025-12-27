@@ -513,112 +513,21 @@ Generation 137bc2f1-314d-4ffc-ba66-0f745483272e completed.
     - [x] handlePromoteShot() with loading state <!-- id: 932 -->
     - [x] Cost comparison display <!-- id: 933 -->
 
-### 2. Semantic Search (Visual Librarian) ✅ COMPLETE (Dec 26, 2025) <!-- id: 950 -->
-*Gallery is now a searchable database with professional cinematic terminology.*
+### 2. Semantic Search (CLIP/Vision Indexing) <!-- id: 950 -->
+*Gallery becomes a searchable database - NOT STARTED*
 
-- [x] **SemanticIndexService.ts** <!-- id: 951 -->
-    - [x] Grok Vision integration (replaces CLIP) <!-- id: 952 -->
-    - [x] Prisma-based storage (visualDescription, indexStatus) <!-- id: 953 -->
-    - [x] Text search with cinematic terminology scoring <!-- id: 954 -->
+- [ ] **SemanticSearchService.ts** <!-- id: 951 -->
+    - [ ] CLIP embedding generation <!-- id: 952 -->
+    - [ ] Vector storage <!-- id: 953 -->
+    - [ ] Similarity search algorithm <!-- id: 954 -->
 
-- [x] **Cinematic Prompt Injection** <!-- id: 960 -->
-    - [x] CINEMATIC_EXTRACTION_PROMPT for Grok Vision <!-- id: 961 -->
-    - [x] Framing: ECU, CU, MCU, MS, WS, EWS extraction <!-- id: 962 -->
-    - [x] Lighting: Low-Key, High-Key, Chiaroscuro, Rim-lit detection <!-- id: 963 -->
-    - [x] Lens: Anamorphic, Shallow DOF, Bokeh, Focal Length <!-- id: 964 -->
-    - [x] Composition, Colors, Mood, Style, Setting, Technical metadata <!-- id: 965 -->
+- [ ] **Auto-Tagging on Generation** <!-- id: 960 -->
+    - [ ] Vision model for Technical Description <!-- id: 961 -->
+    - [ ] Store tags with generation record <!-- id: 962 -->
 
-- [x] **Index Management** <!-- id: 970 -->
-    - [x] Re-indexing safety (shouldIndex method) <!-- id: 971 -->
-    - [x] Error state persistence (failed/skipped/indexed) <!-- id: 972 -->
-    - [x] Batch indexing with retry-failed endpoint <!-- id: 973 -->
-
-- [x] **Search UI** <!-- id: 980 -->
-    - [x] Natural language search bar in GenerationResults <!-- id: 981 -->
-    - [x] Smart suggestion pills (Close-Up, Wide Shot, ECU, Chiaroscuro, etc.) <!-- id: 982 -->
-    - [x] Category-colored pills (blue=framing, amber=lighting, purple=lens, green=mood) <!-- id: 983 -->
-    - [x] Index stats dropdown with progress bar <!-- id: 984 -->
-
-- [x] **Discovery Workflow** <!-- id: 990 -->
-    - [x] Find Similar Composition button (Layers icon, purple) <!-- id: 991 -->
-    - [x] Find Similar Lighting button (Sun icon, amber) <!-- id: 992 -->
-    - [x] Both buttons on GenerationCard toolbar (images only) <!-- id: 993 -->
-
-**Alpha Test Results (Dec 26, 2025)**:
-- Query: "Extreme close up with neon blue lighting and shallow depth of field"
-- Top result scored 17 points (matched framing + DOF + lighting)
-- Correctly identified John Wick style shots with CU framing, shallow DOF, lens flares
-
----
-
-## Batch #7 - Victory Lap: Master Export & Director's Loupe (Dec 26, 2025)
-
-### 1. Bake & Export Pass ✅ COMPLETE <!-- id: 1000 -->
-*FFmpeg muxing with industry-standard output.*
-
-- [x] **MasterExportService.ts** <!-- id: 1001 -->
-    - [x] `bakeSceneChain()` - Full scene chain export with FFmpeg <!-- id: 1002 -->
-    - [x] 24fps constant frame rate (`-r 24 -vsync cfr`) for NLE compatibility <!-- id: 1003 -->
-    - [x] ProRes 422 HQ codec option (`-c:v prores_ks -profile:v 3`) <!-- id: 1004 -->
-    - [x] Sidecar JSON with Shot DNA (seed, model, prompt, Gaffer coordinates) <!-- id: 1005 -->
-    - [x] CMX 3600 EDL generation for timeline import <!-- id: 1006 -->
-
-- [x] **exportRoutes.ts** - API endpoints <!-- id: 1010 -->
-    - [x] POST /api/projects/:projectId/export/bake <!-- id: 1011 -->
-    - [x] POST /api/projects/:projectId/export/epk <!-- id: 1012 -->
-    - [x] GET /api/exports/:exportId/epk <!-- id: 1013 -->
-
-### 2. Electronic Press Kit (EPK) ✅ COMPLETE <!-- id: 1020 -->
-*Self-contained pitch tool for studios and clients.*
-
-- [x] **EPK HTML Generation** <!-- id: 1021 -->
-    - [x] Self-contained HTML with embedded base64 thumbnails <!-- id: 1022 -->
-    - [x] Glass Studio theme (Midnight & Neon styling) <!-- id: 1023 -->
-    - [x] Shot breakdown cards with Lens Kit and Lighting Setup <!-- id: 1024 -->
-    - [x] Continuity Heatmap with color-coded scores (0-100%) <!-- id: 1025 -->
-    - [x] Cinematic Tags display formatted for cinematographers <!-- id: 1026 -->
-
-- [x] **Continuity Scoring** <!-- id: 1030 -->
-    - [x] hasFirstFrame: +25 points <!-- id: 1031 -->
-    - [x] hasLastFrame: +25 points <!-- id: 1032 -->
-    - [x] linkedToPrev: +25 points <!-- id: 1033 -->
-    - [x] linkedToNext: +25 points <!-- id: 1034 -->
-
-### 3. Director's Loupe (VideoScopes) ✅ COMPLETE <!-- id: 1040 -->
-*Professional-grade scopes for the A/B Lightbox.*
-
-- [x] **VideoScopes.tsx** Component <!-- id: 1041 -->
-    - [x] RGB Histogram (R/G/B channel distribution) <!-- id: 1042 -->
-    - [x] Luma Waveform (brightness levels, BT.709) <!-- id: 1043 -->
-    - [x] Canvas-based real-time analysis <!-- id: 1044 -->
-    - [x] Clipping indicators (crushed blacks, clipped highlights) <!-- id: 1045 -->
-    - [x] Expand/collapse toggle for detailed view <!-- id: 1046 -->
-
-- [x] **ABLightbox Integration** <!-- id: 1050 -->
-    - [x] `scopesEnabled` state with 'S' keyboard shortcut <!-- id: 1051 -->
-    - [x] VideoScopes for Draft and Master video refs <!-- id: 1052 -->
-    - [x] Image ref support for static image analysis <!-- id: 1053 -->
-
-### Technical Implementation Notes
-
-**BT.709 Luma Calculation:**
-```typescript
-const luma = 0.2126 * R + 0.7152 * G + 0.0722 * B;
-```
-
-**TypeScript Fix (VideoScopes.tsx:257):**
-```typescript
-// Before (error): useRef<number>()
-// After (fixed): useRef<number | undefined>(undefined)
-```
-
-**cinematicTags Object Handling:**
-```typescript
-// Tags stored as object with type keys, needed formatCinematicTags() helper
-function formatCinematicTags(tags: Record<string, string[]>): string {
-    return Object.entries(tags).map(([type, values]) => `${type}: ${values.join(', ')}`).join(' | ');
-}
-```
+- [ ] **Search UI** <!-- id: 970 -->
+    - [ ] Natural language search bar <!-- id: 971 -->
+    - [ ] "Find Similar" button on GenerationCard <!-- id: 972 -->
 
 ---
 
@@ -631,60 +540,3 @@ function formatCinematicTags(tags: Record<string, string[]>): string {
 ### Semantic Search Priority
 > This is the next big win. As images generate, send to low-cost Vision model for "Technical Description."
 > Gallery becomes a searchable database for pros.
-
----
-
-## Batch #8 - Session Continuity & Auto-Save (Dec 26, 2025)
-
-### 1. Generate Page Auto-Save ✅ COMPLETE <!-- id: 1100 -->
-*Automatically persist Generate Page state to localStorage with debounced saves.*
-
-- [x] **generateDraftStore.ts** - Zustand store with persist middleware <!-- id: 1101 -->
-    - [x] `GenerateDraft` interface capturing full page state <!-- id: 1102 -->
-    - [x] Per-project drafts keyed by projectId <!-- id: 1103 -->
-    - [x] 24-hour draft expiry (auto-clear stale drafts) <!-- id: 1104 -->
-    - [x] `saveDraft()`, `getDraft()`, `clearDraft()`, `hasDraft()` methods <!-- id: 1105 -->
-
-- [x] **useAutoSave Hook** - Debounced persistence <!-- id: 1110 -->
-    - [x] 500ms debounce to avoid excessive writes <!-- id: 1111 -->
-    - [x] JSON serialization comparison to skip duplicate saves <!-- id: 1112 -->
-    - [x] Immediate save on component unmount <!-- id: 1113 -->
-    - [x] Skip empty state (no prompt, no elements) <!-- id: 1114 -->
-
-- [x] **useRecoveryCheck Hook** - Draft detection on mount <!-- id: 1120 -->
-    - [x] Returns `{ hasDraft, draftAge, draft, clearDraft }` <!-- id: 1121 -->
-    - [x] Auto-check staleness on read <!-- id: 1122 -->
-
-- [x] **Recovery Toast UI** - User-friendly session restore <!-- id: 1130 -->
-    - [x] Blue toast notification at top of page <!-- id: 1131 -->
-    - [x] Shows draft age and prompt preview <!-- id: 1132 -->
-    - [x] Restore button to apply saved state <!-- id: 1133 -->
-    - [x] Dismiss button to clear draft and continue fresh <!-- id: 1134 -->
-
-### State Persisted
-| Field | Type |
-|-------|------|
-| prompt | string |
-| negativePrompt | string? |
-| engineConfig | { provider, model } |
-| mode | 'image' \| 'video' |
-| aspectRatio, duration, variations | generation params |
-| strength, steps, guidanceScale, motionScale | advanced params |
-| selectedElementIds, elementStrengths | character references |
-| styleConfig | { loras, sampler, scheduler, inspiration, etc. } |
-| selectedLensId, selectedLensEffects, isAnamorphic, lensCharacter | lens kit |
-| audioFileName | avatar audio |
-
-### Files Created/Modified
-- `frontend/src/lib/generateDraftStore.ts` (NEW)
-- `frontend/src/app/projects/[id]/generate/page.tsx` (MODIFIED - added hooks and toast UI)
-
-### Pending Session Continuity Features
-- [ ] **Story Editor Checkpoints** <!-- id: 1140 -->
-    - [ ] Auto-save story outline state <!-- id: 1141 -->
-    - [ ] Scene breakdown progress persistence <!-- id: 1142 -->
-    - [ ] Recovery prompt on return <!-- id: 1143 -->
-
-- [ ] **Processing Tool Mask Persistence** <!-- id: 1150 -->
-    - [ ] Save Magic Eraser brush strokes to localStorage <!-- id: 1151 -->
-    - [ ] Restore mask state on page reload <!-- id: 1152 />

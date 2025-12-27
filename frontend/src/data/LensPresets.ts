@@ -185,77 +185,11 @@ export const ANAMORPHIC_MODIFIERS = [
   'anamorphic squeeze',
 ];
 
-// Lens Character - Modern vs Vintage glass characteristics
-export type LensCharacter = 'modern' | 'vintage';
-
-export interface LensCharacterPreset {
-  id: LensCharacter;
-  name: string;
-  description: string;
-  promptModifiers: string[];
-  negativeModifiers: string[];
-  visualTraits: string[];
-}
-
-export const LENS_CHARACTER_PRESETS: Record<LensCharacter, LensCharacterPreset> = {
-  modern: {
-    id: 'modern',
-    name: 'Modern Glass',
-    description: 'Clinical sharpness, clean rendering, perfect correction',
-    promptModifiers: [
-      'modern lens',
-      'razor sharp',
-      'clinical sharpness',
-      'high micro-contrast',
-      'pristine optics',
-      'edge-to-edge sharpness',
-    ],
-    negativeModifiers: [
-      'soft focus',
-      'vintage lens',
-      'chromatic aberration',
-      'lens flare',
-    ],
-    visualTraits: [
-      'Perfect corner sharpness',
-      'Neutral color rendering',
-      'Clean highlight rolloff',
-      'Minimal distortion',
-    ],
-  },
-  vintage: {
-    id: 'vintage',
-    name: 'Vintage Glass',
-    description: 'Character-rich rendering, dreamy softness, organic imperfections',
-    promptModifiers: [
-      'vintage lens',
-      'soft glow',
-      'dreamy rendering',
-      'lens imperfections',
-      'organic bokeh',
-      'gentle halation',
-      'classic glass character',
-    ],
-    negativeModifiers: [
-      'clinical sharpness',
-      'modern lens',
-      'perfect optics',
-    ],
-    visualTraits: [
-      'Soft corner falloff',
-      'Warm color cast',
-      'Smooth highlight blooming',
-      'Character-rich aberrations',
-    ],
-  },
-};
-
-// Build complete lens prompt with optional anamorphic modifier and character
+// Build complete lens prompt with optional anamorphic modifier
 export function buildLensPrompt(
   lens: LensPreset | null,
   isAnamorphic: boolean,
-  effects: string[],
-  character: LensCharacter = 'modern'
+  effects: string[]
 ): { positive: string; negative: string } {
   const positiveModifiers: string[] = [];
   const negativeModifiers: string[] = [];
@@ -273,13 +207,6 @@ export function buildLensPrompt(
     positiveModifiers.push(...ANAMORPHIC_MODIFIERS);
   } else if (lens) {
     positiveModifiers.push('spherical cinema lenses');
-  }
-
-  // Lens character modifiers (Modern vs Vintage)
-  const characterPreset = LENS_CHARACTER_PRESETS[character];
-  if (characterPreset) {
-    positiveModifiers.push(...characterPreset.promptModifiers);
-    negativeModifiers.push(...characterPreset.negativeModifiers);
   }
 
   // Effect modifiers

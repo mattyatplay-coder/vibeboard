@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "description": "UI Component Registry - Visual documentation with screenshots, exact layout specs, and protected elements. MUST READ before modifying any UI component.",
-  "lastUpdated": "2025-12-26",
+  "lastUpdated": "2025-12-22",
 
   "components": {
     "Generate Page Toolbar": {
@@ -154,112 +154,6 @@
         "Trigger on '@' character",
         "Keyboard navigation",
         "Element thumbnails in dropdown"
-      ]
-    },
-
-    "A/B Lightbox with VideoScopes": {
-      "status": "stable",
-      "owner": "Matt",
-      "file": "frontend/src/components/generations/ABLightbox.tsx",
-      "screenshot": null,
-      "description": "Side-by-side comparison of Draft vs Master with professional video scopes",
-      "layout": {
-        "structure": [
-          "1. Full-screen overlay with dark background",
-          "2. Left side: Draft generation (video or image)",
-          "3. Right side: Master generation (video or image)",
-          "4. Top toolbar: Close button, scope toggle (S key)",
-          "5. Bottom-left: VideoScopes for Draft (RGB Histogram or Luma Waveform)",
-          "6. Bottom-right: VideoScopes for Master",
-          "7. Scope type toggle button in each scope header"
-        ],
-        "keyboard": {
-          "Escape": "Close lightbox",
-          "S": "Toggle VideoScopes visibility"
-        }
-      },
-      "doNotRemove": [
-        "scopesEnabled state for scope visibility toggle",
-        "'S' keyboard shortcut for scope toggle",
-        "VideoScopes components for both Draft and Master",
-        "Support for both video refs and image refs"
-      ],
-      "referencedComponents": ["VideoScopes"],
-      "history": [
-        {"date": "2025-12-26", "change": "Added VideoScopes integration with 'S' keyboard shortcut"}
-      ]
-    },
-
-    "VideoScopes (Director's Loupe)": {
-      "status": "stable",
-      "owner": "Matt",
-      "file": "frontend/src/components/generations/VideoScopes.tsx",
-      "screenshot": null,
-      "description": "Professional RGB Histogram and Luma Waveform scopes for media analysis",
-      "layout": {
-        "structure": [
-          "1. Compact floating overlay (140x80px default, 280x180px expanded)",
-          "2. Header with scope type indicator and toggle button",
-          "3. Canvas-based histogram/waveform visualization",
-          "4. Expand/collapse button",
-          "5. Legend (when expanded, histogram only)"
-        ],
-        "positioning": {
-          "default": "bottom-right of parent container",
-          "options": ["bottom-left", "bottom-right", "top-left", "top-right"]
-        },
-        "scopeTypes": {
-          "histogram": "RGB channel distribution with luma overlay",
-          "waveform": "Brightness levels across image (vertical scatter)"
-        }
-      },
-      "doNotRemove": [
-        "RGB Histogram with red/green/blue channels",
-        "Luma Waveform with BT.709 calculation",
-        "Clipping indicators (crushed blacks at left, clipped highlights at right)",
-        "Canvas-based rendering (not DOM/CSS)",
-        "animationFrameRef for video frame analysis",
-        "Support for both HTMLVideoElement and HTMLImageElement"
-      ],
-      "technicalNotes": {
-        "lumaFormula": "0.2126 * R + 0.7152 * G + 0.0722 * B",
-        "sampleSize": "160x90 pixels (downsampled for performance)",
-        "refreshRate": "requestAnimationFrame for video, once for images"
-      },
-      "history": [
-        {"date": "2025-12-26", "change": "Created component with RGB Histogram and Luma Waveform"},
-        {"date": "2025-12-26", "change": "Fixed TypeScript error: useRef<number | undefined>(undefined)"}
-      ]
-    },
-
-    "Generation Search (Visual Librarian)": {
-      "status": "stable",
-      "owner": "Matt",
-      "file": "frontend/src/components/generations/GenerationSearch.tsx",
-      "screenshot": null,
-      "description": "Semantic search with cinematic terminology for generations gallery",
-      "layout": {
-        "structure": [
-          "1. Search input with magnifying glass icon",
-          "2. Smart suggestion pills below input",
-          "3. Index stats dropdown (indexed/pending/failed counts)",
-          "4. Category-colored pills (blue=framing, amber=lighting, purple=lens, green=mood)"
-        ],
-        "suggestions": {
-          "framing": ["Close-Up", "Wide Shot", "ECU", "Medium Shot"],
-          "lighting": ["Golden Hour", "Chiaroscuro", "Rim-lit", "Low-Key"],
-          "lens": ["Anamorphic", "Shallow DOF", "Bokeh"],
-          "mood": ["Moody", "Ethereal", "Dramatic"]
-        }
-      },
-      "doNotRemove": [
-        "Smart suggestion pills with category coloring",
-        "Index stats dropdown with progress bar",
-        "Retry failed button for error recovery",
-        "Recent searches with localStorage persistence"
-      ],
-      "history": [
-        {"date": "2025-12-26", "change": "Created component with cinematic suggestion pills"}
       ]
     }
   },

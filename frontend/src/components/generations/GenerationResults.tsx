@@ -2,10 +2,8 @@ import { useState, useMemo } from 'react';
 import { Generation, Element } from '@/lib/store';
 import { GenerationCard } from '@/components/generations/GenerationCard';
 import { GenerationSearch } from '@/components/generations/GenerationSearch';
-import { Copy, FilePlus, Trash2, CheckSquare, X, Download, Search, Eye, Lightbulb } from 'lucide-react';
+import { Copy, FilePlus, Trash2, CheckSquare, X, Download, Search } from 'lucide-react';
 import { toast } from 'sonner';
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 interface GenerationResultsProps {
   generations: Generation[];
@@ -84,53 +82,6 @@ export function GenerationResults({
     setSearchQuery('');
   };
 
-  // Find Similar handlers
-  const handleFindSimilarComposition = async (generationId: string) => {
-    try {
-      toast.loading('Finding similar compositions...');
-      const res = await fetch(
-        `${BACKEND_URL}/api/projects/${projectId}/search/similar/composition/${generationId}?limit=20`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        toast.dismiss();
-        if (data.results.length > 0) {
-          setSearchResults(data.results);
-          setSearchQuery(`Similar Composition to #${generationId.slice(0, 6)}`);
-          toast.success(`Found ${data.results.length} similar compositions`);
-        } else {
-          toast.info('No similar compositions found. Try indexing more generations.');
-        }
-      }
-    } catch (err) {
-      toast.dismiss();
-      toast.error('Failed to find similar compositions');
-    }
-  };
-
-  const handleFindSimilarLighting = async (generationId: string) => {
-    try {
-      toast.loading('Finding similar lighting...');
-      const res = await fetch(
-        `${BACKEND_URL}/api/projects/${projectId}/search/similar/lighting/${generationId}?limit=20`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        toast.dismiss();
-        if (data.results.length > 0) {
-          setSearchResults(data.results);
-          setSearchQuery(`Similar Lighting to #${generationId.slice(0, 6)}`);
-          toast.success(`Found ${data.results.length} similar lighting setups`);
-        } else {
-          toast.info('No similar lighting found. Try indexing more generations.');
-        }
-      }
-    } catch (err) {
-      toast.dismiss();
-      toast.error('Failed to find similar lighting');
-    }
-  };
-
   const handleBatchCopyLinks = () => {
     const selectedGens = generations.filter(g => selectedGenerationIds.includes(g.id));
     const links = selectedGens
@@ -204,14 +155,9 @@ export function GenerationResults({
               'Recent Generations'
             )}
           </h2>
-          {/* Quilted Grid: fixed row height, dense packing, portraits fill gaps */}
           <div
             className="grid gap-3"
-            style={{
-              gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-              gridAutoRows: '200px',
-              gridAutoFlow: 'dense'
-            }}
+            style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}
           >
             {displayedGenerations.map((gen, index) => (
               <GenerationCard
@@ -231,8 +177,6 @@ export function GenerationResults({
                 isSelected={selectedGenerationIds.includes(gen.id)}
                 onToggleSelection={e => onToggleSelection(gen.id, e)}
                 onSaveAsElement={(url, type) => onSaveElement(url, type)}
-                onFindSimilarComposition={() => handleFindSimilarComposition(gen.id)}
-                onFindSimilarLighting={() => handleFindSimilarLighting(gen.id)}
               />
             ))}
           </div>
