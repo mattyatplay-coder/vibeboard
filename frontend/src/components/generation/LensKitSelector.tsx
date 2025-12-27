@@ -11,6 +11,8 @@ import {
   LensEffect,
   LENS_CATEGORY_COLORS,
   ANAMORPHIC_MODIFIERS,
+  LENS_CHARACTER_PRESETS,
+  LensCharacter,
   buildLensPrompt,
 } from '@/data/LensPresets';
 
@@ -18,9 +20,11 @@ interface LensKitSelectorProps {
   selectedLens: LensPreset | null;
   selectedEffects: string[];
   isAnamorphic: boolean;
+  lensCharacter: LensCharacter;
   onLensChange: (lens: LensPreset | null) => void;
   onEffectsChange: (effects: string[]) => void;
   onAnamorphicChange: (isAnamorphic: boolean) => void;
+  onCharacterChange: (character: LensCharacter) => void;
   onAspectRatioLock?: (aspectRatio: string) => void; // Called when anamorphic forces 2.39:1
   embedded?: boolean;
 }
@@ -29,9 +33,11 @@ export function LensKitSelector({
   selectedLens,
   selectedEffects,
   isAnamorphic,
+  lensCharacter,
   onLensChange,
   onEffectsChange,
   onAnamorphicChange,
+  onCharacterChange,
   onAspectRatioLock,
   embedded = false,
 }: LensKitSelectorProps) {
@@ -54,13 +60,14 @@ export function LensKitSelector({
     }
   };
 
-  // Compact button for toolbar
+  // Compact button for toolbar - responsive: wider padding on small screens, compact on 2xl+
+  // Height stays consistent at h-8 to prevent overlap with adjacent buttons
   if (!isOpen && !embedded) {
     return (
       <button
         onClick={() => setIsOpen(true)}
         className={clsx(
-          'flex h-10 items-center gap-2 rounded-xl border px-3 transition-all hover:scale-105',
+          'flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-3 transition-all hover:scale-105 2xl:gap-1.5 2xl:px-2',
           isAnamorphic
             ? 'border-blue-500/30 bg-blue-500/10 text-blue-400'
             : selectedLens
@@ -69,17 +76,17 @@ export function LensKitSelector({
         )}
         title="Lens Kit - Focal Length & Anamorphic"
       >
-        <Aperture className="h-4 w-4" />
-        <span className="text-xs font-medium">
-          {selectedLens ? selectedLens.focalLength : 'Lens Kit'}
+        <Aperture className="h-4 w-4 2xl:h-3.5 2xl:w-3.5" />
+        <span className="text-xs font-medium 2xl:text-[10px]">
+          {selectedLens ? selectedLens.focalLength : 'Lens'}
         </span>
         {isAnamorphic && (
-          <span className="rounded-full bg-blue-500/30 px-1.5 py-0.5 text-[10px] text-blue-300">
-            ANAMORPHIC
+          <span className="rounded-full bg-blue-500/30 px-1.5 py-0.5 text-[10px] text-blue-300 2xl:px-1 2xl:text-[9px]">
+            ANA
           </span>
         )}
         {selectedEffects.length > 0 && (
-          <span className="rounded-full bg-cyan-500/30 px-1.5 py-0.5 text-[10px]">
+          <span className="rounded-full bg-cyan-500/30 px-1.5 py-0.5 text-[10px] 2xl:px-1 2xl:text-[9px]">
             +{selectedEffects.length}
           </span>
         )}
@@ -148,6 +155,53 @@ export function LensKitSelector({
             2.39:1 cinematic widescreen • Oval bokeh • Blue streak flares
           </div>
         )}
+      </div>
+
+      {/* Lens Character Toggle - Modern vs Vintage */}
+      <div className="border-b border-white/10 px-4 py-3">
+        <div className="mb-2 text-[10px] tracking-wider text-gray-500 uppercase">LENS CHARACTER</div>
+        <div className="flex overflow-hidden rounded-lg border border-white/10">
+          <button
+            onClick={() => onCharacterChange('modern')}
+            className={clsx(
+              'flex-1 px-3 py-2 text-xs font-medium transition-all',
+              lensCharacter === 'modern'
+                ? 'border-r border-emerald-500/30 bg-emerald-500/20 text-emerald-400'
+                : 'border-r border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+            )}
+          >
+            Modern
+          </button>
+          <button
+            onClick={() => onCharacterChange('vintage')}
+            className={clsx(
+              'flex-1 px-3 py-2 text-xs font-medium transition-all',
+              lensCharacter === 'vintage'
+                ? 'bg-amber-500/20 text-amber-400'
+                : 'bg-white/5 text-gray-400 hover:bg-white/10'
+            )}
+          >
+            Vintage
+          </button>
+        </div>
+        <div className="mt-2 text-[10px] text-gray-500">
+          {LENS_CHARACTER_PRESETS[lensCharacter].description}
+        </div>
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {LENS_CHARACTER_PRESETS[lensCharacter].visualTraits.slice(0, 2).map((trait, i) => (
+            <span
+              key={i}
+              className={clsx(
+                'rounded px-1.5 py-0.5 text-[9px]',
+                lensCharacter === 'modern'
+                  ? 'bg-emerald-500/20 text-emerald-400'
+                  : 'bg-amber-500/20 text-amber-400'
+              )}
+            >
+              {trait}
+            </span>
+          ))}
+        </div>
       </div>
 
       {/* Focal Length Slider Visual */}
@@ -309,7 +363,7 @@ export function LensKitSelector({
       </div>
 
       {/* Footer - Active Modifiers Preview */}
-      {(selectedLens || selectedEffects.length > 0 || isAnamorphic) && (
+      {(selectedLens || selectedEffects.length > 0 || isAnamorphic || lensCharacter) && (
         <div
           className={clsx(
             'border-t bg-black/30 p-3',
@@ -318,9 +372,23 @@ export function LensKitSelector({
         >
           <div className="mb-1 text-[10px] text-gray-500">WILL ADD TO PROMPT:</div>
           <div className="flex flex-wrap gap-1">
-            {/* Anamorphic modifiers (shown first when active) */}
+            {/* Lens Character modifiers (Modern/Vintage) */}
+            {LENS_CHARACTER_PRESETS[lensCharacter].promptModifiers.slice(0, 2).map((mod, i) => (
+              <span
+                key={`char-${i}`}
+                className={clsx(
+                  'rounded px-1.5 py-0.5 text-[9px]',
+                  lensCharacter === 'modern'
+                    ? 'bg-emerald-500/20 text-emerald-300'
+                    : 'bg-amber-500/20 text-amber-300'
+                )}
+              >
+                {mod}
+              </span>
+            ))}
+            {/* Anamorphic modifiers (shown when active) */}
             {isAnamorphic &&
-              ANAMORPHIC_MODIFIERS.slice(0, 3).map((mod, i) => (
+              ANAMORPHIC_MODIFIERS.slice(0, 2).map((mod, i) => (
                 <span
                   key={`anamorphic-${i}`}
                   className="rounded bg-blue-500/20 px-1.5 py-0.5 text-[9px] text-blue-300"
@@ -329,7 +397,7 @@ export function LensKitSelector({
                 </span>
               ))}
             {/* Lens modifiers */}
-            {selectedLens?.promptModifiers.slice(0, isAnamorphic ? 2 : 4).map((mod, i) => (
+            {selectedLens?.promptModifiers.slice(0, isAnamorphic ? 2 : 3).map((mod, i) => (
               <span
                 key={i}
                 className="rounded bg-cyan-500/20 px-1.5 py-0.5 text-[9px] text-cyan-300"
@@ -340,7 +408,7 @@ export function LensKitSelector({
             {/* Effect modifiers */}
             {selectedEffects.flatMap(effectId => {
               const effect = LENS_EFFECTS.find(e => e.id === effectId);
-              return effect?.promptModifiers.slice(0, 2).map((mod, i) => (
+              return effect?.promptModifiers.slice(0, 1).map((mod, i) => (
                 <span
                   key={`${effectId}-${i}`}
                   className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[9px] text-purple-300"
@@ -351,8 +419,9 @@ export function LensKitSelector({
             })}
             {/* Overflow indicator */}
             {(selectedLens?.promptModifiers.length || 0) +
-              (isAnamorphic ? ANAMORPHIC_MODIFIERS.length : 0) >
-              5 && <span className="text-[9px] text-gray-500">+more</span>}
+              (isAnamorphic ? ANAMORPHIC_MODIFIERS.length : 0) +
+              LENS_CHARACTER_PRESETS[lensCharacter].promptModifiers.length >
+              6 && <span className="text-[9px] text-gray-500">+more</span>}
           </div>
         </div>
       )}

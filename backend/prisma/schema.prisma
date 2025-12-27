@@ -28,6 +28,7 @@ model Project {
   characters  Character[]
   sceneChains SceneChain[]
   stories     Story[]
+  renderJobs  RenderJob[]
 }
 
 // Story drafts from Story Editor
@@ -154,8 +155,10 @@ model Generation {
   feedbackNotes      String?  // User manual notes
 
   // Semantic Search fields
-  visualDescription  String?  // JSON: { description, subjects, colors, mood, composition, objects }
+  visualDescription  String?  // JSON: { description, subjects, colors, mood, composition, objects, framing, lighting, lens }
   indexedAt          DateTime? // When the visual description was generated
+  indexStatus        String   @default("pending") // 'pending' | 'indexed' | 'failed' | 'skipped'
+  indexError         String?  // Error message if indexing failed
 
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -372,6 +375,7 @@ model SceneChain {
   project         Project  @relation(fields: [projectId], references: [id])
   segments        SceneChainSegment[]
   characters      SceneChainCharacter[]
+  renderJobs      RenderJob[]
 }
 
 // Individual segment in a scene chain
@@ -385,6 +389,17 @@ model SceneChainSegment {
   // Content
   prompt          String
   duration        Int      @default(5)  // seconds
+
+  // === NLE TRIMMING (Phase 2) ===
+  // Non-destructive edit points stored as seconds
+  trimStart       Float    @default(0)  // In-point: seconds to trim from start
+  trimEnd         Float    @default(0)  // Out-point: seconds to trim from end
+
+  // === AUDIO L-CUT (Phase 3) ===
+  audioUrl        String?              // Separate audio track URL
+  audioTrimStart  Float    @default(0) // Audio in-point (for L-cut)
+  audioTrimEnd    Float    @default(0) // Audio out-point (for L-cut)
+  audioGain       Float    @default(1) // Volume multiplier (0-2)
 
   // Reference frames for generation guidance
   firstFrameUrl   String?  // Reference image for the first frame
@@ -428,4 +443,112 @@ model SceneChainCharacter {
   character     Character  @relation(fields: [characterId], references: [id], onDelete: Cascade)
 
   @@unique([sceneChainId, characterId])
+}
+
+// =============================================================================
+// RENDER QUEUE - Persistent multi-pass rendering (crash-safe)
+// =============================================================================
+
+// Render Job - Groups all passes for a scene chain render
+model RenderJob {
+  id              String   @id @default(uuid())
+  sceneChainId    String
+  projectId       String
+  name            String
+
+  // Configuration
+  targetQualities String   // JSON array: ['draft', 'review', 'master']
+  activeQuality   String   @default("draft")
+
+  // Watermark configuration for dailies-style burn-in
+  watermarkConfig String?  // JSON: WatermarkConfig
+
+  // Progress
+  totalPasses     Int      @default(0)
+  completedPasses Int      @default(0)
+  failedPasses    Int      @default(0)
+
+  // Cost tracking
+  estimatedCost   Float    @default(0)
+  actualCost      Float    @default(0)
+
+  // Status: 'pending' | 'rendering' | 'paused' | 'complete' | 'failed'
+  status          String   @default("pending")
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  project         Project  @relation(fields: [projectId], references: [id])
+  sceneChain      SceneChain @relation(fields: [sceneChainId], references: [id], onDelete: Cascade)
+  passes          RenderPass[]
+
+  @@index([projectId])
+  @@index([sceneChainId])
+  @@index([status])
+}
+
+// Render Pass - Individual quality pass for a shot
+model RenderPass {
+  id              String   @id @default(uuid())
+  jobId           String
+  shotId          String   // SceneChainSegment ID
+  sceneChainId    String
+
+  // Quality tier: 'draft' | 'review' | 'master'
+  quality         String
+  orderIndex      Int
+
+  // === PARENT-CHILD MAPPING (for upgrades) ===
+  parentPassId    String?
+  childPassIds    String?  // JSON array of child pass IDs
+
+  // === LOCKED RECIPE (immutable settings for consistency) ===
+  // Stored as JSON for SQLite compatibility
+  recipe          String   // JSON: ShotRecipe with prompt, visual settings, etc.
+
+  // === SNAPSHOTTED ELEMENT REFERENCES ===
+  // CRITICAL: Store actual URLs, not just IDs (prevents deleted element crashes)
+  elementSnapshots String? // JSON: [{ id, url, name }]
+
+  // === SEED LOCK ===
+  lockedSeed      Int?     // Seed to use for deterministic upgrade
+  seedSource      String   @default("random") // 'random' | 'inherited' | 'user'
+  resultSeed      Int?     // Actual seed from generation result
+
+  // Model override
+  modelOverride   String?
+
+  // Output
+  // Status: 'pending' | 'queued' | 'generating' | 'complete' | 'failed' | 'skipped'
+  status          String   @default("pending")
+  outputUrl       String?
+  thumbnailUrl    String?
+  generationId    String?
+
+  // Result metadata
+  resultMetadata  String?  // JSON: { model, provider, inferenceTime, resolution }
+
+  // Cost tracking
+  actualCost      Float?
+  inferenceTime   Int?     // milliseconds
+
+  // Errors
+  failureReason   String?
+  retryCount      Int      @default(0)
+
+  // Timestamps
+  queuedAt        DateTime?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  job             RenderJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([shotId])
+  @@index([status])
+  @@index([quality])
 }

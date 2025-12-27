@@ -67,3 +67,4 @@ ComfyUI/
 
 # Agent/Claude temp files
 .agent/staging/
+repomix-output.txt

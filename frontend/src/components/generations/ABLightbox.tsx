@@ -38,7 +38,9 @@ import {
   XCircle,
   Monitor,
   Search,
+  BarChart3,
 } from 'lucide-react';
+import { VideoScopes } from './VideoScopes';
 import { BACKEND_URL } from '@/lib/api';
 
 type RenderQuality = 'draft' | 'review' | 'master';
@@ -144,6 +146,13 @@ export function ABLightbox({
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const MAGNIFIER_SIZE = 180; // Diameter in pixels
   const MAGNIFIER_ZOOM = 4; // 4x zoom inside the lens
+
+  // Director's Loupe (Scopes) State
+  const [scopesEnabled, setScopesEnabled] = useState(false);
+
+  // Refs for images (needed for VideoScopes when content is static images)
+  const imageARef = useRef<HTMLImageElement>(null);
+  const imageBRef = useRef<HTMLImageElement>(null);
 
   // Update container size when needed (for magnifier)
   useEffect(() => {
@@ -514,6 +523,8 @@ export function ABLightbox({
       if (e.key === 'f') setFlickerMode(prev => !prev);
       // Magnifier mode with 'm' key
       if (e.key === 'm') setMagnifierEnabled(prev => !prev);
+      // Director's Loupe (Scopes) with 's' key
+      if (e.key === 's') setScopesEnabled(prev => !prev);
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -661,6 +672,18 @@ export function ABLightbox({
                 >
                   <Search className="h-4 w-4" />
                 </button>
+                <button
+                  onClick={() => setScopesEnabled(prev => !prev)}
+                  className={clsx(
+                    'rounded p-1.5 transition-colors',
+                    scopesEnabled
+                      ? 'bg-green-500/30 text-green-400'
+                      : 'text-gray-400 hover:bg-white/10 hover:text-white'
+                  )}
+                  title="Director's Loupe - RGB Histogram (S)"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                </button>
               </div>
 
               {/* Right Side (Quality B) Metadata */}
@@ -789,6 +812,7 @@ export function ABLightbox({
                     />
                   ) : (
                     <img
+                      ref={imageARef}
                       src={comparison.passA.outputUrl}
                       alt={`${qualityA} quality`}
                       className="h-full w-full object-contain"
@@ -818,6 +842,7 @@ export function ABLightbox({
                     />
                   ) : (
                     <img
+                      ref={imageBRef}
                       src={comparison.passB.outputUrl}
                       alt={`${qualityB} quality`}
                       className="h-full w-full object-contain"
@@ -962,6 +987,40 @@ export function ABLightbox({
                 <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border border-purple-400/30 bg-purple-500/30 px-3 py-1.5 text-xs text-purple-300">
                   Hover to inspect {qualityB} at {MAGNIFIER_ZOOM}× zoom
                 </div>
+              )}
+
+              {/* Director's Loupe - RGB Histograms / Waveforms */}
+              {scopesEnabled && (
+                <>
+                  {/* Draft (Left Side) Scope */}
+                  <VideoScopes
+                    mediaRef={
+                      isVideoComparison
+                        ? (videoARef as React.RefObject<HTMLVideoElement | HTMLImageElement>)
+                        : (imageARef as React.RefObject<HTMLVideoElement | HTMLImageElement>)
+                    }
+                    position="bottom-left"
+                    enabled={scopesEnabled}
+                    label={qualityA.charAt(0).toUpperCase() + qualityA.slice(1)}
+                    size="compact"
+                    scopeType="histogram"
+                    allowToggle={true}
+                  />
+                  {/* Master (Right Side) Scope */}
+                  <VideoScopes
+                    mediaRef={
+                      isVideoComparison
+                        ? (videoBRef as React.RefObject<HTMLVideoElement | HTMLImageElement>)
+                        : (imageBRef as React.RefObject<HTMLVideoElement | HTMLImageElement>)
+                    }
+                    position="bottom-right"
+                    enabled={scopesEnabled}
+                    label={qualityB.charAt(0).toUpperCase() + qualityB.slice(1)}
+                    size="compact"
+                    scopeType="histogram"
+                    allowToggle={true}
+                  />
+                </>
               )}
             </div>
           ) : (
