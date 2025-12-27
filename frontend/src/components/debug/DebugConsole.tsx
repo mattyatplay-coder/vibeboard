@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useVideoConsole } from '@/lib/video-console';
 import { X, Copy, Trash2, Bug, ChevronDown, ChevronUp, Pause, Play } from 'lucide-react';
 import clsx from 'clsx';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 export const DebugConsole = () => {
   const { logs, isOpen, toggleOpen, clearLogs, addLog } = useVideoConsole();
@@ -21,13 +22,14 @@ export const DebugConsole = () => {
 
   if (!isOpen) {
     return (
-      <button
-        onClick={toggleOpen}
-        className="fixed bottom-4 left-4 z-50 rounded-full border border-white/10 bg-black/80 p-2 text-white shadow-lg transition-colors hover:bg-black"
-        title="Open Debug Console"
-      >
-        <Bug className="h-5 w-5" />
-      </button>
+      <Tooltip content="Open Debug Console" side="right">
+        <button
+          onClick={toggleOpen}
+          className="fixed bottom-4 left-4 z-50 rounded-full border border-white/10 bg-black/80 p-2 text-white shadow-lg transition-colors hover:bg-black"
+        >
+          <Bug className="h-5 w-5" />
+        </button>
+      </Tooltip>
     );
   }
 
@@ -65,55 +67,60 @@ export const DebugConsole = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setAutoScroll(!autoScroll)}
-            className={clsx(
-              'rounded p-1.5 transition-colors hover:bg-white/10',
-              autoScroll ? 'text-green-400' : 'text-gray-400'
-            )}
-            title="Auto-scroll"
-          >
-            {autoScroll ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-          </button>
-          <button
-            onClick={copyLogs}
-            className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-            title="Copy All"
-          >
-            <Copy className="h-4 w-4" />
-          </button>
-          <button
-            onClick={clearLogs}
-            className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-red-400"
-            title="Clear Console"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => {
-              fetch('/api/prompts/models/fal-ai%2Fwan-25-preview%2Ftext-to-video')
-                .then(res => res.json())
-                .then(data => {
-                  console.log('API Test Result:', data);
-                  addLog('info', ['API Test Result:', JSON.stringify(data)]);
-                })
-                .catch(err => {
-                  console.error('API Test Failed:', err);
-                  addLog('error', ['API Test Failed:', err.message]);
-                });
-            }}
-            className="rounded p-1.5 text-blue-400 transition-colors hover:bg-white/10 hover:text-blue-300"
-            title="Test Wan 2.5 Guide API"
-          >
-            <Bug className="h-4 w-4" />
-          </button>
-          <button
-            onClick={toggleOpen}
-            className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-            title="Close"
-          >
-            <ChevronDown className="h-4 w-4" />
-          </button>
+          <Tooltip content="Auto-scroll" side="top">
+            <button
+              onClick={() => setAutoScroll(!autoScroll)}
+              className={clsx(
+                'rounded p-1.5 transition-colors hover:bg-white/10',
+                autoScroll ? 'text-green-400' : 'text-gray-400'
+              )}
+            >
+              {autoScroll ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+            </button>
+          </Tooltip>
+          <Tooltip content="Copy All" side="top">
+            <button
+              onClick={copyLogs}
+              className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+          </Tooltip>
+          <Tooltip content="Clear Console" side="top">
+            <button
+              onClick={clearLogs}
+              className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-red-400"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </Tooltip>
+          <Tooltip content="Test Wan 2.5 Guide API" side="top">
+            <button
+              onClick={() => {
+                fetch('/api/prompts/models/fal-ai%2Fwan-25-preview%2Ftext-to-video')
+                  .then(res => res.json())
+                  .then(data => {
+                    console.log('API Test Result:', data);
+                    addLog('info', ['API Test Result:', JSON.stringify(data)]);
+                  })
+                  .catch(err => {
+                    console.error('API Test Failed:', err);
+                    addLog('error', ['API Test Failed:', err.message]);
+                  });
+              }}
+              className="rounded p-1.5 text-blue-400 transition-colors hover:bg-white/10 hover:text-blue-300"
+            >
+              <Bug className="h-4 w-4" />
+            </button>
+          </Tooltip>
+          <Tooltip content="Close" side="top">
+            <button
+              onClick={toggleOpen}
+              className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </button>
+          </Tooltip>
         </div>
       </div>
 

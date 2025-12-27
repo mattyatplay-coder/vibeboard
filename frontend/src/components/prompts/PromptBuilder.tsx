@@ -31,6 +31,7 @@ import {
   Upload,
   AlertTriangle,
 } from 'lucide-react';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { NegativePromptManager } from './NegativePromptManager';
 import { TagSelectorModal } from '@/components/generation/TagSelectorModal';
 import { Tag } from '@/components/tag-system';
@@ -1057,17 +1058,18 @@ export function PromptBuilder({
                 </span>
               </div>
               <div className="flex items-center gap-1">
-                <button
-                  onClick={() => copyToClipboard(enhancedPrompt.prompt)}
-                  className="p-1.5 text-gray-400 transition-colors hover:text-white"
-                  title="Copy to clipboard"
-                >
-                  {copied ? (
-                    <Check className="h-4 w-4 text-green-400" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </button>
+                <Tooltip content="Copy to clipboard" side="top">
+                  <button
+                    onClick={() => copyToClipboard(enhancedPrompt.prompt)}
+                    className="p-1.5 text-gray-400 transition-colors hover:text-white"
+                  >
+                    {copied ? (
+                      <Check className="h-4 w-4 text-green-400" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </button>
+                </Tooltip>
                 <button
                   onClick={() => setShowEnhanced(false)}
                   className="p-1.5 text-gray-400 transition-colors hover:text-white"
@@ -1209,16 +1211,17 @@ export function PromptBuilder({
                                 );
                               })}
                               {/* CivitAI fallback even when there are matches */}
-                              <a
-                                href={match.civitaiSearchUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 rounded border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-gray-400 transition-colors hover:bg-white/10 hover:text-gray-300"
-                                title="Find more on CivitAI"
-                              >
-                                More
-                                <ExternalLink className="h-2 w-2" />
-                              </a>
+                              <Tooltip content="Find more on CivitAI" side="top">
+                                <a
+                                  href={match.civitaiSearchUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 rounded border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-gray-400 transition-colors hover:bg-white/10 hover:text-gray-300"
+                                >
+                                  More
+                                  <ExternalLink className="h-2 w-2" />
+                                </a>
+                              </Tooltip>
                             </div>
                           ) : (
                             <div className="text-[9px] text-gray-500 italic">

@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { fetchAPI, BACKEND_URL } from '@/lib/api';
 import { GenreSelector, GenrePills } from '@/components/storyboard/GenreSelector';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { Genre, GENRE_TEMPLATES, getGenreTemplate } from '@/data/GenreTemplates';
 
 // Story character for prompt injection

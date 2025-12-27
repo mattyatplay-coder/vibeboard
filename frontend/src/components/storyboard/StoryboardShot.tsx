@@ -13,6 +13,7 @@ import {
   Video,
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { Tooltip, TooltipProvider } from '@/components/ui/Tooltip';
 
 export interface ShotData {
   id: string;
@@ -66,6 +67,7 @@ export default function StoryboardShot({
     };
 
   return (
+    <TooltipProvider>
     <div className="flex gap-4">
       {/* Left Panel - Scene Info */}
       <div className="flex w-80 flex-shrink-0 flex-col rounded-xl border border-white/10 bg-[#1a1a1a] p-4">
@@ -85,13 +87,14 @@ export default function StoryboardShot({
               <p className="mt-1 line-clamp-3 text-sm text-gray-400">{sceneDescription}</p>
             )}
           </div>
-          <button
-            onClick={() => onDelete(shot.id)}
-            className="rounded p-1.5 text-gray-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
-            title="Delete shot"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          <Tooltip content="Delete shot" side="top">
+            <button
+              onClick={() => onDelete(shot.id)}
+              className="rounded p-1.5 text-gray-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </Tooltip>
         </div>
 
         {/* Location & Style (placeholder rows) */}
@@ -336,13 +339,14 @@ export default function StoryboardShot({
             />
             {/* AI Enhance Button */}
             {onEnhancePrompt && (
-              <button
-                onClick={() => onEnhancePrompt(shot.id)}
-                className="absolute right-1 bottom-1 rounded p-1.5 text-purple-400 transition-colors hover:bg-purple-500/10 hover:text-purple-300"
-                title="Enhance prompt with AI"
-              >
-                <Sparkles className="h-4 w-4" />
-              </button>
+              <Tooltip content="Enhance prompt with AI" side="top">
+                <button
+                  onClick={() => onEnhancePrompt(shot.id)}
+                  className="absolute right-1 bottom-1 rounded p-1.5 text-purple-400 transition-colors hover:bg-purple-500/10 hover:text-purple-300"
+                >
+                  <Sparkles className="h-4 w-4" />
+                </button>
+              </Tooltip>
             )}
           </div>
 
@@ -362,5 +366,6 @@ export default function StoryboardShot({
         )}
       </div>
     </div>
+    </TooltipProvider>
   );
 }

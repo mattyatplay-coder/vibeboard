@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Plus, Trash2, Edit2, Check, Code2, Lightbulb, Copy } from 'lucide-react';
 import { clsx } from 'clsx';
+import { Tooltip } from '@/components/ui/Tooltip';
 import {
   usePromptVariablesStore,
   PromptVariable,
@@ -170,34 +171,37 @@ export function PromptVariablesPanel({
                     )}
                   </div>
                   <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleCopyUsage(variable.name)}
-                      className="rounded p-1 transition-colors hover:bg-white/10"
-                      title="Copy usage"
-                    >
-                      <Copy className="h-3.5 w-3.5 text-gray-400" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingId(variable.id);
-                        setNewName(variable.name);
-                        setNewValue(variable.value);
-                      }}
-                      className="rounded p-1 transition-colors hover:bg-white/10"
-                      title="Edit"
-                    >
-                      <Edit2 className="h-3.5 w-3.5 text-gray-400" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        deleteVariable(variable.id);
-                        toast.success(`Deleted $${variable.name}`);
-                      }}
-                      className="rounded p-1 transition-colors hover:bg-red-500/20"
-                      title="Delete"
-                    >
-                      <Trash2 className="h-3.5 w-3.5 text-red-400" />
-                    </button>
+                    <Tooltip content="Copy usage" side="top">
+                      <button
+                        onClick={() => handleCopyUsage(variable.name)}
+                        className="rounded p-1 transition-colors hover:bg-white/10"
+                      >
+                        <Copy className="h-3.5 w-3.5 text-gray-400" />
+                      </button>
+                    </Tooltip>
+                    <Tooltip content="Edit" side="top">
+                      <button
+                        onClick={() => {
+                          setEditingId(variable.id);
+                          setNewName(variable.name);
+                          setNewValue(variable.value);
+                        }}
+                        className="rounded p-1 transition-colors hover:bg-white/10"
+                      >
+                        <Edit2 className="h-3.5 w-3.5 text-gray-400" />
+                      </button>
+                    </Tooltip>
+                    <Tooltip content="Delete" side="top">
+                      <button
+                        onClick={() => {
+                          deleteVariable(variable.id);
+                          toast.success(`Deleted $${variable.name}`);
+                        }}
+                        className="rounded p-1 transition-colors hover:bg-red-500/20"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                      </button>
+                    </Tooltip>
                   </div>
                 </div>
                 <p className="line-clamp-2 rounded bg-black/30 px-2 py-1.5 font-mono text-xs text-gray-400">

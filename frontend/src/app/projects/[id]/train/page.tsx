@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { DatasetReviewPanel } from '@/components/training/DatasetReviewPanel';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 interface TrainingJob {
   id: string;
@@ -695,28 +696,30 @@ export default function TrainingPage() {
                               </optgroup>
                             )}
                           </select>
-                          <button
-                            type="button"
-                            onClick={() => openPresetEditor()}
-                            className="rounded-lg border border-purple-500/30 bg-purple-500/20 p-2 text-purple-400 transition-colors hover:bg-purple-500/30"
-                            title="Create custom preset"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </button>
+                          <Tooltip content="Create custom preset" side="top">
+                            <button
+                              type="button"
+                              onClick={() => openPresetEditor()}
+                              className="rounded-lg border border-purple-500/30 bg-purple-500/20 p-2 text-purple-400 transition-colors hover:bg-purple-500/30"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </button>
+                          </Tooltip>
                           {/* Edit button for custom presets */}
                           {!posePresets.find(p => p.key === selectedPreset)?.isBuiltIn &&
                             selectedPreset.startsWith('custom_') && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const preset = posePresets.find(p => p.key === selectedPreset);
-                                  if (preset) openPresetEditor(preset);
-                                }}
-                                className="rounded-lg border border-blue-500/30 bg-blue-500/20 p-2 text-blue-400 transition-colors hover:bg-blue-500/30"
-                                title="Edit preset"
-                              >
-                                <Edit3 className="h-4 w-4" />
-                              </button>
+                              <Tooltip content="Edit preset" side="top">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const preset = posePresets.find(p => p.key === selectedPreset);
+                                    if (preset) openPresetEditor(preset);
+                                  }}
+                                  className="rounded-lg border border-blue-500/30 bg-blue-500/20 p-2 text-blue-400 transition-colors hover:bg-blue-500/30"
+                                >
+                                  <Edit3 className="h-4 w-4" />
+                                </button>
+                              </Tooltip>
                             )}
                         </div>
                         <p className="mt-1 text-xs text-gray-500">
@@ -1337,15 +1340,16 @@ export default function TrainingPage() {
                     </div>
 
                     {job.status === 'completed' && job.loraUrl && (
-                      <a
-                        href={job.loraUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="rounded-lg border border-green-500/30 bg-green-500/10 p-2 text-green-400 transition-colors hover:bg-green-500/20"
-                        title="Download LoRA"
-                      >
-                        <Download className="h-5 w-5" />
-                      </a>
+                      <Tooltip content="Download LoRA" side="top">
+                        <a
+                          href={job.loraUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-lg border border-green-500/30 bg-green-500/10 p-2 text-green-400 transition-colors hover:bg-green-500/20"
+                        >
+                          <Download className="h-5 w-5" />
+                        </a>
+                      </Tooltip>
                     )}
 
                     {/* Resume Training Action */}
@@ -1364,13 +1368,14 @@ export default function TrainingPage() {
                       </button>
                     )}
 
-                    <button
-                      onClick={e => handleDeleteJob(job.id, e)}
-                      className="rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-red-400 transition-colors hover:bg-red-500/20"
-                      title="Delete Job"
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </button>
+                    <Tooltip content="Delete Job" side="top">
+                      <button
+                        onClick={e => handleDeleteJob(job.id, e)}
+                        className="rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-red-400 transition-colors hover:bg-red-500/20"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    </Tooltip>
                   </div>
                 </div>
 

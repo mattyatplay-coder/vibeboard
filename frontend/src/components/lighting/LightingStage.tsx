@@ -33,6 +33,7 @@ import {
   FlipHorizontal,
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { useLightingStore, LightSource, LightType, LIGHTING_PRESETS } from '@/lib/lightingStore';
 import dynamic from 'next/dynamic';
 
@@ -494,20 +495,21 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
           </button>
 
           {/* Flip Map - horizontally mirror all lights when AI flips left/right */}
-          <button
-            onClick={handleFlipMap}
-            disabled={lights.length === 0}
-            className={clsx(
-              'flex items-center gap-1.5 rounded px-3 py-1.5 text-xs transition-colors',
-              lights.length === 0
-                ? 'cursor-not-allowed bg-white/5 text-gray-600'
-                : 'bg-white/5 text-gray-400 hover:bg-cyan-500/10 hover:text-cyan-400'
-            )}
-            title="Flip all lights horizontally (fix left/right when AI gets it reversed)"
-          >
-            <FlipHorizontal className="h-3 w-3" />
-            Flip
-          </button>
+          <Tooltip content="Flip all lights horizontally (fix left/right when AI gets it reversed)" side="top">
+            <button
+              onClick={handleFlipMap}
+              disabled={lights.length === 0}
+              className={clsx(
+                'flex items-center gap-1.5 rounded px-3 py-1.5 text-xs transition-colors',
+                lights.length === 0
+                  ? 'cursor-not-allowed bg-white/5 text-gray-600'
+                  : 'bg-white/5 text-gray-400 hover:bg-cyan-500/10 hover:text-cyan-400'
+              )}
+            >
+              <FlipHorizontal className="h-3 w-3" />
+              Flip
+            </button>
+          </Tooltip>
 
           {/* Analyze Reference Button (Inverse Gaffing) */}
           <button
@@ -1043,18 +1045,18 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
                         { color: '#ff8800', label: 'CTO' },
                         { color: '#8800ff', label: 'Purple' },
                       ].map(gel => (
-                        <button
-                          key={gel.color}
-                          onClick={() => updateLight(selectedLight.id, { gelColor: gel.color })}
-                          className={clsx(
-                            'h-5 w-5 rounded border-2 transition-all',
-                            selectedLight.gelColor === gel.color
-                              ? 'scale-110 border-white'
-                              : 'border-transparent hover:border-white/50'
-                          )}
-                          style={{ backgroundColor: gel.color }}
-                          title={gel.label}
-                        />
+                        <Tooltip key={gel.color} content={gel.label} side="top">
+                          <button
+                            onClick={() => updateLight(selectedLight.id, { gelColor: gel.color })}
+                            className={clsx(
+                              'h-5 w-5 rounded border-2 transition-all',
+                              selectedLight.gelColor === gel.color
+                                ? 'scale-110 border-white'
+                                : 'border-transparent hover:border-white/50'
+                            )}
+                            style={{ backgroundColor: gel.color }}
+                          />
+                        </Tooltip>
                       ))}
                     </div>
                   )}

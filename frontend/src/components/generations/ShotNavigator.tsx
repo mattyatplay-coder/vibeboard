@@ -21,6 +21,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { BACKEND_URL } from '@/lib/api';
 import { ContinuityHeatmap } from '@/components/continuity/ContinuityHeatmap';
 import { RenderQueuePanel } from './RenderQueuePanel';
+import { Tooltip, TooltipProvider } from '@/components/ui/Tooltip';
 
 interface FrameSlot {
   id: string;
@@ -285,6 +286,7 @@ export const ShotNavigator = forwardRef<ShotNavigatorRef, ShotNavigatorProps>(
     const totalDuration = shots.reduce((sum, s) => sum + (s.duration || 5), 0);
 
     return (
+      <TooltipProvider>
       <div className="border-b border-white/10 bg-[#0a0a0a]">
         {/* Header */}
         <button
@@ -509,6 +511,7 @@ export const ShotNavigator = forwardRef<ShotNavigatorRef, ShotNavigatorProps>(
           )}
         </AnimatePresence>
       </div>
+      </TooltipProvider>
     );
   }
 );
@@ -653,13 +656,14 @@ function ShotCard({
             )}
             {/* Continuity Check Button - only show when enabled and shot has a beginning frame */}
             {continuityEnabled && shot.firstFrameUrl && referenceImageUrl && index > 0 && (
-              <button
-                onClick={() => onContinuityCheck?.(shot)}
-                className="rounded p-1 text-amber-400 transition-colors hover:bg-amber-500/10 hover:text-amber-300"
-                title="Check visual continuity against reference"
-              >
-                <Eye className="h-3.5 w-3.5" />
-              </button>
+              <Tooltip content="Check visual continuity against reference" side="left">
+                <button
+                  onClick={() => onContinuityCheck?.(shot)}
+                  className="rounded p-1 text-amber-400 transition-colors hover:bg-amber-500/10 hover:text-amber-300"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                </button>
+              </Tooltip>
             )}
             <button
               onClick={() => onRemove(shot.id)}

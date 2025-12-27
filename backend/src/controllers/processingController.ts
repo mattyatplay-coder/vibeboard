@@ -378,6 +378,160 @@ Respond ONLY with valid JSON.`;
   },
 
   /**
+   * Outpaint / Set Extension / Infinite Canvas
+   * Extends an image in any direction using Fal.ai's outpaint API.
+   *
+   * Expected JSON body:
+   * - image_url: string (URL of the image to extend)
+   * - expand_top: number (0-700 pixels)
+   * - expand_bottom: number (0-700 pixels)
+   * - expand_left: number (0-700 pixels)
+   * - expand_right: number (0-700 pixels)
+   * - zoom_out_percentage: number (0-90, alternative to directional expand)
+   * - prompt: string (optional guidance, max 500 chars)
+   * - lensKit: object (optional Lens Kit metadata for context consistency)
+   *   - lensName: string (e.g., "35mm Storyteller")
+   *   - promptModifiers: string[] (terms to inject)
+   *   - isAnamorphic: boolean
+   * - originalPrompt: string (optional - the original generation prompt)
+   */
+  outpaint: async (req: Request, res: Response) => {
+    try {
+      const {
+        image_url,
+        expand_top = 0,
+        expand_bottom = 0,
+        expand_left = 0,
+        expand_right = 0,
+        zoom_out_percentage = 0,
+        prompt,
+        lensKit,
+        originalPrompt,
+      } = req.body;
+
+      if (!image_url) {
+        res.status(400).json({ error: 'Missing image_url' });
+        return;
+      }
+
+      // Validate expansion values
+      const maxExpand = 700;
+      const clampedTop = Math.min(Math.max(0, expand_top), maxExpand);
+      const clampedBottom = Math.min(Math.max(0, expand_bottom), maxExpand);
+      const clampedLeft = Math.min(Math.max(0, expand_left), maxExpand);
+      const clampedRight = Math.min(Math.max(0, expand_right), maxExpand);
+      const clampedZoom = Math.min(Math.max(0, zoom_out_percentage), 90);
+
+      // If no expansion specified, return error
+      if (clampedTop === 0 && clampedBottom === 0 && clampedLeft === 0 && clampedRight === 0 && clampedZoom === 0) {
+        res.status(400).json({ error: 'At least one expansion direction or zoom_out_percentage must be specified' });
+        return;
+      }
+
+      console.log(`[Processing] Outpaint requested:`);
+      console.log(`  Image URL: ${image_url.substring(0, 80)}...`);
+      console.log(`  Expand: top=${clampedTop}, bottom=${clampedBottom}, left=${clampedLeft}, right=${clampedRight}`);
+      console.log(`  Zoom Out: ${clampedZoom}%`);
+      if (prompt) console.log(`  Prompt: ${prompt.substring(0, 100)}...`);
+      if (lensKit) console.log(`  Lens Kit: ${lensKit.lensName || 'unknown'}, anamorphic=${lensKit.isAnamorphic || false}`);
+      if (originalPrompt) console.log(`  Original Prompt: ${originalPrompt.substring(0, 80)}...`);
+
+      // Build enhanced prompt with context awareness
+      // Priority: user prompt > original generation prompt > lens kit modifiers
+      let enhancedPrompt = '';
+      const promptParts: string[] = [];
+
+      // Add user's guidance prompt if provided
+      if (prompt && prompt.trim()) {
+        promptParts.push(prompt.trim());
+      }
+
+      // Add original generation prompt for context consistency
+      if (originalPrompt && originalPrompt.trim()) {
+        // Extract key descriptive elements (not the whole prompt to stay under 500 chars)
+        const contextSnippet = originalPrompt.substring(0, 200).trim();
+        if (!promptParts.some(p => p.toLowerCase().includes(contextSnippet.toLowerCase().substring(0, 50)))) {
+          promptParts.push(`context: ${contextSnippet}`);
+        }
+      }
+
+      // Inject Lens Kit modifiers for optical consistency
+      if (lensKit) {
+        const lensModifiers: string[] = [];
+
+        // Add lens-specific prompt modifiers
+        if (lensKit.promptModifiers && Array.isArray(lensKit.promptModifiers)) {
+          lensModifiers.push(...lensKit.promptModifiers.slice(0, 3)); // Top 3 modifiers
+        }
+
+        // Add anamorphic characteristics if enabled
+        if (lensKit.isAnamorphic) {
+          lensModifiers.push('anamorphic lens', 'oval bokeh', 'horizontal lens flares');
+        }
+
+        if (lensModifiers.length > 0) {
+          promptParts.push(lensModifiers.join(', '));
+        }
+      }
+
+      // Combine and truncate to 500 chars (Fal.ai limit)
+      if (promptParts.length > 0) {
+        enhancedPrompt = promptParts.join('. ').substring(0, 500);
+        console.log(`[Processing] Enhanced prompt: ${enhancedPrompt.substring(0, 150)}...`);
+      }
+
+      // Build Fal.ai input
+      const input: any = {
+        image_url,
+      };
+
+      // Use either directional expansion OR zoom_out, not both
+      if (clampedZoom > 0) {
+        input.zoom_out_percentage = clampedZoom;
+      } else {
+        input.expand_top = clampedTop;
+        input.expand_bottom = clampedBottom;
+        input.expand_left = clampedLeft;
+        input.expand_right = clampedRight;
+      }
+
+      // Add enhanced prompt if we built one
+      if (enhancedPrompt) {
+        input.prompt = enhancedPrompt;
+      }
+
+      console.log(`[Processing] Calling fal-ai/image-apps-v2/outpaint...`);
+
+      const result: any = await fal.subscribe('fal-ai/image-apps-v2/outpaint', {
+        input,
+        logs: true,
+        onQueueUpdate: update => {
+          if (update.status === 'IN_PROGRESS') {
+            update.logs?.map(log => log.message).forEach(console.log);
+          }
+        },
+      });
+
+      if (!result.image?.url) {
+        console.error('[Processing] Outpaint result:', JSON.stringify(result, null, 2));
+        throw new Error('No image returned from outpaint API');
+      }
+
+      console.log(`[Processing] Outpaint complete: ${result.image.url}`);
+
+      res.json({
+        imageUrl: result.image.url,
+        width: result.image.width,
+        height: result.image.height,
+      });
+    } catch (error: any) {
+      console.error('[Processing] Outpaint failed:', error);
+      const message = error.body?.message || error.message || 'Outpaint failed';
+      res.status(500).json({ error: message });
+    }
+  },
+
+  /**
    * AI Tattoo Generation
    * Generates a tattoo directly on skin using img2img with inpainting
    * Expected FormData:

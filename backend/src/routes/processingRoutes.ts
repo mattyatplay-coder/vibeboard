@@ -107,6 +107,10 @@ router.post(
   processingController.magicEraser
 );
 
+// Route: POST /api/process/outpaint
+// Set Extension / Infinite Canvas - extends image in any direction
+router.post('/outpaint', processingController.outpaint);
+
 // Route: POST /api/process/analyze-inpainting
 // AI-assisted image analysis for inpainting parameter recommendations
 // Accepts: 'original' (clean image) and 'masked' (image with mask overlay)

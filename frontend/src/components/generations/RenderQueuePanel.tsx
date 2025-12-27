@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { ABLightbox } from './ABLightbox';
 import { BACKEND_URL } from '@/lib/api';
+import { Tooltip, TooltipProvider } from '@/components/ui/Tooltip';
 
 type RenderQuality = 'draft' | 'review' | 'master';
 type RenderPassStatus = 'pending' | 'queued' | 'generating' | 'complete' | 'failed' | 'skipped';
@@ -470,6 +471,7 @@ export function RenderQueuePanel({
     : 0;
 
   return (
+    <TooltipProvider>
     <div className="overflow-hidden rounded-lg border border-white/10 bg-black/40">
       {/* Header */}
       <button
@@ -830,40 +832,44 @@ export function RenderQueuePanel({
                                 const version = stack.versions.find(v => v.quality === q);
                                 if (!version) {
                                   return (
-                                    <div
-                                      key={q}
-                                      className="h-6 w-6 rounded border border-dashed border-white/10"
-                                      title={`${q} - not rendered`}
-                                    />
+                                    <Tooltip key={q} content={`${q} - not rendered`} side="top">
+                                      <div
+                                        className="h-6 w-6 rounded border border-dashed border-white/10"
+                                      />
+                                    </Tooltip>
                                   );
                                 }
                                 return (
-                                  <div
+                                  <Tooltip
                                     key={q}
-                                    className={clsx(
-                                      'flex h-6 w-6 items-center justify-center rounded text-[10px] font-bold',
-                                      version.status === 'complete' && QUALITY_COLORS[q],
-                                      version.status === 'generating' &&
-                                        'animate-pulse border-2 border-blue-400',
-                                      version.status === 'failed' &&
-                                        'border border-red-500/30 bg-red-500/20 text-red-400',
-                                      version.status === 'pending' &&
-                                        'border border-white/20 text-gray-500',
-                                      // Highlight master badge when pending review
-                                      q === 'master' &&
-                                        isPendingReview &&
-                                        version.status === 'complete' &&
-                                        'ring-2 ring-orange-400/50 ring-offset-1 ring-offset-black'
-                                    )}
-                                    title={`${q} - ${version.status}${version.seed ? ` (seed: ${version.seed})` : ''}${isPendingReview && q === 'master' ? ' - PENDING REVIEW' : ''}`}
+                                    content={`${q} - ${version.status}${version.seed ? ` (seed: ${version.seed})` : ''}${isPendingReview && q === 'master' ? ' - PENDING REVIEW' : ''}`}
+                                    side="top"
                                   >
-                                    {version.status === 'complete' &&
-                                      (q === 'draft' ? 'D' : q === 'review' ? 'R' : 'M')}
-                                    {version.status === 'generating' && (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                    )}
-                                    {version.status === 'failed' && '!'}
-                                  </div>
+                                    <div
+                                      className={clsx(
+                                        'flex h-6 w-6 items-center justify-center rounded text-[10px] font-bold',
+                                        version.status === 'complete' && QUALITY_COLORS[q],
+                                        version.status === 'generating' &&
+                                          'animate-pulse border-2 border-blue-400',
+                                        version.status === 'failed' &&
+                                          'border border-red-500/30 bg-red-500/20 text-red-400',
+                                        version.status === 'pending' &&
+                                          'border border-white/20 text-gray-500',
+                                        // Highlight master badge when pending review
+                                        q === 'master' &&
+                                          isPendingReview &&
+                                          version.status === 'complete' &&
+                                          'ring-2 ring-orange-400/50 ring-offset-1 ring-offset-black'
+                                      )}
+                                    >
+                                      {version.status === 'complete' &&
+                                        (q === 'draft' ? 'D' : q === 'review' ? 'R' : 'M')}
+                                      {version.status === 'generating' && (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      )}
+                                      {version.status === 'failed' && '!'}
+                                    </div>
+                                  </Tooltip>
                                 );
                               })}
                             </div>
@@ -886,16 +892,17 @@ export function RenderQueuePanel({
 
                             {/* Per-shot Compare Button (when not pending review) */}
                             {!isPendingReview && hasMultiplePasses && (
-                              <button
-                                onClick={() => {
-                                  setLightboxShotId(stack.shotId);
-                                  setShowLightbox(true);
-                                }}
-                                className="rounded p-1 text-cyan-400 transition-all hover:bg-cyan-500/20"
-                                title="Compare versions"
-                              >
-                                <SplitSquareHorizontal className="h-3.5 w-3.5" />
-                              </button>
+                              <Tooltip content="Compare versions" side="top">
+                                <button
+                                  onClick={() => {
+                                    setLightboxShotId(stack.shotId);
+                                    setShowLightbox(true);
+                                  }}
+                                  className="rounded p-1 text-cyan-400 transition-all hover:bg-cyan-500/20"
+                                >
+                                  <SplitSquareHorizontal className="h-3.5 w-3.5" />
+                                </button>
+                              </Tooltip>
                             )}
 
                             {/* Upgrade Button */}
@@ -948,5 +955,6 @@ export function RenderQueuePanel({
         onRejectMaster={handleRejectMaster}
       />
     </div>
+    </TooltipProvider>
   );
 }

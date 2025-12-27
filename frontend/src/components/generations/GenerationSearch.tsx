@@ -1,15 +1,33 @@
 'use client';
 
 /**
- * GenerationSearch Component
+ * GenerationSearch Component - Visual Librarian
  *
- * Natural language search bar for finding generations by visual content.
- * Uses semantic indexing to search by subjects, colors, mood, etc.
+ * Professional search interface for finding generations using cinematic terminology.
+ * Features:
+ * - Smart suggestion pills based on indexed content
+ * - Reality vs Intent search mode toggle
+ * - Cinematic terminology recognition (ECU, Low-Key, Anamorphic, etc.)
+ * - Sort and Filter controls
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Search, X, Loader2, Sparkles, Database, RefreshCw } from 'lucide-react';
+import {
+  Search,
+  X,
+  Loader2,
+  Eye,
+  Wand2,
+  SlidersHorizontal,
+  AlertTriangle,
+  SortAsc,
+  SortDesc,
+  Image,
+  Film,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import clsx from 'clsx';
+import { Tooltip, TooltipProvider } from '@/components/ui/Tooltip';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
@@ -17,40 +35,102 @@ interface IndexStats {
   total: number;
   indexed: number;
   pending: number;
+  failed: number;
+}
+
+interface SuggestionPill {
+  label: string;
+  category: string;
+  count: number;
+}
+
+type SearchMode = 'combined' | 'reality' | 'intent';
+type SortBy = 'date' | 'score' | 'name';
+type SortOrder = 'asc' | 'desc';
+
+export interface GenerationSortFilterState {
+  sortBy: SortBy;
+  sortOrder: SortOrder;
+  filterMediaType: ('image' | 'video')[];
+  filterStatus: ('succeeded' | 'failed' | 'processing')[];
+  filterAspectRatio: string[];
 }
 
 interface GenerationSearchProps {
   projectId: string;
   onSearchResults: (results: any[], query: string) => void;
   onClearSearch: () => void;
+  onSelectAll?: () => void;
+  onSortFilterChange?: (state: GenerationSortFilterState) => void;
 }
 
 export function GenerationSearch({
   projectId,
   onSearchResults,
   onClearSearch,
+  onSelectAll,
+  onSortFilterChange,
 }: GenerationSearchProps) {
   const [query, setQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isIndexing, setIsIndexing] = useState(false);
   const [stats, setStats] = useState<IndexStats | null>(null);
-  const [showStats, setShowStats] = useState(false);
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<SuggestionPill[]>([]);
+  const [searchMode, setSearchMode] = useState<SearchMode>('combined');
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load index stats on mount
+  // Sort & Filter State
+  const [isSortOpen, setIsSortOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [sortFilter, setSortFilter] = useState<GenerationSortFilterState>({
+    sortBy: 'date',
+    sortOrder: 'desc',
+    filterMediaType: [],
+    filterStatus: [],
+    filterAspectRatio: [],
+  });
+
+  // Notify parent when sort/filter changes
+  const updateSortFilter = (updates: Partial<GenerationSortFilterState>) => {
+    const newState = { ...sortFilter, ...updates };
+    setSortFilter(newState);
+    onSortFilterChange?.(newState);
+  };
+
+  const toggleFilter = <K extends keyof GenerationSortFilterState>(
+    category: K,
+    value: GenerationSortFilterState[K] extends (infer U)[] ? U : never
+  ) => {
+    const current = sortFilter[category] as any[];
+    const updated = current.includes(value)
+      ? current.filter((item: any) => item !== value)
+      : [...current, value];
+    updateSortFilter({ [category]: updated } as Partial<GenerationSortFilterState>);
+  };
+
+  const activeFilterCount =
+    sortFilter.filterMediaType.length +
+    sortFilter.filterStatus.length +
+    sortFilter.filterAspectRatio.length;
+
+  // Load index stats and suggestions on mount
   useEffect(() => {
     fetchStats();
+    fetchSuggestions();
   }, [projectId]);
 
-  // Load recent searches from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem(`search-history-${projectId}`);
-    if (saved) {
-      setRecentSearches(JSON.parse(saved).slice(0, 5));
+  const fetchSuggestions = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/projects/${projectId}/search/suggestions`);
+      if (res.ok) {
+        const data = await res.json();
+        setSuggestions(data.suggestions || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch suggestions:', err);
     }
-  }, [projectId]);
+  };
 
   const fetchStats = async () => {
     try {
@@ -73,20 +153,20 @@ export function GenerationSearch({
 
       setIsSearching(true);
       try {
-        const res = await fetch(
-          `${BACKEND_URL}/api/projects/${projectId}/search?q=${encodeURIComponent(searchQuery)}&limit=100`
-        );
+        // Build URL based on search mode
+        let url: string;
+        if (searchMode === 'reality') {
+          url = `${BACKEND_URL}/api/projects/${projectId}/search/reality?q=${encodeURIComponent(searchQuery)}&limit=100`;
+        } else if (searchMode === 'intent') {
+          url = `${BACKEND_URL}/api/projects/${projectId}/search/intent?q=${encodeURIComponent(searchQuery)}&limit=100`;
+        } else {
+          url = `${BACKEND_URL}/api/projects/${projectId}/search?q=${encodeURIComponent(searchQuery)}&limit=100`;
+        }
+
+        const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
           onSearchResults(data.results, searchQuery);
-
-          // Save to recent searches
-          const newRecent = [searchQuery, ...recentSearches.filter(s => s !== searchQuery)].slice(
-            0,
-            5
-          );
-          setRecentSearches(newRecent);
-          localStorage.setItem(`search-history-${projectId}`, JSON.stringify(newRecent));
         }
       } catch (err) {
         console.error('Search failed:', err);
@@ -94,7 +174,7 @@ export function GenerationSearch({
         setIsSearching(false);
       }
     },
-    [projectId, onSearchResults, recentSearches, onClearSearch]
+    [projectId, onSearchResults, onClearSearch, searchMode]
   );
 
   // Debounced search as user types
@@ -133,10 +213,9 @@ export function GenerationSearch({
     inputRef.current?.focus();
   };
 
-  const handleRecentClick = (recentQuery: string) => {
-    setQuery(recentQuery);
-    performSearch(recentQuery);
-    setShowStats(false);
+  const handlePillClick = (label: string) => {
+    setQuery(label);
+    performSearch(label);
   };
 
   const handleBatchIndex = async () => {
@@ -148,10 +227,8 @@ export function GenerationSearch({
         body: JSON.stringify({ batchSize: 20 }),
       });
       if (res.ok) {
-        const data = await res.json();
-        console.log('Batch index result:', data);
-        // Refresh stats after indexing
         await fetchStats();
+        await fetchSuggestions();
       }
     } catch (err) {
       console.error('Batch index failed:', err);
@@ -163,10 +240,15 @@ export function GenerationSearch({
   const indexPercentage = stats ? Math.round((stats.indexed / Math.max(stats.total, 1)) * 100) : 0;
 
   return (
-    <div className="relative">
-      {/* Search Bar */}
-      <div className="relative flex items-center gap-2">
-        <div className="relative flex-1">
+    <TooltipProvider>
+    <div className="space-y-2">
+      {/* Row 1: Generate title + Search Bar + Index Badge + Sort + Filter */}
+      <div className="flex items-center gap-4">
+        {/* Generate Title - fixed width to ensure Row 2 alignment */}
+        <h1 className="w-[141px] shrink-0 text-3xl font-bold tracking-tight">Generate</h1>
+
+        {/* Search Input - Takes remaining space */}
+        <div className="relative min-w-0 flex-1">
           <div className="absolute top-1/2 left-3 -translate-y-1/2 text-white/40">
             {isSearching ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -181,10 +263,8 @@ export function GenerationSearch({
             value={query}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            onFocus={() => setShowStats(true)}
-            onBlur={() => setTimeout(() => setShowStats(false), 200)}
-            placeholder="Search by visual content... (e.g., 'red dress beach')"
-            className="w-full rounded-lg border border-white/10 bg-white/5 py-2 pr-10 pl-10 text-sm text-white placeholder-white/40 transition-all focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/50 focus:outline-none"
+            placeholder="Search... (e.g., 'ECU shallow depth neon')"
+            className="w-full rounded-lg border border-white/10 bg-zinc-900/80 py-2 pr-10 pl-10 text-sm text-white placeholder-white/40 transition-all focus:border-white/20 focus:outline-none"
           />
 
           {query && (
@@ -197,105 +277,340 @@ export function GenerationSearch({
           )}
         </div>
 
-        {/* Index Status Button */}
-        <button
-          onClick={() => setShowStats(!showStats)}
-          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm transition-colors hover:bg-white/10"
-          title="Index Status"
+        {/* Index Status Badge - Black/white box with colored icon */}
+        <Tooltip
+          content={
+            isIndexing
+              ? 'Indexing...'
+              : stats
+                ? `${stats.indexed}/${stats.total} indexed${stats.failed > 0 ? `, ${stats.failed} failed` : ''}. Click to index remaining.`
+                : 'Loading...'
+          }
+          side="top"
         >
-          <Database className="h-4 w-4 text-purple-400" />
-          {stats && (
-            <span
-              className={`text-xs ${indexPercentage === 100 ? 'text-green-400' : 'text-amber-400'}`}
-            >
-              {indexPercentage}%
-            </span>
-          )}
-        </button>
+          <button
+            onClick={handleBatchIndex}
+            disabled={isIndexing}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-sm font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            {isIndexing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-white/70" />
+            ) : stats && stats.failed > 0 ? (
+              <AlertTriangle className="h-3.5 w-3.5 text-red-400" />
+            ) : indexPercentage === 100 ? (
+              <AlertTriangle className="h-3.5 w-3.5 text-green-400" />
+            ) : (
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
+            )}
+            {indexPercentage}%
+          </button>
+        </Tooltip>
+
+        {/* Sort & Filter Button Group - gap-2 for tighter spacing */}
+        <div className="flex shrink-0 items-center gap-2">
+        {/* Sort Button with Dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setIsSortOpen(!isSortOpen)}
+            className="flex min-w-[90px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-white/10 bg-zinc-900/80 px-3 py-1.5 text-sm text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+          >
+            {sortFilter.sortOrder === 'asc' ? (
+              <SortAsc className="h-3.5 w-3.5" />
+            ) : (
+              <SortDesc className="h-3.5 w-3.5" />
+            )}
+            Sort
+          </button>
+
+          <AnimatePresence>
+            {isSortOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setIsSortOpen(false)} />
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute top-full right-0 z-50 mt-2 flex w-64 flex-col overflow-hidden rounded-xl border border-white/10 bg-[#1a1a1a] shadow-xl"
+                >
+                  <div className="flex items-center justify-between border-b border-white/10 p-3">
+                    <span className="text-sm font-bold text-white">Sort</span>
+                  </div>
+                  <div className="space-y-4 overflow-y-auto p-2">
+                    {/* Sort By */}
+                    <div>
+                      <div className="mb-1 px-2 py-1 text-xs font-bold uppercase tracking-wider text-gray-500">
+                        Sort By
+                      </div>
+                      <div className="space-y-1">
+                        {[
+                          { label: 'Date', value: 'date' },
+                          { label: 'Relevance', value: 'score' },
+                          { label: 'Name', value: 'name' },
+                        ].map(opt => (
+                          <label
+                            key={opt.value}
+                            className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={sortFilter.sortBy === opt.value}
+                              onChange={() => updateSortFilter({ sortBy: opt.value as SortBy })}
+                              className="rounded border-white/20 bg-black/50 text-blue-500 focus:ring-blue-500/50"
+                            />
+                            <span className={clsx('text-sm', sortFilter.sortBy === opt.value ? 'text-blue-400' : 'text-gray-300')}>
+                              {opt.label}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Order */}
+                    <div>
+                      <div className="mb-1 px-2 py-1 text-xs font-bold uppercase tracking-wider text-gray-500">
+                        Order
+                      </div>
+                      <div className="space-y-1">
+                        {[
+                          { label: 'Newest First', value: 'desc' },
+                          { label: 'Oldest First', value: 'asc' },
+                        ].map(opt => (
+                          <label
+                            key={opt.value}
+                            className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={sortFilter.sortOrder === opt.value}
+                              onChange={() => updateSortFilter({ sortOrder: opt.value as SortOrder })}
+                              className="rounded border-white/20 bg-black/50 text-blue-500 focus:ring-blue-500/50"
+                            />
+                            <span className={clsx('text-sm', sortFilter.sortOrder === opt.value ? 'text-blue-400' : 'text-gray-300')}>
+                              {opt.label}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Filter Button with Dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
+            className={clsx(
+              'flex min-w-[90px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-1.5 text-sm transition-colors',
+              activeFilterCount > 0
+                ? 'border-blue-500/50 bg-blue-500/20 text-blue-400'
+                : 'border-white/10 bg-zinc-900/80 text-white/70 hover:bg-white/5 hover:text-white'
+            )}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Filter
+            {activeFilterCount > 0 && (
+              <span className="rounded-full bg-blue-500 px-1.5 text-[10px] text-white">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+
+          <AnimatePresence>
+            {isFilterOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute top-full right-0 z-50 mt-2 flex max-h-[80vh] w-64 flex-col overflow-hidden rounded-xl border border-white/10 bg-[#1a1a1a] shadow-xl"
+                >
+                  <div className="flex items-center justify-between border-b border-white/10 p-3">
+                    <span className="text-sm font-bold text-white">Filters</span>
+                    {activeFilterCount > 0 && (
+                      <button
+                        onClick={() =>
+                          updateSortFilter({
+                            filterMediaType: [],
+                            filterStatus: [],
+                            filterAspectRatio: [],
+                          })
+                        }
+                        className="text-xs text-red-400 hover:text-red-300"
+                      >
+                        Clear All
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-4 overflow-y-auto p-2">
+                    {/* Media Type */}
+                    <div>
+                      <div className="mb-1 px-2 py-1 text-xs font-bold uppercase tracking-wider text-gray-500">
+                        Media Type
+                      </div>
+                      <div className="space-y-1">
+                        {[
+                          { value: 'image', label: 'Images', icon: Image },
+                          { value: 'video', label: 'Videos', icon: Film },
+                        ].map(opt => (
+                          <label
+                            key={opt.value}
+                            className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={sortFilter.filterMediaType.includes(opt.value as 'image' | 'video')}
+                              onChange={() => toggleFilter('filterMediaType', opt.value as 'image' | 'video')}
+                              className="rounded border-white/20 bg-black/50 text-blue-500 focus:ring-blue-500/50"
+                            />
+                            <opt.icon className="h-3.5 w-3.5 text-gray-400" />
+                            <span className="text-sm text-gray-300">{opt.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Status */}
+                    <div>
+                      <div className="mb-1 px-2 py-1 text-xs font-bold uppercase tracking-wider text-gray-500">
+                        Status
+                      </div>
+                      <div className="space-y-1">
+                        {[
+                          { value: 'succeeded', label: 'Completed', color: 'text-green-400' },
+                          { value: 'processing', label: 'Processing', color: 'text-amber-400' },
+                          { value: 'failed', label: 'Failed', color: 'text-red-400' },
+                        ].map(opt => (
+                          <label
+                            key={opt.value}
+                            className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={sortFilter.filterStatus.includes(opt.value as any)}
+                              onChange={() => toggleFilter('filterStatus', opt.value as any)}
+                              className="rounded border-white/20 bg-black/50 text-blue-500 focus:ring-blue-500/50"
+                            />
+                            <span className={clsx('text-sm', opt.color)}>{opt.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Aspect Ratio */}
+                    <div>
+                      <div className="mb-1 px-2 py-1 text-xs font-bold uppercase tracking-wider text-gray-500">
+                        Aspect Ratio
+                      </div>
+                      <div className="space-y-1">
+                        {['16:9', '9:16', '1:1', '21:9', '4:3'].map(ratio => (
+                          <label
+                            key={ratio}
+                            className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={sortFilter.filterAspectRatio.includes(ratio)}
+                              onChange={() => toggleFilter('filterAspectRatio', ratio)}
+                              className="rounded border-white/20 bg-black/50 text-blue-500 focus:ring-blue-500/50"
+                            />
+                            <span className="text-sm text-gray-300">{ratio}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </div>
+        </div>
       </div>
 
-      {/* Stats Dropdown */}
-      <AnimatePresence>
-        {showStats && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="absolute top-full right-0 left-0 z-50 mt-2 overflow-hidden rounded-lg border border-white/10 bg-zinc-900/95 shadow-xl"
+      {/* Row 2: Reality/Both/Intent Toggle + Suggestion Pills + Select All */}
+      {/* Uses same structure as Row 1: invisible spacer (141px) + gap (16px) = 157px offset */}
+      <div className="flex items-center gap-4">
+        {/* Invisible spacer matching title width */}
+        <div className="w-[141px] shrink-0" />
+        {/* Actual Row 2 content */}
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+        {/* Reality / Both / Intent Toggle */}
+        <div className="flex shrink-0 items-center rounded-lg border border-white/10 bg-zinc-900/80 p-0.5">
+          <Tooltip content="Search what AI actually generated (visual analysis)" side="top">
+            <button
+              onClick={() => setSearchMode('reality')}
+              className={clsx(
+                'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                searchMode === 'reality'
+                  ? 'bg-white/10 text-white'
+                  : 'text-white/50 hover:text-white/80'
+              )}
+            >
+              <Eye className="h-3 w-3" />
+              Reality
+            </button>
+          </Tooltip>
+          <Tooltip content="Search both visual content and prompts" side="top">
+            <button
+              onClick={() => setSearchMode('combined')}
+              className={clsx(
+                'rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                searchMode === 'combined'
+                  ? 'bg-white/10 text-white'
+                  : 'text-white/50 hover:text-white/80'
+              )}
+            >
+              Both
+            </button>
+          </Tooltip>
+          <Tooltip content="Search what you prompted (user intent)" side="top">
+            <button
+              onClick={() => setSearchMode('intent')}
+              className={clsx(
+                'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                searchMode === 'intent'
+                  ? 'bg-white/10 text-white'
+                  : 'text-white/50 hover:text-white/80'
+              )}
+            >
+              <Wand2 className="h-3 w-3" />
+              Intent
+            </button>
+          </Tooltip>
+        </div>
+
+        {/* Suggestion Pills - Same height as Reality/Both/Intent toggle */}
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-hide">
+          {suggestions.slice(0, 8).map((pill, i) => (
+            <button
+              key={i}
+              onClick={() => handlePillClick(pill.label)}
+              className="shrink-0 rounded-md border border-white/20 bg-white/5 px-2 py-1 text-xs font-medium text-white/70 transition-colors hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-400"
+            >
+              {pill.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Select All Button - Same size as Sort/Filter buttons */}
+        {onSelectAll && (
+          <button
+            onClick={onSelectAll}
+            className="flex min-w-[90px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-sm text-sky-400 transition-colors hover:bg-sky-500/20"
           >
-            {/* Index Stats */}
-            {stats && (
-              <div className="border-b border-white/5 p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs text-white/60">Visual Index</span>
-                  <button
-                    onClick={handleBatchIndex}
-                    disabled={isIndexing || stats.pending === 0}
-                    className="flex items-center gap-1 text-xs text-purple-400 transition-colors hover:text-purple-300 disabled:cursor-not-allowed disabled:text-white/30"
-                  >
-                    {isIndexing ? (
-                      <>
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Indexing...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="h-3 w-3" />
-                        Index {stats.pending} remaining
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className={`h-full transition-all duration-500 ${
-                      indexPercentage === 100 ? 'bg-green-500' : 'bg-purple-500'
-                    }`}
-                    style={{ width: `${indexPercentage}%` }}
-                  />
-                </div>
-                <div className="mt-1 flex justify-between text-xs text-white/40">
-                  <span>{stats.indexed} indexed</span>
-                  <span>{stats.total} total</span>
-                </div>
-              </div>
-            )}
-
-            {/* Recent Searches */}
-            {recentSearches.length > 0 && (
-              <div className="p-2">
-                <div className="mb-1 px-2 text-xs text-white/40">Recent Searches</div>
-                {recentSearches.map((recent, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleRecentClick(recent)}
-                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-white/80 transition-colors hover:bg-white/10"
-                  >
-                    <Search className="h-3 w-3 text-white/40" />
-                    {recent}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Search Tips */}
-            <div className="border-t border-white/5 bg-white/5 p-3">
-              <div className="mb-2 flex items-center gap-1.5 text-xs text-white/40">
-                <Sparkles className="h-3 w-3 text-purple-400" />
-                Search Tips
-              </div>
-              <div className="grid grid-cols-2 gap-1 text-xs text-white/60">
-                <span>• "woman red dress"</span>
-                <span>• "moody lighting"</span>
-                <span>• "beach sunset"</span>
-                <span>• "close-up portrait"</span>
-              </div>
-            </div>
-          </motion.div>
+            Select All
+          </button>
         )}
-      </AnimatePresence>
+        </div>
+      </div>
     </div>
+    </TooltipProvider>
   );
 }

@@ -6,6 +6,7 @@ import { Plus, MoreVertical, Play, Clock, Calendar, Film } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { clsx } from 'clsx';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 interface ProjectGalleryProps {
   projects: Project[];
@@ -109,16 +110,17 @@ export function ProjectGallery({ projects, onDelete, onCreateClick }: ProjectGal
                       <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-white/5 bg-gradient-to-br from-gray-800 to-black transition-colors group-hover:border-indigo-500/30">
                         <Film className="h-6 w-6 text-gray-600 group-hover:text-indigo-400" />
                       </div>
-                      <button
-                        onClick={e => {
-                          e.preventDefault();
-                          onDelete(project.id);
-                        }}
-                        className="rounded-full p-2 text-gray-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
-                        title="Delete Project"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </button>
+                      <Tooltip content="Delete Project" side="top">
+                        <button
+                          onClick={e => {
+                            e.preventDefault();
+                            onDelete(project.id);
+                          }}
+                          className="rounded-full p-2 text-gray-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+                      </Tooltip>
                     </div>
 
                     <h3 className="mb-2 text-xl font-bold text-white transition-colors group-hover:text-indigo-300">

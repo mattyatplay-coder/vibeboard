@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Play, Pause, SkipBack, SkipForward } from 'lucide-react';
 import { clsx } from 'clsx';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 export interface Frame {
   url: string;
@@ -137,47 +138,52 @@ export function FrameTimeline({
       {/* Playback controls */}
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleJumpToStart}
-            className="rounded p-1.5 transition-colors hover:bg-white/10"
-            title="Jump to start (Home)"
-          >
-            <SkipBack className="h-4 w-4 text-gray-400" />
-          </button>
-          <button
-            onClick={handlePrevFrame}
-            disabled={currentFrameIndex === 0}
-            className="rounded p-1.5 transition-colors hover:bg-white/10 disabled:opacity-30"
-            title="Previous frame (Left Arrow)"
-          >
-            <ChevronLeft className="h-4 w-4 text-gray-400" />
-          </button>
-          <button
-            onClick={onPlayPause}
-            className="rounded bg-blue-600 p-2 transition-colors hover:bg-blue-500"
-            title="Play/Pause (Space)"
-          >
-            {isPlaying ? (
-              <Pause className="h-4 w-4 text-white" />
-            ) : (
-              <Play className="h-4 w-4 text-white" />
-            )}
-          </button>
-          <button
-            onClick={handleNextFrame}
-            disabled={currentFrameIndex === frames.length - 1}
-            className="rounded p-1.5 transition-colors hover:bg-white/10 disabled:opacity-30"
-            title="Next frame (Right Arrow)"
-          >
-            <ChevronRight className="h-4 w-4 text-gray-400" />
-          </button>
-          <button
-            onClick={handleJumpToEnd}
-            className="rounded p-1.5 transition-colors hover:bg-white/10"
-            title="Jump to end (End)"
-          >
-            <SkipForward className="h-4 w-4 text-gray-400" />
-          </button>
+          <Tooltip content="Jump to start (Home)" side="top">
+            <button
+              onClick={handleJumpToStart}
+              className="rounded p-1.5 transition-colors hover:bg-white/10"
+            >
+              <SkipBack className="h-4 w-4 text-gray-400" />
+            </button>
+          </Tooltip>
+          <Tooltip content="Previous frame (Left Arrow)" side="top">
+            <button
+              onClick={handlePrevFrame}
+              disabled={currentFrameIndex === 0}
+              className="rounded p-1.5 transition-colors hover:bg-white/10 disabled:opacity-30"
+            >
+              <ChevronLeft className="h-4 w-4 text-gray-400" />
+            </button>
+          </Tooltip>
+          <Tooltip content="Play/Pause (Space)" side="top">
+            <button
+              onClick={onPlayPause}
+              className="rounded bg-blue-600 p-2 transition-colors hover:bg-blue-500"
+            >
+              {isPlaying ? (
+                <Pause className="h-4 w-4 text-white" />
+              ) : (
+                <Play className="h-4 w-4 text-white" />
+              )}
+            </button>
+          </Tooltip>
+          <Tooltip content="Next frame (Right Arrow)" side="top">
+            <button
+              onClick={handleNextFrame}
+              disabled={currentFrameIndex === frames.length - 1}
+              className="rounded p-1.5 transition-colors hover:bg-white/10 disabled:opacity-30"
+            >
+              <ChevronRight className="h-4 w-4 text-gray-400" />
+            </button>
+          </Tooltip>
+          <Tooltip content="Jump to end (End)" side="top">
+            <button
+              onClick={handleJumpToEnd}
+              className="rounded p-1.5 transition-colors hover:bg-white/10"
+            >
+              <SkipForward className="h-4 w-4 text-gray-400" />
+            </button>
+          </Tooltip>
         </div>
 
         {/* Timecode display */}
@@ -230,17 +236,19 @@ export function FrameTimeline({
                   />
                   {/* Edited indicator */}
                   {isEdited && (
-                    <div
-                      className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-green-500"
-                      title="Edited"
-                    />
+                    <Tooltip content="Edited" side="top">
+                      <div
+                        className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-green-500"
+                      />
+                    </Tooltip>
                   )}
                   {/* Masked indicator */}
                   {hasMask && !isEdited && (
-                    <div
-                      className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-purple-500"
-                      title="Has mask"
-                    />
+                    <Tooltip content="Has mask" side="top">
+                      <div
+                        className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-purple-500"
+                      />
+                    </Tooltip>
                   )}
                   {/* Frame number overlay */}
                   <div className="absolute right-0 bottom-0 left-0 bg-black/60 py-0.5 text-center text-[8px] text-gray-400">

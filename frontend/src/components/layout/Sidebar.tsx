@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname, useParams } from 'next/navigation';
-import { LayoutGrid, Wand2, Clapperboard, Settings, FileText, Paintbrush } from 'lucide-react';
+import { LayoutGrid, Wand2, Clapperboard, Settings, FileText, Paintbrush, Film } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 
 import { useSession } from '@/context/SessionContext';
 import { Plus, Folder, ChevronDown, ChevronRight, Trash2, ChevronLeft } from 'lucide-react';
 import { useState } from 'react';
+import { Tooltip, TooltipProvider } from '@/components/ui/Tooltip';
 import { SpendingWidget } from '@/components/sidebar/SpendingWidget';
 import { useSidebarStore } from '@/lib/sidebarStore';
 import { useEngineConfigStore } from '@/lib/engineConfigStore';
@@ -40,6 +41,7 @@ export function Sidebar() {
     { name: 'Roto & Paint', href: `/projects/${projectId}/process`, icon: Paintbrush },
     { name: 'Story Editor', href: `/projects/${projectId}/story-editor`, icon: FileText },
     { name: 'Storyboard', href: `/projects/${projectId}/storyboard`, icon: Clapperboard },
+    { name: 'Timeline', href: `/projects/${projectId}/timeline`, icon: Film },
     { name: 'Training', href: `/projects/${projectId}/train`, icon: Wand2 },
   ];
 
@@ -141,22 +143,23 @@ export function Sidebar() {
                       </span>
                     ) : null}
                   </div>
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      if (
-                        confirm(
-                          'Are you sure you want to delete this session? This will delete all generations, elements, and scenes within it.'
-                        )
-                      ) {
-                        deleteSession(session.id);
-                      }
-                    }}
-                    className="rounded p-1 opacity-0 transition-all group-hover:opacity-100 hover:bg-red-500/20 hover:text-red-400"
-                    title="Delete Session"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
+                  <Tooltip content="Delete Session" side="right">
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        if (
+                          confirm(
+                            'Are you sure you want to delete this session? This will delete all generations, elements, and scenes within it.'
+                          )
+                        ) {
+                          deleteSession(session.id);
+                        }
+                      }}
+                      className="rounded p-1 opacity-0 transition-all group-hover:opacity-100 hover:bg-red-500/20 hover:text-red-400"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </Tooltip>
                 </div>
               ))}
             </div>

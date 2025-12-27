@@ -10,6 +10,7 @@ import {
   RotateCw,
   RotateCcw,
 } from 'lucide-react';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 export interface CameraMovement {
   type: 'pan' | 'tilt' | 'zoom' | 'roll' | 'static';
@@ -63,41 +64,45 @@ export function CameraControlPanel({ value, onChange }: CameraControlPanelProps)
           <span className="mb-1 text-xs text-zinc-500">Pan & Tilt</span>
           <div className="grid grid-cols-3 gap-1">
             <div />
-            <button
-              className={btnClass(isActive('tilt', 'up'))}
-              onClick={() => handleDirection('tilt', 'up')}
-              title="Tilt Up"
-            >
-              <ArrowUp size={16} />
-            </button>
+            <Tooltip content="Tilt Up" side="top">
+              <button
+                className={btnClass(isActive('tilt', 'up'))}
+                onClick={() => handleDirection('tilt', 'up')}
+              >
+                <ArrowUp size={16} />
+              </button>
+            </Tooltip>
             <div />
 
-            <button
-              className={btnClass(isActive('pan', 'left'))}
-              onClick={() => handleDirection('pan', 'left')}
-              title="Pan Left"
-            >
-              <ArrowLeft size={16} />
-            </button>
+            <Tooltip content="Pan Left" side="left">
+              <button
+                className={btnClass(isActive('pan', 'left'))}
+                onClick={() => handleDirection('pan', 'left')}
+              >
+                <ArrowLeft size={16} />
+              </button>
+            </Tooltip>
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800">
               <Move size={14} className="text-zinc-600" />
             </div>
-            <button
-              className={btnClass(isActive('pan', 'right'))}
-              onClick={() => handleDirection('pan', 'right')}
-              title="Pan Right"
-            >
-              <ArrowRight size={16} />
-            </button>
+            <Tooltip content="Pan Right" side="right">
+              <button
+                className={btnClass(isActive('pan', 'right'))}
+                onClick={() => handleDirection('pan', 'right')}
+              >
+                <ArrowRight size={16} />
+              </button>
+            </Tooltip>
 
             <div />
-            <button
-              className={btnClass(isActive('tilt', 'down'))}
-              onClick={() => handleDirection('tilt', 'down')}
-              title="Tilt Down"
-            >
-              <ArrowDown size={16} />
-            </button>
+            <Tooltip content="Tilt Down" side="top">
+              <button
+                className={btnClass(isActive('tilt', 'down'))}
+                onClick={() => handleDirection('tilt', 'down')}
+              >
+                <ArrowDown size={16} />
+              </button>
+            </Tooltip>
             <div />
           </div>
         </div>

@@ -5,6 +5,7 @@ import { fetchAPI, Project } from '@/lib/api';
 import Link from 'next/link';
 import { Plus, ArrowRight, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 export default function ProjectSelector() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -176,13 +177,14 @@ export default function ProjectSelector() {
               href={`/projects/${project.id}/elements`}
               className="group relative block rounded-xl border border-white/10 bg-white/5 p-6 transition-all hover:border-white/20 hover:bg-white/10"
             >
-              <button
-                onClick={e => handleDelete(e, project.id)}
-                className="absolute top-4 right-4 rounded-full p-2 text-gray-500 opacity-0 transition-all group-hover:opacity-100 hover:bg-white/10 hover:text-red-500"
-                title="Delete Project"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              <Tooltip content="Delete Project" side="top">
+                <button
+                  onClick={e => handleDelete(e, project.id)}
+                  className="absolute top-4 right-4 rounded-full p-2 text-gray-500 opacity-0 transition-all group-hover:opacity-100 hover:bg-white/10 hover:text-red-500"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </Tooltip>
 
               <h3 className="mb-2 pr-8 text-xl font-bold transition-colors group-hover:text-blue-400">
                 {project.name}

@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { ChevronDown, Check, Sparkles, Ban, Plus, X, Search } from 'lucide-react';
+import { Tooltip } from '@/components/ui/Tooltip';
 import {
   CAMERA_PRESETS,
   CameraPreset,
@@ -118,10 +119,11 @@ export function CameraPresetSelector({
         <span className="block truncate">{preset.name}</span>
         {/* Indicators */}
         {isRecommended && !isSelected && (
-          <span
-            className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-green-500"
-            title="Recommended for this genre"
-          />
+          <Tooltip content="Recommended for this genre" side="top">
+            <span
+              className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-green-500"
+            />
+          </Tooltip>
         )}
         {isAvoided && <Ban className="absolute -top-1 -right-1 h-3 w-3 text-red-400" />}
         {isSelected && mixMode && (
@@ -143,36 +145,38 @@ export function CameraPresetSelector({
         </div>
         <div className="flex items-center gap-1">
           {/* Search toggle */}
-          <button
-            onClick={() => setShowSearch(!showSearch)}
-            className={clsx(
-              'rounded-lg p-1.5 transition-colors',
-              showSearch
-                ? 'bg-blue-500/20 text-blue-400'
-                : 'text-gray-400 hover:bg-white/10 hover:text-white'
-            )}
-            title="Search presets"
-          >
-            <Search className="h-3.5 w-3.5" />
-          </button>
+          <Tooltip content="Search presets" side="top">
+            <button
+              onClick={() => setShowSearch(!showSearch)}
+              className={clsx(
+                'rounded-lg p-1.5 transition-colors',
+                showSearch
+                  ? 'bg-blue-500/20 text-blue-400'
+                  : 'text-gray-400 hover:bg-white/10 hover:text-white'
+              )}
+            >
+              <Search className="h-3.5 w-3.5" />
+            </button>
+          </Tooltip>
           {/* Mix mode toggle */}
           {allowMixing && (
-            <button
-              onClick={() => {
-                setMixMode(!mixMode);
-                if (!mixMode) onMixSelect?.([]);
-              }}
-              className={clsx(
-                'flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-medium transition-colors',
-                mixMode
-                  ? 'border border-purple-500/30 bg-purple-500/20 text-purple-400'
-                  : 'border border-transparent text-gray-400 hover:bg-white/10 hover:text-white'
-              )}
-              title="Combine multiple camera moves"
-            >
-              <Plus className="h-3 w-3" />
-              Mix
-            </button>
+            <Tooltip content="Combine multiple camera moves" side="top">
+              <button
+                onClick={() => {
+                  setMixMode(!mixMode);
+                  if (!mixMode) onMixSelect?.([]);
+                }}
+                className={clsx(
+                  'flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-medium transition-colors',
+                  mixMode
+                    ? 'border border-purple-500/30 bg-purple-500/20 text-purple-400'
+                    : 'border border-transparent text-gray-400 hover:bg-white/10 hover:text-white'
+                )}
+              >
+                <Plus className="h-3 w-3" />
+                Mix
+              </button>
+            </Tooltip>
           )}
         </div>
       </div>
@@ -372,13 +376,14 @@ export function CameraPresetSelector({
               {getPresetById(selectedPreset)?.prompt}
             </p>
           </div>
-          <button
-            onClick={() => onSelect({ id: '', name: '', prompt: '', description: '', genres: [] })}
-            className="rounded p-1 text-gray-400 hover:bg-white/10 hover:text-white"
-            title="Clear selection"
-          >
-            <X className="h-3 w-3" />
-          </button>
+          <Tooltip content="Clear selection" side="top">
+            <button
+              onClick={() => onSelect({ id: '', name: '', prompt: '', description: '', genres: [] })}
+              className="rounded p-1 text-gray-400 hover:bg-white/10 hover:text-white"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </Tooltip>
         </div>
       )}
     </div>

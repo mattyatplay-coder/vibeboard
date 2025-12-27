@@ -540,3 +540,75 @@ Generation 137bc2f1-314d-4ffc-ba66-0f745483272e completed.
 ### Semantic Search Priority
 > This is the next big win. As images generate, send to low-cost Vision model for "Technical Description."
 > Gallery becomes a searchable database for pros.
+
+---
+
+# Pro Trajectory Engine - Phase 1 (Dec 27, 2025) ✅ COMPLETE
+
+## Core Implementation
+
+- [x] **Backend Tracking Services** <!-- id: 1000 -->
+    - [x] Create `PointTrackingService.ts` with CoTracker3 integration <!-- id: 1001 -->
+    - [x] Implement `trackGridPoints()` for automatic dense sampling <!-- id: 1002 -->
+    - [x] Implement `trackPoints()` for user-defined points <!-- id: 1003 -->
+    - [x] Implement `trackPlanarSurface()` for 4-corner tracking <!-- id: 1004 -->
+    - [x] Implement DLT homography calculation <!-- id: 1005 -->
+
+- [x] **Backend Compositor Service** <!-- id: 1010 -->
+    - [x] Create `PropCompositorService.ts` with FFmpeg integration <!-- id: 1011 -->
+    - [x] Implement frame extraction with FFmpeg <!-- id: 1012 -->
+    - [x] Implement canvas compositing with affine transforms <!-- id: 1013 -->
+    - [x] Implement triangulation for perspective warping <!-- id: 1014 -->
+    - [x] Implement video reassembly with audio preservation <!-- id: 1015 -->
+
+- [x] **API Endpoints** <!-- id: 1020 -->
+    - [x] Create `trackingRoutes.ts` <!-- id: 1021 -->
+    - [x] POST /api/tracking/grid <!-- id: 1022 -->
+    - [x] POST /api/tracking/points <!-- id: 1023 -->
+    - [x] POST /api/tracking/planar <!-- id: 1024 -->
+    - [x] POST /api/tracking/homography <!-- id: 1025 -->
+    - [x] POST /api/tracking/composite <!-- id: 1026 -->
+    - [x] POST /api/tracking/preview-frame <!-- id: 1027 -->
+
+- [x] **Frontend Tracker Tool** <!-- id: 1030 -->
+    - [x] Create `TrackerTool.tsx` component <!-- id: 1031 -->
+    - [x] Implement OpenCV.js dynamic loading <!-- id: 1032 -->
+    - [x] Implement 4-point corner selection UI <!-- id: 1033 -->
+    - [x] Implement real-time perspective preview <!-- id: 1034 -->
+    - [x] Implement tracking data JSON export <!-- id: 1035 -->
+
+## Bug Fixes (Dec 27, 2025) ✅ COMPLETE
+
+- [x] **Hydration Mismatch Fix** <!-- id: 1040 -->
+    - [x] Add `hasMounted` state pattern for localStorage stores <!-- id: 1041 -->
+    - [x] Fix Prompt Variables button hydration <!-- id: 1042 -->
+    - [x] Fix Prop Bin button hydration <!-- id: 1043 -->
+    - [x] Fix Prompt Tree button hydration <!-- id: 1044 -->
+
+- [x] **Toolbar Layout Fix** <!-- id: 1050 -->
+    - [x] Add `.scrollbar-hide` CSS class <!-- id: 1051 -->
+    - [x] Fix Generate button overlap with Model Selector <!-- id: 1052 -->
+    - [x] Add border separator between sections <!-- id: 1053 -->
+
+---
+
+# Visual Librarian UI Polish (Dec 27, 2025) ✅ COMPLETE
+
+## GenerationSearch Row Alignment Fix
+
+- [x] **Row 2 Alignment with Search Bar** <!-- id: 1100 -->
+    - [x] Add fixed width (`w-[141px]`) to "Generate" title in Row 1 <!-- id: 1101 -->
+    - [x] Add invisible spacer (`w-[141px] shrink-0`) in Row 2 <!-- id: 1102 -->
+    - [x] Ensure both rows use identical flex structure with `gap-4` <!-- id: 1103 -->
+    - [x] Fix "bouncing back" alignment issue from HMR cache <!-- id: 1104 -->
+
+### Technical Implementation
+- **File**: `frontend/src/components/generations/GenerationSearch.tsx`
+- **Pattern**: Invisible spacer ensures pixel-perfect alignment across rows
+- **Calculation**: 141px title + 16px gap = 157px offset for Row 2 content
+
+### User Feedback
+> "There we go. It's perfect"
+
+### Remaining (Future Session)
+- User noted "we still have a few small tweaks" for another day (unspecified)

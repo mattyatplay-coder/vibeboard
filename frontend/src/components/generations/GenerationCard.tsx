@@ -26,6 +26,10 @@ import {
   GitFork,
   Clock,
   Zap,
+  Expand,
+  Layers,
+  Sun,
+  Eye,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -33,6 +37,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useDraggable } from '@dnd-kit/core';
+import { Tooltip, TooltipProvider } from '@/components/ui/Tooltip';
 import { CSS } from '@dnd-kit/utilities';
 import {
   getModelConstraints,
@@ -57,6 +62,9 @@ interface GenerationCardProps {
   onEnhanceVideo?: (generationId: string, mode: 'full' | 'audio-only' | 'smooth-only') => void;
   isSelected?: boolean;
   onToggleSelection?: (e: React.MouseEvent) => void;
+  onFindSimilarComposition?: (generationId: string) => void;
+  onFindSimilarLighting?: (generationId: string) => void;
+  onFindSimilarVisual?: (generationId: string) => void;  // CLIP vector-based visual similarity
 }
 
 // Upscale options
@@ -104,6 +112,9 @@ export function GenerationCard({
   onEnhanceVideo,
   isSelected,
   onToggleSelection,
+  onFindSimilarComposition,
+  onFindSimilarLighting,
+  onFindSimilarVisual,
 }: GenerationCardProps) {
   const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -848,6 +859,7 @@ export function GenerationCard({
   };
 
   return (
+    <TooltipProvider>
     <>
       <div
         ref={setNodeRef}
@@ -925,41 +937,43 @@ export function GenerationCard({
             <div className="flex items-center gap-[clamp(4px,1.2cqw,8px)]">
               {/* Fullscreen (Success only) */}
               {generation.status === 'succeeded' && (
-                <button
-                  onClick={e => {
-                    e.stopPropagation();
-                    setShowPopup(true);
-                    setIsFullscreen(true);
-                  }}
-                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-white/20"
-                  title="Fullscreen"
-                  aria-label="View fullscreen"
-                >
-                  <Maximize2 className="h-[60%] w-[60%] text-white" />
-                </button>
+                <Tooltip content="Fullscreen" side="top">
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      setShowPopup(true);
+                      setIsFullscreen(true);
+                    }}
+                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-white/20"
+                    aria-label="View fullscreen"
+                  >
+                    <Maximize2 className="h-[60%] w-[60%] text-white" />
+                  </button>
+                </Tooltip>
               )}
 
               {/* Upscale (Success + Image only) - Radix Portal Dropdown */}
               {generation.status === 'succeeded' && !isVideo && onUpscale && (
                 <DropdownMenu.Root open={showUpscaleMenu} onOpenChange={setShowUpscaleMenu}>
-                  <DropdownMenu.Trigger asChild>
-                    <button
-                      onClick={e => e.stopPropagation()}
-                      onPointerDown={e => e.stopPropagation()}
-                      className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-green-600/80 backdrop-blur-sm transition-colors hover:bg-green-500"
-                      title="Upscale"
-                      aria-label="Upscale image"
-                    >
-                      <ZoomIn className="h-[60%] w-[60%] text-white" />
-                    </button>
-                  </DropdownMenu.Trigger>
+                  <Tooltip content="Upscale" side="top">
+                    <DropdownMenu.Trigger asChild>
+                      <button
+                        onClick={e => e.stopPropagation()}
+                        onPointerDown={e => e.stopPropagation()}
+                        className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-green-600/80 backdrop-blur-sm transition-colors hover:bg-green-500"
+                        aria-label="Upscale image"
+                      >
+                        <ZoomIn className="h-[60%] w-[60%] text-white" />
+                      </button>
+                    </DropdownMenu.Trigger>
+                  </Tooltip>
 
                   <AnimatePresence>
                     {showUpscaleMenu && (
                       <DropdownMenu.Portal forceMount>
                         <DropdownMenu.Content
                           asChild
-                          side="bottom"
+                          side="top"
                           align="end"
                           sideOffset={6}
                           onClick={e => e.stopPropagation()}
@@ -998,33 +1012,83 @@ export function GenerationCard({
 
               {/* Animate (Success + Image only) */}
               {generation.status === 'succeeded' && !isVideo && onAnimate && (
-                <button
-                  onClick={e => {
-                    e.stopPropagation();
-                    if (mediaUrl) onAnimate(mediaUrl);
-                  }}
-                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-purple-600/80 backdrop-blur-sm transition-colors hover:bg-purple-500"
-                  title="Animate"
-                  aria-label="Animate image"
-                >
-                  <Play className="h-[60%] w-[60%] fill-current text-white" />
-                </button>
+                <Tooltip content="Animate" side="top">
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      if (mediaUrl) onAnimate(mediaUrl);
+                    }}
+                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-purple-600/80 backdrop-blur-sm transition-colors hover:bg-purple-500"
+                    aria-label="Animate image"
+                  >
+                    <Play className="h-[60%] w-[60%] fill-current text-white" />
+                  </button>
+                </Tooltip>
+              )}
+
+              {/* Find Similar Composition (Success + Image only) */}
+              {generation.status === 'succeeded' && !isVideo && onFindSimilarComposition && (
+                <Tooltip content="Find Similar Composition" side="top">
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      onFindSimilarComposition(generation.id);
+                    }}
+                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-purple-500/50"
+                    aria-label="Find images with similar framing and composition"
+                  >
+                    <Layers className="h-[60%] w-[60%] text-white" />
+                  </button>
+                </Tooltip>
+              )}
+
+              {/* Find Similar Lighting (Success + Image only) */}
+              {generation.status === 'succeeded' && !isVideo && onFindSimilarLighting && (
+                <Tooltip content="Find Similar Lighting" side="top">
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      onFindSimilarLighting(generation.id);
+                    }}
+                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-amber-500/50"
+                    aria-label="Find images with similar lighting setup"
+                  >
+                    <Sun className="h-[60%] w-[60%] text-white" />
+                  </button>
+                </Tooltip>
+              )}
+
+              {/* Find Similar Visual (CLIP Vector - Success + Image only) */}
+              {generation.status === 'succeeded' && !isVideo && onFindSimilarVisual && (
+                <Tooltip content="Find Similar (AI Vision)" side="top">
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      onFindSimilarVisual(generation.id);
+                    }}
+                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-cyan-500/50"
+                    aria-label="Find visually similar images using AI"
+                  >
+                    <Eye className="h-[60%] w-[60%] text-white" />
+                  </button>
+                </Tooltip>
               )}
 
               {/* Enhance Video Menu (Success + Video only) - Radix Portal Dropdown */}
               {generation.status === 'succeeded' && isVideo && onEnhanceVideo && (
                 <DropdownMenu.Root open={showEnhanceMenu} onOpenChange={setShowEnhanceMenu}>
-                  <DropdownMenu.Trigger asChild>
-                    <button
-                      onClick={e => e.stopPropagation()}
-                      onPointerDown={e => e.stopPropagation()}
-                      className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-gradient-to-r from-purple-600/80 to-pink-600/80 backdrop-blur-sm transition-colors hover:from-purple-500 hover:to-pink-500 focus:ring-2 focus:ring-purple-400 focus:outline-none"
-                      aria-label="Enhance video options"
-                      title="Enhance video"
-                    >
-                      <Wand2 className="h-[60%] w-[60%] text-white" />
-                    </button>
-                  </DropdownMenu.Trigger>
+                  <Tooltip content="Enhance video" side="top">
+                    <DropdownMenu.Trigger asChild>
+                      <button
+                        onClick={e => e.stopPropagation()}
+                        onPointerDown={e => e.stopPropagation()}
+                        className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-gradient-to-r from-purple-600/80 to-pink-600/80 backdrop-blur-sm transition-colors hover:from-purple-500 hover:to-pink-500 focus:ring-2 focus:ring-purple-400 focus:outline-none"
+                        aria-label="Enhance video options"
+                      >
+                        <Wand2 className="h-[60%] w-[60%] text-white" />
+                      </button>
+                    </DropdownMenu.Trigger>
+                  </Tooltip>
 
                   <AnimatePresence>
                     {showEnhanceMenu && (
@@ -1073,77 +1137,101 @@ export function GenerationCard({
 
               {/* Roto & Paint (Success + Image only) */}
               {generation.status === 'succeeded' && !isVideo && mediaUrl && (
-                <button
-                  onClick={e => {
-                    e.stopPropagation();
-                    // Encode the URL for safe passing via query params
-                    const encodedUrl = encodeURIComponent(mediaUrl);
-                    router.push(
-                      `/projects/${generation.projectId}/process?url=${encodedUrl}&tool=eraser`
-                    );
-                  }}
-                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-orange-600/80 backdrop-blur-sm transition-colors hover:bg-orange-500"
-                  title="Roto & Paint"
-                  aria-label="Edit in Roto & Paint"
-                >
-                  <Paintbrush className="h-[60%] w-[60%] text-white" />
-                </button>
+                <Tooltip content="Roto & Paint" side="top">
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      // Encode the URL for safe passing via query params
+                      const encodedUrl = encodeURIComponent(mediaUrl);
+                      router.push(
+                        `/projects/${generation.projectId}/process?url=${encodedUrl}&tool=eraser`
+                      );
+                    }}
+                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-orange-600/80 backdrop-blur-sm transition-colors hover:bg-orange-500"
+                    aria-label="Edit in Roto & Paint"
+                  >
+                    <Paintbrush className="h-[60%] w-[60%] text-white" />
+                  </button>
+                </Tooltip>
+              )}
+
+              {/* Set Extension / Outpaint (Success + Image only) */}
+              {generation.status === 'succeeded' && !isVideo && mediaUrl && (
+                <Tooltip content="Set Extension" side="top">
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      const encodedUrl = encodeURIComponent(mediaUrl);
+                      router.push(
+                        `/projects/${generation.projectId}/process?url=${encodedUrl}&tool=extend`
+                      );
+                    }}
+                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-teal-600/80 backdrop-blur-sm transition-colors hover:bg-teal-500"
+                    aria-label="Extend image (Infinite Canvas)"
+                  >
+                    <Expand className="h-[60%] w-[60%] text-white" />
+                  </button>
+                </Tooltip>
               )}
 
               {/* Rotoscope (Success + Video only) */}
               {generation.status === 'succeeded' && isVideo && mediaUrl && (
-                <button
-                  onClick={e => {
-                    e.stopPropagation();
-                    const encodedUrl = encodeURIComponent(mediaUrl);
-                    router.push(
-                      `/projects/${generation.projectId}/process?video=${encodedUrl}&tool=rotoscope`
-                    );
-                  }}
-                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-cyan-600/80 backdrop-blur-sm transition-colors hover:bg-cyan-500"
-                  title="Rotoscope"
-                  aria-label="Edit in Rotoscope"
-                >
-                  <Film className="h-[60%] w-[60%] text-white" />
-                </button>
+                <Tooltip content="Rotoscope" side="top">
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      const encodedUrl = encodeURIComponent(mediaUrl);
+                      router.push(
+                        `/projects/${generation.projectId}/process?video=${encodedUrl}&tool=rotoscope`
+                      );
+                    }}
+                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-cyan-600/80 backdrop-blur-sm transition-colors hover:bg-cyan-500"
+                    aria-label="Edit in Rotoscope"
+                  >
+                    <Film className="h-[60%] w-[60%] text-white" />
+                  </button>
+                </Tooltip>
               )}
 
               {/* Save as Element (Success only) */}
               {generation.status === 'succeeded' && onSaveAsElement && (
-                <button
-                  onClick={e => {
-                    e.stopPropagation();
-                    if (mediaUrl) onSaveAsElement(mediaUrl, isVideo ? 'video' : 'image');
-                  }}
-                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-blue-500/50"
-                  title="Save as Element"
-                  aria-label="Save as Element"
-                >
-                  <FilePlus className="h-[60%] w-[60%] text-white" />
-                </button>
+                <Tooltip content="Save as Element" side="top">
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      if (mediaUrl) onSaveAsElement(mediaUrl, isVideo ? 'video' : 'image');
+                    }}
+                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-blue-500/50"
+                    aria-label="Save as Element"
+                  >
+                    <FilePlus className="h-[60%] w-[60%] text-white" />
+                  </button>
+                </Tooltip>
               )}
 
               {/* Download (Success only) */}
               {generation.status === 'succeeded' && (
-                <button
-                  onClick={handleDownload}
-                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-white/20"
-                  title="Download"
-                  aria-label="Download media"
-                >
-                  <Download className="h-[60%] w-[60%] text-white" />
-                </button>
+                <Tooltip content="Download" side="top">
+                  <button
+                    onClick={handleDownload}
+                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-white/20"
+                    aria-label="Download media"
+                  >
+                    <Download className="h-[60%] w-[60%] text-white" />
+                  </button>
+                </Tooltip>
               )}
 
               {/* Delete (ALWAYS VISIBLE) */}
-              <button
-                onClick={handleDelete}
-                className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-red-500/50"
-                title="Delete"
-                aria-label="Delete generation"
-              >
-                <Trash2 className="h-[60%] w-[60%] text-red-400" />
-              </button>
+              <Tooltip content="Delete" side="top">
+                <button
+                  onClick={handleDelete}
+                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-red-500/50"
+                  aria-label="Delete generation"
+                >
+                  <Trash2 className="h-[60%] w-[60%] text-red-400" />
+                </button>
+              </Tooltip>
             </div>
           </div>
 
@@ -1365,22 +1453,25 @@ export function GenerationCard({
                 >
                   {/* Top buttons row */}
                   <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-                    <button
-                      onClick={() => setIsFullscreen(!isFullscreen)}
-                      className="rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-white/20"
-                      title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-                    >
-                      <Maximize2 className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowPopup(false);
-                        setIsFullscreen(false);
-                      }}
-                      className="rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-white/20"
-                    >
-                      <X className="h-6 w-6" />
-                    </button>
+                    <Tooltip content={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} side="top">
+                      <button
+                        onClick={() => setIsFullscreen(!isFullscreen)}
+                        className="rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-white/20"
+                      >
+                        <Maximize2 className="h-5 w-5" />
+                      </button>
+                    </Tooltip>
+                    <Tooltip content="Close" side="top">
+                      <button
+                        onClick={() => {
+                          setShowPopup(false);
+                          setIsFullscreen(false);
+                        }}
+                        className="rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-white/20"
+                      >
+                        <X className="h-6 w-6" />
+                      </button>
+                    </Tooltip>
                   </div>
 
                   {/* Fullscreen mode - just show the image/video */}
@@ -1441,38 +1532,40 @@ export function GenerationCard({
                               <h3 className="text-lg font-bold text-white">What Went Wrong</h3>
                               <div className="flex gap-3">
                                 {/* Copy Recipe Button */}
-                                <button
-                                  onClick={handleCopyRecipe}
-                                  className="flex items-center gap-1.5 text-sm font-medium text-gray-400 transition-colors hover:text-white"
-                                  title="Copy recipe as JSON"
-                                >
-                                  <Copy className="h-3.5 w-3.5" />
-                                  Copy
-                                </button>
+                                <Tooltip content="Copy recipe as JSON" side="top">
+                                  <button
+                                    onClick={handleCopyRecipe}
+                                    className="flex items-center gap-1.5 text-sm font-medium text-gray-400 transition-colors hover:text-white"
+                                  >
+                                    <Copy className="h-3.5 w-3.5" />
+                                    Copy
+                                  </button>
+                                </Tooltip>
                                 {/* Fork Recipe Button */}
                                 {onUseSettings && (
-                                  <button
-                                    onClick={handleRestoreSettings}
-                                    className={clsx(
-                                      'flex items-center gap-1.5 text-sm font-medium transition-all duration-200',
-                                      isRestoring
-                                        ? 'scale-105 text-green-400'
-                                        : 'text-purple-400 hover:text-purple-300'
-                                    )}
-                                    title="Fork this recipe - load settings and retry"
-                                  >
-                                    {isRestoring ? (
-                                      <>
-                                        <Check className="h-3.5 w-3.5" />
-                                        Forked!
-                                      </>
-                                    ) : (
-                                      <>
-                                        <GitFork className="h-3.5 w-3.5" />
-                                        Fork & Retry
-                                      </>
-                                    )}
-                                  </button>
+                                  <Tooltip content="Fork this recipe - load settings and retry" side="top">
+                                    <button
+                                      onClick={handleRestoreSettings}
+                                      className={clsx(
+                                        'flex items-center gap-1.5 text-sm font-medium transition-all duration-200',
+                                        isRestoring
+                                          ? 'scale-105 text-green-400'
+                                          : 'text-purple-400 hover:text-purple-300'
+                                      )}
+                                    >
+                                      {isRestoring ? (
+                                        <>
+                                          <Check className="h-3.5 w-3.5" />
+                                          Forked!
+                                        </>
+                                      ) : (
+                                        <>
+                                          <GitFork className="h-3.5 w-3.5" />
+                                          Fork & Retry
+                                        </>
+                                      )}
+                                    </button>
+                                  </Tooltip>
                                 )}
                               </div>
                             </div>
@@ -1579,38 +1672,40 @@ export function GenerationCard({
                               <h3 className="text-lg font-bold text-white">Generation Details</h3>
                               <div className="flex gap-3">
                                 {/* Copy Recipe Button */}
-                                <button
-                                  onClick={handleCopyRecipe}
-                                  className="flex items-center gap-1.5 text-sm font-medium text-gray-400 transition-colors hover:text-white"
-                                  title="Copy recipe as JSON"
-                                >
-                                  <Copy className="h-3.5 w-3.5" />
-                                  Copy
-                                </button>
+                                <Tooltip content="Copy recipe as JSON" side="top">
+                                  <button
+                                    onClick={handleCopyRecipe}
+                                    className="flex items-center gap-1.5 text-sm font-medium text-gray-400 transition-colors hover:text-white"
+                                  >
+                                    <Copy className="h-3.5 w-3.5" />
+                                    Copy
+                                  </button>
+                                </Tooltip>
                                 {/* Fork Recipe Button */}
                                 {onUseSettings && (
-                                  <button
-                                    onClick={handleRestoreSettings}
-                                    className={clsx(
-                                      'flex items-center gap-1.5 text-sm font-medium transition-all duration-200',
-                                      isRestoring
-                                        ? 'scale-105 text-green-400'
-                                        : 'text-purple-400 hover:text-purple-300'
-                                    )}
-                                    title="Fork this recipe - load exact settings into generator"
-                                  >
-                                    {isRestoring ? (
-                                      <>
-                                        <Check className="h-3.5 w-3.5" />
-                                        Forked!
-                                      </>
-                                    ) : (
-                                      <>
-                                        <GitFork className="h-3.5 w-3.5" />
-                                        Fork Recipe
-                                      </>
-                                    )}
-                                  </button>
+                                  <Tooltip content="Fork this recipe - load exact settings into generator" side="top">
+                                    <button
+                                      onClick={handleRestoreSettings}
+                                      className={clsx(
+                                        'flex items-center gap-1.5 text-sm font-medium transition-all duration-200',
+                                        isRestoring
+                                          ? 'scale-105 text-green-400'
+                                          : 'text-purple-400 hover:text-purple-300'
+                                      )}
+                                    >
+                                      {isRestoring ? (
+                                        <>
+                                          <Check className="h-3.5 w-3.5" />
+                                          Forked!
+                                        </>
+                                      ) : (
+                                        <>
+                                          <GitFork className="h-3.5 w-3.5" />
+                                          Fork Recipe
+                                        </>
+                                      )}
+                                    </button>
+                                  </Tooltip>
                                 )}
                                 <button
                                   onClick={() => setIsEditing(!isEditing)}
@@ -1781,20 +1876,22 @@ export function GenerationCard({
                                             <span className="text-xs text-gray-500">
                                               Was this helpful?
                                             </span>
-                                            <button
-                                              onClick={() => handleCritiqueFeedback(true)}
-                                              className="rounded bg-green-500/10 p-1.5 text-green-400 transition-colors hover:bg-green-500/30"
-                                              title="Yes, this was helpful"
-                                            >
-                                              <ThumbsUp className="h-3.5 w-3.5" />
-                                            </button>
-                                            <button
-                                              onClick={() => handleCritiqueFeedback(false)}
-                                              className="rounded bg-red-500/10 p-1.5 text-red-400 transition-colors hover:bg-red-500/30"
-                                              title="No, this was wrong"
-                                            >
-                                              <ThumbsDown className="h-3.5 w-3.5" />
-                                            </button>
+                                            <Tooltip content="Yes, this was helpful" side="top">
+                                              <button
+                                                onClick={() => handleCritiqueFeedback(true)}
+                                                className="rounded bg-green-500/10 p-1.5 text-green-400 transition-colors hover:bg-green-500/30"
+                                              >
+                                                <ThumbsUp className="h-3.5 w-3.5" />
+                                              </button>
+                                            </Tooltip>
+                                            <Tooltip content="No, this was wrong" side="top">
+                                              <button
+                                                onClick={() => handleCritiqueFeedback(false)}
+                                                className="rounded bg-red-500/10 p-1.5 text-red-400 transition-colors hover:bg-red-500/30"
+                                              >
+                                                <ThumbsDown className="h-3.5 w-3.5" />
+                                              </button>
+                                            </Tooltip>
                                           </div>
                                         )}
 
@@ -1940,12 +2037,11 @@ export function GenerationCard({
                                               key={id}
                                               className="flex items-center justify-between rounded bg-white/5 px-2 py-0.5 text-[10px] text-gray-400"
                                             >
-                                              <span
-                                                className="max-w-[80px] truncate"
-                                                title={element?.name || id}
-                                              >
-                                                {name}
-                                              </span>
+                                              <Tooltip content={element?.name || id} side="left">
+                                                <span className="max-w-[80px] truncate">
+                                                  {name}
+                                                </span>
+                                              </Tooltip>
                                               <span className="ml-2 text-gray-300">
                                                 {Number(str).toFixed(2)}
                                               </span>
@@ -1991,5 +2087,6 @@ export function GenerationCard({
         )}
       </AnimatePresence>
     </>
+    </TooltipProvider>
   );
 }

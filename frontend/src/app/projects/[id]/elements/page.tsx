@@ -26,6 +26,7 @@ import { useParams } from 'next/navigation';
 
 import { useSession } from '@/context/SessionContext';
 import { SaveElementModal } from '@/components/generations/SaveElementModal';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 export default function ElementsPage() {
   const params = useParams();
@@ -374,29 +375,31 @@ export default function ElementsPage() {
 
   return (
     <div className="space-y-8 p-8 pb-20">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Elements</h1>
-          <p className="mt-2 text-gray-400">Manage your characters, props, and locations.</p>
+      <header className="flex items-center gap-4">
+        {/* Title section */}
+        <div className="shrink-0">
+          <h1 className="text-3xl font-bold tracking-tight">Elements</h1>
+          <p className="mt-1 text-sm text-gray-400">Manage your characters, props, and locations.</p>
         </div>
+
+        {/* Spacer to push buttons to the right */}
+        <div className="flex-1" />
+
+        {/* Sort, Filter, Select All buttons - matching Generate page styling */}
         <SortFilterHeader
           state={sortFilter}
           onChange={setSortFilter}
           availableTags={availableTags}
           availableSessions={sessions}
+          onSelectAll={elements.length > 0 ? (
+            selectedElementIds.length === sortedElements.length
+              ? deselectAllElements
+              : selectAllElements
+          ) : undefined}
+          selectAllLabel={
+            selectedElementIds.length === sortedElements.length ? 'Deselect All' : 'Select All'
+          }
         />
-        {elements.length > 0 && (
-          <button
-            onClick={
-              selectedElementIds.length === sortedElements.length
-                ? deselectAllElements
-                : selectAllElements
-            }
-            className="ml-4 text-sm text-blue-400 hover:text-blue-300"
-          >
-            {selectedElementIds.length === sortedElements.length ? 'Deselect All' : 'Select All'}
-          </button>
-        )}
       </header>
 
       {/* Upload Zone */}
@@ -509,14 +512,15 @@ export default function ElementsPage() {
               <Tag className="h-4 w-4" />
               Set Type
             </button>
-            <button
-              onClick={handleBatchCopyLinks}
-              className="flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/20"
-              title="Copy Links for JDownloader"
-            >
-              <Copy className="h-4 w-4" />
-              Copy Links
-            </button>
+            <Tooltip content="Copy Links for JDownloader" side="top">
+              <button
+                onClick={handleBatchCopyLinks}
+                className="flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/20"
+              >
+                <Copy className="h-4 w-4" />
+                Copy Links
+              </button>
+            </Tooltip>
             <button
               onClick={handleBatchDelete}
               className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/20"

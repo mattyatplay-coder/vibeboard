@@ -6,6 +6,7 @@ import { Plus, Play, Film, Clock, Loader2, ChevronLeft, Settings } from 'lucide-
 import { BACKEND_URL } from '@/lib/api';
 import StoryboardShot, { ShotData } from '@/components/storyboard/StoryboardShot';
 import { clsx } from 'clsx';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 interface SceneChain {
   id: string;
@@ -446,13 +447,14 @@ export default function StoryboardPage() {
                 <h2 className="text-sm font-semibold tracking-wider text-gray-400 uppercase">
                   Scenes
                 </h2>
-                <button
-                  onClick={() => setIsCreating(true)}
-                  className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-                  title="New Scene"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
+                <Tooltip content="New Scene" side="left">
+                  <button
+                    onClick={() => setIsCreating(true)}
+                    className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </Tooltip>
               </div>
 
               <div className="space-y-2">

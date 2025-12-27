@@ -15,6 +15,7 @@ import {
   Image,
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { Tooltip } from '@/components/ui/Tooltip';
 import {
   usePromptTreeStore,
   PromptNode,
@@ -217,37 +218,40 @@ export function PromptTreePanel({
 
           {/* Actions */}
           <div className="flex flex-shrink-0 items-start gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-            <button
-              onClick={e => {
-                e.stopPropagation();
-                setEditingLabel(node.id);
-                setLabelInput(node.label || '');
-              }}
-              className="rounded p-1 transition-colors hover:bg-white/10"
-              title="Add label"
-            >
-              <Tag className="h-3 w-3 text-gray-500" />
-            </button>
-            <button
-              onClick={e => {
-                e.stopPropagation();
-                handleCopyPrompt(node.prompt);
-              }}
-              className="rounded p-1 transition-colors hover:bg-white/10"
-              title="Copy prompt"
-            >
-              <Copy className="h-3 w-3 text-gray-500" />
-            </button>
-            <button
-              onClick={e => {
-                e.stopPropagation();
-                handleDeleteNode(node.id);
-              }}
-              className="rounded p-1 transition-colors hover:bg-red-500/20"
-              title="Delete"
-            >
-              <Trash2 className="h-3 w-3 text-red-400" />
-            </button>
+            <Tooltip content="Add label" side="top">
+              <button
+                onClick={e => {
+                  e.stopPropagation();
+                  setEditingLabel(node.id);
+                  setLabelInput(node.label || '');
+                }}
+                className="rounded p-1 transition-colors hover:bg-white/10"
+              >
+                <Tag className="h-3 w-3 text-gray-500" />
+              </button>
+            </Tooltip>
+            <Tooltip content="Copy prompt" side="top">
+              <button
+                onClick={e => {
+                  e.stopPropagation();
+                  handleCopyPrompt(node.prompt);
+                }}
+                className="rounded p-1 transition-colors hover:bg-white/10"
+              >
+                <Copy className="h-3 w-3 text-gray-500" />
+              </button>
+            </Tooltip>
+            <Tooltip content="Delete" side="top">
+              <button
+                onClick={e => {
+                  e.stopPropagation();
+                  handleDeleteNode(node.id);
+                }}
+                className="rounded p-1 transition-colors hover:bg-red-500/20"
+              >
+                <Trash2 className="h-3 w-3 text-red-400" />
+              </button>
+            </Tooltip>
           </div>
         </div>
 

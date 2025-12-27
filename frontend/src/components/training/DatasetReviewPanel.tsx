@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { fetchAPI } from '@/lib/api';
 import { Loader2, Trash2, AlertCircle, Check, Image as ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 interface DatasetImage {
   filename: string;
@@ -161,18 +162,19 @@ export function DatasetReviewPanel({ jobId, onComplete, datasetPath }: Props) {
 
             {/* Overlay */}
             <div className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
-              <button
-                onClick={() => handleDelete(img.filename)}
-                disabled={deleting === img.filename}
-                className="scale-90 transform rounded-full bg-red-500 p-3 text-white shadow-xl transition-all group-hover:scale-100 hover:bg-red-600"
-                title="Delete Image"
-              >
+              <Tooltip content="Delete Image" side="top">
+                <button
+                  onClick={() => handleDelete(img.filename)}
+                  disabled={deleting === img.filename}
+                  className="scale-90 transform rounded-full bg-red-500 p-3 text-white shadow-xl transition-all group-hover:scale-100 hover:bg-red-600"
+                >
                 {deleting === img.filename ? (
                   <Loader2 className="h-6 w-6 animate-spin" />
                 ) : (
                   <Trash2 className="h-6 w-6" />
                 )}
-              </button>
+                </button>
+              </Tooltip>
             </div>
 
             {/* Filename Tag */}

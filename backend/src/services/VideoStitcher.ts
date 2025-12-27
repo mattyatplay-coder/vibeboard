@@ -12,6 +12,28 @@ export interface StitchOptions {
     transitionDuration?: number; // Duration in seconds (default: 0.5)
 }
 
+/**
+ * Extended clip interface for L-Cut/J-Cut support
+ */
+export interface TimelineClip {
+    id: string;
+    videoPath: string;          // URL or local path
+    audioPath?: string;         // Separate audio if exists
+    duration: number;           // Total clip duration
+    trimStart: number;          // Video in-point (seconds)
+    trimEnd: number;            // Video out-point (seconds)
+    audioTrimStart: number;     // Audio in-point (may differ for L-Cut)
+    audioTrimEnd: number;       // Audio out-point
+    audioGain?: number;         // 0-2 volume multiplier (default 1)
+    avLinked?: boolean;         // Whether A/V are linked (default true)
+}
+
+export interface TimelineStitchOptions {
+    frameRate?: number;         // Output frame rate (default 24)
+    outputFormat?: 'h264' | 'prores422';
+    includeAudio?: boolean;     // Default true
+}
+
 export interface VideoMetadata {
     duration: number;
     width: number;
@@ -283,6 +305,252 @@ export class VideoStitcher {
         } catch (e) {
             console.error("[Stitcher] Cleanup failed:", e);
         }
+    }
+
+    /**
+     * Stitch timeline clips with L-Cut/J-Cut support
+     * Implements independent audio/video trimming for professional editing
+     *
+     * L-Cut Logic:
+     * - Audio offset = audioTrimStart - trimStart
+     * - If positive: audio starts AFTER video (L-cut: audio lags)
+     * - If negative: audio starts BEFORE video (J-cut: audio leads)
+     */
+    async stitchTimelineWithLCuts(
+        clips: TimelineClip[],
+        options: TimelineStitchOptions = {}
+    ): Promise<string> {
+        if (clips.length === 0) {
+            throw new Error("No clips to stitch");
+        }
+
+        const { frameRate = 24, outputFormat = 'h264', includeAudio = true } = options;
+
+        const jobId = uuidv4();
+        const jobDir = path.join(this.tempDir, jobId);
+        fs.mkdirSync(jobDir);
+
+        console.log(`[Stitcher] Starting L-Cut job ${jobId} with ${clips.length} clips`);
+
+        try {
+            // 1. Download/prepare all clips locally
+            const localClips: Array<TimelineClip & { localVideoPath: string; localAudioPath?: string }> = [];
+
+            for (let i = 0; i < clips.length; i++) {
+                const clip = clips[i];
+                const localVideoPath = path.join(jobDir, `clip_${i}_video.mp4`);
+
+                // Download or copy video
+                if (clip.videoPath.startsWith('http')) {
+                    console.log(`[Stitcher] Downloading clip ${i}: ${clip.videoPath.substring(0, 60)}...`);
+                    const response = await axios.get(clip.videoPath, { responseType: 'stream' });
+                    const writer = fs.createWriteStream(localVideoPath);
+                    response.data.pipe(writer);
+                    await new Promise<void>((resolve, reject) => {
+                        writer.on('finish', () => resolve());
+                        writer.on('error', reject);
+                    });
+                } else {
+                    fs.copyFileSync(clip.videoPath, localVideoPath);
+                }
+
+                let localAudioPath: string | undefined;
+                if (clip.audioPath) {
+                    localAudioPath = path.join(jobDir, `clip_${i}_audio.mp3`);
+                    if (clip.audioPath.startsWith('http')) {
+                        const response = await axios.get(clip.audioPath, { responseType: 'stream' });
+                        const writer = fs.createWriteStream(localAudioPath);
+                        response.data.pipe(writer);
+                        await new Promise<void>((resolve, reject) => {
+                            writer.on('finish', () => resolve());
+                            writer.on('error', reject);
+                        });
+                    } else {
+                        fs.copyFileSync(clip.audioPath, localAudioPath);
+                    }
+                }
+
+                localClips.push({
+                    ...clip,
+                    localVideoPath,
+                    localAudioPath,
+                });
+            }
+
+            // 2. Build FFmpeg complex filter graph
+            const { filter, outputLabels } = this.buildLCutFilterGraph(localClips, frameRate, includeAudio);
+
+            // 3. Execute FFmpeg
+            const outputPath = path.join(jobDir, 'output.mp4');
+            await this.executeLCutBake(localClips, filter, outputLabels, outputPath, frameRate, outputFormat, includeAudio);
+
+            console.log(`[Stitcher] L-Cut stitching complete: ${outputPath}`);
+            return outputPath;
+
+        } catch (error) {
+            console.error("[Stitcher] L-Cut error:", error);
+            fs.rmSync(jobDir, { recursive: true, force: true });
+            throw error;
+        }
+    }
+
+    /**
+     * Build FFmpeg complex filter graph for L-Cut support
+     */
+    private buildLCutFilterGraph(
+        clips: Array<TimelineClip & { localVideoPath: string; localAudioPath?: string }>,
+        frameRate: number,
+        includeAudio: boolean
+    ): { filter: string; outputLabels: { video: string; audio: string } } {
+        const filters: string[] = [];
+        const videoOutputs: string[] = [];
+        const audioOutputs: string[] = [];
+
+        let currentVideoCursor = 0; // Track global timeline position in seconds
+
+        clips.forEach((clip, index) => {
+            const videoDuration = clip.trimEnd - clip.trimStart;
+            const audioOffset = clip.audioTrimStart - clip.trimStart; // L-Cut offset
+
+            // === VIDEO PROCESSING ===
+            // Trim video, reset timestamps, enforce frame rate
+            filters.push(
+                `[${index}:v]trim=start=${clip.trimStart}:end=${clip.trimEnd},setpts=PTS-STARTPTS,fps=${frameRate}[v${index}]`
+            );
+            videoOutputs.push(`[v${index}]`);
+
+            if (includeAudio) {
+                // === AUDIO PROCESSING (L-Cut Logic) ===
+                // Calculate audio delay for global timeline position
+                let audioDelayMs = (currentVideoCursor + audioOffset) * 1000;
+                let audioTrimStart = clip.audioTrimStart;
+
+                // Handle negative delays (J-cut: audio leads video)
+                if (audioDelayMs < 0) {
+                    audioTrimStart += Math.abs(audioDelayMs / 1000);
+                    audioDelayMs = 0;
+                }
+
+                const audioGain = clip.audioGain ?? 1.0;
+
+                // Audio filter chain: trim -> volume -> delay
+                filters.push(
+                    `[${index}:a]atrim=start=${audioTrimStart}:end=${clip.audioTrimEnd},asetpts=PTS-STARTPTS,volume=${audioGain},adelay=${Math.floor(audioDelayMs)}|${Math.floor(audioDelayMs)}[a${index}]`
+                );
+                audioOutputs.push(`[a${index}]`);
+            }
+
+            // Advance timeline cursor
+            currentVideoCursor += videoDuration;
+        });
+
+        // === VIDEO CONCATENATION ===
+        if (clips.length > 1) {
+            filters.push(
+                `${videoOutputs.join('')}concat=n=${clips.length}:v=1:a=0[outv]`
+            );
+        } else {
+            filters.push(`[v0]copy[outv]`);
+        }
+
+        // === AUDIO MIXING ===
+        if (includeAudio) {
+            if (clips.length > 1) {
+                // Mix all audio streams (handles overlapping audio from L/J-cuts)
+                filters.push(
+                    `${audioOutputs.join('')}amix=inputs=${clips.length}:duration=longest:dropout_transition=0.1,apad=whole_dur=${currentVideoCursor}[outa]`
+                );
+            } else {
+                filters.push(`[a0]apad=whole_dur=${currentVideoCursor}[outa]`);
+            }
+        }
+
+        return {
+            filter: filters.join(';'),
+            outputLabels: { video: 'outv', audio: includeAudio ? 'outa' : '' },
+        };
+    }
+
+    /**
+     * Execute FFmpeg with L-Cut filter graph
+     */
+    private async executeLCutBake(
+        clips: Array<TimelineClip & { localVideoPath: string; localAudioPath?: string }>,
+        filterComplex: string,
+        outputLabels: { video: string; audio: string },
+        outputPath: string,
+        frameRate: number,
+        outputFormat: string,
+        includeAudio: boolean
+    ): Promise<void> {
+        return new Promise((resolve, reject) => {
+            let cmd = ffmpeg();
+
+            // Add all input files
+            for (const clip of clips) {
+                cmd = cmd.input(clip.localVideoPath);
+                if (clip.localAudioPath) {
+                    cmd = cmd.input(clip.localAudioPath);
+                }
+            }
+
+            // Build output options
+            const outputOptions: string[] = [
+                '-map', `[${outputLabels.video}]`,
+            ];
+
+            if (includeAudio && outputLabels.audio) {
+                outputOptions.push('-map', `[${outputLabels.audio}]`);
+            }
+
+            // Encoding settings based on format
+            if (outputFormat === 'prores422') {
+                outputOptions.push(
+                    '-c:v', 'prores_ks',
+                    '-profile:v', '3', // ProRes 422 HQ
+                    '-pix_fmt', 'yuv422p10le',
+                    '-r', String(frameRate),
+                    '-vsync', 'cfr'
+                );
+                if (includeAudio) {
+                    outputOptions.push('-c:a', 'pcm_s16le');
+                }
+            } else {
+                // H.264
+                outputOptions.push(
+                    '-c:v', 'libx264',
+                    '-preset', 'fast',
+                    '-crf', '18',
+                    '-pix_fmt', 'yuv420p',
+                    '-r', String(frameRate),
+                    '-vsync', 'cfr'
+                );
+                if (includeAudio) {
+                    outputOptions.push('-c:a', 'aac', '-b:a', '192k');
+                }
+            }
+
+            console.log(`[Stitcher] Executing L-Cut bake with ${clips.length} clips...`);
+            console.log(`[Stitcher] Filter graph: ${filterComplex.substring(0, 200)}...`);
+
+            cmd
+                .complexFilter(filterComplex)
+                .outputOptions(outputOptions)
+                .save(outputPath)
+                .on('progress', (progress) => {
+                    if (progress.percent) {
+                        console.log(`[Stitcher] Progress: ${Math.round(progress.percent)}%`);
+                    }
+                })
+                .on('end', () => {
+                    console.log('[Stitcher] L-Cut bake complete');
+                    resolve();
+                })
+                .on('error', (err) => {
+                    console.error('[Stitcher] L-Cut ffmpeg error:', err);
+                    reject(err);
+                });
+        });
     }
 }
 

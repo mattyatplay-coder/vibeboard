@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Aperture, Camera, ChevronDown, Info, Sparkles, X } from 'lucide-react';
 import { clsx } from 'clsx';
+import { Tooltip } from '@/components/ui/Tooltip';
 import {
   LENS_PRESETS,
   LENS_EFFECTS,
@@ -57,33 +58,34 @@ export function LensKitSelector({
   // Compact button for toolbar
   if (!isOpen && !embedded) {
     return (
-      <button
-        onClick={() => setIsOpen(true)}
-        className={clsx(
-          'flex h-10 items-center gap-2 rounded-xl border px-3 transition-all hover:scale-105',
-          isAnamorphic
-            ? 'border-blue-500/30 bg-blue-500/10 text-blue-400'
-            : selectedLens
-              ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-400'
-              : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
-        )}
-        title="Lens Kit - Focal Length & Anamorphic"
-      >
-        <Aperture className="h-4 w-4" />
-        <span className="text-xs font-medium">
-          {selectedLens ? selectedLens.focalLength : 'Lens Kit'}
-        </span>
-        {isAnamorphic && (
-          <span className="rounded-full bg-blue-500/30 px-1.5 py-0.5 text-[10px] text-blue-300">
-            ANAMORPHIC
+      <Tooltip content="Lens Kit - Focal Length & Anamorphic" side="top">
+        <button
+          onClick={() => setIsOpen(true)}
+          className={clsx(
+            'flex h-10 items-center gap-2 rounded-xl border px-3 transition-all hover:scale-105',
+            isAnamorphic
+              ? 'border-blue-500/30 bg-blue-500/10 text-blue-400'
+              : selectedLens
+                ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-400'
+                : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+          )}
+        >
+          <Aperture className="h-4 w-4" />
+          <span className="text-xs font-medium">
+            {selectedLens ? selectedLens.focalLength : 'Lens Kit'}
           </span>
-        )}
-        {selectedEffects.length > 0 && (
-          <span className="rounded-full bg-cyan-500/30 px-1.5 py-0.5 text-[10px]">
-            +{selectedEffects.length}
-          </span>
-        )}
-      </button>
+          {isAnamorphic && (
+            <span className="rounded-full bg-blue-500/30 px-1.5 py-0.5 text-[10px] text-blue-300">
+              ANAMORPHIC
+            </span>
+          )}
+          {selectedEffects.length > 0 && (
+            <span className="rounded-full bg-cyan-500/30 px-1.5 py-0.5 text-[10px]">
+              +{selectedEffects.length}
+            </span>
+          )}
+        </button>
+      </Tooltip>
     );
   }
 
@@ -163,18 +165,18 @@ export function LensKitSelector({
           {LENS_PRESETS.map(lens => {
             const position = ((lens.focalMm - 14) / (135 - 14)) * 100;
             return (
-              <button
-                key={lens.id}
-                onClick={() => onLensChange(selectedLens?.id === lens.id ? null : lens)}
-                className={clsx(
-                  'absolute top-1/2 h-6 w-3 -translate-y-1/2 rounded-sm transition-all hover:scale-125',
-                  selectedLens?.id === lens.id
-                    ? 'bg-cyan-400 shadow-lg shadow-cyan-500/50'
-                    : 'bg-white/40 hover:bg-white/70'
-                )}
-                style={{ left: `calc(${position}% - 6px)` }}
-                title={lens.name}
-              />
+              <Tooltip key={lens.id} content={lens.name} side="top">
+                <button
+                  onClick={() => onLensChange(selectedLens?.id === lens.id ? null : lens)}
+                  className={clsx(
+                    'absolute top-1/2 h-6 w-3 -translate-y-1/2 rounded-sm transition-all hover:scale-125',
+                    selectedLens?.id === lens.id
+                      ? 'bg-cyan-400 shadow-lg shadow-cyan-500/50'
+                      : 'bg-white/40 hover:bg-white/70'
+                  )}
+                  style={{ left: `calc(${position}% - 6px)` }}
+                />
+              </Tooltip>
             );
           })}
         </div>

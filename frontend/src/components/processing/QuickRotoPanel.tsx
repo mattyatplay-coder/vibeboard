@@ -17,6 +17,7 @@ import {
   Maximize2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 const MAX_HISTORY = 10;
 const ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
@@ -667,36 +668,40 @@ export function QuickRotoPanel({ initialVideoUrl }: QuickRotoPanelProps) {
           {/* Zoom Controls */}
           {firstFrame && (
             <div className="absolute top-2 right-2 z-30 flex items-center gap-1 rounded-lg bg-black/70 p-1 backdrop-blur-sm">
-              <button
-                onClick={handleZoomOut}
-                disabled={zoomLevel === ZOOM_LEVELS[0]}
-                className="rounded p-1.5 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
-                title="Zoom Out"
-              >
-                <ZoomOut className="h-4 w-4 text-white" />
-              </button>
-              <button
-                onClick={handleZoomReset}
-                className="min-w-[50px] rounded px-2 py-1 text-xs text-white hover:bg-white/10"
-                title="Reset Zoom"
-              >
-                {Math.round(zoomLevel * 100)}%
-              </button>
-              <button
-                onClick={handleZoomIn}
-                disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
-                className="rounded p-1.5 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
-                title="Zoom In"
-              >
-                <ZoomIn className="h-4 w-4 text-white" />
-              </button>
-              <button
-                onClick={handleZoomReset}
-                className="ml-1 rounded border-l border-white/20 p-1.5 hover:bg-white/10"
-                title="Fit to View"
-              >
-                <Maximize2 className="h-4 w-4 text-white" />
-              </button>
+              <Tooltip content="Zoom Out" side="top">
+                <button
+                  onClick={handleZoomOut}
+                  disabled={zoomLevel === ZOOM_LEVELS[0]}
+                  className="rounded p-1.5 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <ZoomOut className="h-4 w-4 text-white" />
+                </button>
+              </Tooltip>
+              <Tooltip content="Reset Zoom" side="top">
+                <button
+                  onClick={handleZoomReset}
+                  className="min-w-[50px] rounded px-2 py-1 text-xs text-white hover:bg-white/10"
+                >
+                  {Math.round(zoomLevel * 100)}%
+                </button>
+              </Tooltip>
+              <Tooltip content="Zoom In" side="top">
+                <button
+                  onClick={handleZoomIn}
+                  disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
+                  className="rounded p-1.5 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <ZoomIn className="h-4 w-4 text-white" />
+                </button>
+              </Tooltip>
+              <Tooltip content="Fit to View" side="top">
+                <button
+                  onClick={handleZoomReset}
+                  className="ml-1 rounded border-l border-white/20 p-1.5 hover:bg-white/10"
+                >
+                  <Maximize2 className="h-4 w-4 text-white" />
+                </button>
+              </Tooltip>
             </div>
           )}
 

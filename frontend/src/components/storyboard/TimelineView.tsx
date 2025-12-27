@@ -18,6 +18,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Plus, GripVertical, Wand2, Play, MoreVertical } from 'lucide-react';
 import { fetchAPI } from '@/lib/api';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 interface TimelineViewProps {
   scenes: any[];
@@ -94,14 +95,15 @@ export function TimelineView({ scenes, projectId, onUpdate }: TimelineViewProps)
 
                   {/* Bridge Button (between shots) */}
                   {index < allShots.length - 1 && (
-                    <button
-                      onClick={() => handleBridge(index)}
-                      className="group relative flex h-8 w-8 items-center justify-center rounded-full bg-white/5 transition-all hover:bg-purple-500/20"
-                      title="Generate Bridge (Transition)"
-                    >
-                      <div className="absolute inset-0 scale-0 rounded-full bg-purple-500/20 transition-transform group-hover:scale-100" />
-                      <Wand2 className="relative z-10 h-4 w-4 text-gray-500 group-hover:text-purple-400" />
-                    </button>
+                    <Tooltip content="Generate Bridge (Transition)" side="top">
+                      <button
+                        onClick={() => handleBridge(index)}
+                        className="group relative flex h-8 w-8 items-center justify-center rounded-full bg-white/5 transition-all hover:bg-purple-500/20"
+                      >
+                        <div className="absolute inset-0 scale-0 rounded-full bg-purple-500/20 transition-transform group-hover:scale-100" />
+                        <Wand2 className="relative z-10 h-4 w-4 text-gray-500 group-hover:text-purple-400" />
+                      </button>
+                    </Tooltip>
                   )}
                 </React.Fragment>
               ))}

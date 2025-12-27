@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { fetchAPI } from '@/lib/api';
 import { clsx } from 'clsx';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 interface MagicPromptButtonProps {
   currentPrompt: string;
@@ -61,25 +62,21 @@ export function MagicPromptButton({
   };
 
   return (
-    <button
-      type="button"
-      onClick={handleEnhance}
-      disabled={isLoading || !currentPrompt.trim()}
-      className={clsx(
-        'group relative rounded-lg p-2 transition-all',
-        isLoading
-          ? 'bg-purple-500/20 text-purple-300'
-          : 'text-gray-400 hover:bg-purple-500/20 hover:text-purple-300',
-        className
-      )}
-      title="Enhance Prompt with AI"
-    >
-      {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
-
-      {/* Tooltip */}
-      <span className="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded bg-black/90 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity group-hover:opacity-100">
-        Magic Enhance
-      </span>
-    </button>
+    <Tooltip content="Enhance Prompt with AI" side="top">
+      <button
+        type="button"
+        onClick={handleEnhance}
+        disabled={isLoading || !currentPrompt.trim()}
+        className={clsx(
+          'relative rounded-lg p-2 transition-all',
+          isLoading
+            ? 'bg-purple-500/20 text-purple-300'
+            : 'text-gray-400 hover:bg-purple-500/20 hover:text-purple-300',
+          className
+        )}
+      >
+        {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+      </button>
+    </Tooltip>
   );
 }

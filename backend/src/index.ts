@@ -23,11 +23,18 @@ import continuityRoutes from './routes/continuityRoutes';
 import lightingRoutes from './routes/lightingRoutes';
 import renderQueueRoutes from './routes/renderQueueRoutes';
 import searchRoutes from './routes/searchRoutes';
+import trackingRoutes from './routes/trackingRoutes';
+import acousticRoutes from './routes/acousticRoutes';
+import alphaChannelRoutes from './routes/alphaChannelRoutes';
+import dashboardRoutes from './routes/dashboardRoutes';
+import exportRoutes from './routes/exportRoutes';
+import propRoutes from './routes/propRoutes';
 import path from 'path';
 import { validateStorage, getStorageStatus } from './utils/storageValidation';
 
 import processingRoutes from './routes/processingRoutes';
 import trainingRoutes from './routes/trainingRoutes';
+import { renderQueueService } from './services/rendering/RenderQueueService';
 
 // Validate storage before starting server
 try {
@@ -92,6 +99,22 @@ app.use('/api/lighting', lightingRoutes);
 app.use('/api/projects/:projectId/render-queue', renderQueueRoutes);
 // Semantic Search
 app.use('/api', searchRoutes);
+// Pro Trajectory Engine - Point Tracking
+app.use('/api/tracking', trackingRoutes);
+// Acoustic Studio - Lens-to-Reverb Mapping
+app.use('/api/acoustic', acousticRoutes);
+// Alpha Channel Exports - SAM 2 + PNG Sequence
+app.use('/api', alphaChannelRoutes);
+// Director's Dashboard Analytics
+app.use('/api', dashboardRoutes);
+// Master Export with L-Cut support
+app.use('/api/projects/:projectId/export', exportRoutes);
+app.use('/api/exports', exportRoutes);
+// Timeline routes (upload/bake for Quick Edit mode)
+app.use('/api/projects/:projectId/timeline', exportRoutes);
+// Module 7: The Prop Shop - Asset extraction and 3D proxies
+app.use('/api/projects/:projectId/props', propRoutes);
+app.use('/api/props', propRoutes);
 app.get('/api/elements', require('./controllers/elementController').getAllElements);
 
 app.get('/api/health', (req, res) => {
@@ -103,8 +126,18 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.listen(port, () => {
+app.listen(port, async () => {
   console.log(`[server]: Server is running at http://localhost:${port}`);
+
+  // Hydrate render queue from database (recover interrupted jobs)
+  try {
+    const { recoveredJobs, requeuedPasses } = await renderQueueService.hydrateQueue();
+    if (recoveredJobs > 0) {
+      console.log(`[server]: Recovered ${recoveredJobs} render jobs with ${requeuedPasses} pending passes`);
+    }
+  } catch (error) {
+    console.error('[server]: Failed to hydrate render queue:', error);
+  }
 });
 
 // Keep process alive

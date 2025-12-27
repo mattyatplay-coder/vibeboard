@@ -93,6 +93,17 @@ body {
   height: 0 !important;
 }
 
+/* Alias for scrollbar-hide (same as scrollbar-none) */
+.scrollbar-hide {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
 /* Proxy Placeholder Shimmer Animation */
 @keyframes shimmer {
   0% {

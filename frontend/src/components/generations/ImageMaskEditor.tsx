@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { X, Check, Eraser, Pencil, Undo } from 'lucide-react';
 import { clsx } from 'clsx';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 interface ImageMaskEditorProps {
   imageUrl: string;
@@ -211,26 +212,28 @@ export function ImageMaskEditor({
           <div className="flex items-center justify-between gap-4 border-t border-white/5 pt-4">
             <div className="flex items-center gap-4">
               <div className="flex rounded-lg bg-black/50 p-1">
-                <button
-                  onClick={() => setTool('brush')}
-                  className={clsx(
-                    'rounded-md p-2 transition-colors',
-                    tool === 'brush' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
-                  )}
-                  title="Brush (Mask)"
-                >
-                  <Pencil className="h-5 w-5" />
-                </button>
-                <button
-                  onClick={() => setTool('eraser')}
-                  className={clsx(
-                    'rounded-md p-2 transition-colors',
-                    tool === 'eraser' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
-                  )}
-                  title="Eraser (Unmask)"
-                >
-                  <Eraser className="h-5 w-5" />
-                </button>
+                <Tooltip content="Brush (Mask)" side="top">
+                  <button
+                    onClick={() => setTool('brush')}
+                    className={clsx(
+                      'rounded-md p-2 transition-colors',
+                      tool === 'brush' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                    )}
+                  >
+                    <Pencil className="h-5 w-5" />
+                  </button>
+                </Tooltip>
+                <Tooltip content="Eraser (Unmask)" side="top">
+                  <button
+                    onClick={() => setTool('eraser')}
+                    className={clsx(
+                      'rounded-md p-2 transition-colors',
+                      tool === 'eraser' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                    )}
+                  >
+                    <Eraser className="h-5 w-5" />
+                  </button>
+                </Tooltip>
               </div>
 
               <div className="flex items-center gap-2">

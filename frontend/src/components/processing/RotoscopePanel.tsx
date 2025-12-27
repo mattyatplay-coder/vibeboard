@@ -16,6 +16,7 @@ import {
   Minus,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { FrameTimeline, Frame } from './FrameTimeline';
 
 type InpaintingModelType = 'fast' | 'quality' | 'premium' | 'auto';
@@ -1121,13 +1122,14 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
               )}
               Export Video
             </button>
-            <button
-              onClick={handleCleanupSession}
-              className="rounded bg-red-600/30 p-1.5 text-red-400 hover:bg-red-600/50"
-              title="Clear session"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+            <Tooltip content="Clear session" side="top">
+              <button
+                onClick={handleCleanupSession}
+                className="rounded bg-red-600/30 p-1.5 text-red-400 hover:bg-red-600/50"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </Tooltip>
           </div>
         )}
       </div>
@@ -1350,15 +1352,16 @@ export function RotoscopePanel({ initialVideoUrl }: RotoscopePanelProps) {
                     Clear Mask
                   </button>
                   {selectedModel !== 'auto' && (
-                    <button
-                      onClick={handleUndoFrame}
-                      disabled={isProcessing || !frameHistory.has(currentFrameIndex)}
-                      className="flex flex-1 items-center justify-center gap-1 rounded bg-orange-600/80 py-2 text-xs font-bold text-white hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
-                      title="Restore original frame"
-                    >
-                      <Undo2 className="h-3 w-3" />
-                      Undo
-                    </button>
+                    <Tooltip content="Restore original frame" side="top">
+                      <button
+                        onClick={handleUndoFrame}
+                        disabled={isProcessing || !frameHistory.has(currentFrameIndex)}
+                        className="flex flex-1 items-center justify-center gap-1 rounded bg-orange-600/80 py-2 text-xs font-bold text-white hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Undo2 className="h-3 w-3" />
+                        Undo
+                      </button>
+                    </Tooltip>
                   )}
                 </div>
 

@@ -23,6 +23,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 const MAX_HISTORY = 10;
 const ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
@@ -946,20 +947,22 @@ export function MagicEraserPanel({ initialImageUrl }: MagicEraserPanelProps) {
                   {!showFeedbackInput ? (
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-gray-400">Was this helpful?</span>
-                      <button
-                        onClick={() => handleFeedback(true)}
-                        className="rounded p-1 text-green-400 transition-colors hover:bg-green-500/20"
-                        title="Yes, this was helpful"
-                      >
-                        <ThumbsUp className="h-3 w-3" />
-                      </button>
-                      <button
-                        onClick={() => setShowFeedbackInput(true)}
-                        className="rounded p-1 text-red-400 transition-colors hover:bg-red-500/20"
-                        title="No, AI got it wrong"
-                      >
-                        <ThumbsDown className="h-3 w-3" />
-                      </button>
+                      <Tooltip content="Yes, this was helpful" side="top">
+                        <button
+                          onClick={() => handleFeedback(true)}
+                          className="rounded p-1 text-green-400 transition-colors hover:bg-green-500/20"
+                        >
+                          <ThumbsUp className="h-3 w-3" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="No, AI got it wrong" side="top">
+                        <button
+                          onClick={() => setShowFeedbackInput(true)}
+                          className="rounded p-1 text-red-400 transition-colors hover:bg-red-500/20"
+                        >
+                          <ThumbsDown className="h-3 w-3" />
+                        </button>
+                      </Tooltip>
                     </div>
                   ) : (
                     <div className="space-y-1">
@@ -1207,36 +1210,40 @@ export function MagicEraserPanel({ initialImageUrl }: MagicEraserPanelProps) {
           {/* Zoom Controls - Fixed Position */}
           {baseImage && (
             <div className="absolute top-2 right-2 z-30 flex items-center gap-1 rounded-lg bg-black/70 p-1 backdrop-blur-sm">
-              <button
-                onClick={handleZoomOut}
-                disabled={zoomLevel === ZOOM_LEVELS[0]}
-                className="rounded p-1.5 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
-                title="Zoom Out"
-              >
-                <ZoomOut className="h-4 w-4 text-white" />
-              </button>
-              <button
-                onClick={handleZoomReset}
-                className="min-w-[50px] rounded px-2 py-1 text-xs text-white hover:bg-white/10"
-                title="Reset Zoom"
-              >
-                {Math.round(zoomLevel * 100)}%
-              </button>
-              <button
-                onClick={handleZoomIn}
-                disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
-                className="rounded p-1.5 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
-                title="Zoom In"
-              >
-                <ZoomIn className="h-4 w-4 text-white" />
-              </button>
-              <button
-                onClick={handleZoomReset}
-                className="ml-1 rounded border-l border-white/20 p-1.5 hover:bg-white/10"
-                title="Fit to View"
-              >
-                <Maximize2 className="h-4 w-4 text-white" />
-              </button>
+              <Tooltip content="Zoom Out" side="top">
+                <button
+                  onClick={handleZoomOut}
+                  disabled={zoomLevel === ZOOM_LEVELS[0]}
+                  className="rounded p-1.5 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <ZoomOut className="h-4 w-4 text-white" />
+                </button>
+              </Tooltip>
+              <Tooltip content="Reset Zoom" side="top">
+                <button
+                  onClick={handleZoomReset}
+                  className="min-w-[50px] rounded px-2 py-1 text-xs text-white hover:bg-white/10"
+                >
+                  {Math.round(zoomLevel * 100)}%
+                </button>
+              </Tooltip>
+              <Tooltip content="Zoom In" side="top">
+                <button
+                  onClick={handleZoomIn}
+                  disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
+                  className="rounded p-1.5 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <ZoomIn className="h-4 w-4 text-white" />
+                </button>
+              </Tooltip>
+              <Tooltip content="Fit to View" side="top">
+                <button
+                  onClick={handleZoomReset}
+                  className="ml-1 rounded border-l border-white/20 p-1.5 hover:bg-white/10"
+                >
+                  <Maximize2 className="h-4 w-4 text-white" />
+                </button>
+              </Tooltip>
             </div>
           )}
 

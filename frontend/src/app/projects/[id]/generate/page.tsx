@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { fetchAPI } from '@/lib/api';
 import { useParams } from 'next/navigation';
+import { toast } from 'sonner';
 import { EngineSelectorV2 } from '@/components/generations/EngineSelectorV2';
 import { PromptBuilder } from '@/components/prompts/PromptBuilder';
 import {
@@ -31,7 +32,7 @@ import {
 import { Element, Generation, Scene } from '@/lib/store';
 import { clsx } from 'clsx';
 import { GenerationCard } from '@/components/generations/GenerationCard';
-import { GenerationSearch } from '@/components/generations/GenerationSearch';
+import { GenerationSearch, GenerationSortFilterState } from '@/components/generations/GenerationSearch';
 import { ShotNavigator, ShotNavigatorRef } from '@/components/generations/ShotNavigator';
 import { ElementReferencePicker } from '@/components/storyboard/ElementReferencePicker';
 import { StyleSelectorModal, StyleConfig } from '@/components/storyboard/StyleSelectorModal';
@@ -66,6 +67,7 @@ import { useEngineConfigStore } from '@/lib/engineConfigStore';
 import { costTracker } from '@/lib/CostTracker';
 import { usePromptWeighting } from '@/hooks/usePromptWeighting';
 import { WeightHintTooltip } from '@/components/prompts/WeightHintTooltip';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { usePromptVariablesStore, detectUnexpandedVariables } from '@/lib/promptVariablesStore';
 import { PromptVariablesPanel } from '@/components/prompts/PromptVariablesPanel';
 import { DynamicRatioIcon } from '@/components/ui/DynamicRatioIcon';
@@ -77,6 +79,7 @@ import { usePromptTreeStore } from '@/lib/promptTreeStore';
 import { PromptTreePanel } from '@/components/prompts/PromptTreePanel';
 import { useLightingStore } from '@/lib/lightingStore';
 import { LightingStage } from '@/components/lighting/LightingStage';
+import { AcousticStudioPanel } from '@/components/audio/AcousticStudioPanel';
 
 interface PipelineStage {
   id: string;
@@ -119,34 +122,35 @@ function DraggableElementThumbnail({
     : undefined;
 
   return (
-    <button
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
-      onClick={onToggle}
-      className={clsx(
-        'relative h-16 w-16 flex-shrink-0 cursor-grab overflow-hidden rounded-lg border-2 transition-all active:cursor-grabbing',
-        isSelected
-          ? 'border-blue-500 ring-1 ring-blue-500/50'
-          : 'border-transparent opacity-60 hover:opacity-100'
-      )}
-      title={`${element.name} (drag to Shot Navigator)`}
-    >
-      {element.type === 'video' ? (
-        <video src={element.url} className="h-full w-full object-cover" />
-      ) : (
-        <img
-          src={element.url || element.fileUrl || element.thumbnail}
-          className="h-full w-full object-cover"
-        />
-      )}
-      {isSelected && (
-        <div className="absolute inset-0 flex items-center justify-center bg-blue-500/20">
-          <div className="h-1.5 w-1.5 rounded-full bg-blue-500 shadow-lg" />
-        </div>
-      )}
-    </button>
+    <Tooltip content={`${element.name} (drag to Shot Navigator)`} side="top">
+      <button
+        ref={setNodeRef}
+        style={style}
+        {...listeners}
+        {...attributes}
+        onClick={onToggle}
+        className={clsx(
+          'relative h-16 w-16 flex-shrink-0 cursor-grab overflow-hidden rounded-lg border-2 transition-all active:cursor-grabbing',
+          isSelected
+            ? 'border-blue-500 ring-1 ring-blue-500/50'
+            : 'border-transparent opacity-60 hover:opacity-100'
+        )}
+      >
+        {element.type === 'video' ? (
+          <video src={element.url} className="h-full w-full object-cover" />
+        ) : (
+          <img
+            src={element.url || element.fileUrl || element.thumbnail}
+            className="h-full w-full object-cover"
+          />
+        )}
+        {isSelected && (
+          <div className="absolute inset-0 flex items-center justify-center bg-blue-500/20">
+            <div className="h-1.5 w-1.5 rounded-full bg-blue-500 shadow-lg" />
+          </div>
+        )}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -172,6 +176,13 @@ export default function GeneratePage() {
   const [selectedGenerationIds, setSelectedGenerationIds] = useState<string[]>([]); // Added missing state
   const [searchResults, setSearchResults] = useState<Generation[] | null>(null); // Semantic search results
   const [searchQuery, setSearchQuery] = useState<string>(''); // Current search query
+  const [sortFilter, setSortFilter] = useState<GenerationSortFilterState>({
+    sortBy: 'date',
+    sortOrder: 'desc',
+    filterMediaType: [],
+    filterStatus: [],
+    filterAspectRatio: [],
+  }); // Sort & filter state
   const [referenceCreativity, setReferenceCreativity] = useState(0.6); // Default reference strength
   const [elementStrengths, setElementStrengths] = useState<Record<string, number>>({}); // Per-element strength
   const [motionScale, setMotionScale] = useState(0.5); // Motion scale for video models (0-1)
@@ -227,6 +238,12 @@ export default function GeneratePage() {
   // Prompt Tree: Version control for prompts
   const { addNode: addPromptNode, getTree, activeNodeId: treeActiveNodeId } = usePromptTreeStore();
   const promptTreeNodes = getTree(projectId);
+
+  // Hydration safety: localStorage-based stores return different values on server vs client
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
   const [isPromptTreeOpen, setIsPromptTreeOpen] = useState(false);
 
   // Virtual Gaffer: 3-point lighting designer
@@ -237,6 +254,9 @@ export default function GeneratePage() {
     getLightingDescription,
   } = useLightingStore();
   const [isLightingStageOpen, setIsLightingStageOpen] = useState(false);
+
+  // Acoustic Studio: Perspective-matched audio settings
+  const [isAcousticStudioOpen, setIsAcousticStudioOpen] = useState(false);
 
   // Prompt Weighting: Ctrl/Cmd + Arrow Up/Down to adjust weights (word:1.1)
   const { handleKeyDown: handleWeightingKeyDown, isModifierHeld } = usePromptWeighting({
@@ -735,13 +755,79 @@ export default function GeneratePage() {
     setSearchQuery('');
   };
 
-  // Displayed generations - either search results or all
-  const displayedGenerations = useMemo(() => {
-    if (searchResults !== null) {
-      return searchResults;
+  // Helper to determine media type from generation
+  const getMediaType = (gen: Generation): 'image' | 'video' => {
+    const outputType = gen.outputs?.[0]?.type;
+    if (outputType) return outputType;
+    const url = gen.outputs?.[0]?.url || '';
+    if (url.match(/\.(mp4|webm|mov|avi)$/i)) {
+      return 'video';
     }
-    return generations;
-  }, [searchResults, generations]);
+    return 'image';
+  };
+
+  // Helper to extract aspect ratio from generation
+  const getAspectRatio = (gen: Generation): string => {
+    return gen.aspectRatio || '16:9';
+  };
+
+  // Displayed generations - search results or all, with filtering and sorting applied
+  const displayedGenerations = useMemo(() => {
+    let result = searchResults !== null ? searchResults : generations;
+
+    // Apply filters
+    if (sortFilter.filterMediaType.length > 0) {
+      result = result.filter(gen => sortFilter.filterMediaType.includes(getMediaType(gen)));
+    }
+
+    if (sortFilter.filterStatus.length > 0) {
+      result = result.filter(gen => {
+        const status = gen.status || 'succeeded';
+        if (sortFilter.filterStatus.includes('succeeded') && status === 'succeeded') {
+          return true;
+        }
+        if (sortFilter.filterStatus.includes('processing') && (status === 'running' || status === 'queued')) {
+          return true;
+        }
+        if (sortFilter.filterStatus.includes('failed') && status === 'failed') {
+          return true;
+        }
+        return false;
+      });
+    }
+
+    if (sortFilter.filterAspectRatio.length > 0) {
+      result = result.filter(gen => {
+        const ar = getAspectRatio(gen);
+        return sortFilter.filterAspectRatio.includes(ar);
+      });
+    }
+
+    // Apply sorting
+    result = [...result].sort((a, b) => {
+      let comparison = 0;
+      switch (sortFilter.sortBy) {
+        case 'date':
+          const dateA = new Date(a.createdAt || 0).getTime();
+          const dateB = new Date(b.createdAt || 0).getTime();
+          comparison = dateA - dateB;
+          break;
+        case 'name':
+          const nameA = (a.inputPrompt || '').toLowerCase();
+          const nameB = (b.inputPrompt || '').toLowerCase();
+          comparison = nameA.localeCompare(nameB);
+          break;
+        case 'score':
+          const scoreA = (a as any).searchScore || 0;
+          const scoreB = (b as any).searchScore || 0;
+          comparison = scoreA - scoreB;
+          break;
+      }
+      return sortFilter.sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return result;
+  }, [searchResults, generations, sortFilter]);
 
   const handleIterateGeneration = async (newPrompt: string) => {
     if (!newPrompt.trim()) return;
@@ -1315,7 +1401,8 @@ export default function GeneratePage() {
   };
 
   const selectAllGenerations = () => {
-    setSelectedGenerationIds(generations.map(g => g.id));
+    // Select only the currently displayed (filtered) generations
+    setSelectedGenerationIds(displayedGenerations.map(g => g.id));
   };
 
   const deselectAllGenerations = () => {
@@ -1456,35 +1543,14 @@ export default function GeneratePage() {
 
             <div className="flex-1 overflow-y-auto p-8 pb-32">
               <header className="mb-8">
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
-                    <h1 className="mb-2 text-3xl font-bold tracking-tight">Generate</h1>
-                    <p className="mt-2 text-gray-400">Create new shots using AI.</p>
-                  </div>
-                  {generations.length > 0 && (
-                    <button
-                      onClick={
-                        selectedGenerationIds.length === generations.length
-                          ? deselectAllGenerations
-                          : selectAllGenerations
-                      }
-                      className="text-sm text-blue-400 hover:text-blue-300"
-                    >
-                      {selectedGenerationIds.length === generations.length
-                        ? 'Deselect All'
-                        : 'Select All'}
-                    </button>
-                  )}
-                </div>
-
-                {/* Semantic Search Bar */}
-                <div className="max-w-xl">
-                  <GenerationSearch
-                    projectId={projectId}
-                    onSearchResults={handleSearchResults}
-                    onClearSearch={handleClearSearch}
-                  />
-                </div>
+                {/* Full-width Visual Librarian title bar with integrated search */}
+                <GenerationSearch
+                  projectId={projectId}
+                  onSearchResults={handleSearchResults}
+                  onClearSearch={handleClearSearch}
+                  onSelectAll={selectAllGenerations}
+                  onSortFilterChange={setSortFilter}
+                />
               </header>
 
               <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -1564,22 +1630,24 @@ export default function GeneratePage() {
                       </option>
                     ))}
                   </select>
-                  <button
-                    onClick={handleBatchCopyLinks}
-                    className="flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/20"
-                    title="Copy Links for JDownloader"
-                  >
-                    <Copy className="h-4 w-4" />
-                    Copy Links
-                  </button>
-                  <button
-                    onClick={handleBatchSave}
-                    className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-1.5 text-sm font-medium text-green-400 transition-colors hover:bg-green-500/20"
-                    title="Save selected as elements"
-                  >
-                    <FilePlus className="h-4 w-4" />
-                    Save Elements
-                  </button>
+                  <Tooltip content="Copy Links for JDownloader" side="top">
+                    <button
+                      onClick={handleBatchCopyLinks}
+                      className="flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/20"
+                    >
+                      <Copy className="h-4 w-4" />
+                      Copy Links
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Save selected as elements" side="top">
+                    <button
+                      onClick={handleBatchSave}
+                      className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-1.5 text-sm font-medium text-green-400 transition-colors hover:bg-green-500/20"
+                    >
+                      <FilePlus className="h-4 w-4" />
+                      Save Elements
+                    </button>
+                  </Tooltip>
                   <button
                     onClick={handleBatchDelete}
                     className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/20"
@@ -1630,36 +1698,36 @@ export default function GeneratePage() {
                       </div>
                       <div className="scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent flex gap-2 overflow-x-auto p-2">
                         {filteredElements.map((el, idx) => (
-                          <button
-                            key={el.id || `suggestion-${idx}`}
-                            onMouseDown={e => {
-                              e.preventDefault(); // Prevent textarea blur
-                              selectSuggestion(el);
-                            }}
-                            className="group relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border border-white/10 transition-all hover:scale-105 hover:border-blue-500"
-                            title={el.name}
-                          >
-                            {el.url ? (
-                              el.type === 'video' ? (
-                                <video src={el.url} className="h-full w-full object-cover" muted />
+                          <Tooltip key={el.id || `suggestion-${idx}`} content={el.name} side="top">
+                            <button
+                              onMouseDown={e => {
+                                e.preventDefault(); // Prevent textarea blur
+                                selectSuggestion(el);
+                              }}
+                              className="group relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border border-white/10 transition-all hover:scale-105 hover:border-blue-500"
+                            >
+                              {el.url ? (
+                                el.type === 'video' ? (
+                                  <video src={el.url} className="h-full w-full object-cover" muted />
+                                ) : (
+                                  <img
+                                    src={el.url}
+                                    alt={el.name}
+                                    className="h-full w-full object-cover"
+                                  />
+                                )
                               ) : (
-                                <img
-                                  src={el.url}
-                                  alt={el.name}
-                                  className="h-full w-full object-cover"
-                                />
-                              )
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center bg-white/5">
-                                <Users className="h-6 w-6 text-gray-600" />
+                                <div className="flex h-full w-full items-center justify-center bg-white/5">
+                                  <Users className="h-6 w-6 text-gray-600" />
+                                </div>
+                              )}
+                              <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/80 to-transparent p-1 opacity-0 transition-opacity group-hover:opacity-100">
+                                <span className="w-full truncate text-center text-[9px] leading-tight text-white">
+                                  {el.name}
+                                </span>
                               </div>
-                            )}
-                            <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/80 to-transparent p-1 opacity-0 transition-opacity group-hover:opacity-100">
-                              <span className="w-full truncate text-center text-[9px] leading-tight text-white">
-                                {el.name}
-                              </span>
-                            </div>
-                          </button>
+                            </button>
+                          </Tooltip>
                         ))}
                       </div>
                     </div>
@@ -1804,181 +1872,214 @@ export default function GeneratePage() {
                       )}
                     </div>
 
-                    <div className="relative flex h-10 shrink-0 items-center gap-1.5">
-                      {/* 1. Smart Prompt (Wand) */}
-                      <button
-                        onClick={() => setIsPromptBuilderOpen(true)}
-                        className="flex h-10 w-10 items-center justify-center rounded-xl border border-purple-500/20 bg-purple-500/10 text-purple-400 transition-all hover:scale-105 hover:bg-purple-500/20"
-                        title="Smart Prompt Builder"
-                      >
-                        <Wand2 className="h-5 w-5" />
-                      </button>
+                    <div className="relative flex h-10 shrink-0 items-center gap-2">
+                      {/* Scrollable Tools Container - takes remaining space after pinned right section */}
+                      <div className="scrollbar-hide flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pr-2">
+                        {/* 1. Smart Prompt (Wand) */}
+                        <Tooltip content="Smart Prompt Builder" side="top">
+                          <button
+                            onClick={() => setIsPromptBuilderOpen(true)}
+                            className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-purple-500/20 bg-purple-500/10 px-2.5 text-purple-400 transition-all hover:scale-105 hover:bg-purple-500/20"
+                          >
+                            <Wand2 className="h-4 w-4" />
+                            <span className="whitespace-nowrap text-xs font-medium">Wand</span>
+                          </button>
+                        </Tooltip>
 
-                      {/* 2. Tag Selector */}
-                      <button
-                        onClick={() => setIsTagSelectorOpen(true)}
-                        className="flex h-10 w-10 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-400 transition-all hover:scale-105 hover:bg-amber-500/20"
-                        title="Add Tags to Prompt"
-                      >
-                        <TagIcon className="h-5 w-5" />
-                      </button>
+                        {/* 2. Tag Selector */}
+                        <Tooltip content="Add Tags to Prompt" side="top">
+                          <button
+                            onClick={() => setIsTagSelectorOpen(true)}
+                            className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-2.5 text-amber-400 transition-all hover:scale-105 hover:bg-amber-500/20"
+                          >
+                            <TagIcon className="h-4 w-4" />
+                            <span className="whitespace-nowrap text-xs font-medium">Tags</span>
+                          </button>
+                        </Tooltip>
 
-                      {/* 2b. Prompt Variables */}
-                      <button
-                        onClick={() => setIsVariablesPanelOpen(true)}
-                        className={clsx(
-                          'flex h-10 items-center justify-center gap-1.5 rounded-xl border px-2.5 transition-all hover:scale-105',
-                          promptVariables.length > 0
-                            ? 'border-cyan-500/20 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'
-                            : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
-                        )}
-                        title="Prompt Variables ($MainLook syntax)"
-                      >
-                        <Code2 className="h-4 w-4" />
-                        <span className="text-xs font-medium">${promptVariables.length}</span>
-                      </button>
+                        {/* 2b. Prompt Variables */}
+                        <Tooltip content="Prompt Variables ($MainLook syntax)" side="top">
+                          <button
+                            onClick={() => setIsVariablesPanelOpen(true)}
+                            className={clsx(
+                              'flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 transition-all hover:scale-105',
+                              hasMounted && promptVariables.length > 0
+                                ? 'border-cyan-500/20 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'
+                                : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                            )}
+                          >
+                            <Code2 className="h-4 w-4" />
+                            <span className="whitespace-nowrap text-xs font-medium">${hasMounted ? promptVariables.length : 0}</span>
+                          </button>
+                        </Tooltip>
 
-                      {/* 2c. Lens Kit - Focal Length & Anamorphic */}
-                      <LensKitSelector
-                        selectedLens={selectedLens}
-                        selectedEffects={selectedLensEffects}
-                        isAnamorphic={isAnamorphic}
-                        onLensChange={setSelectedLens}
-                        onEffectsChange={setSelectedLensEffects}
-                        onAnamorphicChange={value => {
-                          setIsAnamorphic(value);
-                          // Auto-lock to 21:9 aspect ratio when anamorphic is enabled
-                          if (value) {
-                            setAspectRatio('21:9');
+                        {/* 2c. Lens Kit - Focal Length & Anamorphic */}
+                        <LensKitSelector
+                          selectedLens={selectedLens}
+                          selectedEffects={selectedLensEffects}
+                          isAnamorphic={isAnamorphic}
+                          onLensChange={setSelectedLens}
+                          onEffectsChange={setSelectedLensEffects}
+                          onAnamorphicChange={value => {
+                            setIsAnamorphic(value);
+                            // Auto-lock to 21:9 aspect ratio when anamorphic is enabled
+                            if (value) {
+                              setAspectRatio('21:9');
+                            }
+                          }}
+                          onAspectRatioLock={ratio => setAspectRatio(ratio)}
+                        />
+
+                        {/* 2d. Prop Bin - Object Consistency */}
+                        <Tooltip content="Prop Bin (#PropName syntax for object consistency)" side="top">
+                          <button
+                            onClick={() => setIsPropBinOpen(true)}
+                            className={clsx(
+                              'flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 transition-all hover:scale-105',
+                              hasMounted && propBinItems.length > 0
+                                ? 'border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
+                                : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                            )}
+                          >
+                            <Package className="h-4 w-4" />
+                            <span className="whitespace-nowrap text-xs font-medium">#{hasMounted ? propBinItems.length : 0}</span>
+                          </button>
+                        </Tooltip>
+
+                        {/* 2e. Prompt Tree - Version Control */}
+                        <Tooltip content="Prompt Tree (Version Control for Prompts)" side="top">
+                          <button
+                            onClick={() => setIsPromptTreeOpen(true)}
+                            className={clsx(
+                              'flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 transition-all hover:scale-105',
+                              hasMounted && promptTreeNodes.length > 0
+                                ? 'border-purple-500/20 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20'
+                                : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                            )}
+                          >
+                            <GitBranch className="h-4 w-4" />
+                            <span className="whitespace-nowrap text-xs font-medium">{hasMounted ? promptTreeNodes.length : 0}</span>
+                          </button>
+                        </Tooltip>
+
+                        {/* 3. Style & Aspect Ratio - with Dynamic Icon */}
+                        <button
+                          onClick={() => setIsStyleModalOpen(true)}
+                          className="group flex h-10 shrink-0 items-center gap-2 rounded-xl border border-white/5 bg-black/20 px-3 text-gray-400 transition-all hover:bg-white/5 hover:text-white"
+                        >
+                          <SlidersHorizontal className="h-4 w-4" />
+                          <span className="whitespace-nowrap text-xs font-medium">Style</span>
+                          <div className="mx-1 h-4 w-px bg-white/10" />
+                          {/* Dynamic Ratio Icon - morphs to show actual aspect ratio */}
+                          <DynamicRatioIcon
+                            ratio={aspectRatio}
+                            size="sm"
+                            className="text-gray-400 transition-colors group-hover:text-white"
+                          />
+                          <span className="whitespace-nowrap font-mono text-[10px] text-gray-500">{aspectRatio}</span>
+                        </button>
+
+                        {/* Virtual Gaffer: 3-Point Lighting Designer */}
+                        <Tooltip
+                          content={
+                            lightingEnabled
+                              ? getLightingDescription()
+                              : 'Virtual Gaffer - Lighting Designer'
                           }
-                        }}
-                        onAspectRatioLock={ratio => setAspectRatio(ratio)}
-                      />
+                          side="top"
+                        >
+                          <button
+                            onClick={() => setIsLightingStageOpen(true)}
+                            className={clsx(
+                              'flex h-10 shrink-0 items-center gap-2 rounded-xl border px-3 transition-all',
+                              lightingEnabled && lights.length > 0
+                                ? 'border-amber-500/30 bg-amber-500/20 text-amber-300'
+                                : 'border-white/5 bg-black/20 text-gray-400 hover:bg-white/5 hover:text-white'
+                            )}
+                          >
+                            <Lightbulb className="h-4 w-4" />
+                            <span className="whitespace-nowrap text-xs font-medium">Light</span>
+                            {lightingEnabled && lights.length > 0 && (
+                              <span className="ml-1 whitespace-nowrap text-[10px] text-amber-400">{lights.length}</span>
+                            )}
+                          </button>
+                        </Tooltip>
 
-                      {/* 2d. Prop Bin - Object Consistency */}
-                      <button
-                        onClick={() => setIsPropBinOpen(true)}
-                        className={clsx(
-                          'flex h-10 items-center justify-center gap-1.5 rounded-xl border px-2.5 transition-all hover:scale-105',
-                          propBinItems.length > 0
-                            ? 'border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
-                            : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                        {/* Acoustic Studio Button */}
+                        <Tooltip content="Acoustic Studio - Perspective-Matched Audio" side="top">
+                          <button
+                            onClick={() => setIsAcousticStudioOpen(true)}
+                            className={clsx(
+                              'flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 transition-all hover:scale-105',
+                              isAcousticStudioOpen
+                                ? 'border-cyan-500/30 bg-cyan-500/20 text-cyan-300'
+                                : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                            )}
+                          >
+                            <Music className="h-4 w-4" />
+                            <span className="whitespace-nowrap text-xs font-medium">Sound</span>
+                          </button>
+                        </Tooltip>
+
+                        {/* 3. Reference Elements (Users) */}
+                        <button
+                          onClick={() => setIsElementPickerOpen(!isElementPickerOpen)}
+                          className={clsx(
+                            'relative flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 transition-all',
+                            isElementPickerOpen
+                              ? 'border-blue-500/50 bg-blue-500/20 text-blue-300'
+                              : 'border-white/5 bg-black/20 text-gray-400 hover:bg-white/5 hover:text-white'
+                          )}
+                        >
+                          <Users className="h-4 w-4" />
+                          <span className="whitespace-nowrap text-xs font-medium">Refs</span>
+                          {selectedElementIds.length > 0 && (
+                            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white">
+                              {selectedElementIds.length}
+                            </span>
+                          )}
+                        </button>
+
+                        {/* 5. Motion Scale (Video Models Only) */}
+                        {mode === 'video' && (
+                          <CompactMotionSlider
+                            value={motionScale}
+                            onChange={setMotionScale}
+                            engineType={
+                              engineConfig.model.includes('kling')
+                                ? 'kling'
+                                : engineConfig.model.includes('veo')
+                                  ? 'veo'
+                                  : engineConfig.model.includes('wan')
+                                    ? 'wan'
+                                    : engineConfig.model.includes('luma')
+                                      ? 'luma'
+                                      : engineConfig.model.includes('ltx')
+                                        ? 'ltx'
+                                        : 'other'
+                            }
+                          />
                         )}
-                        title="Prop Bin (#PropName syntax for object consistency)"
-                      >
-                        <Package className="h-4 w-4" />
-                        <span className="text-xs font-medium">#{propBinItems.length}</span>
-                      </button>
-
-                      {/* 2e. Prompt Tree - Version Control */}
-                      <button
-                        onClick={() => setIsPromptTreeOpen(true)}
-                        className={clsx(
-                          'flex h-10 items-center justify-center gap-1.5 rounded-xl border px-2.5 transition-all hover:scale-105',
-                          promptTreeNodes.length > 0
-                            ? 'border-purple-500/20 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20'
-                            : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
-                        )}
-                        title="Prompt Tree (Version Control for Prompts)"
-                      >
-                        <GitBranch className="h-4 w-4" />
-                        <span className="text-xs font-medium">{promptTreeNodes.length}</span>
-                      </button>
-
-                      {/* 3. Style & Aspect Ratio - with Dynamic Icon */}
-                      <button
-                        onClick={() => setIsStyleModalOpen(true)}
-                        className="group flex h-10 items-center gap-2 rounded-xl border border-white/5 bg-black/20 px-3 text-gray-400 transition-all hover:bg-white/5 hover:text-white"
-                      >
-                        <SlidersHorizontal className="h-4 w-4" />
-                        <span className="hidden text-sm font-medium sm:inline">Style</span>
-                        <div className="mx-1 h-4 w-px bg-white/10" />
-                        {/* Dynamic Ratio Icon - morphs to show actual aspect ratio */}
-                        <DynamicRatioIcon
-                          ratio={aspectRatio}
-                          size="sm"
-                          className="text-gray-400 transition-colors group-hover:text-white"
-                        />
-                        <span className="font-mono text-[10px] text-gray-500">{aspectRatio}</span>
-                      </button>
-
-                      {/* Virtual Gaffer: 3-Point Lighting Designer */}
-                      <button
-                        onClick={() => setIsLightingStageOpen(true)}
-                        className={clsx(
-                          'flex h-10 items-center gap-2 rounded-xl border px-3 transition-all',
-                          lightingEnabled && lights.length > 0
-                            ? 'border-amber-500/30 bg-amber-500/20 text-amber-300'
-                            : 'border-white/5 bg-black/20 text-gray-400 hover:bg-white/5 hover:text-white'
-                        )}
-                        title={
-                          lightingEnabled
-                            ? getLightingDescription()
-                            : 'Virtual Gaffer - Lighting Designer'
-                        }
-                      >
-                        <Lightbulb className="h-4 w-4" />
-                        <span className="hidden text-sm font-medium sm:inline">Light</span>
-                        {lightingEnabled && lights.length > 0 && (
-                          <span className="ml-1 text-[10px] text-amber-400">{lights.length}</span>
-                        )}
-                      </button>
-
-                      {/* 3. Reference Elements (Users) */}
-                      <button
-                        onClick={() => setIsElementPickerOpen(!isElementPickerOpen)}
-                        className={clsx(
-                          'relative flex h-10 w-10 items-center justify-center rounded-xl border transition-all',
-                          isElementPickerOpen
-                            ? 'border-blue-500/50 bg-blue-500/20 text-blue-300'
-                            : 'border-white/5 bg-black/20 text-gray-400 hover:bg-white/5 hover:text-white'
-                        )}
-                      >
-                        <Users className="h-5 w-5" />
-                        {selectedElementIds.length > 0 && (
-                          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white">
-                            {selectedElementIds.length}
-                          </span>
-                        )}
-                      </button>
-
-                      {/* 5. Motion Scale (Video Models Only) */}
-                      {mode === 'video' && (
-                        <CompactMotionSlider
-                          value={motionScale}
-                          onChange={setMotionScale}
-                          engineType={
-                            engineConfig.model.includes('kling')
-                              ? 'kling'
-                              : engineConfig.model.includes('veo')
-                                ? 'veo'
-                                : engineConfig.model.includes('wan')
-                                  ? 'wan'
-                                  : engineConfig.model.includes('luma')
-                                    ? 'luma'
-                                    : engineConfig.model.includes('ltx')
-                                      ? 'ltx'
-                                      : 'other'
-                          }
-                        />
-                      )}
-
-                      {/* 6. Model Selector Pill */}
-                      <div className="min-w-[160px]">
-                        <EngineSelectorV2
-                          selectedProvider={engineConfig.provider}
-                          selectedModel={engineConfig.model}
-                          onSelect={(provider, model) => setEngineConfig({ provider, model })}
-                          mode={mode}
-                          variant="compact"
-                          quantity={variations}
-                          onQuantityChange={setVariations}
-                          duration={duration}
-                          onDurationChange={setDuration}
-                          audioFile={audioFile}
-                          onAudioChange={setAudioFile}
-                        />
                       </div>
+
+                      {/* Pinned Right Section - Model Selector & Generate Button */}
+                      <div className="flex shrink-0 items-center gap-2 border-l border-white/10 pl-2">
+                        {/* 6. Model Selector Pill */}
+                        <div className="min-w-[120px] max-w-[180px]">
+                          <EngineSelectorV2
+                            selectedProvider={engineConfig.provider}
+                            selectedModel={engineConfig.model}
+                            onSelect={(provider, model) => setEngineConfig({ provider, model })}
+                            mode={mode}
+                            variant="compact"
+                            quantity={variations}
+                            onQuantityChange={setVariations}
+                            duration={duration}
+                            onDurationChange={setDuration}
+                            audioFile={audioFile}
+                            onAudioChange={setAudioFile}
+                          />
+                        </div>
 
                       {/* Pipeline Node Workflow (Vidu Q2 Only) */}
                       {engineConfig.model === 'fal-ai/vidu/q2/reference-to-video' && (
@@ -2109,52 +2210,55 @@ export default function GeneratePage() {
                           ))}
 
                           <div className="mt-2 flex gap-2">
-                            <button
-                              onClick={() =>
-                                setPipelineStages(prev => [
-                                  ...prev,
-                                  { id: Date.now().toString(), type: 'motion' },
-                                ])
-                              }
-                              className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/5 py-1.5 text-xs text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-                              title="Add One-To-All Motion Stage"
-                            >
-                              <Video className="h-3 w-3" /> + Motion
-                            </button>
-                            <button
-                              onClick={() =>
-                                setPipelineStages(prev => [
-                                  ...prev,
-                                  { id: Date.now().toString(), type: 'lipsync' },
-                                ])
-                              }
-                              className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/5 py-1.5 text-xs text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-                              title="Add SyncLabs Lip Sync Stage"
-                            >
-                              <Music className="h-3 w-3" /> + Lip Sync
-                            </button>
+                            <Tooltip content="Add One-To-All Motion Stage" side="top">
+                              <button
+                                onClick={() =>
+                                  setPipelineStages(prev => [
+                                    ...prev,
+                                    { id: Date.now().toString(), type: 'motion' },
+                                  ])
+                                }
+                                className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/5 py-1.5 text-xs text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+                              >
+                                <Video className="h-3 w-3" /> + Motion
+                              </button>
+                            </Tooltip>
+                            <Tooltip content="Add SyncLabs Lip Sync Stage" side="top">
+                              <button
+                                onClick={() =>
+                                  setPipelineStages(prev => [
+                                    ...prev,
+                                    { id: Date.now().toString(), type: 'lipsync' },
+                                  ])
+                                }
+                                className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/5 py-1.5 text-xs text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+                              >
+                                <Music className="h-3 w-3" /> + Lip Sync
+                              </button>
+                            </Tooltip>
                           </div>
                         </div>
                       )}
 
-                      {/* 5. Generate Button */}
-                      <button
-                        onClick={handleGenerate}
-                        disabled={isGenerating || !prompt?.trim()}
-                        className="flex h-10 items-center gap-2 rounded-xl bg-blue-600 px-4 font-medium text-white shadow-lg shadow-blue-500/20 transition-all hover:scale-105 hover:bg-blue-500 active:scale-95 disabled:opacity-50 disabled:grayscale"
-                      >
-                        {isGenerating ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="hidden sm:inline">Generating...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="h-4 w-4" />
-                            <span className="hidden sm:inline">Generate</span>
-                          </>
-                        )}
-                      </button>
+                        {/* 5. Generate Button */}
+                        <button
+                          onClick={handleGenerate}
+                          disabled={isGenerating || !prompt?.trim()}
+                          className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-blue-600 px-3 font-medium text-white shadow-lg shadow-blue-500/20 transition-all hover:scale-105 hover:bg-blue-500 active:scale-95 disabled:opacity-50 disabled:grayscale"
+                        >
+                          {isGenerating ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span className="hidden lg:inline">Generating...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="h-4 w-4" />
+                              <span className="hidden lg:inline">Generate</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -2340,6 +2444,13 @@ export default function GeneratePage() {
 
       {/* Virtual Gaffer: 3-Point Lighting Designer Stage */}
       <LightingStage isOpen={isLightingStageOpen} onClose={() => setIsLightingStageOpen(false)} />
+
+      {/* Acoustic Studio: Perspective-Matched Audio */}
+      <AcousticStudioPanel
+        focalLength={selectedLens?.focalMm || 35}
+        isOpen={isAcousticStudioOpen}
+        onClose={() => setIsAcousticStudioOpen(false)}
+      />
 
       <EditElementModal
         element={

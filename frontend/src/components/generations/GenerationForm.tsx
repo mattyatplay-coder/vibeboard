@@ -5,6 +5,7 @@ import { ALL_MODELS } from '@/lib/ModelRegistry';
 import { clsx } from 'clsx';
 import { EngineSelectorV2 } from '@/components/generations/EngineSelectorV2';
 import { PromptBuilder } from '@/components/prompts/PromptBuilder';
+import { Tooltip, TooltipProvider } from '@/components/ui/Tooltip';
 import { usePromptWeighting } from '@/hooks/usePromptWeighting';
 import { Element } from '@/lib/store';
 import { StyleConfig } from '@/components/storyboard/StyleSelectorModal';
@@ -182,9 +183,10 @@ export function GenerationForm({
                           ? 'border-blue-500'
                           : 'border-transparent opacity-60 hover:opacity-100'
                       )}
-                      title={el.name}
                     >
-                      <img src={el.url} className="h-full w-full object-cover" />
+                      <Tooltip content={el.name} side="top">
+                        <img src={el.url} className="h-full w-full object-cover" />
+                      </Tooltip>
                     </button>
                   ))}
                 {elements.filter(el => el.projectId === projectId).length === 0 && (
@@ -232,13 +234,14 @@ export function GenerationForm({
 
             <div className="relative flex h-10 shrink-0 items-center gap-1.5">
               {/* 1. Smart Prompt (Wand) */}
-              <button
-                onClick={() => setIsPromptBuilderOpen(true)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-purple-500/20 bg-purple-500/10 text-purple-400 transition-all hover:scale-105 hover:bg-purple-500/20"
-                title="Smart Prompt Builder"
-              >
-                <Wand2 className="h-5 w-5" />
-              </button>
+              <Tooltip content="Smart Prompt Builder" side="top">
+                <button
+                  onClick={() => setIsPromptBuilderOpen(true)}
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-purple-500/20 bg-purple-500/10 text-purple-400 transition-all hover:scale-105 hover:bg-purple-500/20"
+                >
+                  <Wand2 className="h-5 w-5" />
+                </button>
+              </Tooltip>
 
               {/* 2. Style & Aspect Ratio */}
               <button
@@ -254,23 +257,24 @@ export function GenerationForm({
               </button>
 
               {/* 3. Reference Elements (Users) -> Advanced Modal */}
-              <button
-                onClick={onOpenAdvancedSettings}
-                className={clsx(
-                  'relative flex h-10 w-10 items-center justify-center rounded-xl border transition-all',
-                  isElementPickerOpen
-                    ? 'border-blue-500/50 bg-blue-500/20 text-blue-300'
-                    : 'border-white/5 bg-black/20 text-gray-400 hover:bg-white/5 hover:text-white'
-                )}
-                title="Element References (Advanced)"
-              >
-                <Users className="h-5 w-5" />
-                {selectedElementIds.length > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">
-                    {selectedElementIds.length}
-                  </span>
-                )}
-              </button>
+              <Tooltip content="Element References (Advanced)" side="top">
+                <button
+                  onClick={onOpenAdvancedSettings}
+                  className={clsx(
+                    'relative flex h-10 w-10 items-center justify-center rounded-xl border transition-all',
+                    isElementPickerOpen
+                      ? 'border-blue-500/50 bg-blue-500/20 text-blue-300'
+                      : 'border-white/5 bg-black/20 text-gray-400 hover:bg-white/5 hover:text-white'
+                  )}
+                >
+                  <Users className="h-5 w-5" />
+                  {selectedElementIds.length > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">
+                      {selectedElementIds.length}
+                    </span>
+                  )}
+                </button>
+              </Tooltip>
 
               {/* Model Selector Pill - Duration/Qty now in Model Library sidebar */}
               <div className="w-40">

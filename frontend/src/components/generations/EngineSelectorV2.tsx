@@ -14,6 +14,7 @@ import {
 import { clsx } from 'clsx';
 import { EngineLibraryModal } from './EngineLibraryModal';
 import { ALL_MODELS, PROVIDER_DEFINITIONS, getModelsByCapability } from '@/lib/ModelRegistry';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 interface EngineSelectorProps {
   selectedProvider: string;
@@ -74,14 +75,14 @@ export function EngineSelectorV2({
 
         <div className="flex items-center gap-2">
           {/* Main Selector */}
-          <button
-            onClick={() => setIsLibraryOpen(true)}
-            className={clsx(
-              'group relative flex flex-1 items-center justify-between rounded-xl border border-white/10 bg-white/5 text-left transition-all hover:border-white/20 hover:bg-white/10',
-              variant === 'compact' ? 'h-10 px-2' : 'p-3'
-            )}
-            title="Change Model"
-          >
+          <Tooltip content="Change Model" side="top">
+            <button
+              onClick={() => setIsLibraryOpen(true)}
+              className={clsx(
+                'group relative flex flex-1 items-center justify-between rounded-xl border border-white/10 bg-white/5 text-left transition-all hover:border-white/20 hover:bg-white/10',
+                variant === 'compact' ? 'h-10 px-2' : 'p-3'
+              )}
+            >
             <div className="flex items-center gap-3">
               {/* Icon */}
               <div
@@ -133,7 +134,8 @@ export function EngineSelectorV2({
                 variant === 'compact' ? 'h-4 w-4' : 'h-5 w-5'
               )}
             />
-          </button>
+            </button>
+          </Tooltip>
         </div>
       </div>
 

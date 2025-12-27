@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, LayoutTemplate, Search, Trash2, Check, User, Globe } from 'lucide-react';
 import { fetchAPI } from '@/lib/api';
 import { toast } from 'sonner';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 interface Template {
   id: string;
@@ -184,13 +185,14 @@ export const TemplateGalleryModal = ({
                         {/* Delete Button (Only if owner) */}
                         {/* For now, allow deleting any non-public or if we implement user auth properly later */}
                         {!template.isPublic && (
-                          <button
-                            onClick={e => handleDelete(template.id, e)}
-                            className="text-gray-500 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400"
-                            title="Delete Template"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          <Tooltip content="Delete Template" side="top">
+                            <button
+                              onClick={e => handleDelete(template.id, e)}
+                              className="text-gray-500 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </Tooltip>
                         )}
                       </div>
                       <p className="mb-4 line-clamp-2 flex-1 text-xs text-gray-400">

@@ -40,6 +40,7 @@ import {
   Search,
 } from 'lucide-react';
 import { BACKEND_URL } from '@/lib/api';
+import { Tooltip, TooltipProvider } from '@/components/ui/Tooltip';
 
 type RenderQuality = 'draft' | 'review' | 'master';
 
@@ -533,6 +534,7 @@ export function ABLightbox({
   const currentShot = availableShots[currentShotIndex];
 
   return (
+    <TooltipProvider>
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
@@ -612,55 +614,60 @@ export function ABLightbox({
 
               {/* Center Controls - Zoom */}
               <div className="flex items-center gap-1 bg-white/5 px-3">
-                <button
-                  onClick={handleZoomOut}
-                  disabled={zoom <= 1}
-                  className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-                  title="Zoom out (-)"
-                >
-                  <ZoomOut className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={resetZoom}
-                  disabled={zoom === 1}
-                  className="min-w-[48px] rounded px-2 py-1 font-mono text-xs text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-                  title="Reset zoom (0)"
-                >
-                  {Math.round(zoom * 100)}%
-                </button>
-                <button
-                  onClick={handleZoomIn}
-                  disabled={zoom >= 8}
-                  className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-                  title="Zoom in (+)"
-                >
-                  <ZoomIn className="h-4 w-4" />
-                </button>
+                <Tooltip content="Zoom out (-)" side="top">
+                  <button
+                    onClick={handleZoomOut}
+                    disabled={zoom <= 1}
+                    className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    <ZoomOut className="h-4 w-4" />
+                  </button>
+                </Tooltip>
+                <Tooltip content="Reset zoom (0)" side="top">
+                  <button
+                    onClick={resetZoom}
+                    disabled={zoom === 1}
+                    className="min-w-[48px] rounded px-2 py-1 font-mono text-xs text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    {Math.round(zoom * 100)}%
+                  </button>
+                </Tooltip>
+                <Tooltip content="Zoom in (+)" side="top">
+                  <button
+                    onClick={handleZoomIn}
+                    disabled={zoom >= 8}
+                    className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    <ZoomIn className="h-4 w-4" />
+                  </button>
+                </Tooltip>
                 <div className="mx-1 h-6 w-px bg-white/10" />
-                <button
-                  onClick={() => setFlickerMode(prev => !prev)}
-                  className={clsx(
-                    'rounded p-1.5 transition-colors',
-                    flickerMode
-                      ? 'bg-cyan-500/30 text-cyan-400'
-                      : 'text-gray-400 hover:bg-white/10 hover:text-white'
-                  )}
-                  title="Flicker mode (F)"
-                >
-                  <Monitor className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => setMagnifierEnabled(prev => !prev)}
-                  className={clsx(
-                    'rounded p-1.5 transition-colors',
-                    magnifierEnabled
-                      ? 'bg-purple-500/30 text-purple-400'
-                      : 'text-gray-400 hover:bg-white/10 hover:text-white'
-                  )}
-                  title="Magnifier lens (M)"
-                >
-                  <Search className="h-4 w-4" />
-                </button>
+                <Tooltip content="Flicker mode (F)" side="top">
+                  <button
+                    onClick={() => setFlickerMode(prev => !prev)}
+                    className={clsx(
+                      'rounded p-1.5 transition-colors',
+                      flickerMode
+                        ? 'bg-cyan-500/30 text-cyan-400'
+                        : 'text-gray-400 hover:bg-white/10 hover:text-white'
+                    )}
+                  >
+                    <Monitor className="h-4 w-4" />
+                  </button>
+                </Tooltip>
+                <Tooltip content="Magnifier lens (M)" side="top">
+                  <button
+                    onClick={() => setMagnifierEnabled(prev => !prev)}
+                    className={clsx(
+                      'rounded p-1.5 transition-colors',
+                      magnifierEnabled
+                        ? 'bg-purple-500/30 text-purple-400'
+                        : 'text-gray-400 hover:bg-white/10 hover:text-white'
+                    )}
+                  >
+                    <Search className="h-4 w-4" />
+                  </button>
+                </Tooltip>
               </div>
 
               {/* Right Side (Quality B) Metadata */}
@@ -999,45 +1006,49 @@ export function ABLightbox({
                 {isVideoComparison ? (
                   <>
                     {/* Frame step backward */}
-                    <button
-                      onClick={() => stepFrame('backward')}
-                      className="rounded p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-                      title="Previous frame (Shift+←)"
-                    >
-                      <SkipBack className="h-4 w-4" />
-                    </button>
+                    <Tooltip content="Previous frame (Shift+←)" side="top">
+                      <button
+                        onClick={() => stepFrame('backward')}
+                        className="rounded p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+                      >
+                        <SkipBack className="h-4 w-4" />
+                      </button>
+                    </Tooltip>
 
                     {/* Play/Pause */}
-                    <button
-                      onClick={togglePlayPause}
-                      className="rounded-full bg-white/10 p-2.5 text-white transition-colors hover:bg-white/20"
-                      title="Play/Pause (Space)"
-                    >
-                      {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-                    </button>
+                    <Tooltip content="Play/Pause (Space)" side="top">
+                      <button
+                        onClick={togglePlayPause}
+                        className="rounded-full bg-white/10 p-2.5 text-white transition-colors hover:bg-white/20"
+                      >
+                        {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                      </button>
+                    </Tooltip>
 
                     {/* Frame step forward */}
-                    <button
-                      onClick={() => stepFrame('forward')}
-                      className="rounded p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-                      title="Next frame (Shift+→)"
-                    >
-                      <SkipForward className="h-4 w-4" />
-                    </button>
+                    <Tooltip content="Next frame (Shift+→)" side="top">
+                      <button
+                        onClick={() => stepFrame('forward')}
+                        className="rounded p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+                      >
+                        <SkipForward className="h-4 w-4" />
+                      </button>
+                    </Tooltip>
 
                     {/* Loop toggle */}
-                    <button
-                      onClick={() => setIsLooping(prev => !prev)}
-                      className={clsx(
-                        'rounded p-2 transition-colors',
-                        isLooping
-                          ? 'bg-blue-500/20 text-blue-400'
-                          : 'text-gray-400 hover:bg-white/10 hover:text-white'
-                      )}
-                      title="Toggle loop"
-                    >
-                      <Repeat className="h-4 w-4" />
-                    </button>
+                    <Tooltip content="Toggle loop" side="top">
+                      <button
+                        onClick={() => setIsLooping(prev => !prev)}
+                        className={clsx(
+                          'rounded p-2 transition-colors',
+                          isLooping
+                            ? 'bg-blue-500/20 text-blue-400'
+                            : 'text-gray-400 hover:bg-white/10 hover:text-white'
+                        )}
+                      >
+                        <Repeat className="h-4 w-4" />
+                      </button>
+                    </Tooltip>
 
                     {/* Timecode */}
                     <div className="ml-2 rounded bg-black/40 px-2 py-1 font-mono text-xs text-white/70">
@@ -1100,6 +1111,7 @@ export function ABLightbox({
         </div>
       </motion.div>
     </AnimatePresence>
+    </TooltipProvider>
   );
 }
 
@@ -1284,6 +1296,7 @@ export function SimpleABLightbox({
   if (!isOpen) return null;
 
   return (
+    <TooltipProvider>
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
@@ -1307,30 +1320,33 @@ export function SimpleABLightbox({
 
             {/* Zoom Controls */}
             <div className="flex items-center gap-1 rounded-lg bg-white/5 p-1">
-              <button
-                onClick={handleZoomOut}
-                disabled={zoom <= 1}
-                className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-                title="Zoom out (-)"
-              >
-                <ZoomOut className="h-4 w-4" />
-              </button>
-              <button
-                onClick={resetZoom}
-                disabled={zoom === 1}
-                className="min-w-[40px] rounded px-2 py-1 text-xs text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-                title="Reset zoom (0)"
-              >
-                {Math.round(zoom * 100)}%
-              </button>
-              <button
-                onClick={handleZoomIn}
-                disabled={zoom >= 8}
-                className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-                title="Zoom in (+)"
-              >
-                <ZoomIn className="h-4 w-4" />
-              </button>
+              <Tooltip content="Zoom out (-)" side="top">
+                <button
+                  onClick={handleZoomOut}
+                  disabled={zoom <= 1}
+                  className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <ZoomOut className="h-4 w-4" />
+                </button>
+              </Tooltip>
+              <Tooltip content="Reset zoom (0)" side="top">
+                <button
+                  onClick={resetZoom}
+                  disabled={zoom === 1}
+                  className="min-w-[40px] rounded px-2 py-1 text-xs text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  {Math.round(zoom * 100)}%
+                </button>
+              </Tooltip>
+              <Tooltip content="Zoom in (+)" side="top">
+                <button
+                  onClick={handleZoomIn}
+                  disabled={zoom >= 8}
+                  className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </button>
+              </Tooltip>
             </div>
           </div>
 
@@ -1474,5 +1490,6 @@ export function SimpleABLightbox({
         </div>
       </motion.div>
     </AnimatePresence>
+    </TooltipProvider>
   );
 }

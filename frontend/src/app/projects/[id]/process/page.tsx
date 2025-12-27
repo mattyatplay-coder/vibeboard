@@ -5,21 +5,23 @@ import { useSearchParams } from 'next/navigation';
 import { TattooPlacementPanel } from '@/components/processing/TattooPlacementPanel';
 import { MagicEraserPanel } from '@/components/processing/MagicEraserPanel';
 import { RotoscopePanel } from '@/components/processing/RotoscopePanel';
-import { Layers, Eraser, Loader2, Film } from 'lucide-react';
+import { SetExtensionPanel } from '@/components/processing/SetExtensionPanel';
+import { Layers, Eraser, Loader2, Film, Expand } from 'lucide-react';
 
 function ProcessPageContent() {
   const searchParams = useSearchParams();
   const imageUrl = searchParams.get('url');
   const videoUrl = searchParams.get('video');
-  const tool = searchParams.get('tool'); // 'eraser', 'tattoo', or 'rotoscope'
+  const tool = searchParams.get('tool'); // 'eraser', 'tattoo', 'rotoscope', or 'extend'
 
   // Compute initial tab based on URL param
-  const getInitialTab = (): 'tattoo' | 'eraser' | 'rotoscope' => {
+  const getInitialTab = (): 'tattoo' | 'eraser' | 'rotoscope' | 'extend' => {
     if (tool === 'eraser') return 'eraser';
+    if (tool === 'extend') return 'extend';
     if (tool === 'rotoscope' || videoUrl) return 'rotoscope';
     return 'tattoo';
   };
-  const [activeTab, setActiveTab] = useState<'tattoo' | 'eraser' | 'rotoscope'>(getInitialTab());
+  const [activeTab, setActiveTab] = useState<'tattoo' | 'eraser' | 'rotoscope' | 'extend'>(getInitialTab());
 
   return (
     <div className="flex h-screen flex-1 flex-col overflow-hidden bg-[#0a0a0a] p-8 text-white">
@@ -58,6 +60,16 @@ function ProcessPageContent() {
           >
             <Film className="h-4 w-4" /> Rotoscope
           </button>
+          <button
+            onClick={() => setActiveTab('extend')}
+            className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'extend'
+                ? 'bg-teal-600 text-white shadow-lg'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <Expand className="h-4 w-4" /> Set Extension
+          </button>
         </div>
       </div>
 
@@ -65,6 +77,7 @@ function ProcessPageContent() {
         {activeTab === 'tattoo' && <TattooPlacementPanel initialImageUrl={imageUrl || undefined} />}
         {activeTab === 'eraser' && <MagicEraserPanel initialImageUrl={imageUrl || undefined} />}
         {activeTab === 'rotoscope' && <RotoscopePanel initialVideoUrl={videoUrl || undefined} />}
+        {activeTab === 'extend' && <SetExtensionPanel initialImageUrl={imageUrl || undefined} />}
       </div>
     </div>
   );

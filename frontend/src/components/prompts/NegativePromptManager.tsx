@@ -4,6 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Check, Pencil, Library, Search, X, Settings } from 'lucide-react';
 import { clsx } from 'clsx';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 // Default negative prompt categories
 export const DEFAULT_NEGATIVE_CATEGORIES = [
@@ -586,18 +587,19 @@ export function NegativePromptManager({
             );
           })}
           {customCategories.length > 0 && (
-            <button
-              onClick={() => setShowCategoryManager(!showCategoryManager)}
-              className={clsx(
-                'ml-1 rounded-lg p-1.5 transition-all',
-                showCategoryManager
-                  ? 'bg-red-500/30 text-red-300'
-                  : 'text-gray-500 hover:bg-white/10 hover:text-gray-300'
-              )}
-              title="Manage custom categories"
-            >
-              <Settings className="h-3.5 w-3.5" />
-            </button>
+            <Tooltip content="Manage custom categories" side="top">
+              <button
+                onClick={() => setShowCategoryManager(!showCategoryManager)}
+                className={clsx(
+                  'ml-1 rounded-lg p-1.5 transition-all',
+                  showCategoryManager
+                    ? 'bg-red-500/30 text-red-300'
+                    : 'text-gray-500 hover:bg-white/10 hover:text-gray-300'
+                )}
+              >
+                <Settings className="h-3.5 w-3.5" />
+              </button>
+            </Tooltip>
           )}
         </div>
 
@@ -633,23 +635,25 @@ export function NegativePromptManager({
                           }
                         }}
                       />
-                      <button
-                        onClick={handleSaveCategoryEdit}
-                        className="p-1 text-green-400 hover:text-green-300"
-                        title="Save"
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditingCategory(null);
-                          setEditCategoryName('');
-                        }}
-                        className="p-1 text-gray-500 hover:text-white"
-                        title="Cancel"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                      <Tooltip content="Save" side="top">
+                        <button
+                          onClick={handleSaveCategoryEdit}
+                          className="p-1 text-green-400 hover:text-green-300"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Cancel" side="top">
+                        <button
+                          onClick={() => {
+                            setEditingCategory(null);
+                            setEditCategoryName('');
+                          }}
+                          className="p-1 text-gray-500 hover:text-white"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </Tooltip>
                     </>
                   ) : (
                     <>
@@ -657,20 +661,22 @@ export function NegativePromptManager({
                       <span className="text-[10px] text-gray-500">
                         ({prompts.filter(p => p.category === cat.id).length})
                       </span>
-                      <button
-                        onClick={() => handleEditCategory(cat)}
-                        className="p-1 text-gray-500 hover:text-blue-400"
-                        title="Edit"
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteCategory(cat)}
-                        className="p-1 text-gray-500 hover:text-red-400"
-                        title="Delete"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
+                      <Tooltip content="Edit" side="top">
+                        <button
+                          onClick={() => handleEditCategory(cat)}
+                          className="p-1 text-gray-500 hover:text-blue-400"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Delete" side="top">
+                        <button
+                          onClick={() => handleDeleteCategory(cat)}
+                          className="p-1 text-gray-500 hover:text-red-400"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </Tooltip>
                     </>
                   )}
                 </div>
@@ -915,32 +921,35 @@ export function NegativePromptManager({
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button
-                        onClick={e => handleAppendPrompt(prompt, e)}
-                        className={clsx(
-                          'rounded p-1.5 transition-colors',
-                          alreadyAdded
-                            ? 'text-green-400 hover:bg-green-500/20 hover:text-green-300'
-                            : 'text-green-500 hover:bg-green-500/10 hover:text-green-400'
-                        )}
-                        title={alreadyAdded ? 'Add again' : 'Append to current'}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={e => startEditing(prompt, e)}
-                        className="p-1.5 text-gray-500 transition-colors hover:text-blue-400"
-                        title="Edit"
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </button>
-                      <button
-                        onClick={e => handleDelete(prompt.id, e)}
-                        className="p-1.5 text-gray-500 transition-colors hover:text-red-400"
-                        title="Delete"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
+                      <Tooltip content={alreadyAdded ? 'Add again' : 'Append to current'} side="top">
+                        <button
+                          onClick={e => handleAppendPrompt(prompt, e)}
+                          className={clsx(
+                            'rounded p-1.5 transition-colors',
+                            alreadyAdded
+                              ? 'text-green-400 hover:bg-green-500/20 hover:text-green-300'
+                              : 'text-green-500 hover:bg-green-500/10 hover:text-green-400'
+                          )}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Edit" side="top">
+                        <button
+                          onClick={e => startEditing(prompt, e)}
+                          className="p-1.5 text-gray-500 transition-colors hover:text-blue-400"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Delete" side="top">
+                        <button
+                          onClick={e => handleDelete(prompt.id, e)}
+                          className="p-1.5 text-gray-500 transition-colors hover:text-red-400"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </Tooltip>
                     </div>
                   </div>
                 );

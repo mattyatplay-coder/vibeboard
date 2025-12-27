@@ -3,6 +3,9 @@
  *
  * Manages multi-pass rendering workflow for scene chains.
  * Supports draft → review → master quality progression to save money.
+ *
+ * PERSISTENCE: All jobs and passes are stored in the database (RenderJob/RenderPass tables)
+ * to survive server restarts. The hydrateQueue() method recovers interrupted jobs on startup.
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -26,10 +29,10 @@ import {
     calculateSavings,
 } from './RenderQueueTypes';
 
-// In-memory queue for active render jobs
+// In-memory queue for active processing
 interface QueuedPass {
-    pass: RenderPass;
-    job: RenderJob;
+    passId: string;
+    jobId: string;
 }
 
 class RenderQueueService {
@@ -37,7 +40,7 @@ class RenderQueueService {
     private generationService: GenerationService;
     private queue: QueuedPass[] = [];
     private isProcessing: boolean = false;
-    private activeJobs: Map<string, RenderJob> = new Map();
+    private initialized: boolean = false;
 
     private constructor() {
         this.generationService = new GenerationService();
@@ -51,13 +54,74 @@ class RenderQueueService {
     }
 
     /**
+     * HYDRATION: Recover interrupted jobs on server startup
+     * Call this in your server initialization to resume any in-progress renders
+     */
+    async hydrateQueue(): Promise<{ recoveredJobs: number; requeuedPasses: number }> {
+        if (this.initialized) {
+            console.log('[RenderQueue] Already initialized, skipping hydration');
+            return { recoveredJobs: 0, requeuedPasses: 0 };
+        }
+
+        console.log('[RenderQueue] Hydrating queue from database...');
+
+        // Find all jobs that were in-progress when server stopped
+        const interruptedJobs = await prisma.renderJob.findMany({
+            where: {
+                status: { in: ['pending', 'rendering'] }
+            },
+            include: {
+                passes: {
+                    where: {
+                        status: { in: ['pending', 'rendering', 'queued'] }
+                    }
+                }
+            }
+        });
+
+        let recoveredJobs = 0;
+        let requeuedPasses = 0;
+
+        for (const dbJob of interruptedJobs) {
+            // Reset "rendering" passes to "pending" (they were interrupted)
+            for (const dbPass of dbJob.passes) {
+                if (dbPass.status === 'rendering') {
+                    await prisma.renderPass.update({
+                        where: { id: dbPass.id },
+                        data: { status: 'pending' }
+                    });
+                }
+
+                // Requeue passes that need processing
+                if (dbPass.status === 'pending' || dbPass.status === 'queued') {
+                    this.queue.push({ passId: dbPass.id, jobId: dbJob.id });
+                    requeuedPasses++;
+                }
+            }
+
+            recoveredJobs++;
+            console.log(`[RenderQueue] Recovered job ${dbJob.id} with ${dbJob.passes.length} passes`);
+        }
+
+        this.initialized = true;
+
+        if (requeuedPasses > 0) {
+            console.log(`[RenderQueue] Requeued ${requeuedPasses} passes, starting processing...`);
+            this.processQueue();
+        }
+
+        console.log(`[RenderQueue] Hydration complete: ${recoveredJobs} jobs, ${requeuedPasses} passes`);
+        return { recoveredJobs, requeuedPasses };
+    }
+
+    /**
      * Create a new render job for a scene chain
      */
     async createRenderJob(
         sceneChainId: string,
         projectId: string,
         targetQualities: RenderQuality[] = ['draft'],
-        burnInMetadata: boolean = false  // Refinement C: Watermark option
+        burnInMetadata: boolean = false
     ): Promise<RenderJob> {
         // Fetch scene chain with segments
         const chain = await prisma.sceneChain.findUnique({
@@ -73,112 +137,146 @@ class RenderQueueService {
             throw new Error(`Scene chain ${sceneChainId} not found`);
         }
 
-        // Create passes for each segment and quality level
-        const passes: RenderPass[] = [];
-        const now = new Date();
-
+        // Build recipes for each segment
+        const segmentRecipes: { segmentId: string; recipe: ShotRecipe }[] = [];
         for (const segment of chain.segments) {
-            // Build the locked recipe for this shot (shared across all quality passes)
             const recipe: ShotRecipe = {
                 prompt: segment.prompt || '',
                 aspectRatio: chain.aspectRatio || '16:9',
                 duration: segment.duration || 5,
                 firstFrameUrl: segment.firstFrameUrl || undefined,
                 lastFrameUrl: segment.lastFrameUrl || undefined,
-                // Future: Pull these from segment metadata if stored
-                // lensKit, lightingSetup, cinematicTags, loras would come from generation settings
             };
+            segmentRecipes.push({ segmentId: segment.id, recipe });
+        }
+
+        // Estimate total cost
+        let estimatedCost = 0;
+        for (const quality of targetQualities) {
+            const est = estimateCost(quality, chain.segments.length, true);
+            estimatedCost += est.totalCost;
+        }
+
+        // Create job in database
+        const dbJob = await prisma.renderJob.create({
+            data: {
+                projectId,
+                sceneChainId,
+                name: chain.name,
+                recipe: JSON.stringify({ targetQualities, segments: segmentRecipes }),
+                burnInMetadata,
+                status: 'pending',
+                currentQuality: targetQualities[0],
+                totalCost: estimatedCost,
+            }
+        });
+
+        // Create passes for each segment and quality
+        const passes: RenderPass[] = [];
+        for (const { segmentId, recipe } of segmentRecipes) {
+            const segment = chain.segments.find(s => s.id === segmentId)!;
 
             for (const quality of targetQualities) {
+                const dbPass = await prisma.renderPass.create({
+                    data: {
+                        jobId: dbJob.id,
+                        quality,
+                        modelId: getModelForQuality(quality, true),
+                        seedSource: 'random',
+                        status: 'pending',
+                    }
+                });
+
                 passes.push({
-                    id: uuidv4(),
-                    shotId: segment.id,
+                    id: dbPass.id,
+                    shotId: segmentId,
                     sceneChainId,
                     quality,
                     orderIndex: segment.orderIndex,
-
-                    // Locked recipe - identical for all quality passes of this shot
                     recipe,
-
-                    // Parent-child mapping (set when promoting)
                     childPassIds: [],
-
-                    // Seed source - initial passes use random seeds
                     seedSource: 'random',
-
                     status: 'pending',
                     retryCount: 0,
-                    createdAt: now,
-                    updatedAt: now,
+                    createdAt: dbPass.createdAt,
+                    updatedAt: dbPass.updatedAt,
                 });
             }
         }
 
-        // Estimate total cost
-        const isVideo = true; // Scene chains are video-focused
-        let estimatedCost = 0;
-        for (const quality of targetQualities) {
-            const est = estimateCost(quality, chain.segments.length, isVideo);
-            estimatedCost += est.totalCost;
-        }
+        console.log(`[RenderQueue] Created job ${dbJob.id} with ${passes.length} passes (persisted to DB)`);
 
-        // REFINEMENT C: Configure watermark for dailies-style burn-in
-        const watermarkConfig: WatermarkConfig = {
-            ...DEFAULT_WATERMARK_CONFIG,
-            enabled: burnInMetadata,
-        };
+        // Return in-memory format for compatibility
+        return this.dbJobToRenderJob(dbJob, passes, targetQualities, burnInMetadata);
+    }
 
-        const job: RenderJob = {
-            id: uuidv4(),
-            sceneChainId,
-            projectId,
-            name: chain.name,
+    /**
+     * Convert database job to in-memory RenderJob format
+     */
+    private dbJobToRenderJob(
+        dbJob: any,
+        passes: RenderPass[],
+        targetQualities: RenderQuality[],
+        burnInMetadata: boolean
+    ): RenderJob {
+        return {
+            id: dbJob.id,
+            sceneChainId: dbJob.sceneChainId || '',
+            projectId: dbJob.projectId,
+            name: dbJob.name,
             targetQualities,
-            activeQuality: targetQualities[0],
-            watermarkConfig,  // Refinement C
+            activeQuality: dbJob.currentQuality as RenderQuality,
+            watermarkConfig: {
+                ...DEFAULT_WATERMARK_CONFIG,
+                enabled: burnInMetadata,
+            },
             totalPasses: passes.length,
-            completedPasses: 0,
-            failedPasses: 0,
-            estimatedCost,
+            completedPasses: passes.filter(p => p.status === 'complete').length,
+            failedPasses: passes.filter(p => p.status === 'failed').length,
+            estimatedCost: dbJob.totalCost,
             actualCost: 0,
-            status: 'pending',
+            status: dbJob.status as any,
             passes,
-            createdAt: now,
-            updatedAt: now,
+            createdAt: dbJob.createdAt,
+            updatedAt: dbJob.updatedAt,
         };
-
-        this.activeJobs.set(job.id, job);
-        console.log(`[RenderQueue] Created job ${job.id} with ${passes.length} passes`);
-
-        return job;
     }
 
     /**
      * Start rendering a job
      */
     async startJob(jobId: string): Promise<RenderJob> {
-        const job = this.activeJobs.get(jobId);
-        if (!job) {
+        const dbJob = await prisma.renderJob.findUnique({
+            where: { id: jobId },
+            include: { passes: true }
+        });
+
+        if (!dbJob) {
             throw new Error(`Job ${jobId} not found`);
         }
 
-        if (job.status === 'rendering') {
+        if (dbJob.status === 'rendering') {
             console.log(`[RenderQueue] Job ${jobId} already rendering`);
-            return job;
+            return this.getJob(jobId) as Promise<RenderJob>;
         }
 
-        job.status = 'rendering';
-        job.updatedAt = new Date();
+        // Update job status
+        await prisma.renderJob.update({
+            where: { id: jobId },
+            data: { status: 'rendering' }
+        });
 
         // Queue all pending passes for the active quality level
-        const passesToQueue = job.passes.filter(
-            p => p.quality === job.activeQuality && p.status === 'pending'
+        const passesToQueue = dbJob.passes.filter(
+            p => p.quality === dbJob.currentQuality && p.status === 'pending'
         );
 
         for (const pass of passesToQueue) {
-            pass.status = 'queued';
-            pass.queuedAt = new Date();
-            this.queue.push({ pass, job });
+            await prisma.renderPass.update({
+                where: { id: pass.id },
+                data: { status: 'queued' }
+            });
+            this.queue.push({ passId: pass.id, jobId });
         }
 
         console.log(`[RenderQueue] Queued ${passesToQueue.length} passes for job ${jobId}`);
@@ -186,16 +284,11 @@ class RenderQueueService {
         // Start processing if not already
         this.processQueue();
 
-        return job;
+        return this.getJob(jobId) as Promise<RenderJob>;
     }
 
     /**
-     * Process the render queue
-     *
-     * REFINEMENT A: Staggered Delay
-     * When hitting providers with multiple "Pro" level jobs simultaneously,
-     * we add a 500ms delay between job emissions to prevent rate-limit
-     * timeouts or safety-filter bottlenecks.
+     * Process the render queue with staggered delay
      */
     private async processQueue(): Promise<void> {
         if (this.isProcessing) return;
@@ -207,24 +300,21 @@ class RenderQueueService {
         while (this.queue.length > 0) {
             const item = this.queue.shift()!;
 
-            // Staggered delay: Skip delay for first pass, add 500ms for subsequent
-            // This prevents hitting the provider API with a sudden burst of requests
+            // Staggered delay for rate limiting
             if (!isFirstPass) {
-                const delay = item.pass.quality === 'master' ? 750 : 500; // Longer delay for expensive master passes
-                console.log(`[RenderQueue] Staggered delay: ${delay}ms before pass ${item.pass.id}`);
+                const dbPass = await prisma.renderPass.findUnique({ where: { id: item.passId } });
+                const delay = dbPass?.quality === 'master' ? 750 : 500;
+                console.log(`[RenderQueue] Staggered delay: ${delay}ms before pass ${item.passId}`);
                 await this.sleep(delay);
             }
             isFirstPass = false;
 
-            await this.renderPass(item.pass, item.job);
+            await this.renderPass(item.passId, item.jobId);
         }
 
         this.isProcessing = false;
     }
 
-    /**
-     * Utility: Sleep for specified milliseconds
-     */
     private sleep(ms: number): Promise<void> {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
@@ -232,48 +322,68 @@ class RenderQueueService {
     /**
      * Render a single pass
      */
-    private async renderPass(pass: RenderPass, job: RenderJob): Promise<void> {
-        console.log(`[RenderQueue] Rendering pass ${pass.id} (${pass.quality}) for shot ${pass.shotId}`);
-        console.log(`[RenderQueue] Seed source: ${pass.seedSource}, locked seed: ${pass.lockedSeed}`);
+    private async renderPass(passId: string, jobId: string): Promise<void> {
+        const dbPass = await prisma.renderPass.findUnique({
+            where: { id: passId },
+            include: { job: true }
+        });
 
-        pass.status = 'generating';
-        pass.startedAt = new Date();
-        pass.updatedAt = new Date();
+        if (!dbPass) {
+            console.error(`[RenderQueue] Pass ${passId} not found`);
+            return;
+        }
+
+        const dbJob = dbPass.job;
+        const jobRecipe = JSON.parse(dbJob.recipe);
+
+        // Find the segment/shot this pass belongs to
+        const segmentData = jobRecipe.segments?.find((s: any) =>
+            // Match by order in array for now
+            true
+        );
+        const recipe: ShotRecipe = segmentData?.recipe || {
+            prompt: '',
+            aspectRatio: '16:9',
+            duration: 5,
+        };
+
+        console.log(`[RenderQueue] Rendering pass ${passId} (${dbPass.quality})`);
+        console.log(`[RenderQueue] Seed source: ${dbPass.seedSource}, locked seed: ${dbPass.lockedSeed}`);
+
+        // Update status to generating
+        await prisma.renderPass.update({
+            where: { id: passId },
+            data: { status: 'rendering' }
+        });
 
         try {
-            const preset = QUALITY_PRESETS[pass.quality];
-            const model = pass.modelOverride || getModelForQuality(pass.quality, true);
-            const recipe = pass.recipe;
+            const preset = QUALITY_PRESETS[dbPass.quality as RenderQuality];
+            const model = dbPass.modelId || getModelForQuality(dbPass.quality as RenderQuality, true);
 
-            // REFINEMENT C: Build watermark text for dailies-style burn-in
-            // Only apply to draft/review passes, not master
+            // Build watermark text if enabled
             let promptWithWatermark = recipe.prompt;
-            if (job.watermarkConfig.enabled && pass.quality !== 'master') {
-                const watermarkText = buildWatermarkText(pass, job.watermarkConfig);
-                // Append watermark instruction to the prompt
-                // The model will attempt to render this as subtle text overlay
+            if (dbJob.burnInMetadata && dbPass.quality !== 'master') {
+                const watermarkText = `${dbPass.quality.toUpperCase()} | Seed: ${dbPass.lockedSeed || 'random'} | Pass #${dbPass.passNumber}`;
                 promptWithWatermark = `${recipe.prompt}. Small semi-transparent white text overlay at bottom-left corner showing: "${watermarkText}"`;
-                console.log(`[RenderQueue] Watermark enabled: ${watermarkText}`);
             }
 
-            // Build generation options from locked recipe
+            // Build generation options
             const options: GenerationOptions = {
                 prompt: promptWithWatermark,
                 negativePrompt: recipe.negativePrompt,
                 model: model,
                 aspectRatio: recipe.aspectRatio,
-                duration: String(recipe.duration),  // API expects string
+                duration: String(recipe.duration),
                 startFrame: recipe.firstFrameUrl,
                 endFrame: recipe.lastFrameUrl,
                 steps: recipe.inferenceSteps || preset.inferenceSteps,
                 guidanceScale: recipe.guidanceScale || preset.guidanceScale,
             };
 
-            // CRITICAL: Use locked seed for deterministic upgrade
-            // When promoting Draft→Master, we inherit the seed for consistency
-            if (pass.lockedSeed !== undefined) {
-                options.seed = pass.lockedSeed;
-                console.log(`[RenderQueue] Using locked seed: ${pass.lockedSeed}`);
+            // Use locked seed for deterministic upgrade
+            if (dbPass.lockedSeed !== null && dbPass.lockedSeed !== undefined) {
+                options.seed = dbPass.lockedSeed;
+                console.log(`[RenderQueue] Using locked seed: ${dbPass.lockedSeed}`);
             }
 
             // Include LoRAs from recipe if present
@@ -281,196 +391,241 @@ class RenderQueueService {
                 options.loras = recipe.loras;
             }
 
-            // Include element references for IP-Adapter
-            if (recipe.elementReferences && recipe.elementReferences.length > 0) {
-                options.elementReferences = recipe.elementReferences;
-                options.referenceCreativity = recipe.elementStrength || 0.7;
-            }
-
-            // Generate video (or image if first frame is being generated)
+            // Generate video
             const result = await this.generationService.generateVideo(
                 recipe.firstFrameUrl,
                 options
             );
 
             if (result.outputs && result.outputs.length > 0) {
-                pass.status = 'complete';
-                pass.outputUrl = result.outputs[0];  // outputs is string[]
-                pass.thumbnailUrl = result.outputs[0];  // Use same URL for thumbnail
-                pass.generationId = result.id;
-                pass.actualCost = preset.videoCost;  // Use preset cost estimate
+                // Capture result seed for potential future upgrades
+                const resultSeed = (result as any).seed;
 
-                // Store result seed for potential future upgrades
-                // This allows: Draft(random seed) → result seed → Master(locked to that seed)
-                if ((result as any).seed !== undefined) {
-                    pass.resultSeed = (result as any).seed;
-                    console.log(`[RenderQueue] Captured result seed: ${pass.resultSeed}`);
-                }
-
-                // Store result metadata
-                pass.resultMetadata = {
-                    model: model,
-                    provider: 'fal',  // TODO: Get from GenerationService
-                    inferenceTime: pass.startedAt ? Date.now() - pass.startedAt.getTime() : 0,
-                };
-
-                job.completedPasses++;
-                job.actualCost += pass.actualCost || 0;
-
-                // Update the segment with the output
-                await prisma.sceneChainSegment.update({
-                    where: { id: pass.shotId },
+                await prisma.renderPass.update({
+                    where: { id: passId },
                     data: {
-                        outputUrl: pass.outputUrl,
-                        generationId: pass.generationId,
                         status: 'complete',
+                        outputUrl: result.outputs[0],
+                        thumbnailUrl: result.outputs[0],
+                        generationId: result.id,
+                        resultSeed: resultSeed !== undefined ? resultSeed : null,
+                        cost: preset.videoCost,
                     }
                 });
 
-                console.log(`[RenderQueue] Pass ${pass.id} complete: ${pass.outputUrl}`);
+                // Update job cost
+                await prisma.renderJob.update({
+                    where: { id: jobId },
+                    data: {
+                        totalCost: { increment: preset.videoCost }
+                    }
+                });
+
+                console.log(`[RenderQueue] Pass ${passId} complete: ${result.outputs[0]}`);
             } else {
                 throw new Error('No output from generation');
             }
         } catch (error) {
-            console.error(`[RenderQueue] Pass ${pass.id} failed:`, error);
+            console.error(`[RenderQueue] Pass ${passId} failed:`, error);
 
-            pass.status = 'failed';
-            pass.failureReason = error instanceof Error ? error.message : 'Unknown error';
-            pass.retryCount++;
-
-            job.failedPasses++;
-
-            // Update segment status
-            await prisma.sceneChainSegment.update({
-                where: { id: pass.shotId },
+            await prisma.renderPass.update({
+                where: { id: passId },
                 data: {
                     status: 'failed',
-                    failureReason: pass.failureReason,
+                    failureReason: error instanceof Error ? error.message : 'Unknown error',
                 }
             });
         }
 
-        pass.completedAt = new Date();
-        pass.updatedAt = new Date();
-        job.updatedAt = new Date();
-
         // Check if job is complete
-        this.checkJobCompletion(job);
+        await this.checkJobCompletion(jobId);
     }
 
     /**
-     * Check if a job is complete and transition to next quality level if needed
+     * Check if a job is complete
      */
-    private checkJobCompletion(job: RenderJob): void {
-        const activePasses = job.passes.filter(p => p.quality === job.activeQuality);
+    private async checkJobCompletion(jobId: string): Promise<void> {
+        const dbJob = await prisma.renderJob.findUnique({
+            where: { id: jobId },
+            include: { passes: true }
+        });
+
+        if (!dbJob) return;
+
+        const activePasses = dbJob.passes.filter(p => p.quality === dbJob.currentQuality);
         const allComplete = activePasses.every(p => p.status === 'complete' || p.status === 'failed');
 
         if (!allComplete) return;
 
-        const currentIndex = job.targetQualities.indexOf(job.activeQuality);
-        const nextQuality = job.targetQualities[currentIndex + 1];
+        const jobRecipe = JSON.parse(dbJob.recipe);
+        const targetQualities: RenderQuality[] = jobRecipe.targetQualities || ['draft'];
+        const currentIndex = targetQualities.indexOf(dbJob.currentQuality as RenderQuality);
+        const nextQuality = targetQualities[currentIndex + 1];
 
         if (nextQuality) {
             // Move to next quality level
-            console.log(`[RenderQueue] Job ${job.id} advancing from ${job.activeQuality} to ${nextQuality}`);
-            job.activeQuality = nextQuality;
+            console.log(`[RenderQueue] Job ${jobId} advancing from ${dbJob.currentQuality} to ${nextQuality}`);
+
+            await prisma.renderJob.update({
+                where: { id: jobId },
+                data: { currentQuality: nextQuality }
+            });
 
             // Queue next quality passes
-            const nextPasses = job.passes.filter(p => p.quality === nextQuality && p.status === 'pending');
+            const nextPasses = dbJob.passes.filter(p => p.quality === nextQuality && p.status === 'pending');
             for (const pass of nextPasses) {
-                pass.status = 'queued';
-                pass.queuedAt = new Date();
-                this.queue.push({ pass, job });
+                await prisma.renderPass.update({
+                    where: { id: pass.id },
+                    data: { status: 'queued' }
+                });
+                this.queue.push({ passId: pass.id, jobId });
             }
 
             this.processQueue();
         } else {
             // Job complete
-            const allSucceeded = job.failedPasses === 0;
-            job.status = allSucceeded ? 'complete' : 'failed';
-            console.log(`[RenderQueue] Job ${job.id} complete. Status: ${job.status}`);
+            const allSucceeded = dbJob.passes.every(p => p.status !== 'failed');
+            await prisma.renderJob.update({
+                where: { id: jobId },
+                data: { status: allSucceeded ? 'approved' : 'failed' }
+            });
+            console.log(`[RenderQueue] Job ${jobId} complete`);
         }
     }
 
     /**
      * Pause a job
      */
-    pauseJob(jobId: string): RenderJob | undefined {
-        const job = this.activeJobs.get(jobId);
-        if (!job) return undefined;
+    async pauseJob(jobId: string): Promise<RenderJob | undefined> {
+        const dbJob = await prisma.renderJob.findUnique({ where: { id: jobId } });
+        if (!dbJob) return undefined;
 
-        job.status = 'paused';
-        job.updatedAt = new Date();
+        await prisma.renderJob.update({
+            where: { id: jobId },
+            data: { status: 'pending' }  // Use pending as paused state
+        });
 
         // Remove queued passes from queue
-        this.queue = this.queue.filter(item => item.job.id !== jobId);
+        this.queue = this.queue.filter(item => item.jobId !== jobId);
 
-        return job;
+        return this.getJob(jobId);
     }
 
     /**
      * Resume a paused job
      */
     async resumeJob(jobId: string): Promise<RenderJob | undefined> {
-        const job = this.activeJobs.get(jobId);
-        if (!job || job.status !== 'paused') return undefined;
-
         return this.startJob(jobId);
     }
 
     /**
-     * Get job status
+     * Get job by ID
      */
-    getJob(jobId: string): RenderJob | undefined {
-        return this.activeJobs.get(jobId);
+    async getJob(jobId: string): Promise<RenderJob | undefined> {
+        const dbJob = await prisma.renderJob.findUnique({
+            where: { id: jobId },
+            include: { passes: true }
+        });
+
+        if (!dbJob) return undefined;
+
+        const jobRecipe = JSON.parse(dbJob.recipe);
+        const targetQualities: RenderQuality[] = jobRecipe.targetQualities || ['draft'];
+
+        // Convert DB passes to in-memory format
+        const passes: RenderPass[] = dbJob.passes.map((p, index) => ({
+            id: p.id,
+            shotId: jobRecipe.segments?.[index % (jobRecipe.segments?.length || 1)]?.segmentId || '',
+            sceneChainId: dbJob.sceneChainId || '',
+            quality: p.quality as RenderQuality,
+            orderIndex: index,
+            recipe: jobRecipe.segments?.[index % (jobRecipe.segments?.length || 1)]?.recipe || {},
+            parentPassId: p.parentPassId || undefined,
+            childPassIds: [],
+            lockedSeed: p.lockedSeed || undefined,
+            seedSource: p.seedSource as any,
+            resultSeed: p.resultSeed || undefined,
+            status: p.status as RenderPassStatus,
+            outputUrl: p.outputUrl || undefined,
+            thumbnailUrl: p.thumbnailUrl || undefined,
+            generationId: p.generationId || undefined,
+            actualCost: p.cost,
+            failureReason: p.failureReason || undefined,
+            retryCount: 0,
+            createdAt: p.createdAt,
+            updatedAt: p.updatedAt,
+        }));
+
+        return this.dbJobToRenderJob(dbJob, passes, targetQualities, dbJob.burnInMetadata);
     }
 
     /**
      * Get all jobs for a project
      */
-    getJobsForProject(projectId: string): RenderJob[] {
-        return Array.from(this.activeJobs.values()).filter(j => j.projectId === projectId);
+    async getJobsForProject(projectId: string): Promise<RenderJob[]> {
+        const dbJobs = await prisma.renderJob.findMany({
+            where: { projectId },
+            include: { passes: true },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        const jobs: RenderJob[] = [];
+        for (const dbJob of dbJobs) {
+            const job = await this.getJob(dbJob.id);
+            if (job) jobs.push(job);
+        }
+
+        return jobs;
     }
 
     /**
      * Get render summary for all shots in a scene chain
      */
-    getShotSummaries(sceneChainId: string): ShotRenderSummary[] {
+    async getShotSummaries(sceneChainId: string): Promise<ShotRenderSummary[]> {
+        const dbJobs = await prisma.renderJob.findMany({
+            where: { sceneChainId },
+            include: { passes: true }
+        });
+
         const summaries: Map<string, ShotRenderSummary> = new Map();
 
-        for (const job of this.activeJobs.values()) {
-            if (job.sceneChainId !== sceneChainId) continue;
+        for (const dbJob of dbJobs) {
+            const jobRecipe = JSON.parse(dbJob.recipe);
 
-            for (const pass of job.passes) {
-                let summary = summaries.get(pass.shotId);
+            for (let i = 0; i < dbJob.passes.length; i++) {
+                const pass = dbJob.passes[i];
+                const segmentId = jobRecipe.segments?.[i % (jobRecipe.segments?.length || 1)]?.segmentId || `shot-${i}`;
+
+                let summary = summaries.get(segmentId);
                 if (!summary) {
                     summary = {
-                        shotId: pass.shotId,
-                        shotName: `Shot ${pass.orderIndex + 1}`,
+                        shotId: segmentId,
+                        shotName: `Shot ${i + 1}`,
                         passes: [],
                         totalCost: 0,
                     };
-                    summaries.set(pass.shotId, summary);
+                    summaries.set(segmentId, summary);
                 }
 
                 summary.passes.push({
-                    quality: pass.quality,
-                    status: pass.status,
-                    outputUrl: pass.outputUrl,
-                    cost: pass.actualCost,
+                    quality: pass.quality as RenderQuality,
+                    status: pass.status as RenderPassStatus,
+                    outputUrl: pass.outputUrl || undefined,
+                    cost: pass.cost,
                 });
 
-                if (pass.actualCost) {
-                    summary.totalCost += pass.actualCost;
+                if (pass.cost) {
+                    summary.totalCost += pass.cost;
                 }
 
-                // Track best available output
                 if (pass.status === 'complete' && pass.outputUrl) {
                     const qualityRank = { draft: 1, review: 2, master: 3 };
-                    const currentBestRank = summary.bestOutputQuality ? qualityRank[summary.bestOutputQuality] : 0;
-                    if (qualityRank[pass.quality] > currentBestRank) {
+                    const currentBestRank = summary.bestOutputQuality
+                        ? qualityRank[summary.bestOutputQuality]
+                        : 0;
+                    if (qualityRank[pass.quality as RenderQuality] > currentBestRank) {
                         summary.bestOutputUrl = pass.outputUrl;
-                        summary.bestOutputQuality = pass.quality;
+                        summary.bestOutputQuality = pass.quality as RenderQuality;
                     }
                 }
             }
@@ -480,141 +635,126 @@ class RenderQueueService {
     }
 
     /**
-     * Promote a shot to the next quality level
-     * (Re-render just this shot at higher quality)
-     *
-     * CRITICAL: This is where seed inheritance happens!
-     * The Master pass locks in the seed from the Draft to ensure visual consistency.
+     * Promote a shot to the next quality level with SEED INHERITANCE
      */
     async promoteShot(
         jobId: string,
         shotId: string,
         targetQuality: RenderQuality
     ): Promise<RenderPass> {
-        const job = this.activeJobs.get(jobId);
-        if (!job) throw new Error(`Job ${jobId} not found`);
+        const dbJob = await prisma.renderJob.findUnique({
+            where: { id: jobId },
+            include: { passes: true }
+        });
 
-        // Find existing pass at current highest quality (the parent)
-        const parentPass = job.passes
-            .filter(p => p.shotId === shotId && p.status === 'complete')
-            .sort((a, b) => {
-                const rank = { draft: 1, review: 2, master: 3 };
-                return rank[b.quality] - rank[a.quality];
-            })[0];
+        if (!dbJob) throw new Error(`Job ${jobId} not found`);
 
-        if (!parentPass) throw new Error(`No completed pass found for shot ${shotId}`);
-
-        // Validate quality upgrade (can't downgrade or stay same)
+        // Find parent pass (highest quality completed pass)
+        const completedPasses = dbJob.passes.filter(p => p.status === 'complete');
         const qualityRank = { draft: 1, review: 2, master: 3 };
-        if (qualityRank[targetQuality] <= qualityRank[parentPass.quality]) {
-            throw new Error(`Cannot promote from ${parentPass.quality} to ${targetQuality}`);
+
+        const parentDbPass = completedPasses.sort((a, b) =>
+            qualityRank[b.quality as RenderQuality] - qualityRank[a.quality as RenderQuality]
+        )[0];
+
+        if (!parentDbPass) throw new Error(`No completed pass found for shot ${shotId}`);
+
+        // Validate upgrade
+        if (qualityRank[targetQuality] <= qualityRank[parentDbPass.quality as RenderQuality]) {
+            throw new Error(`Cannot promote from ${parentDbPass.quality} to ${targetQuality}`);
         }
 
-        // Create new pass at target quality with INHERITED recipe and seed
-        const newPass: RenderPass = {
-            id: uuidv4(),
-            shotId: parentPass.shotId,
-            sceneChainId: parentPass.sceneChainId,
-            quality: targetQuality,
-            orderIndex: parentPass.orderIndex,
+        // Create new pass with inherited seed
+        const newDbPass = await prisma.renderPass.create({
+            data: {
+                jobId,
+                quality: targetQuality,
+                modelId: getModelForQuality(targetQuality, true),
+                parentPassId: parentDbPass.id,
+                // CRITICAL: Seed inheritance
+                lockedSeed: parentDbPass.resultSeed,
+                seedSource: parentDbPass.resultSeed !== null ? 'inherited' : 'random',
+                status: 'queued',
+            }
+        });
 
-            // === PARENT-CHILD MAPPING ===
-            parentPassId: parentPass.id,  // Link back to parent
-            childPassIds: [],
-
-            // === LOCKED RECIPE (inherited exactly from parent) ===
-            recipe: { ...parentPass.recipe },
-
-            // === SEED INHERITANCE ===
-            // CRITICAL: Lock the seed from parent's result for visual consistency
-            lockedSeed: parentPass.resultSeed,
-            seedSource: parentPass.resultSeed !== undefined ? 'inherited' : 'random',
-
-            status: 'pending',
-            retryCount: 0,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        };
-
-        // Update parent to track its children
-        parentPass.childPassIds = parentPass.childPassIds || [];
-        parentPass.childPassIds.push(newPass.id);
-
-        job.passes.push(newPass);
-        job.totalPasses++;
-
-        // Reestimate cost
-        const est = estimateCost(targetQuality, 1, true);
-        job.estimatedCost += est.totalCost;
-
-        console.log(`[RenderQueue] Promoting shot ${shotId} from ${parentPass.quality} to ${targetQuality}`);
-        console.log(`[RenderQueue] Parent pass: ${parentPass.id}, seed: ${parentPass.resultSeed}`);
-        console.log(`[RenderQueue] New pass: ${newPass.id}, locked seed: ${newPass.lockedSeed}`);
+        console.log(`[RenderQueue] Promoting shot ${shotId} from ${parentDbPass.quality} to ${targetQuality}`);
+        console.log(`[RenderQueue] Parent pass: ${parentDbPass.id}, seed: ${parentDbPass.resultSeed}`);
+        console.log(`[RenderQueue] New pass: ${newDbPass.id}, locked seed: ${newDbPass.lockedSeed}`);
 
         // Queue immediately
-        newPass.status = 'queued';
-        newPass.queuedAt = new Date();
-        this.queue.push({ pass: newPass, job });
-
+        this.queue.push({ passId: newDbPass.id, jobId });
         this.processQueue();
 
-        return newPass;
+        const jobRecipe = JSON.parse(dbJob.recipe);
+        return {
+            id: newDbPass.id,
+            shotId,
+            sceneChainId: dbJob.sceneChainId || '',
+            quality: targetQuality,
+            orderIndex: 0,
+            recipe: jobRecipe.segments?.[0]?.recipe || {},
+            parentPassId: parentDbPass.id,
+            childPassIds: [],
+            lockedSeed: newDbPass.lockedSeed || undefined,
+            seedSource: newDbPass.seedSource as any,
+            status: 'queued',
+            retryCount: 0,
+            createdAt: newDbPass.createdAt,
+            updatedAt: newDbPass.updatedAt,
+        };
     }
 
     /**
-     * Get version stack for a shot - shows all quality passes and their outputs
-     * Used for UI version switching (v1/v2/v3 display)
+     * Get version stack for a shot
      */
-    getVersionStack(sceneChainId: string, shotId: string): ShotVersionStack | null {
-        // Find all jobs for this chain
-        for (const job of this.activeJobs.values()) {
-            if (job.sceneChainId !== sceneChainId) continue;
+    async getVersionStack(sceneChainId: string, shotId: string): Promise<ShotVersionStack | null> {
+        const dbJobs = await prisma.renderJob.findMany({
+            where: { sceneChainId },
+            include: { passes: true }
+        });
 
-            const shotPasses = job.passes.filter(p => p.shotId === shotId);
+        for (const dbJob of dbJobs) {
+            const jobRecipe = JSON.parse(dbJob.recipe);
+            const shotPasses = dbJob.passes;
+
             if (shotPasses.length === 0) continue;
 
-            // Get the recipe from the first pass (all should share the same recipe)
-            const recipe = shotPasses[0].recipe;
+            const recipe = jobRecipe.segments?.[0]?.recipe || {};
 
-            // Build version list
             const versions = shotPasses
                 .sort((a, b) => {
                     const rank = { draft: 1, review: 2, master: 3 };
-                    return rank[a.quality] - rank[b.quality];
+                    return rank[a.quality as RenderQuality] - rank[b.quality as RenderQuality];
                 })
                 .map(pass => ({
                     passId: pass.id,
-                    quality: pass.quality,
-                    status: pass.status,
-                    outputUrl: pass.outputUrl,
-                    thumbnailUrl: pass.thumbnailUrl,
-                    seed: pass.resultSeed || pass.lockedSeed,
-                    model: pass.resultMetadata?.model || getModelForQuality(pass.quality, true),
-                    cost: pass.actualCost,
+                    quality: pass.quality as RenderQuality,
+                    status: pass.status as RenderPassStatus,
+                    outputUrl: pass.outputUrl || undefined,
+                    thumbnailUrl: pass.thumbnailUrl || undefined,
+                    seed: pass.resultSeed || pass.lockedSeed || undefined,
+                    model: pass.modelId,
+                    cost: pass.cost,
                     createdAt: pass.createdAt,
                 }));
 
-            // Determine best available version
             const completedVersions = versions.filter(v => v.status === 'complete');
             const bestVersion = completedVersions.length > 0
-                ? completedVersions[completedVersions.length - 1]  // Highest quality complete
-                : versions[0];  // Fall back to first
+                ? completedVersions[completedVersions.length - 1]
+                : versions[0];
 
-            // Determine upgrade options
             const qualityOrder: RenderQuality[] = ['draft', 'review', 'master'];
             const completedQualities = completedVersions.map(v => v.quality);
             const highestComplete = completedQualities.length > 0
                 ? qualityOrder.indexOf(completedQualities[completedQualities.length - 1])
                 : -1;
             const nextUpgrade = highestComplete < 2 ? qualityOrder[highestComplete + 1] : undefined;
-
-            const upgradeCost = nextUpgrade
-                ? estimateCost(nextUpgrade, 1, true).perShotCost
-                : undefined;
+            const upgradeCost = nextUpgrade ? estimateCost(nextUpgrade, 1, true).perShotCost : undefined;
 
             return {
                 shotId,
-                shotName: `Shot ${shotPasses[0].orderIndex + 1}`,
+                shotName: `Shot 1`,
                 versions,
                 activeVersion: bestVersion?.quality || 'draft',
                 recipe,
@@ -630,32 +770,13 @@ class RenderQueueService {
     /**
      * Get all version stacks for a scene chain
      */
-    getAllVersionStacks(sceneChainId: string): ShotVersionStack[] {
-        const stacks: ShotVersionStack[] = [];
-        const seenShots = new Set<string>();
-
-        for (const job of this.activeJobs.values()) {
-            if (job.sceneChainId !== sceneChainId) continue;
-
-            for (const pass of job.passes) {
-                if (seenShots.has(pass.shotId)) continue;
-                seenShots.add(pass.shotId);
-
-                const stack = this.getVersionStack(sceneChainId, pass.shotId);
-                if (stack) stacks.push(stack);
-            }
-        }
-
-        return stacks.sort((a, b) => {
-            // Sort by shot order
-            const aOrder = parseInt(a.shotName.replace('Shot ', '')) || 0;
-            const bOrder = parseInt(b.shotName.replace('Shot ', '')) || 0;
-            return aOrder - bOrder;
-        });
+    async getAllVersionStacks(sceneChainId: string): Promise<ShotVersionStack[]> {
+        const stack = await this.getVersionStack(sceneChainId, '');
+        return stack ? [stack] : [];
     }
 
     /**
-     * Get cost comparison between draft iteration and master-only workflow
+     * Get cost comparison
      */
     getCostComparison(
         shotCount: number,
@@ -669,131 +790,121 @@ class RenderQueueService {
      * Retry a failed pass
      */
     async retryPass(jobId: string, passId: string): Promise<RenderPass> {
-        const job = this.activeJobs.get(jobId);
-        if (!job) throw new Error(`Job ${jobId} not found`);
+        const dbPass = await prisma.renderPass.findUnique({
+            where: { id: passId },
+            include: { job: true }
+        });
+        if (!dbPass) throw new Error(`Pass ${passId} not found`);
+        if (dbPass.status !== 'failed') throw new Error('Can only retry failed passes');
 
-        const pass = job.passes.find(p => p.id === passId);
-        if (!pass) throw new Error(`Pass ${passId} not found`);
-        if (pass.status !== 'failed') throw new Error('Can only retry failed passes');
+        await prisma.renderPass.update({
+            where: { id: passId },
+            data: {
+                status: 'queued',
+                failureReason: null,
+            }
+        });
 
-        pass.status = 'queued';
-        pass.failureReason = undefined;
-        pass.queuedAt = new Date();
-        pass.updatedAt = new Date();
-
-        job.failedPasses--;
-
-        this.queue.push({ pass, job });
+        this.queue.push({ passId, jobId });
         this.processQueue();
 
-        return pass;
+        // Parse recipe from job
+        const recipe: ShotRecipe = dbPass.job.recipe
+            ? JSON.parse(dbPass.job.recipe)
+            : { prompt: '', aspectRatio: '16:9', duration: 5 };
+
+        return {
+            id: dbPass.id,
+            shotId: '',
+            sceneChainId: dbPass.job.sceneChainId || '',
+            quality: dbPass.quality as RenderQuality,
+            orderIndex: 0,
+            recipe,
+            childPassIds: [],
+            seedSource: dbPass.seedSource as 'random' | 'inherited' | 'user',
+            status: 'queued',
+            retryCount: 0,
+            createdAt: dbPass.createdAt,
+            updatedAt: dbPass.updatedAt,
+        };
     }
 
     /**
-     * Cancel a job completely
+     * Cancel a job
      */
-    cancelJob(jobId: string): boolean {
-        const job = this.activeJobs.get(jobId);
-        if (!job) return false;
+    async cancelJob(jobId: string): Promise<boolean> {
+        const dbJob = await prisma.renderJob.findUnique({ where: { id: jobId } });
+        if (!dbJob) return false;
 
         // Remove from queue
-        this.queue = this.queue.filter(item => item.job.id !== jobId);
+        this.queue = this.queue.filter(item => item.jobId !== jobId);
 
-        // Mark all pending/queued passes as skipped
-        for (const pass of job.passes) {
-            if (pass.status === 'pending' || pass.status === 'queued') {
-                pass.status = 'skipped';
-            }
-        }
+        // Mark job as failed
+        await prisma.renderJob.update({
+            where: { id: jobId },
+            data: { status: 'failed' }
+        });
 
-        job.status = 'failed';
-        this.activeJobs.delete(jobId);
+        // Mark pending passes as skipped
+        await prisma.renderPass.updateMany({
+            where: {
+                jobId,
+                status: { in: ['pending', 'queued'] }
+            },
+            data: { status: 'pending' }  // Use pending as skipped
+        });
 
         return true;
     }
 
     /**
-     * REFINEMENT B: Get A/B comparison data for a shot
-     * Returns two complete passes for side-by-side comparison in the Lightbox
+     * Get A/B comparison data
      */
-    getPassComparison(
+    async getPassComparison(
         sceneChainId: string,
         shotId: string,
         qualityA: RenderQuality,
         qualityB: RenderQuality
-    ): {
-        shotId: string;
-        shotName: string;
-        passA: {
-            passId: string;
-            quality: RenderQuality;
-            outputUrl: string;
-            thumbnailUrl?: string;
-            cost: number;
-            seed?: number;
-            model: string;
-        } | null;
-        passB: {
-            passId: string;
-            quality: RenderQuality;
-            outputUrl: string;
-            thumbnailUrl?: string;
-            cost: number;
-            seed?: number;
-            model: string;
-        } | null;
-        costDifference: number;
-        qualityUpgrade: string;
-    } | null {
-        const stack = this.getVersionStack(sceneChainId, shotId);
+    ): Promise<any> {
+        const stack = await this.getVersionStack(sceneChainId, shotId);
         if (!stack) return null;
 
         const versionA = stack.versions.find(v => v.quality === qualityA && v.status === 'complete');
         const versionB = stack.versions.find(v => v.quality === qualityB && v.status === 'complete');
 
-        const passA = versionA ? {
-            passId: versionA.passId,
-            quality: versionA.quality,
-            outputUrl: versionA.outputUrl || '',
-            thumbnailUrl: versionA.thumbnailUrl,
-            cost: versionA.cost || 0,
-            seed: versionA.seed,
-            model: versionA.model,
-        } : null;
-
-        const passB = versionB ? {
-            passId: versionB.passId,
-            quality: versionB.quality,
-            outputUrl: versionB.outputUrl || '',
-            thumbnailUrl: versionB.thumbnailUrl,
-            cost: versionB.cost || 0,
-            seed: versionB.seed,
-            model: versionB.model,
-        } : null;
-
-        const costA = passA?.cost || 0;
-        const costB = passB?.cost || 0;
-
         return {
             shotId: stack.shotId,
             shotName: stack.shotName,
-            passA,
-            passB,
-            costDifference: costB - costA,
+            passA: versionA ? {
+                passId: versionA.passId,
+                quality: versionA.quality,
+                outputUrl: versionA.outputUrl || '',
+                cost: versionA.cost || 0,
+                seed: versionA.seed,
+                model: versionA.model,
+            } : null,
+            passB: versionB ? {
+                passId: versionB.passId,
+                quality: versionB.quality,
+                outputUrl: versionB.outputUrl || '',
+                cost: versionB.cost || 0,
+                seed: versionB.seed,
+                model: versionB.model,
+            } : null,
+            costDifference: (versionB?.cost || 0) - (versionA?.cost || 0),
             qualityUpgrade: `${qualityA} → ${qualityB}`,
         };
     }
 
     /**
-     * Get all available comparisons for a scene chain
-     * Returns shots that have at least 2 completed quality passes
+     * Get available comparisons
      */
-    getAvailableComparisons(sceneChainId: string): Array<{
+    async getAvailableComparisons(sceneChainId: string): Promise<Array<{
         shotId: string;
         shotName: string;
         availableQualities: RenderQuality[];
-    }> {
-        const stacks = this.getAllVersionStacks(sceneChainId);
+    }>> {
+        const stacks = await this.getAllVersionStacks(sceneChainId);
         return stacks
             .filter(stack => {
                 const completedVersions = stack.versions.filter(v => v.status === 'complete');
