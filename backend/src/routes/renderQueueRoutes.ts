@@ -97,10 +97,10 @@ router.post('/jobs', async (req: Request, res: Response) => {
  * GET /api/projects/:projectId/render-queue/jobs
  * Get all render jobs for a project
  */
-router.get('/jobs', (req: Request, res: Response) => {
+router.get('/jobs', async (req: Request, res: Response) => {
     try {
         const { projectId } = req.params;
-        const jobs = renderQueueService.getJobsForProject(projectId);
+        const jobs = await renderQueueService.getJobsForProject(projectId);
         res.json(jobs);
     } catch (error) {
         console.error('Error fetching jobs:', error);
@@ -112,10 +112,10 @@ router.get('/jobs', (req: Request, res: Response) => {
  * GET /api/projects/:projectId/render-queue/jobs/:jobId
  * Get a specific render job
  */
-router.get('/jobs/:jobId', (req: Request, res: Response) => {
+router.get('/jobs/:jobId', async (req: Request, res: Response) => {
     try {
         const { jobId } = req.params;
-        const job = renderQueueService.getJob(jobId);
+        const job = await renderQueueService.getJob(jobId);
 
         if (!job) {
             return res.status(404).json({ error: 'Render job not found' });
@@ -150,10 +150,10 @@ router.post('/jobs/:jobId/start', async (req: Request, res: Response) => {
  * POST /api/projects/:projectId/render-queue/jobs/:jobId/pause
  * Pause a render job
  */
-router.post('/jobs/:jobId/pause', (req: Request, res: Response) => {
+router.post('/jobs/:jobId/pause', async (req: Request, res: Response) => {
     try {
         const { jobId } = req.params;
-        const job = renderQueueService.pauseJob(jobId);
+        const job = await renderQueueService.pauseJob(jobId);
 
         if (!job) {
             return res.status(404).json({ error: 'Render job not found' });
@@ -190,10 +190,10 @@ router.post('/jobs/:jobId/resume', async (req: Request, res: Response) => {
  * DELETE /api/projects/:projectId/render-queue/jobs/:jobId
  * Cancel a render job
  */
-router.delete('/jobs/:jobId', (req: Request, res: Response) => {
+router.delete('/jobs/:jobId', async (req: Request, res: Response) => {
     try {
         const { jobId } = req.params;
-        const success = renderQueueService.cancelJob(jobId);
+        const success = await renderQueueService.cancelJob(jobId);
 
         if (!success) {
             return res.status(404).json({ error: 'Render job not found' });
@@ -210,10 +210,10 @@ router.delete('/jobs/:jobId', (req: Request, res: Response) => {
  * GET /api/projects/:projectId/render-queue/scene-chains/:chainId/summaries
  * Get render summaries for all shots in a scene chain
  */
-router.get('/scene-chains/:chainId/summaries', (req: Request, res: Response) => {
+router.get('/scene-chains/:chainId/summaries', async (req: Request, res: Response) => {
     try {
         const { chainId } = req.params;
-        const summaries = renderQueueService.getShotSummaries(chainId);
+        const summaries = await renderQueueService.getShotSummaries(chainId);
         res.json(summaries);
     } catch (error) {
         console.error('Error fetching summaries:', error);
@@ -226,10 +226,10 @@ router.get('/scene-chains/:chainId/summaries', (req: Request, res: Response) => 
  * Get version stacks for all shots in a scene chain
  * Shows all quality passes (v1=Draft, v2=Review, v3=Master) with upgrade options
  */
-router.get('/scene-chains/:chainId/version-stacks', (req: Request, res: Response) => {
+router.get('/scene-chains/:chainId/version-stacks', async (req: Request, res: Response) => {
     try {
         const { chainId } = req.params;
-        const stacks = renderQueueService.getAllVersionStacks(chainId);
+        const stacks = await renderQueueService.getAllVersionStacks(chainId);
         res.json(stacks);
     } catch (error) {
         console.error('Error fetching version stacks:', error);
@@ -241,10 +241,10 @@ router.get('/scene-chains/:chainId/version-stacks', (req: Request, res: Response
  * GET /api/projects/:projectId/render-queue/scene-chains/:chainId/shots/:shotId/version-stack
  * Get version stack for a specific shot
  */
-router.get('/scene-chains/:chainId/shots/:shotId/version-stack', (req: Request, res: Response) => {
+router.get('/scene-chains/:chainId/shots/:shotId/version-stack', async (req: Request, res: Response) => {
     try {
         const { chainId, shotId } = req.params;
-        const stack = renderQueueService.getVersionStack(chainId, shotId);
+        const stack = await renderQueueService.getVersionStack(chainId, shotId);
 
         if (!stack) {
             return res.status(404).json({ error: 'No render passes found for this shot' });
@@ -336,10 +336,10 @@ router.get('/cost-comparison', (req: Request, res: Response) => {
  * Get all available A/B comparisons for a scene chain
  * Returns shots that have at least 2 completed quality passes
  */
-router.get('/scene-chains/:chainId/comparisons', (req: Request, res: Response) => {
+router.get('/scene-chains/:chainId/comparisons', async (req: Request, res: Response) => {
     try {
         const { chainId } = req.params;
-        const comparisons = renderQueueService.getAvailableComparisons(chainId);
+        const comparisons = await renderQueueService.getAvailableComparisons(chainId);
         res.json(comparisons);
     } catch (error) {
         console.error('Error fetching comparisons:', error);
@@ -352,7 +352,7 @@ router.get('/scene-chains/:chainId/comparisons', (req: Request, res: Response) =
  * Get A/B comparison data for a specific shot
  * Query params: qualityA (default: draft), qualityB (default: master)
  */
-router.get('/scene-chains/:chainId/shots/:shotId/compare', (req: Request, res: Response) => {
+router.get('/scene-chains/:chainId/shots/:shotId/compare', async (req: Request, res: Response) => {
     try {
         const { chainId, shotId } = req.params;
         const { qualityA = 'draft', qualityB = 'master' } = req.query;
@@ -362,7 +362,7 @@ router.get('/scene-chains/:chainId/shots/:shotId/compare', (req: Request, res: R
             return res.status(400).json({ error: 'Invalid quality level. Must be draft, review, or master' });
         }
 
-        const comparison = renderQueueService.getPassComparison(
+        const comparison = await renderQueueService.getPassComparison(
             chainId,
             shotId,
             qualityA as RenderQuality,

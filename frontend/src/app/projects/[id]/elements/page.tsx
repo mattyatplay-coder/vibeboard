@@ -7,6 +7,7 @@ import {
   X,
   Image as ImageIcon,
   Film,
+  Music,
   Edit2,
   Heart,
   Download,
@@ -14,18 +15,33 @@ import {
   Copy,
   CheckSquare,
   Tag,
+  Filter,
+  SortAsc,
+  SortDesc,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { fetchAPI, uploadFile } from '@/lib/api';
 import { useSearchParams } from 'next/navigation';
 import { EditElementModal } from '@/components/elements/EditElementModal';
-import { SortFilterHeader, SortFilterState } from '@/components/elements/SortFilterHeader';
+import type { SortFilterState } from '@/components/elements/SortFilterHeader';
 import { Element as StoreElement, ElementType } from '@/lib/store';
 import { useParams } from 'next/navigation';
 
 import { useSession } from '@/context/SessionContext';
 import { SaveElementModal } from '@/components/generations/SaveElementModal';
+import { AudioElementPlayer } from '@/components/audio';
+
+// Audio file extension detection
+const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac', '.wma', '.webm'];
+
+function isAudioElement(element: StoreElement): boolean {
+  // 'voice' type is for audio elements
+  if (element.type === 'voice') return true;
+  // Also check file extension for uploaded audio files
+  const url = element.url?.toLowerCase() || '';
+  return AUDIO_EXTENSIONS.some(ext => url.endsWith(ext));
+}
 
 export default function ElementsPage() {
   const params = useParams();
@@ -49,6 +65,10 @@ export default function ElementsPage() {
     filterTags: [],
     filterSessions: [],
   });
+
+  // Sort/Filter dropdown state
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
 
   // Initialize filters from URL
   useEffect(() => {
@@ -374,29 +394,306 @@ export default function ElementsPage() {
 
   return (
     <div className="space-y-8 p-8 pb-20">
-      <header className="flex items-center justify-between">
+      <header className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold">Elements</h1>
           <p className="mt-2 text-gray-400">Manage your characters, props, and locations.</p>
         </div>
-        <SortFilterHeader
-          state={sortFilter}
-          onChange={setSortFilter}
-          availableTags={availableTags}
-          availableSessions={sessions}
-        />
-        {elements.length > 0 && (
-          <button
-            onClick={
-              selectedElementIds.length === sortedElements.length
-                ? deselectAllElements
-                : selectAllElements
-            }
-            className="ml-4 text-sm text-blue-400 hover:text-blue-300"
-          >
-            {selectedElementIds.length === sortedElements.length ? 'Deselect All' : 'Select All'}
-          </button>
-        )}
+
+        {/* Sort, Filter & Select All - matching Generate page styling */}
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <div className="flex items-center gap-2">
+            {/* Sort dropdown trigger */}
+            <div className="relative">
+              <button
+                onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
+                className="inline-flex h-8 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-sm font-medium leading-none text-gray-300 transition-colors hover:bg-white/10"
+              >
+                {sortFilter.sortOrder === 'asc' ? (
+                  <SortAsc className="h-4 w-4" />
+                ) : (
+                  <SortDesc className="h-4 w-4" />
+                )}
+                Sort
+              </button>
+              {isSortDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsSortDropdownOpen(false)} />
+                  <div className="absolute top-full right-0 z-50 mt-2 w-56 overflow-hidden rounded-xl border border-white/10 bg-[#1a1a1a] shadow-xl">
+                    <div className="flex items-center justify-between border-b border-white/10 p-3">
+                      <span className="text-sm font-bold text-white">Sort</span>
+                      <button
+                        onClick={() => {
+                          setSortFilter(prev => ({ ...prev, sortBy: 'name', sortOrder: 'asc' }));
+                          setIsSortDropdownOpen(false);
+                        }}
+                        className="text-xs text-red-400 hover:text-red-300"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    <div className="max-h-64 space-y-3 overflow-y-auto p-3">
+                      {/* Sort By */}
+                      <div>
+                        <div className="mb-1 text-xs font-bold tracking-wider text-gray-500 uppercase">Sort By</div>
+                        <div className="flex flex-wrap gap-1">
+                          {[
+                            { label: 'Name', value: 'name' },
+                            { label: 'Type', value: 'type' },
+                            { label: 'Aspect Ratio', value: 'aspectRatio' },
+                          ].map(opt => (
+                            <button
+                              key={opt.value}
+                              onClick={() => {
+                                setSortFilter(prev => ({ ...prev, sortBy: opt.value as SortFilterState['sortBy'] }));
+                              }}
+                              className={clsx(
+                                'rounded-lg border px-3 py-1.5 text-xs transition-colors',
+                                sortFilter.sortBy === opt.value
+                                  ? 'border-blue-500/50 bg-blue-500/20 text-blue-400'
+                                  : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Order */}
+                      <div>
+                        <div className="mb-1 text-xs font-bold tracking-wider text-gray-500 uppercase">Order</div>
+                        <div className="flex gap-2">
+                          {[
+                            { label: 'Ascending', value: 'asc' },
+                            { label: 'Descending', value: 'desc' },
+                          ].map(opt => (
+                            <button
+                              key={opt.value}
+                              onClick={() => {
+                                setSortFilter(prev => ({ ...prev, sortOrder: opt.value as 'asc' | 'desc' }));
+                              }}
+                              className={clsx(
+                                'rounded-lg border px-3 py-1.5 text-xs transition-colors',
+                                sortFilter.sortOrder === opt.value
+                                  ? 'border-blue-500/50 bg-blue-500/20 text-blue-400'
+                                  : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Filter dropdown trigger */}
+            <div className="relative">
+              <button
+                onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
+                className={clsx(
+                  'inline-flex h-8 items-center gap-2 rounded-lg border px-3 text-sm font-medium leading-none transition-colors',
+                  (sortFilter.filterType.length > 0 || sortFilter.filterMediaType.length > 0 || sortFilter.filterAspectRatio.length > 0 || sortFilter.filterTags.length > 0 || sortFilter.filterSessions.length > 0)
+                    ? 'border-blue-500/50 bg-blue-500/20 text-blue-400'
+                    : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10'
+                )}
+              >
+                <Filter className="h-4 w-4" />
+                Filter
+                {(sortFilter.filterType.length + sortFilter.filterMediaType.length + sortFilter.filterAspectRatio.length + sortFilter.filterTags.length + sortFilter.filterSessions.length) > 0 && (
+                  <span className="rounded-full bg-blue-500 px-1.5 text-[10px] text-white">
+                    {sortFilter.filterType.length + sortFilter.filterMediaType.length + sortFilter.filterAspectRatio.length + sortFilter.filterTags.length + sortFilter.filterSessions.length}
+                  </span>
+                )}
+              </button>
+              {isFilterDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsFilterDropdownOpen(false)} />
+                  <div className="absolute top-full right-0 z-50 mt-2 w-56 overflow-hidden rounded-xl border border-white/10 bg-[#1a1a1a] shadow-xl">
+                    <div className="flex items-center justify-between border-b border-white/10 p-3">
+                      <span className="text-sm font-bold text-white">Filters</span>
+                      {(sortFilter.filterType.length > 0 || sortFilter.filterMediaType.length > 0 || sortFilter.filterAspectRatio.length > 0 || sortFilter.filterTags.length > 0 || sortFilter.filterSessions.length > 0) && (
+                        <button
+                          onClick={() => setSortFilter(prev => ({ ...prev, filterType: [], filterMediaType: [], filterAspectRatio: [], filterTags: [], filterSessions: [] }))}
+                          className="text-xs text-red-400 hover:text-red-300"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-64 space-y-3 overflow-y-auto p-3">
+                      {/* Element Type */}
+                      <div>
+                        <div className="mb-1 text-xs font-bold tracking-wider text-gray-500 uppercase">Element Type</div>
+                        <div className="flex flex-wrap gap-1">
+                          {[
+                            { value: 'character', label: 'Character' },
+                            { value: 'prop', label: 'Object' },
+                            { value: 'place', label: 'Location' },
+                            { value: 'image', label: 'Image' },
+                            { value: 'video', label: 'Video' },
+                          ].map(opt => (
+                            <button
+                              key={opt.value}
+                              onClick={() => {
+                                const current = sortFilter.filterType;
+                                setSortFilter(prev => ({
+                                  ...prev,
+                                  filterType: current.includes(opt.value)
+                                    ? current.filter(t => t !== opt.value)
+                                    : [...current, opt.value]
+                                }));
+                              }}
+                              className={clsx(
+                                'rounded-lg border px-2 py-1 text-xs transition-colors',
+                                sortFilter.filterType.includes(opt.value)
+                                  ? 'border-blue-500/50 bg-blue-500/20 text-blue-400'
+                                  : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Media Type */}
+                      <div>
+                        <div className="mb-1 text-xs font-bold tracking-wider text-gray-500 uppercase">Media Type</div>
+                        <div className="flex gap-2">
+                          {['image', 'video'].map(type => (
+                            <button
+                              key={type}
+                              onClick={() => {
+                                const current = sortFilter.filterMediaType;
+                                setSortFilter(prev => ({
+                                  ...prev,
+                                  filterMediaType: current.includes(type)
+                                    ? current.filter(t => t !== type)
+                                    : [...current, type]
+                                }));
+                              }}
+                              className={clsx(
+                                'rounded-lg border px-3 py-1.5 text-xs capitalize transition-colors',
+                                sortFilter.filterMediaType.includes(type)
+                                  ? 'border-blue-500/50 bg-blue-500/20 text-blue-400'
+                                  : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                              )}
+                            >
+                              {type}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Aspect Ratio */}
+                      <div>
+                        <div className="mb-1 text-xs font-bold tracking-wider text-gray-500 uppercase">Aspect Ratio</div>
+                        <div className="flex flex-wrap gap-1">
+                          {['16:9', '9:16', '1:1', '21:9', '4:3'].map(ratio => (
+                            <button
+                              key={ratio}
+                              onClick={() => {
+                                const current = sortFilter.filterAspectRatio;
+                                setSortFilter(prev => ({
+                                  ...prev,
+                                  filterAspectRatio: current.includes(ratio)
+                                    ? current.filter(r => r !== ratio)
+                                    : [...current, ratio]
+                                }));
+                              }}
+                              className={clsx(
+                                'rounded-lg border px-2 py-1 text-xs transition-colors',
+                                sortFilter.filterAspectRatio.includes(ratio)
+                                  ? 'border-blue-500/50 bg-blue-500/20 text-blue-400'
+                                  : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                              )}
+                            >
+                              {ratio}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Tags */}
+                      {availableTags.length > 0 && (
+                        <div>
+                          <div className="mb-1 text-xs font-bold tracking-wider text-gray-500 uppercase">Tags</div>
+                          <div className="flex flex-wrap gap-1">
+                            {availableTags.map(tag => (
+                              <button
+                                key={tag}
+                                onClick={() => {
+                                  const current = sortFilter.filterTags;
+                                  setSortFilter(prev => ({
+                                    ...prev,
+                                    filterTags: current.includes(tag)
+                                      ? current.filter(t => t !== tag)
+                                      : [...current, tag]
+                                  }));
+                                }}
+                                className={clsx(
+                                  'rounded-full border px-2 py-1 text-xs transition-colors',
+                                  sortFilter.filterTags.includes(tag)
+                                    ? 'border-blue-500/50 bg-blue-500/20 text-blue-400'
+                                    : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                                )}
+                              >
+                                {tag}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {/* Sessions */}
+                      {sessions.length > 0 && (
+                        <div>
+                          <div className="mb-1 text-xs font-bold tracking-wider text-gray-500 uppercase">Session</div>
+                          <div className="space-y-1">
+                            {sessions.map(session => (
+                              <label key={session.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 hover:bg-white/5">
+                                <input
+                                  type="checkbox"
+                                  checked={sortFilter.filterSessions.includes(session.id)}
+                                  onChange={() => {
+                                    const current = sortFilter.filterSessions;
+                                    setSortFilter(prev => ({
+                                      ...prev,
+                                      filterSessions: current.includes(session.id)
+                                        ? current.filter(s => s !== session.id)
+                                        : [...current, session.id]
+                                    }));
+                                  }}
+                                  className="rounded border-white/20 bg-black/50 text-blue-500 focus:ring-blue-500/50"
+                                />
+                                <span className="truncate text-sm text-gray-300">{session.name}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Select All - pill style, full width spanning Sort to Filter */}
+          {elements.length > 0 && (
+            <button
+              onClick={
+                selectedElementIds.length === sortedElements.length
+                  ? deselectAllElements
+                  : selectAllElements
+              }
+              className="inline-flex h-8 w-full items-center justify-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 text-sm font-medium leading-none text-blue-400 transition-colors hover:bg-blue-500/20"
+            >
+              <CheckSquare className="h-4 w-4" />
+              {selectedElementIds.length === sortedElements.length ? 'Deselect All' : 'Select All'}
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Upload Zone */}
@@ -694,6 +991,15 @@ function ElementCard({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClick={e => {
+        // Audio elements handle their own click/double-click internally
+        if (isAudioElement(element)) {
+          // Only handle selection for audio elements
+          if (onToggleSelection && (e.ctrlKey || e.metaKey || isSelected)) {
+            e.stopPropagation();
+            onToggleSelection();
+          }
+          return;
+        }
         if (onToggleSelection && (e.ctrlKey || e.metaKey || isSelected)) {
           e.stopPropagation();
           onToggleSelection();
@@ -753,13 +1059,26 @@ function ElementCard({
           playsInline
           onTimeUpdate={handleTimeUpdate}
         />
+      ) : isAudioElement(element) ? (
+        <AudioElementPlayer
+          audioUrl={element.url}
+          name={element.name}
+          className="h-full w-full"
+          onDoubleClick={handleClick}
+        />
       ) : (
         <img src={element.url} alt={element.name} className="h-full w-full object-cover" />
       )}
 
-      <div className="absolute inset-0 flex flex-col justify-between bg-black/50 p-3 opacity-0 transition-opacity group-hover:opacity-100">
+      {/* Hover overlay - for audio elements, only show action buttons without blocking clicks */}
+      <div
+        className={clsx(
+          'absolute inset-0 flex flex-col justify-between p-3 opacity-0 transition-opacity group-hover:opacity-100',
+          isAudioElement(element) ? 'pointer-events-none' : 'bg-black/50'
+        )}
+      >
         <div className="flex items-start justify-end">
-          <div className="flex gap-1">
+          <div className="pointer-events-auto flex gap-1">
             <button
               onClick={handleDownload}
               className="rounded-lg bg-black/50 p-1.5 text-white transition-colors hover:bg-white/20"
@@ -775,8 +1094,9 @@ function ElementCard({
           </div>
         </div>
 
-        <div className="mt-auto flex items-center gap-2">
+        <div className="pointer-events-auto mt-auto flex items-center gap-2">
           {element.type === 'video' && <Film className="h-3 w-3 text-blue-400" />}
+          {isAudioElement(element) && <Music className="h-3 w-3 text-purple-400" />}
           <p className="flex-1 truncate text-xs font-medium text-white">{element.name}</p>
           <button
             onClick={e => {

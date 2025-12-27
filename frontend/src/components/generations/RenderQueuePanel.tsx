@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
+import * as Tooltip from '@radix-ui/react-tooltip';
 import {
   Play,
   Pause,
@@ -33,6 +34,24 @@ import {
 } from 'lucide-react';
 import { ABLightbox } from './ABLightbox';
 import { BACKEND_URL } from '@/lib/api';
+
+// Reusable Tooltip wrapper component
+function InfoTooltip({ children, content }: { children: React.ReactNode; content: React.ReactNode }) {
+  return (
+    <Tooltip.Root delayDuration={100}>
+      <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Content
+          className="z-50 max-w-xs rounded-lg border border-white/10 bg-gray-900 px-3 py-2 text-xs text-gray-200 shadow-xl"
+          sideOffset={5}
+        >
+          {content}
+          <Tooltip.Arrow className="fill-gray-900" />
+        </Tooltip.Content>
+      </Tooltip.Portal>
+    </Tooltip.Root>
+  );
+}
 
 type RenderQuality = 'draft' | 'review' | 'master';
 type RenderPassStatus = 'pending' | 'queued' | 'generating' | 'complete' | 'failed' | 'skipped';
@@ -470,45 +489,116 @@ export function RenderQueuePanel({
     : 0;
 
   return (
+    <Tooltip.Provider delayDuration={100}>
     <div className="overflow-hidden rounded-lg border border-white/10 bg-black/40">
-      {/* Header */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="flex w-full items-center justify-between px-4 py-3 transition-colors hover:bg-white/5"
-      >
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
+      {/* Header - Full-width title bar with pill controls */}
+      <div className="flex items-center gap-3 px-4 py-2.5">
+        {/* Title + Expand toggle */}
+        <InfoTooltip content="Batch render all shots in your scene chain at different quality levels. Click to expand options.">
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex items-center gap-2 transition-colors hover:opacity-80"
+          >
             <Zap className="h-4 w-4 text-amber-400" />
             <span className="text-sm font-medium text-white">Render Queue</span>
-          </div>
-          {currentJob && (
+            {isExpanded ? (
+              <ChevronUp className="h-4 w-4 text-gray-500" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-gray-500" />
+            )}
+          </button>
+        </InfoTooltip>
+
+        {/* Job status badge */}
+        {currentJob && (
+          <InfoTooltip
+            content={
+              currentJob.status === 'rendering' ? 'Currently processing shots...' :
+              currentJob.status === 'paused' ? 'Job paused - click Resume to continue' :
+              currentJob.status === 'complete' ? 'All renders complete!' :
+              'Some renders failed - click retry to try again'
+            }
+          >
             <div
               className={clsx(
-                'rounded px-2 py-0.5 text-[10px] font-medium uppercase',
+                'rounded-full px-2.5 py-1 text-xs font-medium',
                 currentJob.status === 'rendering' && 'bg-blue-500/20 text-blue-400',
                 currentJob.status === 'paused' && 'bg-yellow-500/20 text-yellow-400',
                 currentJob.status === 'complete' && 'bg-green-500/20 text-green-400',
                 currentJob.status === 'failed' && 'bg-red-500/20 text-red-400'
               )}
             >
-              {currentJob.status}
+              {currentJob.status === 'rendering' && <Loader2 className="mr-1.5 inline h-3 w-3 animate-spin" />}
+              {currentJob.status.charAt(0).toUpperCase() + currentJob.status.slice(1)}
             </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {costComparison && costComparison.savingsPercent > 20 && (
-            <div className="flex items-center gap-1 text-[10px] text-green-400">
-              <TrendingDown className="h-3 w-3" />
-              Save {costComparison.savingsPercent.toFixed(0)}%
+          </InfoTooltip>
+        )}
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Burn-in toggle pill with visible checkbox */}
+        {!currentJob && (selectedQualities.includes('draft') || selectedQualities.includes('review')) && (
+          <InfoTooltip content={<><strong>Burn-in Metadata</strong><br />Overlay shot number, timecode, and quality level onto draft/review renders. Useful for reviewing with clients. Disabled for master renders.</>}>
+            <label
+              className={clsx(
+                'flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs transition-all',
+                burnInMetadata
+                  ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-400'
+                  : 'border-white/10 text-gray-400 hover:border-white/20 hover:text-gray-300'
+              )}
+            >
+              <input
+                type="checkbox"
+                checked={burnInMetadata}
+                onChange={e => setBurnInMetadata(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-white/30 bg-white/10 text-cyan-500 focus:ring-1 focus:ring-cyan-500/50 focus:ring-offset-0"
+              />
+              <Film className="h-3.5 w-3.5" />
+              <span>Burn-in Metadata</span>
+            </label>
+          </InfoTooltip>
+        )}
+
+        {/* Cost estimate pill */}
+        {selectedQualities.length > 0 && !currentJob && (
+          <InfoTooltip content={<>Estimated cost for <strong>{shotCount} shot{shotCount !== 1 ? 's' : ''}</strong> at <strong>{selectedQualities.join(' + ')}</strong> quality.<br />Actual cost may vary based on render time.</>}>
+            <div className="flex items-center gap-2 rounded-full border border-white/10 px-3 py-1 text-xs text-gray-400">
+              <DollarSign className="h-3.5 w-3.5" />
+              <span>Est. ${estimatedCost.toFixed(2)}</span>
+              <span className="text-gray-600">•</span>
+              <Clock className="h-3.5 w-3.5" />
+              <span>~{Math.ceil(estimatedTime / 60)} min</span>
             </div>
-          )}
-          {isExpanded ? (
-            <ChevronUp className="h-4 w-4 text-gray-400" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-gray-400" />
-          )}
-        </div>
-      </button>
+          </InfoTooltip>
+        )}
+
+        {/* Savings pill */}
+        {costComparison && costComparison.savingsPercent > 20 && !currentJob && (
+          <InfoTooltip
+            content={
+              <div className="space-y-1">
+                <div className="flex items-center gap-1 font-medium text-green-400">
+                  <TrendingDown className="h-3 w-3" />
+                  Draft-First Workflow
+                </div>
+                <p>
+                  Iterate 3× at draft quality (<strong>${costComparison.draftCost.toFixed(2)}</strong>/shot),
+                  then render once at master (<strong>${costComparison.masterCost.toFixed(2)}</strong>/shot).
+                </p>
+                <p className="text-green-400">
+                  You save <strong>${costComparison.savings.toFixed(2)}</strong> compared to iterating at master quality every time.
+                </p>
+              </div>
+            }
+          >
+            <div className="flex cursor-help items-center gap-1.5 rounded-full border border-green-500/20 bg-green-500/10 px-3 py-1 text-xs text-green-400">
+              <TrendingDown className="h-3.5 w-3.5" />
+              <span>Save {costComparison.savingsPercent.toFixed(0)}%</span>
+            </div>
+          </InfoTooltip>
+        )}
+      </div>
 
       <AnimatePresence>
         {isExpanded && (
@@ -518,21 +608,40 @@ export function RenderQueuePanel({
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="space-y-4 px-4 pb-4">
-              {/* Quality Tier Selection */}
-              <div>
-                <div className="mb-2 text-[10px] tracking-wider text-gray-500 uppercase">
-                  Quality Tiers
-                </div>
-                <div className="flex gap-2">
-                  {(['draft', 'review', 'master'] as RenderQuality[]).map(quality => {
-                    const preset = presets?.[quality];
-                    const isSelected = selectedQualities.includes(quality);
-                    const isDisabled = !!currentJob && currentJob.status === 'rendering';
+            <div className="space-y-3 px-4 pb-4">
+              {/* Quality Tier Selection - Full width */}
+              <div className="flex gap-2">
+                {(['draft', 'review', 'master'] as RenderQuality[]).map(quality => {
+                  const preset = presets?.[quality];
+                  const isSelected = selectedQualities.includes(quality);
+                  const isDisabled = !!currentJob && currentJob.status === 'rendering';
 
-                    return (
+                  // Quality-specific tooltips explaining the workflow
+                  const qualityTooltipContent: Record<RenderQuality, React.ReactNode> = {
+                    draft: (
+                      <div className="space-y-1">
+                        <div className="font-medium text-amber-400">① DRAFT</div>
+                        <p>Fast, cheap renders for quick iteration. Use this to test timing, pacing, and overall flow before committing to expensive renders.</p>
+                      </div>
+                    ),
+                    review: (
+                      <div className="space-y-1">
+                        <div className="font-medium text-blue-400">② REVIEW</div>
+                        <p>Medium quality for client/team review. Good balance of quality and cost for feedback rounds.</p>
+                      </div>
+                    ),
+                    master: (
+                      <div className="space-y-1">
+                        <div className="font-medium text-purple-400">③ MASTER</div>
+                        <p>Final render quality for delivery. Only render at master once you're happy with the edit.</p>
+                        <p className="text-purple-300">Seeds from draft are preserved for consistency.</p>
+                      </div>
+                    ),
+                  };
+
+                  return (
+                    <InfoTooltip key={quality} content={qualityTooltipContent[quality]}>
                       <button
-                        key={quality}
                         onClick={() => !isDisabled && toggleQuality(quality)}
                         disabled={isDisabled}
                         className={clsx(
@@ -553,62 +662,83 @@ export function RenderQueuePanel({
                           </div>
                         )}
                       </button>
-                    );
-                  })}
-                </div>
+                    </InfoTooltip>
+                  );
+                })}
               </div>
 
-              {/* Cost/Time Estimate */}
-              {selectedQualities.length > 0 && !currentJob && (
-                <div className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2 text-xs text-gray-400">
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1">
-                      <DollarSign className="h-3 w-3" />
-                      <span>Est. ${estimatedCost.toFixed(2)}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      <span>~{Math.ceil(estimatedTime / 60)} min</span>
-                    </div>
-                  </div>
-                  <span className="text-gray-500">
-                    {shotCount} shot{shotCount !== 1 ? 's' : ''} × {selectedQualities.length} tier
-                    {selectedQualities.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
-              )}
-
-              {/* Refinement C: Metadata Burn-in Toggle */}
-              {!currentJob &&
-                (selectedQualities.includes('draft') || selectedQualities.includes('review')) && (
-                  <label className="group flex cursor-pointer items-center gap-3">
-                    <div className="relative">
-                      <input
-                        type="checkbox"
-                        checked={burnInMetadata}
-                        onChange={e => setBurnInMetadata(e.target.checked)}
-                        className="peer sr-only"
-                      />
-                      <div
+              {/* Action Buttons - Full width */}
+              <div className="flex gap-2">
+                {!currentJob ? (
+                  <InfoTooltip
+                    content={
+                      shotCount === 0
+                        ? 'Add shots to your scene chain first, then come back to render them all at once.'
+                        : selectedQualities.length === 0
+                        ? 'Select at least one quality tier (Draft, Review, or Master) above to start rendering.'
+                        : <>Render all <strong>{shotCount} shot{shotCount !== 1 ? 's' : ''}</strong> at <strong>{selectedQualities.join(' + ')}</strong> quality. You can pause or cancel at any time.</>
+                    }
+                  >
+                    <button
+                      onClick={handleStartRender}
+                      disabled={selectedQualities.length === 0 || isLoading || shotCount === 0}
+                      className={clsx(
+                        'flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all',
+                        selectedQualities.length > 0 && !isLoading && shotCount > 0
+                          ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-400 hover:to-orange-400'
+                          : 'cursor-not-allowed bg-white/10 text-gray-500'
+                      )}
+                    >
+                      {isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Play className="h-4 w-4" />
+                      )}
+                      Start Render
+                    </button>
+                  </InfoTooltip>
+                ) : (
+                  <>
+                    <InfoTooltip
+                      content={
+                        currentJob.status === 'paused'
+                          ? 'Resume rendering from where you left off. No work is lost.'
+                          : 'Pause the render job. You can resume later without losing progress.'
+                      }
+                    >
+                      <button
+                        onClick={handlePauseResume}
                         className={clsx(
-                          'h-5 w-9 rounded-full transition-colors',
-                          burnInMetadata ? 'bg-cyan-500' : 'bg-white/10 group-hover:bg-white/20'
+                          'flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all',
+                          currentJob.status === 'paused'
+                            ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                            : 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
                         )}
-                      />
-                      <div
-                        className={clsx(
-                          'absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform',
-                          burnInMetadata && 'translate-x-4'
-                        )}
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Film className="h-4 w-4 text-cyan-400" />
-                      <span className="text-xs text-gray-300">Burn-in Metadata</span>
-                      <span className="text-[10px] text-gray-500">(Seed, Shot #, Quality)</span>
-                    </div>
-                  </label>
+                      >
+                        {currentJob.status === 'paused' ? (
+                          <>
+                            <Play className="h-4 w-4" />
+                            Resume
+                          </>
+                        ) : (
+                          <>
+                            <Pause className="h-4 w-4" />
+                          Pause
+                        </>
+                      )}
+                      </button>
+                    </InfoTooltip>
+                    <InfoTooltip content="Cancel the entire render job. Completed shots will be kept, but pending shots will be discarded.">
+                      <button
+                        onClick={handleCancel}
+                        className="rounded-lg bg-red-500/20 px-4 py-2.5 text-sm font-medium text-red-400 transition-all hover:bg-red-500/30"
+                      >
+                        Cancel
+                      </button>
+                    </InfoTooltip>
+                  </>
                 )}
+              </div>
 
               {/* Active Job Progress */}
               {currentJob && (
@@ -673,73 +803,6 @@ export function RenderQueuePanel({
                 </div>
               )}
 
-              {/* Action Buttons */}
-              <div className="flex gap-2">
-                {!currentJob ? (
-                  <button
-                    onClick={handleStartRender}
-                    disabled={selectedQualities.length === 0 || isLoading || shotCount === 0}
-                    className={clsx(
-                      'flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all',
-                      selectedQualities.length > 0 && !isLoading && shotCount > 0
-                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-400 hover:to-orange-400'
-                        : 'cursor-not-allowed bg-white/10 text-gray-500'
-                    )}
-                  >
-                    {isLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Play className="h-4 w-4" />
-                    )}
-                    Start Render
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      onClick={handlePauseResume}
-                      className={clsx(
-                        'flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all',
-                        currentJob.status === 'paused'
-                          ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
-                          : 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
-                      )}
-                    >
-                      {currentJob.status === 'paused' ? (
-                        <>
-                          <Play className="h-4 w-4" />
-                          Resume
-                        </>
-                      ) : (
-                        <>
-                          <Pause className="h-4 w-4" />
-                          Pause
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={handleCancel}
-                      className="rounded-lg bg-red-500/20 px-4 py-2.5 text-sm font-medium text-red-400 transition-all hover:bg-red-500/30"
-                    >
-                      Cancel
-                    </button>
-                  </>
-                )}
-              </div>
-
-              {/* Savings Explainer */}
-              {costComparison && !currentJob && (
-                <div className="rounded-lg bg-white/5 px-3 py-2 text-[10px] text-gray-500">
-                  <div className="mb-1 flex items-center gap-1 text-green-400">
-                    <TrendingDown className="h-3 w-3" />
-                    <span className="font-medium">Draft-First Workflow Saves Money</span>
-                  </div>
-                  <p>
-                    Iterate 3× at draft quality (${costComparison.draftCost.toFixed(2)}), then
-                    render once at master (${costComparison.masterCost.toFixed(2)}). Save $
-                    {costComparison.savings.toFixed(2)} vs. iterating at master quality.
-                  </p>
-                </div>
-              )}
 
               {/* Version Stacks - Show per-shot upgrade options */}
               {versionStacks.length > 0 && (
@@ -948,5 +1011,6 @@ export function RenderQueuePanel({
         onRejectMaster={handleRejectMaster}
       />
     </div>
+    </Tooltip.Provider>
   );
 }

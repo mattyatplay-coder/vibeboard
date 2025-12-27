@@ -23,6 +23,9 @@ import continuityRoutes from './routes/continuityRoutes';
 import lightingRoutes from './routes/lightingRoutes';
 import renderQueueRoutes from './routes/renderQueueRoutes';
 import searchRoutes from './routes/searchRoutes';
+import acousticRoutes from './routes/acousticRoutes';
+import exportRoutes from './routes/exportRoutes';
+import timelineRoutes from './routes/timelineRoutes';
 import path from 'path';
 import { validateStorage, getStorageStatus } from './utils/storageValidation';
 
@@ -90,8 +93,14 @@ app.use('/api/continuity', continuityRoutes);
 app.use('/api/lighting', lightingRoutes);
 // Multi-Pass Render Queue
 app.use('/api/projects/:projectId/render-queue', renderQueueRoutes);
+// NLE Timeline (Quick Edit mode)
+app.use('/api/projects/:projectId/timeline', timelineRoutes);
 // Semantic Search
 app.use('/api', searchRoutes);
+// Acoustic Mapping / Sound Studio
+app.use('/api/acoustic', acousticRoutes);
+// Master Export (Bake & Export, EPK)
+app.use('/api', exportRoutes);
 app.get('/api/elements', require('./controllers/elementController').getAllElements);
 
 app.get('/api/health', (req, res) => {
@@ -103,8 +112,17 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.listen(port, () => {
+app.listen(port, async () => {
   console.log(`[server]: Server is running at http://localhost:${port}`);
+
+  // Hydrate Render Queue from database (crash recovery)
+  try {
+    const { renderQueueService } = await import('./services/rendering/RenderQueueService');
+    await renderQueueService.hydrateQueue();
+    console.log('[server]: Render Queue hydrated from database');
+  } catch (err) {
+    console.error('[server]: Failed to hydrate Render Queue:', err);
+  }
 });
 
 // Keep process alive
