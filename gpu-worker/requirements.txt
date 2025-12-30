@@ -1,0 +1,30 @@
+# GPU Worker - Python Dependencies
+# Core Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+httpx==0.26.0
+
+# ML/Deep Learning
+torch>=2.1.0
+torchvision>=0.16.0
+transformers>=4.36.0
+diffusers>=0.25.0
+accelerate>=0.25.0
+
+# Image Processing
+Pillow>=10.0.0
+opencv-python-headless>=4.8.0
+numpy>=1.24.0
+
+# Video Processing
+moviepy>=1.0.3
+
+# Utilities
+pydantic>=2.5.0
+python-dotenv>=1.0.0
+aiofiles>=23.2.0
+
+# Optional: CUDA-specific (uncomment for GPU deployment)
+# xformers>=0.0.23
+# bitsandbytes>=0.41.0
