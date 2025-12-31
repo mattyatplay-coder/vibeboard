@@ -23,6 +23,7 @@ interface LensKitSelectorProps {
   onEffectsChange: (effects: string[]) => void;
   onAnamorphicChange: (isAnamorphic: boolean) => void;
   onAspectRatioLock?: (aspectRatio: string) => void; // Called when anamorphic forces 2.39:1
+  onClose?: () => void; // Close callback for embedded mode
   embedded?: boolean;
 }
 
@@ -34,6 +35,7 @@ export function LensKitSelector({
   onEffectsChange,
   onAnamorphicChange,
   onAspectRatioLock,
+  onClose,
   embedded = false,
 }: LensKitSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -107,9 +109,9 @@ export function LensKitSelector({
           />
           <h2 className="text-lg font-bold text-white">Lens Kit</h2>
         </div>
-        {!embedded && (
+        {(!embedded || onClose) && (
           <button
-            onClick={() => setIsOpen(false)}
+            onClick={() => onClose ? onClose() : setIsOpen(false)}
             className="rounded-lg p-1.5 transition-colors hover:bg-white/10"
           >
             <X className="h-5 w-5 text-gray-400" />

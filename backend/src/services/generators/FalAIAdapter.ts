@@ -1167,9 +1167,12 @@ export class FalAIAdapter implements GenerationProvider {
             }
 
             // Handle Image-to-Video
-            if (image) {
-                const uploadedUrl = await this.uploadToFal(image);
+            // Use image parameter first, then fall back to elementReferences[0] for I2V models
+            const imageSource = image || (options.elementReferences && options.elementReferences[0]);
+            if (imageSource) {
+                const uploadedUrl = await this.uploadToFal(imageSource);
                 input.image_url = uploadedUrl;
+                console.log(`[FalAI] Set image_url from ${image ? 'image parameter' : 'elementReferences[0]'}: ${uploadedUrl.substring(0, 50)}...`);
                 // Some video models support strength/creativity for i2v
                 // For now, we just pass the image.
                 // If the model supports it, we can map referenceCreativity here.

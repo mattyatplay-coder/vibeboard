@@ -241,7 +241,6 @@ export default function TimelinePage() {
             const chain = sceneChains.find(c => c.id === selectedChainId);
             if (chain?.segments) {
                 const timelineClips: TimelineClip[] = chain.segments
-                    .filter(seg => seg.status === 'complete' && seg.outputUrl)
                     .sort((a, b) => a.orderIndex - b.orderIndex)
                     .map(seg => ({
                         id: seg.id,
@@ -421,11 +420,33 @@ export default function TimelinePage() {
         }
     }, [clips, selectedClipId]);
 
+    // Track if we're syncing FROM NLE to prevent feedback loops
+    const isSyncingFromNLE = useRef(false);
+
     const handleTimeUpdate = useCallback(() => {
         if (videoPreviewRef.current) {
-            setCurrentTime(videoPreviewRef.current.currentTime);
+            const localTime = videoPreviewRef.current.currentTime;
+            setCurrentTime(localTime);
+
+            // Only sync to NLE Timeline when NOT playing (scrubbing/paused)
+            // During playback, skip seeking to prevent audio distortion from constant buffer resets
+            // Also skip if we're currently syncing FROM the NLE Timeline to prevent feedback loops
+            if (selectedClipId && timelineRef.current && !isPlaying && !isSyncingFromNLE.current) {
+                // Calculate cumulative time for current clip
+                let accumulatedTime = 0;
+                for (const clip of clips) {
+                    if (clip.id === selectedClipId) {
+                        // Found current clip - add clip-local position to get global time
+                        const globalTime = accumulatedTime + (localTime - clip.trimStart);
+                        timelineRef.current.seek(globalTime);
+                        break;
+                    }
+                    const effectiveDuration = clip.duration - clip.trimStart - clip.trimEnd;
+                    accumulatedTime += effectiveDuration;
+                }
+            }
         }
-    }, []);
+    }, [clips, selectedClipId, isPlaying]);
 
     const handleVideoEnded = useCallback(() => {
         setIsPlaying(false);
@@ -441,7 +462,14 @@ export default function TimelinePage() {
         setSelectedClipId(clipId);
     }, []);
 
+    // Track previous playback state to detect state changes vs continuous updates
+    const prevNLEPlayingRef = useRef(false);
+    const prevNLEClipIdRef = useRef<string | null>(null);
+
     const handleNLEPlaybackChange = useCallback((playing: boolean, time: number) => {
+        // Mark that we're syncing FROM NLE to prevent feedback loops in handleTimeUpdate
+        isSyncingFromNLE.current = true;
+
         // Sync NLE Timeline playhead with Preview Monitor
         // The 'time' is the global timeline time (cumulative across all clips)
         // We need to find which clip corresponds to this time and seek within it
@@ -449,20 +477,46 @@ export default function TimelinePage() {
         for (const clip of clips) {
             const effectiveDuration = clip.duration - clip.trimStart - clip.trimEnd;
             if (time < accumulatedTime + effectiveDuration) {
-                // Found the clip - select it and seek within it
+                // Found the clip - select it
+                const clipChanged = clip.id !== prevNLEClipIdRef.current;
                 if (clip.id !== selectedClipId) {
                     setSelectedClipId(clip.id);
                 }
+                prevNLEClipIdRef.current = clip.id;
+
                 const clipLocalTime = time - accumulatedTime + clip.trimStart;
                 if (videoPreviewRef.current) {
-                    videoPreviewRef.current.currentTime = clipLocalTime;
-                    setCurrentTime(clipLocalTime);
+                    // Detect if playback state changed or clip changed (need to sync position)
+                    const playStateChanged = playing !== prevNLEPlayingRef.current;
+                    prevNLEPlayingRef.current = playing;
+
+                    // Only seek the video when:
+                    // 1. Playback state changed (started/stopped) - need to sync position
+                    // 2. Clip changed - need to load new position in new video
+                    // 3. NOT playing (scrubbing) - user is manually positioning
+                    // During continuous playback, let the video play naturally to avoid audio stutter
+                    if (playStateChanged || clipChanged || !playing) {
+                        videoPreviewRef.current.currentTime = clipLocalTime;
+                        setCurrentTime(clipLocalTime);
+                    }
+
+                    // Control play/pause state
+                    if (playing && videoPreviewRef.current.paused) {
+                        videoPreviewRef.current.play().catch(() => {});
+                    } else if (!playing && !videoPreviewRef.current.paused) {
+                        videoPreviewRef.current.pause();
+                    }
                 }
                 break;
             }
             accumulatedTime += effectiveDuration;
         }
         setIsPlaying(playing);
+
+        // Reset sync flag after a short delay to allow any pending timeupdate events to complete
+        setTimeout(() => {
+            isSyncingFromNLE.current = false;
+        }, 50);
     }, [clips, selectedClipId]);
 
     // Frame-by-frame navigation (1 frame = 1/24 second at 24fps)

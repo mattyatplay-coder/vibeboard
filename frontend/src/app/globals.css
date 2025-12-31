@@ -82,12 +82,14 @@ body {
   color: white;
 }
 
-/* Hide scrollbars completely - used by scrollbar-none utility */
-.scrollbar-none {
+/* Hide scrollbars completely - used by scrollbar-none and scrollbar-hide utilities */
+.scrollbar-none,
+.scrollbar-hide {
   -ms-overflow-style: none !important; /* IE and Edge */
   scrollbar-width: none !important; /* Firefox */
 }
-.scrollbar-none::-webkit-scrollbar {
+.scrollbar-none::-webkit-scrollbar,
+.scrollbar-hide::-webkit-scrollbar {
   display: none !important; /* Chrome, Safari, Opera */
   width: 0 !important;
   height: 0 !important;

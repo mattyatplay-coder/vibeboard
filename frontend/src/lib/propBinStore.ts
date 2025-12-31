@@ -64,6 +64,16 @@ export const usePropBinStore = create<PropBinState>()(
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
+        {
+          id: 'default-john-wick-car',
+          name: 'JohnWickCar',
+          description:
+            'Photorealistic 1969 Ford Mustang Boss 429 homologation model, presented as a utilitarian factory-production vehicle rather than a showpiece, historically accurate and minimally adorned; front fascia is blunt and functional with a wide, flat rectangular grille opening, simple dark grille surface with understated horizontal structure, visually plain and unembellished, no decorative framing or emphasis; quad round headlights evenly spaced and mounted plainly within the front end, utilitarian placement with no stylized housings; front bumper is thick, straight, and heavy, running horizontally beneath the grille with minimal curvature, reinforcing mass over elegance; hood is long, broad, and flat with low-profile Boss 429 hood scoop, integrated and functional, subdued in height and shape, reading as an engineering necessity rather than a performance statement; overall proportions emphasize width, weight, and simplicity, deliberately unsporty and restrained, clearly Ford-built and purpose-driven rather than refined or aggressive; deep black paint with restrained gloss, realistic clear-coat behavior and minor surface imperfections, completely unadorned—no stripes, no graphics, no personalization, only muted factory trim; dark steel period-correct wheels, thick practical performance tires, light grime limited to lower body and wheel arches; interior barely visible through glass, black leather, basic utilitarian layout, no modern features, subtle wear consistent with long-term ownership; vehicle stationary in a quiet urban industrial setting at night, concrete walls and neutral surroundings, wet asphalt producing soft, controlled reflections under sodium-vapor streetlights; camera positioned low and slightly off-center at a front three-quarter angle just below headlight height, 35mm lens, natural perspective, shallow depth of field with focus priority on the front fascia geometry; lighting is restrained and directional with a single dominant key light, hard-edged shadows, realistic global illumination, physically based materials, accurate real-world scale and proportions, documentary-level realism, intentionally understated, stoic, controlled, and unsensational',
+          category: 'vehicle',
+          tags: ['hero prop', 'john wick', 'iconic', '1969 mustang'],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
       ],
 
       addProp: prop => {
