@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+*.md
+.env*
+!.env.example
+.DS_Store
+coverage
+.nyc_output
+*.log
+uploads/*
+data/*
+datasets/*
+temp/*

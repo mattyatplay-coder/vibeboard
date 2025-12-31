@@ -1,9 +1,12 @@
 services:
   - type: web
     name: vibeboard-backend
-    runtime: docker
+    runtime: node
     region: virginia
     plan: free
     rootDir: backend
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    buildCommand: npm install && npm run build
+    startCommand: npx prisma migrate deploy && npm start
+    envVars:
+      - key: NODE_VERSION
+        value: '22'
