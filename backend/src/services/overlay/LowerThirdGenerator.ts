@@ -7,7 +7,19 @@
  * - Dynamic sizing based on text content
  */
 
-import { createCanvas, GlobalFonts, SKRSContext2D } from '@napi-rs/canvas';
+// Canvas import with graceful fallback for environments without native bindings
+let createCanvas: any;
+let GlobalFonts: any;
+type SKRSContext2D = any;
+
+try {
+  const canvas = require('@napi-rs/canvas');
+  createCanvas = canvas.createCanvas;
+  GlobalFonts = canvas.GlobalFonts;
+} catch (e) {
+  console.warn('[LowerThirdGenerator] Canvas not available - lower third generation disabled');
+  createCanvas = null;
+}
 import * as path from 'path';
 import * as fs from 'fs';
 import {
@@ -56,6 +68,12 @@ export class LowerThirdGenerator {
    * Generate a lower third graphic
    */
   async generate(request: GenerateLowerThirdRequest): Promise<GenerateLowerThirdResult> {
+    if (!createCanvas) {
+      throw new Error(
+        'Canvas is not available in this environment. Lower third generation is disabled.'
+      );
+    }
+
     const { name, subtitle, style, customColors, width, height } = request;
 
     // Get style preset

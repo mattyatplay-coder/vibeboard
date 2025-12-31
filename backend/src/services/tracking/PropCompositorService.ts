@@ -18,7 +18,20 @@ import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
-import { createCanvas, loadImage, Image } from '@napi-rs/canvas';
+// Canvas import with graceful fallback for environments without native bindings
+let createCanvas: any;
+let loadImage: any;
+type Image = any;
+
+try {
+  const canvas = require('@napi-rs/canvas');
+  createCanvas = canvas.createCanvas;
+  loadImage = canvas.loadImage;
+} catch (e) {
+  console.warn('[PropCompositor] Canvas not available - prop compositing disabled');
+  createCanvas = null;
+  loadImage = null;
+}
 
 const execAsync = promisify(exec);
 
@@ -75,6 +88,16 @@ class PropCompositorService {
    * Composite prop onto video using tracking data
    */
   async composite(options: CompositeOptions): Promise<CompositeResult> {
+    if (!createCanvas || !loadImage) {
+      return {
+        success: false,
+        outputPath: '',
+        frameCount: 0,
+        duration: 0,
+        error: 'Canvas is not available in this environment. Prop compositing is disabled.',
+      };
+    }
+
     const {
       videoPath,
       propImagePath,
@@ -410,6 +433,11 @@ class PropCompositorService {
     corners: { x: number; y: number }[],
     frameIndex: number
   ): Promise<Buffer> {
+    if (!createCanvas || !loadImage) {
+      throw new Error(
+        'Canvas is not available in this environment. Preview generation is disabled.'
+      );
+    }
     const tempFrame = path.join(this.tempDir, `preview-${Date.now()}.png`);
     const tempOutput = path.join(this.tempDir, `preview-out-${Date.now()}.png`);
 
