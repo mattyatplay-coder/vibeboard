@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: vibeboard-backend
+    runtime: docker
+    region: virginia
+    plan: free
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .

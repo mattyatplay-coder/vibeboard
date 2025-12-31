@@ -3,8 +3,19 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Install build dependencies
-RUN apk add --no-cache openssl python3 make g++
+# Install build dependencies including canvas native deps
+RUN apk add --no-cache \
+    openssl \
+    python3 \
+    make \
+    g++ \
+    # Canvas dependencies (cairo, pango, etc.)
+    cairo-dev \
+    pango-dev \
+    jpeg-dev \
+    giflib-dev \
+    librsvg-dev \
+    pixman-dev
 
 # Copy package files
 COPY package*.json ./
@@ -26,8 +37,17 @@ FROM node:22-alpine AS production
 
 WORKDIR /app
 
-# Install runtime dependencies only
-RUN apk add --no-cache openssl ffmpeg
+# Install runtime dependencies only (including canvas runtime deps)
+RUN apk add --no-cache \
+    openssl \
+    ffmpeg \
+    # Canvas runtime dependencies
+    cairo \
+    pango \
+    jpeg \
+    giflib \
+    librsvg \
+    pixman
 
 # Copy package files
 COPY package*.json ./
