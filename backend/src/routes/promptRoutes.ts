@@ -2,6 +2,10 @@
  * Prompt Enhancement API Routes
  *
  * Endpoints for intelligent prompt generation and LoRA management
+ *
+ * P0 SECURITY: LLM-powered routes require authentication
+ * - /enhance, /quick-enhance, /parse-script use LLM ($)
+ * - Read-only routes (model guides, LoRA lists) are auth-optional
  */
 
 import { Router, Request, Response } from 'express';
@@ -14,6 +18,7 @@ import {
 import { loraRegistry } from '../services/prompts/LoRARegistry';
 import { getModelGuide, MODEL_PROMPTING_GUIDES } from '../services/prompts/ModelPromptGuides';
 import { LLMService } from '../services/LLMService';
+import { withAuth, requireGenerationQuota } from '../middleware/auth';
 
 const router = Router();
 
@@ -21,8 +26,9 @@ const router = Router();
  * POST /api/prompts/enhance
  *
  * Enhance a user prompt for a specific model with LoRA and element integration
+ * EXPENSIVE: Uses LLM for prompt enhancement ($)
  */
-router.post('/enhance', async (req: Request, res: Response) => {
+router.post('/enhance', withAuth, requireGenerationQuota, async (req: Request, res: Response) => {
   try {
     const {
       prompt,
@@ -135,13 +141,19 @@ router.post('/enhance', async (req: Request, res: Response) => {
 
     // Normalize images to array
     const resolvedImages = images && images.length > 0 ? images : image ? [image] : [];
-    console.log(`[PromptEnhance] Received ${resolvedImages.length} images:`,
-      resolvedImages.slice(0, 3).map((url: string) => url?.substring(0, 100) + (url?.length > 100 ? '...' : ''))
+    console.log(
+      `[PromptEnhance] Received ${resolvedImages.length} images:`,
+      resolvedImages
+        .slice(0, 3)
+        .map((url: string) => url?.substring(0, 100) + (url?.length > 100 ? '...' : ''))
     );
 
     // Log props and lighting
     if (props && props.length > 0) {
-      console.log(`[PromptEnhance] Received ${props.length} props:`, props.map((p: any) => p.name));
+      console.log(
+        `[PromptEnhance] Received ${props.length} props:`,
+        props.map((p: any) => p.name)
+      );
     }
     if (lightingPrompt) {
       console.log(`[PromptEnhance] Received lighting prompt:`, lightingPrompt.substring(0, 100));
@@ -196,44 +208,50 @@ router.post('/enhance', async (req: Request, res: Response) => {
  * POST /api/prompts/quick-enhance
  *
  * Quick enhancement with minimal options
+ * EXPENSIVE: Uses LLM for prompt enhancement ($)
  */
-router.post('/quick-enhance', async (req: Request, res: Response) => {
-  try {
-    const { prompt, modelId, loraIds = [] } = req.body;
+router.post(
+  '/quick-enhance',
+  withAuth,
+  requireGenerationQuota,
+  async (req: Request, res: Response) => {
+    try {
+      const { prompt, modelId, loraIds = [] } = req.body;
 
-    if (!prompt || !modelId) {
-      return res.status(400).json({ error: 'Prompt and modelId are required' });
+      if (!prompt || !modelId) {
+        return res.status(400).json({ error: 'Prompt and modelId are required' });
+      }
+
+      // Resolve LoRAs
+      const loras: LoRAReference[] = loraIds
+        .map((id: string) => {
+          const lora = loraRegistry.get(id);
+          if (lora) {
+            return {
+              id: lora.id,
+              name: lora.name,
+              triggerWords: lora.triggerWords,
+              strength: lora.recommendedStrength,
+              type: lora.type as any,
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      const enhanced = await promptEnhancer.quickEnhance(prompt, modelId, loras);
+
+      res.json({
+        success: true,
+        original: prompt,
+        enhanced,
+      });
+    } catch (error: any) {
+      console.error('Quick enhancement failed:', error);
+      res.status(500).json({ error: error.message });
     }
-
-    // Resolve LoRAs
-    const loras: LoRAReference[] = loraIds
-      .map((id: string) => {
-        const lora = loraRegistry.get(id);
-        if (lora) {
-          return {
-            id: lora.id,
-            name: lora.name,
-            triggerWords: lora.triggerWords,
-            strength: lora.recommendedStrength,
-            type: lora.type as any,
-          };
-        }
-        return null;
-      })
-      .filter(Boolean);
-
-    const enhanced = await promptEnhancer.quickEnhance(prompt, modelId, loras);
-
-    res.json({
-      success: true,
-      original: prompt,
-      enhanced,
-    });
-  } catch (error: any) {
-    console.error('Quick enhancement failed:', error);
-    res.status(500).json({ error: error.message });
   }
-});
+);
 
 /**
  * GET /api/prompts/models
@@ -634,7 +652,8 @@ function generateSuggestions(prompt: string, guide: any): string[] {
 }
 
 // Parse Screenplay Script
-router.post('/parse-script', async (req, res) => {
+// EXPENSIVE: Uses LLM for script parsing ($)
+router.post('/parse-script', withAuth, requireGenerationQuota, async (req, res) => {
   try {
     const { script } = req.body;
     if (!script) {

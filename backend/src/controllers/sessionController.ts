@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
+import { AuthenticatedRequest } from '../middleware/auth';
 
 export const getSessions = async (req: Request, res: Response) => {
   try {
@@ -25,11 +26,16 @@ export const createSession = async (req: Request, res: Response) => {
     const { projectId } = req.params;
     const { name, description } = req.body;
 
+    // P0 SECURITY: Associate session with authenticated user
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id;
+
     const session = await prisma.session.create({
       data: {
         projectId,
         name,
         description,
+        ...(userId ? { userId } : {}),
       },
     });
     res.json(session);

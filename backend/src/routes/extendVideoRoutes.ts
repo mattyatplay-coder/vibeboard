@@ -1,3 +1,12 @@
+/**
+ * Video Extension Routes
+ *
+ * Endpoints for AI-powered video extension and analysis.
+ *
+ * P0 SECURITY: All video extension routes require authentication
+ * Video generation and LLM analysis are EXPENSIVE ($$$)
+ */
+
 import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
@@ -7,6 +16,7 @@ import {
   enhancePrompt,
   generateExtension,
 } from '../controllers/extendVideoController';
+import { withAuth, requireGenerationQuota } from '../middleware/auth';
 
 const router = Router();
 
@@ -23,9 +33,20 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-router.post('/analyze', upload.single('video'), analyzeVideo);
-router.post('/recommend-model', recommendModel);
-router.post('/enhance-prompt', enhancePrompt);
-router.post('/generate', generateExtension);
+// =============================================================================
+// P0 SECURITY: All video extension routes require authentication
+// =============================================================================
+
+// Analyze video for extension - uses LLM ($)
+router.post('/analyze', withAuth, requireGenerationQuota, upload.single('video'), analyzeVideo);
+
+// Recommend model - uses LLM for analysis ($)
+router.post('/recommend-model', withAuth, requireGenerationQuota, recommendModel);
+
+// Enhance prompt - uses LLM ($)
+router.post('/enhance-prompt', withAuth, requireGenerationQuota, enhancePrompt);
+
+// Generate video extension - VERY EXPENSIVE (GPU + AI $$$)
+router.post('/generate', withAuth, requireGenerationQuota, generateExtension);
 
 export default router;

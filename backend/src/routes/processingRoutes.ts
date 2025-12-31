@@ -3,12 +3,18 @@ import multer from 'multer';
 import { processingController } from '../controllers/processingController';
 import { frameExtractor } from '../services/FrameExtractor';
 import { AIFeedbackStore } from '../services/learning/AIFeedbackStore';
+import { withAuth, requireGenerationQuota } from '../middleware/auth';
 import fs from 'fs';
 import path from 'path';
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads_local_temp/' });
 const memoryUpload = multer({ storage: multer.memoryStorage() });
+
+// =============================================================================
+// P0 SECURITY: Processing routes that use AI require authentication
+// Magic Eraser, AI Tattoo, Outpaint use Fal.ai ($0.03-$0.10 per call)
+// =============================================================================
 
 // ============================================
 // TEMP IMAGE UPLOAD (for lighting analysis, etc.)
@@ -20,48 +26,47 @@ const memoryUpload = multer({ storage: multer.memoryStorage() });
  * Returns the URL to the uploaded image
  */
 router.post('/upload-temp', upload.single('file'), async (req: Request, res: Response) => {
-    try {
-        if (!req.file) {
-            return res.status(400).json({ error: 'No file uploaded' });
-        }
-
-        // Move from temp to permanent uploads folder with unique name
-        const ext = path.extname(req.file.originalname) || '.jpg';
-        const filename = `temp_${Date.now()}_${Math.random().toString(36).substring(7)}${ext}`;
-        const destDir = path.join(process.cwd(), 'uploads', 'temp_analysis');
-        const destPath = path.join(destDir, filename);
-
-        // Ensure directory exists
-        if (!fs.existsSync(destDir)) {
-            fs.mkdirSync(destDir, { recursive: true });
-        }
-
-        // Move file - use copy+delete for cross-device compatibility (EXDEV error)
-        try {
-            fs.renameSync(req.file.path, destPath);
-        } catch (renameErr: any) {
-            if (renameErr.code === 'EXDEV') {
-                // Cross-device link - copy then delete
-                fs.copyFileSync(req.file.path, destPath);
-                fs.unlinkSync(req.file.path);
-            } else {
-                throw renameErr;
-            }
-        }
-
-        const fileUrl = `/uploads/temp_analysis/${filename}`;
-        console.log(`[ProcessRoutes] Temp image uploaded: ${fileUrl}`);
-
-        res.json({
-            success: true,
-            fileUrl,
-            filename
-        });
-
-    } catch (error: any) {
-        console.error('[ProcessRoutes] Temp upload error:', error);
-        res.status(500).json({ error: error.message || 'Failed to upload image' });
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
     }
+
+    // Move from temp to permanent uploads folder with unique name
+    const ext = path.extname(req.file.originalname) || '.jpg';
+    const filename = `temp_${Date.now()}_${Math.random().toString(36).substring(7)}${ext}`;
+    const destDir = path.join(process.cwd(), 'uploads', 'temp_analysis');
+    const destPath = path.join(destDir, filename);
+
+    // Ensure directory exists
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true });
+    }
+
+    // Move file - use copy+delete for cross-device compatibility (EXDEV error)
+    try {
+      fs.renameSync(req.file.path, destPath);
+    } catch (renameErr: any) {
+      if (renameErr.code === 'EXDEV') {
+        // Cross-device link - copy then delete
+        fs.copyFileSync(req.file.path, destPath);
+        fs.unlinkSync(req.file.path);
+      } else {
+        throw renameErr;
+      }
+    }
+
+    const fileUrl = `/uploads/temp_analysis/${filename}`;
+    console.log(`[ProcessRoutes] Temp image uploaded: ${fileUrl}`);
+
+    res.json({
+      success: true,
+      fileUrl,
+      filename,
+    });
+  } catch (error: any) {
+    console.error('[ProcessRoutes] Temp upload error:', error);
+    res.status(500).json({ error: error.message || 'Failed to upload image' });
+  }
 });
 
 // Store active rotoscope sessions (sessionId -> session info)
@@ -75,9 +80,10 @@ const rotoscopeSessions: Map<
   }
 > = new Map();
 
-// Route: POST /api/process/tattoo-composite
+// Route: POST /api/process/tattoo-composite (CPU only, no auth needed)
 router.post(
   '/tattoo-composite',
+  withAuth,
   upload.fields([
     { name: 'base_image', maxCount: 1 },
     { name: 'tattoo_image', maxCount: 1 },
@@ -87,19 +93,23 @@ router.post(
 );
 
 // Route: POST /api/process/tattoo-ai-generate
-// AI-powered tattoo generation directly on skin
+// AI-powered tattoo generation directly on skin - USES AI ($)
 router.post(
   '/tattoo-ai-generate',
+  withAuth,
+  requireGenerationQuota,
   upload.fields([{ name: 'base_image', maxCount: 1 }]),
   processingController.aiTattooGenerate
 );
 
-// Route: GET /api/process/inpainting-models
+// Route: GET /api/process/inpainting-models (read-only, no auth)
 router.get('/inpainting-models', processingController.getInpaintingModels);
 
-// Route: POST /api/process/magic-eraser
+// Route: POST /api/process/magic-eraser - USES Fal.ai ($)
 router.post(
   '/magic-eraser',
+  withAuth,
+  requireGenerationQuota,
   upload.fields([
     { name: 'image', maxCount: 1 },
     { name: 'mask', maxCount: 1 },
@@ -107,15 +117,15 @@ router.post(
   processingController.magicEraser
 );
 
-// Route: POST /api/process/outpaint
+// Route: POST /api/process/outpaint - USES Fal.ai ($)
 // Set Extension / Infinite Canvas - extends image in any direction
-router.post('/outpaint', processingController.outpaint);
+router.post('/outpaint', withAuth, requireGenerationQuota, processingController.outpaint);
 
 // Route: POST /api/process/analyze-inpainting
-// AI-assisted image analysis for inpainting parameter recommendations
-// Accepts: 'original' (clean image) and 'masked' (image with mask overlay)
+// AI-assisted image analysis for inpainting parameter recommendations - USES Grok ($)
 router.post(
   '/analyze-inpainting',
+  withAuth,
   upload.fields([
     { name: 'original', maxCount: 1 },
     { name: 'masked', maxCount: 1 },

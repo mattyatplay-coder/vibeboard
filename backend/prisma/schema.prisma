@@ -7,13 +7,67 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// =============================================================================
+// USER & AUTHENTICATION
+// =============================================================================
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String?  // null for OAuth-only users
+  name          String?
+  avatarUrl     String?
+
+  // OAuth identities
+  googleId      String?  @unique
+  appleId       String?  @unique
+
+  // Account status
+  emailVerified Boolean  @default(false)
+  isActive      Boolean  @default(true)
+
+  // Role-based access (future expansion)
+  role          String   @default("user") // 'user', 'pro', 'admin'
+
+  // Rate limiting / quotas
+  monthlyGenerations Int @default(0)
+  monthlyGenerationsLimit Int @default(100) // Free tier default
+
+  // Timestamps
+  lastLoginAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Owned resources
+  projects      Project[]
+  sessions      Session[]
+
+  @@index([email])
+  @@index([googleId])
+}
+
+// Refresh tokens for JWT auth
+model RefreshToken {
+  id          String   @id @default(uuid())
+  userId      String
+  token       String   @unique
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
 model Project {
   id          String   @id @default(uuid())
+  userId      String?  // Owner of this project (optional for backward compat)
   name        String
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  user        User?    @relation(fields: [userId], references: [id])
   elements    Element[]
   references  Reference[]
   styleGuides StyleGuide[]
@@ -28,6 +82,8 @@ model Project {
   characters  Character[]
   sceneChains SceneChain[]
   stories     Story[]
+
+  @@index([userId])
 }
 
 // Story drafts from Story Editor
@@ -64,17 +120,20 @@ model Story {
 model Session {
   id          String   @id @default(uuid())
   projectId   String
+  userId      String?  // Owner of this session (optional for backward compat)
   name        String
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   project     Project      @relation(fields: [projectId], references: [id])
+  user        User?        @relation(fields: [userId], references: [id])
   generations Generation[]
   scenes      Scene[]
   elements    Element[]
 
   @@index([projectId])
+  @@index([userId])
 }
 
 model Element {

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { AuthenticatedRequest } from '../middleware/auth';
 
 const prisma = new PrismaClient({});
 
@@ -9,8 +10,17 @@ export const createProject = async (req: Request, res: Response) => {
     if (!name) {
       return res.status(400).json({ error: 'Name is required' });
     }
+
+    // P0 SECURITY: Associate project with authenticated user
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id;
+
     const project = await prisma.project.create({
-      data: { name, description },
+      data: {
+        name,
+        description,
+        ...(userId ? { userId } : {}),
+      },
     });
     res.status(201).json(project);
   } catch (error) {
