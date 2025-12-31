@@ -3,19 +3,8 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Install build dependencies including canvas native deps
-RUN apk add --no-cache \
-    openssl \
-    python3 \
-    make \
-    g++ \
-    # Canvas dependencies (cairo, pango, etc.)
-    cairo-dev \
-    pango-dev \
-    jpeg-dev \
-    giflib-dev \
-    librsvg-dev \
-    pixman-dev
+# Install build dependencies (no canvas native deps needed - using @napi-rs/canvas)
+RUN apk add --no-cache openssl python3 make g++
 
 # Copy package files
 COPY package*.json ./
@@ -37,27 +26,18 @@ FROM node:22-alpine AS production
 
 WORKDIR /app
 
-# Install runtime dependencies only (including canvas runtime deps)
-RUN apk add --no-cache \
-    openssl \
-    ffmpeg \
-    # Canvas runtime dependencies
-    cairo \
-    pango \
-    jpeg \
-    giflib \
-    librsvg \
-    pixman
+# Install runtime dependencies only (no canvas deps needed - using @napi-rs/canvas)
+RUN apk add --no-cache openssl ffmpeg
 
-# Copy package files
+# Copy package files and node_modules from builder (already compiled)
 COPY package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
 
-# Install production dependencies only
-RUN npm ci --only=production
+# Prune dev dependencies from the copied node_modules
+RUN npm prune --omit=dev
 
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/prisma ./prisma
 
 # Create uploads directory
