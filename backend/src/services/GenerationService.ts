@@ -953,6 +953,15 @@ export class GenerationService {
       'realvis-xl': 'together',
       'realistic-vision-together': 'together',
       'dreamshaper-xl': 'together',
+      // Together AI models (new frontend IDs)
+      'together/flux-schnell': 'together',
+      'together/flux-dev': 'together',
+      'together/dreamshaper': 'together',
+      'together/hidream-full': 'together',
+      'together/hidream-dev': 'together',
+      'together/hidream-fast': 'together',
+      'together/juggernaut-pro': 'together',
+      'together/juggernaut-lightning': 'together',
 
       // Character Consistency Models
       'fal-ai/ideogram/character': 'fal',
@@ -973,6 +982,13 @@ export class GenerationService {
       auraflow: 'civitai',
       chroma: 'civitai',
       'flux-1-d': 'civitai',
+      // Civitai models (new frontend IDs)
+      'civitai/sdxl': 'civitai',
+      'civitai/pony': 'civitai',
+      'civitai/realistic-vision': 'civitai',
+      'civitai/flux-d': 'civitai',
+      'civitai/wan-t2v': 'civitai',
+      'civitai/wan-i2v': 'civitai',
       'flux-1-s': 'civitai',
       'flux-1-krea': 'civitai',
       'flux-1-kontext': 'civitai',

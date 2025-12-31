@@ -2,11 +2,28 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Plus, Play, Film, Clock, Loader2, ChevronLeft, Settings } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { Plus, Play, Film, Clock, Loader2, ChevronLeft, Settings, X } from 'lucide-react';
 import { BACKEND_URL } from '@/lib/api';
-import StoryboardShot, { ShotData } from '@/components/storyboard/StoryboardShot';
+import StoryboardShot, { ShotData, calculateImageCost, calculateVideoCost, calculateTotalShotCost } from '@/components/storyboard/StoryboardShot';
+import { formatCost } from '@/lib/ModelPricing';
 import { clsx } from 'clsx';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { usePageAutoSave, StoryboardSession, hasRecoverableContent } from '@/lib/pageSessionStore';
+import { RecoveryToast } from '@/components/ui/RecoveryToast';
+
+// Dynamic import for PromptBuilder (heavy modal component)
+const PromptBuilder = dynamic(
+  () => import('@/components/prompts/PromptBuilder').then(m => ({ default: m.PromptBuilder })),
+  {
+    loading: () => (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
+      </div>
+    ),
+    ssr: false,
+  }
+);
 
 interface SceneChain {
   id: string;
@@ -35,16 +52,189 @@ export default function StoryboardPage() {
 
   // Settings
   const [aspectRatio, setAspectRatio] = useState('16:9');
+  const [frameModel, setFrameModel] = useState('fal-ai/flux/dev');
+
+  // Popular image generation models for frame generation
+  const frameModels = [
+    { id: 'fal-ai/flux/dev', name: 'FLUX.1 Dev', provider: 'Fal' },
+    { id: 'fal-ai/flux/schnell', name: 'FLUX.1 Schnell', provider: 'Fal' },
+    { id: 'fal-ai/flux-pro', name: 'FLUX.1 Pro', provider: 'Fal' },
+    { id: 'fal-ai/flux-pro/v1.1-ultra', name: 'FLUX 1.1 Pro Ultra', provider: 'Fal' },
+    { id: 'fal-ai/recraft-v3', name: 'Recraft V3', provider: 'Fal' },
+    { id: 'fal-ai/ideogram/v3', name: 'Ideogram V3', provider: 'Fal' },
+    { id: 'fal-ai/stable-diffusion-v35-large', name: 'SD 3.5 Large', provider: 'Fal' },
+    { id: 'fal-ai/imagen4/preview', name: 'Imagen 4', provider: 'Fal' },
+  ];
+
+  // Video resolution state
+  const [videoResolution, setVideoResolution] = useState('720p');
+
+  // Video resolution options by model family
+  // Maps model ID patterns to available resolutions
+  const VIDEO_RESOLUTION_MAP: Record<string, { id: string; label: string; pixels: string }[]> = {
+    'kling': [
+      { id: '480p', label: '480p', pixels: '854×480' },
+      { id: '720p', label: '720p', pixels: '1280×720' },
+      { id: '1080p', label: '1080p', pixels: '1920×1080' },
+    ],
+    'wan': [
+      { id: '480p', label: '480p', pixels: '854×480' },
+      { id: '720p', label: '720p', pixels: '1280×720' },
+      { id: '1080p', label: '1080p', pixels: '1920×1080' },
+    ],
+    'luma': [
+      { id: '540p', label: '540p', pixels: '960×540' },
+      { id: '720p', label: '720p', pixels: '1280×720' },
+    ],
+    'minimax': [
+      { id: '720p', label: '720p', pixels: '1280×720' },
+      { id: '1080p', label: '1080p', pixels: '1920×1080' },
+    ],
+    'vidu': [
+      { id: '720p', label: '720p', pixels: '1280×720' },
+      { id: '1080p', label: '1080p', pixels: '1920×1080' },
+    ],
+    'ltx': [
+      { id: '480p', label: '480p', pixels: '768×512' },
+      { id: '720p', label: '720p', pixels: '1280×720' },
+    ],
+    'hunyuan': [
+      { id: '720p', label: '720p', pixels: '1280×720' },
+      { id: '1080p', label: '1080p', pixels: '1920×1080' },
+    ],
+    'pixverse': [
+      { id: '720p', label: '720p', pixels: '1280×720' },
+      { id: '1080p', label: '1080p', pixels: '1920×1080' },
+    ],
+    'default': [
+      { id: '480p', label: '480p', pixels: '854×480' },
+      { id: '720p', label: '720p', pixels: '1280×720' },
+      { id: '1080p', label: '1080p', pixels: '1920×1080' },
+    ],
+  };
 
   // Generation state
   const [generatingShots, setGeneratingShots] = useState<Set<string>>(new Set());
+  const [generatingFirstFrames, setGeneratingFirstFrames] = useState<Set<string>>(new Set());
+  const [generatingLastFrames, setGeneratingLastFrames] = useState<Set<string>>(new Set());
 
-  // Load chains
+  // Elements for @reference autocomplete
+  const [elements, setElements] = useState<Array<{
+    id: string;
+    name: string;
+    type?: string;
+    url?: string;
+    fileUrl?: string;
+    thumbnail?: string;
+    projectId?: string;
+  }>>([]);
+
+  // Smart Prompt Builder state
+  const [isPromptBuilderOpen, setIsPromptBuilderOpen] = useState(false);
+  const [promptBuilderTarget, setPromptBuilderTarget] = useState<{
+    shotId: string;
+    frameType: 'first' | 'last' | 'video'; // 'video' for video prompt enhancement
+    imageModelId?: string; // The image model used to generate this frame
+    videoModelId?: string; // The video model (for video prompt enhancement)
+  } | null>(null);
+
+  // Session recovery
+  const [hasMounted, setHasMounted] = useState(false);
+  const [showRecoveryToast, setShowRecoveryToast] = useState(false);
+  const [recoverableSession, setRecoverableSession] = useState<StoryboardSession | null>(null);
+  const {
+    saveSession,
+    getSession,
+    clearSession,
+    dismissRecovery,
+    isRecoveryDismissed,
+  } = usePageAutoSave<StoryboardSession>('storyboard');
+
+  // Mount detection
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  // Check for recoverable session
+  useEffect(() => {
+    if (!hasMounted || !projectId) return;
+    const session = getSession(projectId);
+    if (session && hasRecoverableContent(session) && !isRecoveryDismissed(projectId)) {
+      setRecoverableSession(session);
+      setShowRecoveryToast(true);
+    }
+  }, [hasMounted, projectId, getSession, isRecoveryDismissed]);
+
+  // Auto-save session (save current selection state)
+  useEffect(() => {
+    if (!projectId || !hasMounted) return;
+    // Only save if there's meaningful selection
+    if (!selectedChainId) return;
+
+    const saveInterval = setInterval(() => {
+      saveSession({
+        projectId,
+        selectedSceneChainId: selectedChainId,
+        isDirty: true,
+      });
+    }, 500);
+    return () => clearInterval(saveInterval);
+  }, [projectId, hasMounted, selectedChainId, aspectRatio, saveSession]);
+
+  const handleRestoreSession = () => {
+    if (!recoverableSession) return;
+    // Restore selection state
+    if (recoverableSession.selectedSceneChainId) {
+      setSelectedChainId(recoverableSession.selectedSceneChainId);
+      // Fetch the chain details after restoring
+      fetchChainDetails(recoverableSession.selectedSceneChainId);
+    }
+    setShowRecoveryToast(false);
+    setRecoverableSession(null);
+  };
+
+  const handleDismissRecovery = () => {
+    if (projectId) {
+      dismissRecovery(projectId);
+      clearSession(projectId);
+    }
+    setShowRecoveryToast(false);
+    setRecoverableSession(null);
+  };
+
+  // Load chains and elements
   useEffect(() => {
     if (projectId) {
       fetchChains();
+      fetchElements();
     }
   }, [projectId]);
+
+  const fetchElements = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/elements`);
+      if (res.ok) {
+        const data = await res.json();
+        const mapped = data.map((e: Record<string, unknown>) => ({
+          id: e.id as string,
+          name: e.name as string,
+          type: e.type as string,
+          url: (() => {
+            const u = e.fileUrl as string;
+            if (!u) return '';
+            if (u.startsWith('http') || u.startsWith('data:')) return u;
+            return `${BACKEND_URL}${u.startsWith('/') ? '' : '/'}${u}`;
+          })(),
+          fileUrl: e.fileUrl as string,
+          thumbnail: e.thumbnail as string,
+          projectId: e.projectId as string,
+        }));
+        setElements(mapped);
+      }
+    } catch (error) {
+      console.error('Failed to fetch elements:', error);
+    }
+  };
 
   const fetchChains = async () => {
     try {
@@ -80,9 +270,54 @@ export default function StoryboardPage() {
   // Get selected chain
   const selectedChain = chains.find(c => c.id === selectedChainId);
 
+  // Get available resolutions based on the selected chain's video model
+  const getAvailableResolutions = () => {
+    const defaultVideoModel = selectedChain?.segments?.[0]?.videoModel || 'fal-ai/kling-video/v2.1/master/image-to-video';
+    const modelLower = defaultVideoModel.toLowerCase();
+
+    for (const [key, resolutions] of Object.entries(VIDEO_RESOLUTION_MAP)) {
+      if (key !== 'default' && modelLower.includes(key)) {
+        return resolutions;
+      }
+    }
+    return VIDEO_RESOLUTION_MAP.default;
+  };
+
+  const availableResolutions = getAvailableResolutions();
+
   // Calculate total duration
   const totalDuration =
     selectedChain?.segments?.reduce((acc, seg) => acc + (seg.duration || 5), 0) || 0;
+
+  // Calculate SPENT cost totals for the scene (actual iterations run)
+  const spentCosts = selectedChain?.segments?.reduce(
+    (acc, seg) => {
+      const shotCost = calculateTotalShotCost(seg);
+      return {
+        imageCost: acc.imageCost + shotCost.imageCost,
+        videoCost: acc.videoCost + shotCost.videoCost,
+        imageIterations: acc.imageIterations + shotCost.imageIterations,
+        videoIterations: acc.videoIterations + shotCost.videoIterations,
+      };
+    },
+    { imageCost: 0, videoCost: 0, imageIterations: 0, videoIterations: 0 }
+  ) || { imageCost: 0, videoCost: 0, imageIterations: 0, videoIterations: 0 };
+
+  // Calculate ESTIMATED cost for next run (1 iteration of each)
+  const estimatedImageCost = selectedChain?.segments?.reduce((acc, seg) => {
+    const costPerFrame = calculateImageCost(seg.imageModel, seg.imageResolution);
+    return acc + (costPerFrame * 2); // First frame + Last frame
+  }, 0) || 0;
+
+  const estimatedVideoCost = selectedChain?.segments?.reduce((acc, seg) => {
+    return acc + calculateVideoCost(seg.videoModel, seg.videoResolution, seg.duration || 5);
+  }, 0) || 0;
+
+  // Use spent costs if any iterations exist, otherwise show estimates
+  const hasIterations = spentCosts.imageIterations > 0 || spentCosts.videoIterations > 0;
+  const totalImageCost = hasIterations ? spentCosts.imageCost : estimatedImageCost;
+  const totalVideoCost = hasIterations ? spentCosts.videoCost : estimatedVideoCost;
+  const totalCost = totalImageCost + totalVideoCost;
 
   // Create new chain
   const handleCreateChain = async () => {
@@ -258,7 +493,7 @@ export default function StoryboardPage() {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ aspectRatio }),
+          body: JSON.stringify({ aspectRatio, resolution: videoResolution }),
         }
       );
 
@@ -317,6 +552,26 @@ export default function StoryboardPage() {
               next.delete(shotId);
               return next;
             });
+
+            // Increment video iteration count on successful completion
+            if (data.status === 'complete') {
+              const shot = selectedChain?.segments?.find(s => s.id === shotId);
+              const newVideoIters = (shot?.videoIterations || 0) + 1;
+              // Update local state
+              setChains(prev =>
+                prev.map(chain => {
+                  if (chain.id !== selectedChainId) return chain;
+                  return {
+                    ...chain,
+                    segments: chain.segments?.map(seg =>
+                      seg.id === shotId ? { ...seg, videoIterations: newVideoIters } : seg
+                    ),
+                  };
+                })
+              );
+              // Persist to backend
+              handleUpdateShot(shotId, { videoIterations: newVideoIters });
+            }
           }
         }
       } catch (error) {
@@ -344,6 +599,153 @@ export default function StoryboardPage() {
     }
   };
 
+  // Generate single frame from prompt
+  const handleGenerateFrame = async (shotId: string, frameType: 'first' | 'last') => {
+    if (!selectedChainId) return;
+
+    // Set generating state
+    if (frameType === 'first') {
+      setGeneratingFirstFrames(prev => new Set(prev).add(shotId));
+    } else {
+      setGeneratingLastFrames(prev => new Set(prev).add(shotId));
+    }
+
+    try {
+      // Get the shot to extract element references from the prompt
+      const shot = selectedChain?.segments?.find(s => s.id === shotId);
+      const prompt = frameType === 'first' ? shot?.firstFramePrompt : shot?.lastFramePrompt;
+
+      // Extract @ElementName references from prompt and resolve to image URLs
+      const elementReferences: string[] = [];
+      if (prompt) {
+        const mentionPattern = /@(\w+)/g;
+        let match;
+        while ((match = mentionPattern.exec(prompt)) !== null) {
+          const elementName = match[1];
+          const element = elements.find(e =>
+            e.name.toLowerCase() === elementName.toLowerCase() ||
+            e.name.replace(/\s+/g, '').toLowerCase() === elementName.toLowerCase()
+          );
+          if (element) {
+            const imageUrl = element.url || element.fileUrl || element.thumbnail;
+            if (imageUrl) {
+              elementReferences.push(imageUrl);
+            }
+          }
+        }
+      }
+
+      const res = await fetch(
+        `${BACKEND_URL}/api/projects/${projectId}/scene-chains/${selectedChainId}/segments/${shotId}/generate-frame`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            frameType,
+            model: frameModel,
+            elementReferences: elementReferences.length > 0 ? elementReferences : undefined,
+          }),
+        }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        // Update local state with the new frame URL and increment iteration count
+        // Backend returns { url: "..." } not { frameUrl: "..." }
+        const urlField = frameType === 'first' ? 'firstFrameUrl' : 'lastFrameUrl';
+        const iterField = frameType === 'first' ? 'firstFrameIterations' : 'lastFrameIterations';
+        setChains(prev =>
+          prev.map(chain => {
+            if (chain.id !== selectedChainId) return chain;
+            return {
+              ...chain,
+              segments: chain.segments?.map(seg => {
+                if (seg.id !== shotId) return seg;
+                const currentIters = seg[iterField] || 0;
+                return { ...seg, [urlField]: data.url, [iterField]: currentIters + 1 };
+              }),
+            };
+          })
+        );
+        // Persist iteration count to backend
+        const shot = selectedChain?.segments?.find(s => s.id === shotId);
+        const newIterCount = (shot?.[iterField] || 0) + 1;
+        handleUpdateShot(shotId, { [iterField]: newIterCount });
+      } else {
+        const errorData = await res.json();
+        console.error('Failed to generate frame:', errorData.error);
+        alert(`Failed to generate frame: ${errorData.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Failed to generate frame:', error);
+      alert('Network error generating frame');
+    } finally {
+      // Clear generating state
+      if (frameType === 'first') {
+        setGeneratingFirstFrames(prev => {
+          const next = new Set(prev);
+          next.delete(shotId);
+          return next;
+        });
+      } else {
+        setGeneratingLastFrames(prev => {
+          const next = new Set(prev);
+          next.delete(shotId);
+          return next;
+        });
+      }
+    }
+  };
+
+  // Open Smart Prompt Builder for frame prompt enhancement
+  const handleEnhanceFramePrompt = (shotId: string, frameType: 'first' | 'last') => {
+    // Get the shot's image model selection for frame generation
+    const shot = selectedChain?.segments?.find(s => s.id === shotId);
+    setPromptBuilderTarget({
+      shotId,
+      frameType,
+      imageModelId: shot?.imageModel || frameModel,
+    });
+    setIsPromptBuilderOpen(true);
+  };
+
+  // Open Smart Prompt Builder for video prompt enhancement
+  const handleEnhanceVideoPrompt = (shotId: string) => {
+    // Get the shot's video model selection for video generation
+    const shot = selectedChain?.segments?.find(s => s.id === shotId);
+    setPromptBuilderTarget({
+      shotId,
+      frameType: 'video',
+      videoModelId: shot?.videoModel || 'fal-ai/kling-video/v2.1/master/image-to-video',
+    });
+    setIsPromptBuilderOpen(true);
+  };
+
+  // Get current prompt for Prompt Builder
+  const getPromptBuilderInitialPrompt = () => {
+    if (!promptBuilderTarget) return '';
+    const shot = selectedChain?.segments?.find(s => s.id === promptBuilderTarget.shotId);
+    if (!shot) return '';
+    if (promptBuilderTarget.frameType === 'video') {
+      return shot.prompt || '';
+    }
+    const field = promptBuilderTarget.frameType === 'first' ? 'firstFramePrompt' : 'lastFramePrompt';
+    return shot[field] || '';
+  };
+
+  // Handle Prompt Builder result
+  const handlePromptBuilderChange = (newPrompt: string) => {
+    if (!promptBuilderTarget) return;
+    if (promptBuilderTarget.frameType === 'video') {
+      handleUpdateShot(promptBuilderTarget.shotId, { prompt: newPrompt });
+    } else {
+      const field = promptBuilderTarget.frameType === 'first' ? 'firstFramePrompt' : 'lastFramePrompt';
+      handleUpdateShot(promptBuilderTarget.shotId, { [field]: newPrompt });
+    }
+    setIsPromptBuilderOpen(false);
+    setPromptBuilderTarget(null);
+  };
+
   // Format duration for display
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -361,6 +763,17 @@ export default function StoryboardPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
+      {/* Session Recovery Toast */}
+      {recoverableSession && (
+        <RecoveryToast
+          isVisible={showRecoveryToast}
+          savedAt={recoverableSession.savedAt}
+          pageType="storyboard"
+          onRestore={handleRestoreSession}
+          onDismiss={handleDismissRecovery}
+        />
+      )}
+
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-white/10 bg-zinc-950/90 backdrop-blur-lg">
         <div className="mx-auto max-w-7xl px-6 py-4">
@@ -395,6 +808,61 @@ export default function StoryboardPage() {
                   </span>
                 </div>
               )}
+
+              {/* Cost summary */}
+              {selectedChain && selectedChain.segments && selectedChain.segments.length > 0 && (
+                <Tooltip
+                  content={hasIterations
+                    ? `Spent: ${spentCosts.imageIterations} frames (${formatCost(spentCosts.imageCost)}) + ${spentCosts.videoIterations} videos (${formatCost(spentCosts.videoCost)})`
+                    : `Estimate: ${selectedChain.segments.length * 2} frames + ${selectedChain.segments.length} videos`
+                  }
+                  side="bottom"
+                >
+                  <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5">
+                    <span className={clsx(
+                      'text-[10px] uppercase',
+                      hasIterations ? 'text-cyan-400' : 'text-gray-500'
+                    )}>
+                      {hasIterations ? 'Spent' : 'Est.'}
+                    </span>
+                    <span className="text-xs text-amber-400">{formatCost(totalImageCost)}</span>
+                    <span className="text-gray-600">+</span>
+                    <span className="text-xs text-emerald-400">{formatCost(totalVideoCost)}</span>
+                    <span className="text-gray-600">=</span>
+                    <span className="text-sm font-medium text-white">{formatCost(totalCost)}</span>
+                  </div>
+                </Tooltip>
+              )}
+
+              {/* Model selector for frame generation */}
+              <Tooltip content="Image model for First/Last Frame generation" side="bottom">
+                <select
+                  value={frameModel}
+                  onChange={e => setFrameModel(e.target.value)}
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-purple-500 focus:outline-none"
+                >
+                  {frameModels.map(model => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))}
+                </select>
+              </Tooltip>
+
+              {/* Video resolution selector */}
+              <Tooltip content="Video output resolution" side="bottom">
+                <select
+                  value={videoResolution}
+                  onChange={e => setVideoResolution(e.target.value)}
+                  className="w-24 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-sm text-white focus:ring-1 focus:ring-cyan-500 focus:outline-none"
+                >
+                  {availableResolutions.map(res => (
+                    <option key={res.id} value={res.id}>
+                      {res.label}
+                    </option>
+                  ))}
+                </select>
+              </Tooltip>
 
               {/* Aspect ratio selector */}
               <select
@@ -527,11 +995,18 @@ export default function StoryboardPage() {
                           shot={{ ...shot, orderIndex: index, status: shot.status || 'pending' }}
                           sceneTitle={selectedChain.name}
                           sceneDescription={selectedChain.description}
+                          elements={elements}
+                          projectId={projectId}
                           onUpdate={handleUpdateShot}
                           onDelete={handleDeleteShot}
                           onGenerate={handleGenerateShot}
                           onUploadFrame={handleUploadFrame}
+                          onGenerateFrame={handleGenerateFrame}
+                          onEnhanceFramePrompt={handleEnhanceFramePrompt}
+                          onEnhanceVideoPrompt={handleEnhanceVideoPrompt}
                           isGenerating={generatingShots.has(shot.id)}
+                          isGeneratingFirstFrame={generatingFirstFrames.has(shot.id)}
+                          isGeneratingLastFrame={generatingLastFrames.has(shot.id)}
                         />
                       ))}
 
@@ -655,6 +1130,53 @@ export default function StoryboardPage() {
                 Create Scene
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Smart Prompt Builder Modal */}
+      {isPromptBuilderOpen && promptBuilderTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-[#1a1a1a] shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-[#1a1a1a] px-6 py-4">
+              <h2 className="text-lg font-semibold text-white">
+                Smart Prompt Builder - {promptBuilderTarget.frameType === 'video' ? 'Video' : promptBuilderTarget.frameType === 'first' ? 'First Frame' : 'Last Frame'}
+              </h2>
+              <button
+                onClick={() => {
+                  setIsPromptBuilderOpen(false);
+                  setPromptBuilderTarget(null);
+                }}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <PromptBuilder
+              initialPrompt={getPromptBuilderInitialPrompt()}
+              modelId={promptBuilderTarget.frameType === 'video'
+                ? (promptBuilderTarget.videoModelId || 'fal-ai/kling-video/v2.1/master/image-to-video')
+                : (promptBuilderTarget.imageModelId || frameModel)
+              }
+              generationType={promptBuilderTarget.frameType === 'video' ? 'video' : 'image'}
+              elements={elements.map(e => ({
+                id: e.id,
+                name: e.name,
+                type: (e.type as 'character' | 'prop' | 'location' | 'style') || 'character',
+                description: '',
+                imageUrl: e.url || e.fileUrl || e.thumbnail,
+                consistencyWeight: 0.5,
+              }))}
+              initialLoRAs={[]}
+              onPromptChange={(newPrompt, negativePrompt) => {
+                handlePromptBuilderChange(newPrompt);
+              }}
+              onClose={() => {
+                setIsPromptBuilderOpen(false);
+                setPromptBuilderTarget(null);
+              }}
+            />
           </div>
         </div>
       )}

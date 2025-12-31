@@ -1,0 +1,59 @@
+{
+  "name": "Virtual Gaffer / Lighting Stage",
+  "description": "3D lighting setup with inverse gaffing from reference images",
+  "status": "active",
+  "addedDate": "2025-12-25",
+  "lastVerified": "2025-12-30",
+  "files": {
+    "frontend": [
+      "frontend/src/components/lighting/LightingStage.tsx",
+      "frontend/src/lib/lightingStore.ts"
+    ],
+    "backend": [
+      "backend/src/services/lighting/LightingAnalysisService.ts"
+    ],
+    "routes": [
+      "backend/src/routes/lightingRoutes.ts"
+    ]
+  },
+  "endpoints": [
+    "POST /api/lighting/analyze"
+  ],
+  "keyFunctions": {
+    "LightingStage": {
+      "description": "3D proxy sphere preview with draggable light positions",
+      "features": ["Light placement", "Gel color selection", "Inverse gaffing", "Flip Map"]
+    },
+    "LightingAnalysisService.analyzeImage": {
+      "description": "Grok Vision analyzes reference image to extract light positions",
+      "coordinateSystem": "Viewer-relative (camera perspective), NOT subject-relative"
+    },
+    "handleFlipMap": {
+      "description": "Horizontally mirrors all light X coordinates",
+      "formula": "x = 1.0 - x"
+    }
+  },
+  "coordinateSystem": {
+    "rule": "All coordinates are VIEWER-RELATIVE (Camera-Perspective)",
+    "leftSide": "x < 0.4 = appears on LEFT side of image frame",
+    "rightSide": "x > 0.6 = appears on RIGHT side of image frame",
+    "positions": {
+      "backLeftRim": {"x": 0.15, "y": 0.15},
+      "backRightRim": {"x": 0.85, "y": 0.15},
+      "frontLeftKey": {"x": 0.25, "y": 0.60},
+      "frontRightFill": {"x": 0.75, "y": 0.60},
+      "centerBacklight": {"x": 0.50, "y": 0.10}
+    }
+  },
+  "expectedBehavior": {
+    "manualPlacement": "Click/drag lights on proxy sphere",
+    "inverseGaffing": "Drop reference image → AI extracts light positions",
+    "flipMap": "One-click horizontal mirror if AI flipped L/R",
+    "promptInjection": "Light setup converted to prompt modifiers"
+  },
+  "dependencies": {
+    "external": ["Grok Vision API"],
+    "internal": ["useLightingStore (Zustand)", "GrokAdapter"]
+  },
+  "backupLocation": "/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/complete backup"
+}

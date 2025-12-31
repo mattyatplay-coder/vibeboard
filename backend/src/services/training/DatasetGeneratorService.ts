@@ -3,7 +3,18 @@ import path from 'path';
 import axios from 'axios';
 import { GenerationService } from '../GenerationService';
 import { GenerationOptions } from '../generators/GenerationProvider';
+import { FalAIAdapter } from '../generators/FalAIAdapter';
 import * as fal from "@fal-ai/serverless-client";
+
+// Generation mode for hybrid approach
+export type GenerationMode = 'flux' | 'qwen' | 'hybrid';
+
+// Pose types that benefit from Qwen's geometric reasoning
+const GEOMETRIC_POSE_KEYWORDS = [
+    'front view', 'side profile', 'three-quarter view', 'back view',
+    'looking over shoulder', 'head tilted', 'turn head', 'facing',
+    'nose pointing', 'angled toward', '3/4 view'
+];
 
 // Pose Preset Types
 export type PosePresetKey =
@@ -807,9 +818,93 @@ const POSE_PROMPTS = POSE_PRESETS.universal.poses;
 
 export class DatasetGeneratorService {
     private generationService: GenerationService;
+    private falAdapter: FalAIAdapter;
 
     constructor() {
         this.generationService = new GenerationService('fal');
+        this.falAdapter = new FalAIAdapter();
+    }
+
+    /**
+     * Determine if a pose prompt would benefit from Qwen's geometric reasoning
+     */
+    private isGeometricPose(posePrompt: string): boolean {
+        const lowerPrompt = posePrompt.toLowerCase();
+        return GEOMETRIC_POSE_KEYWORDS.some(keyword => lowerPrompt.includes(keyword.toLowerCase()));
+    }
+
+    /**
+     * Generate a single pose using Qwen Image Edit 2511
+     * Best for: angle changes, pose adjustments, geometric transformations
+     */
+    private async generateWithQwen(
+        sourceUrl: string,
+        poseInstruction: string,
+        description: string,
+        aspectRatio: string
+    ): Promise<{ url: string; seed?: number } | null> {
+        try {
+            // Qwen works best with clear instruction-style prompts
+            const instruction = `Change the pose to: ${poseInstruction}. ` +
+                `Maintain the character's exact identity, face, clothing, and all physical features. ` +
+                `Use a plain white background.`;
+
+            const result = await this.falAdapter.generatePoseWithQwen(
+                sourceUrl,
+                instruction,
+                {
+                    characterDescription: description,
+                    maintainIdentity: true,
+                    aspectRatio,
+                }
+            );
+
+            if (result.status === 'succeeded' && result.outputs && result.outputs.length > 0) {
+                return {
+                    url: result.outputs[0],
+                    seed: result.seed
+                };
+            }
+            return null;
+        } catch (error: any) {
+            console.error(`[DatasetGenerator] Qwen generation failed: ${error.message}`);
+            return null;
+        }
+    }
+
+    /**
+     * Generate a single pose using Flux 2 Max
+     * Best for: style variations, artistic interpretation, full scene generation
+     */
+    private async generateWithFlux(
+        sourceUrl: string,
+        fullPrompt: string,
+        aspectRatio: string
+    ): Promise<{ url: string; seed?: number } | null> {
+        try {
+            const result: any = await fal.subscribe("fal-ai/flux-2-max/edit", {
+                input: {
+                    prompt: fullPrompt,
+                    image_urls: [sourceUrl],
+                    aspect_ratio: aspectRatio,
+                    num_images: 1,
+                    output_format: "png",
+                    safety_tolerance: 5,
+                },
+                logs: true,
+            });
+
+            if (result.images && result.images.length > 0) {
+                return {
+                    url: result.images[0].url,
+                    seed: result.seed
+                };
+            }
+            return null;
+        } catch (error: any) {
+            console.error(`[DatasetGenerator] Flux generation failed: ${error.message}`);
+            return null;
+        }
     }
 
     /**
@@ -841,9 +936,13 @@ export class DatasetGeneratorService {
 
     /**
      * Generate a synthetic dataset from a single source image
-     * Uses Flux 2 Max for character consistency with pose variation
+     * Supports three modes:
+     * - 'flux': Use Flux 2 Max for all poses (default, best for style variations)
+     * - 'qwen': Use Qwen Image Edit for all poses (best for geometric accuracy)
+     * - 'hybrid': Use Qwen for angle/pose changes, Flux for expression/action poses
      *
      * @param presetKeyOrCustom - Either a built-in preset key or a custom preset object
+     * @param generationMode - 'flux' | 'qwen' | 'hybrid' (default: 'hybrid')
      */
     async generateVariations(
         sourceImage: string, // Local file path or URL
@@ -852,8 +951,9 @@ export class DatasetGeneratorService {
         projectId: string,
         jobId: string,
         characterDescription?: string,
-        presetKeyOrCustom: PosePresetKey | CustomPosePresetData = 'universal'
-    ): Promise<{ count: number; outputDir: string }> {
+        presetKeyOrCustom: PosePresetKey | CustomPosePresetData = 'universal',
+        generationMode: GenerationMode = 'hybrid'
+    ): Promise<{ count: number; outputDir: string; qwenCount?: number; fluxCount?: number }> {
         console.log(`[DatasetGenerator] Starting generation for Job ${jobId}...`);
 
         // Get the pose preset - either built-in or custom
@@ -917,11 +1017,16 @@ export class DatasetGeneratorService {
             descriptionToUse = `${stylePrefix}, ${descriptionToUse}`;
         }
 
-        // 4. Generate pose variations using Flux 2 Max
+        // 4. Generate pose variations using selected mode
         let generatedCount = 0;
+        let qwenCount = 0;
+        let fluxCount = 0;
         const totalPoses = poses.length;
 
-        console.log(`[DatasetGenerator] ⚡ Using Flux 2 Max for ${totalPoses} pose variations (${presetName} preset)...`);
+        const modeEmoji = generationMode === 'hybrid' ? '🔀' : generationMode === 'qwen' ? '🎯' : '⚡';
+        const modeLabel = generationMode === 'hybrid' ? 'Hybrid (Qwen + Flux)' :
+                         generationMode === 'qwen' ? 'Qwen Image Edit' : 'Flux 2 Max';
+        console.log(`[DatasetGenerator] ${modeEmoji} Using ${modeLabel} for ${totalPoses} pose variations (${presetName} preset)...`);
 
         for (let i = 0; i < totalPoses; i++) {
             const posePrompt = poses[i];
@@ -936,24 +1041,28 @@ export class DatasetGeneratorService {
             const isMediumShot = posePrompt.includes('medium shot') || posePrompt.includes('cropped at waist');
             const aspectRatio = isCloseUp ? '1:1' : isMediumShot ? '3:4' : '9:16';
 
-            console.log(`[DatasetGenerator] Generating ${i + 1}/${totalPoses}: "${posePrompt}" (${aspectRatio})`);
+            // Determine which model to use based on mode and pose type
+            const useQwen = generationMode === 'qwen' ||
+                           (generationMode === 'hybrid' && this.isGeometricPose(posePrompt));
+
+            const modelLabel = useQwen ? '🎯 Qwen' : '⚡ Flux';
+            console.log(`[DatasetGenerator] [${modelLabel}] ${i + 1}/${totalPoses}: "${posePrompt.substring(0, 50)}..." (${aspectRatio})`);
 
             try {
-                // Use Flux 2 Max edit endpoint
-                const result: any = await fal.subscribe("fal-ai/flux-2-max/edit", {
-                    input: {
-                        prompt: fullPrompt,
-                        image_urls: [sourceUrl], // Reference image for character consistency
-                        aspect_ratio: aspectRatio,
-                        num_images: 1,
-                        output_format: "png",
-                        safety_tolerance: 5,
-                    },
-                    logs: true,
-                });
+                let result: { url: string; seed?: number } | null = null;
 
-                if (result.images && result.images.length > 0) {
-                    const imageUrl = result.images[0].url;
+                if (useQwen) {
+                    // Use Qwen for geometric poses
+                    result = await this.generateWithQwen(sourceUrl, posePrompt, descriptionToUse, aspectRatio);
+                    if (result) qwenCount++;
+                } else {
+                    // Use Flux for style/expression poses
+                    result = await this.generateWithFlux(sourceUrl, fullPrompt, aspectRatio);
+                    if (result) fluxCount++;
+                }
+
+                if (result && result.url) {
+                    const imageUrl = result.url;
                     const poseName = posePrompt.split(',')[0].replace(/\s+/g, '_');
                     const filename = `gen_${String(generatedCount).padStart(2, '0')}_${poseName}.png`;
                     const filePath = path.join(outputDir, filename);
@@ -966,9 +1075,10 @@ export class DatasetGeneratorService {
 
                     await this.downloadImage(imageUrl, filePath);
                     generatedCount++;
-                    console.log(`   ✅ Saved: ${filename}`);
+                    const modelUsed = useQwen ? 'Qwen' : 'Flux';
+                    console.log(`   ✅ Saved: ${filename} (${modelUsed})`);
                 } else {
-                    console.error(`   ❌ Failed: No output images`);
+                    console.error(`   ❌ Failed: No output from ${useQwen ? 'Qwen' : 'Flux'}`);
                 }
             } catch (err: any) {
                 console.error(`   ❌ Error for pose "${posePrompt}": ${err.message}`);
@@ -981,7 +1091,8 @@ export class DatasetGeneratorService {
         }
 
         console.log(`[DatasetGenerator] ✅ Complete. Generated ${generatedCount}/${totalPoses} images.`);
-        return { count: generatedCount, outputDir };
+        console.log(`   📊 Model breakdown: Qwen=${qwenCount}, Flux=${fluxCount}`);
+        return { count: generatedCount, outputDir, qwenCount, fluxCount };
     }
 
     private async downloadImage(url: string, outputPath: string): Promise<void> {

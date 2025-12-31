@@ -1,5 +1,5 @@
 # VibeBoard GPU Worker - RunPod Serverless
-# Optimized for fast cold starts with minimal dependencies
+# Optimized for fast cold starts with model caching
 
 FROM runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04
 
@@ -7,13 +7,16 @@ FROM runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     libgl1-mesa-glx \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy requirements and install
+# Install Python dependencies first (better caching)
+# Pin transformers version compatible with PyTorch 2.1
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir transformers==4.36.0 && \
     pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir runpod
 
@@ -24,6 +27,9 @@ COPY runpod_handler.py .
 # Environment
 ENV DEVICE=cuda
 ENV PYTHONUNBUFFERED=1
+ENV MODEL_CACHE_DIR=/tmp/models
+ENV HF_HOME=/tmp/huggingface
+ENV TRANSFORMERS_CACHE=/tmp/huggingface
 
 # RunPod serverless entry point
 CMD ["python", "-u", "runpod_handler.py"]

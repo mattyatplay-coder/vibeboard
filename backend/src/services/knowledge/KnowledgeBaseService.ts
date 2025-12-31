@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../prisma';
 import { MODEL_PROMPTING_GUIDES } from '../prompts/ModelPromptGuides';
-
-const prisma = new PrismaClient();
 
 export interface ModelContext {
   id: string;

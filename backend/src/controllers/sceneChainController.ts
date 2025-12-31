@@ -215,7 +215,9 @@ export const addSegment = async (req: Request, res: Response) => {
             transitionType,
             orderIndex,
             firstFrameUrl,
-            lastFrameUrl
+            lastFrameUrl,
+            firstFramePrompt,
+            lastFramePrompt
         } = req.body;
 
         // Prompt is optional for frame-based workflows - will be added later
@@ -248,7 +250,9 @@ export const addSegment = async (req: Request, res: Response) => {
                 orderIndex: finalOrderIndex,
                 status: 'pending',
                 firstFrameUrl: firstFrameUrl || null,
-                lastFrameUrl: lastFrameUrl || null
+                lastFrameUrl: lastFrameUrl || null,
+                firstFramePrompt: firstFramePrompt || null,
+                lastFramePrompt: lastFramePrompt || null
             }
         });
 
@@ -273,7 +277,9 @@ export const updateSegment = async (req: Request, res: Response) => {
             orderIndex,
             status,
             firstFrameUrl,
-            lastFrameUrl
+            lastFrameUrl,
+            firstFramePrompt,
+            lastFramePrompt
         } = req.body;
 
         const updateData: any = {};
@@ -289,6 +295,9 @@ export const updateSegment = async (req: Request, res: Response) => {
         // Reference frame images for guiding generation
         if (firstFrameUrl !== undefined) updateData.firstFrameUrl = firstFrameUrl || null;
         if (lastFrameUrl !== undefined) updateData.lastFrameUrl = lastFrameUrl || null;
+        // Frame prompts for image generation
+        if (firstFramePrompt !== undefined) updateData.firstFramePrompt = firstFramePrompt || null;
+        if (lastFramePrompt !== undefined) updateData.lastFramePrompt = lastFramePrompt || null;
 
         const segment = await prisma.sceneChainSegment.update({
             where: { id: segmentId },
@@ -958,18 +967,50 @@ async function generateSingleSegment(segment: any, aspectRatio: string) {
 
         // Extract output URL - handle various result formats
         let outputUrl: string | null = null;
+
+        // Debug log the result structure
+        const debugResult = result as any;
+        console.log(`[SceneChain] Result structure:`, {
+            hasOutputs: !!result.outputs,
+            outputsLength: result.outputs?.length,
+            firstOutputType: result.outputs?.[0] ? typeof result.outputs[0] : 'undefined',
+            resultUrl: debugResult.url,
+            resultVideoUrl: debugResult.video?.url
+        });
+
+        // Try multiple extraction patterns
         if (result.outputs && result.outputs.length > 0) {
             const firstOutput = result.outputs[0];
-            // Handle both string and object formats
             if (typeof firstOutput === 'string') {
                 outputUrl = firstOutput;
             } else if (firstOutput && typeof firstOutput === 'object') {
-                outputUrl = (firstOutput as any).url || (firstOutput as any).video?.url || null;
+                // Ensure we're getting a string, not a function
+                const urlCandidate = (firstOutput as any).url || (firstOutput as any).video?.url;
+                if (typeof urlCandidate === 'string') {
+                    outputUrl = urlCandidate;
+                }
             }
+        }
+
+        // Fallback to direct result properties (cast to any for flexible access)
+        const resultAny = result as any;
+        if (!outputUrl && typeof resultAny.url === 'string') {
+            outputUrl = resultAny.url;
+        }
+        if (!outputUrl && typeof resultAny.video?.url === 'string') {
+            outputUrl = resultAny.video.url;
+        }
+
+        // Final safety check - ensure outputUrl is a string or null
+        if (outputUrl && typeof outputUrl !== 'string') {
+            console.error(`[SceneChain] outputUrl is not a string:`, typeof outputUrl, outputUrl);
+            outputUrl = null;
         }
 
         // Ensure we only pass serializable data to Prisma
         const generationId = typeof result.id === 'string' ? result.id : String(result.id || '');
+
+        console.log(`[SceneChain] Saving segment with outputUrl:`, outputUrl?.substring(0, 50) || 'null');
 
         // Update segment with result
         await prisma.sceneChainSegment.update({
@@ -991,5 +1032,297 @@ async function generateSingleSegment(segment: any, aspectRatio: string) {
                 failureReason: error.message || 'Unknown error'
             }
         });
+    }
+}
+
+// POST /api/projects/:projectId/scene-chains/:id/segments/:segmentId/generate-frame
+// Generate a first or last frame image from the stored prompt
+export const generateFrame = async (req: Request, res: Response) => {
+    try {
+        const { id: chainId, segmentId } = req.params;
+        const { frameType, model, elementReferences: requestElementRefs } = req.body; // frameType: 'first' | 'last'
+
+        if (!frameType || !['first', 'last'].includes(frameType)) {
+            return res.status(400).json({ error: 'frameType must be "first" or "last"' });
+        }
+
+        // Fetch segment
+        const segment = await prisma.sceneChainSegment.findUnique({
+            where: { id: segmentId },
+            include: {
+                sceneChain: {
+                    include: {
+                        characters: {
+                            include: { character: true }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!segment) {
+            return res.status(404).json({ error: 'Segment not found' });
+        }
+
+        if (segment.sceneChainId !== chainId) {
+            return res.status(400).json({ error: 'Segment does not belong to this chain' });
+        }
+
+        // Get the appropriate prompt
+        const prompt = frameType === 'first' ? segment.firstFramePrompt : segment.lastFramePrompt;
+
+        if (!prompt) {
+            return res.status(400).json({
+                error: `No ${frameType} frame prompt found for this segment. Please add one first.`
+            });
+        }
+
+        console.log(`[SceneChain] Generating ${frameType} frame for segment ${segmentId}`);
+        console.log(`[SceneChain] Prompt: ${prompt.substring(0, 100)}...`);
+
+        // Build character references from chain characters
+        const characterReferences = segment.sceneChain.characters
+            .map((cc: any) => cc.character)
+            .filter((c: any) => c.primaryImageUrl);
+
+        // Build generation options
+        const options: any = {
+            mode: 'text_to_image',
+            prompt: prompt,
+            aspectRatio: segment.sceneChain.aspectRatio || '16:9',
+            falModel: model || 'fal-ai/flux/dev', // Default to Flux Dev for quality
+        };
+
+        // Combine element references from request (from @mentions in prompt) with chain characters
+        const allElementRefs: string[] = [];
+
+        // First, add references from the request (from Smart Prompt Builder / @mentions)
+        if (requestElementRefs && Array.isArray(requestElementRefs)) {
+            allElementRefs.push(...requestElementRefs.filter((url: string) => typeof url === 'string' && url.length > 0));
+        }
+
+        // Then add character references from the chain (if not already included)
+        if (characterReferences.length > 0) {
+            for (const c of characterReferences) {
+                if (c.primaryImageUrl && !allElementRefs.includes(c.primaryImageUrl)) {
+                    allElementRefs.push(c.primaryImageUrl);
+                }
+            }
+
+            // Add trigger words to prompt
+            const triggerWords = characterReferences
+                .filter((c: any) => c.triggerWord)
+                .map((c: any) => c.triggerWord);
+            if (triggerWords.length > 0) {
+                options.prompt = `${triggerWords.join(', ')}, ${options.prompt}`;
+            }
+        }
+
+        // Add combined element references if available
+        if (allElementRefs.length > 0) {
+            options.elementReferences = allElementRefs;
+            options.elementStrength = characterReferences[0]?.faceWeight || 0.7;
+            console.log(`[SceneChain] Using ${allElementRefs.length} element reference(s) for frame generation`);
+        }
+
+        // Generate the image
+        const result = await generationService.generateImage(options);
+
+        // Extract output URL
+        let outputUrl: string | null = null;
+        const resultAny = result as any;
+
+        if (result.outputs && result.outputs.length > 0) {
+            const firstOutput = result.outputs[0];
+            if (typeof firstOutput === 'string') {
+                outputUrl = firstOutput;
+            } else if (firstOutput && typeof firstOutput === 'object') {
+                const urlCandidate = (firstOutput as any).url;
+                if (typeof urlCandidate === 'string') {
+                    outputUrl = urlCandidate;
+                }
+            }
+        }
+
+        // Fallbacks
+        if (!outputUrl && typeof resultAny.url === 'string') {
+            outputUrl = resultAny.url;
+        }
+        if (!outputUrl && resultAny.images?.[0]?.url) {
+            outputUrl = resultAny.images[0].url;
+        }
+
+        if (!outputUrl) {
+            console.error('[SceneChain] No output URL from frame generation:', result);
+            return res.status(500).json({ error: 'Frame generation failed - no output URL' });
+        }
+
+        console.log(`[SceneChain] Generated ${frameType} frame: ${outputUrl.substring(0, 50)}...`);
+
+        // Update segment with the generated frame URL
+        const updateData = frameType === 'first'
+            ? { firstFrameUrl: outputUrl }
+            : { lastFrameUrl: outputUrl };
+
+        const updatedSegment = await prisma.sceneChainSegment.update({
+            where: { id: segmentId },
+            data: updateData
+        });
+
+        res.json({
+            success: true,
+            frameType,
+            url: outputUrl,
+            segment: updatedSegment
+        });
+
+    } catch (error: any) {
+        console.error('Error generating frame:', error);
+        res.status(500).json({ error: error.message || 'Failed to generate frame' });
+    }
+};
+
+// POST /api/projects/:projectId/scene-chains/:id/generate-all-frames
+// Generate all missing frames for all segments in a chain
+export const generateAllFrames = async (req: Request, res: Response) => {
+    try {
+        const { id: chainId } = req.params;
+        const { model, frameTypes = ['first', 'last'] } = req.body;
+
+        // Fetch chain with segments
+        const chain = await prisma.sceneChain.findUnique({
+            where: { id: chainId },
+            include: {
+                segments: {
+                    orderBy: { orderIndex: 'asc' }
+                },
+                characters: {
+                    include: { character: true }
+                }
+            }
+        });
+
+        if (!chain) {
+            return res.status(404).json({ error: 'Scene chain not found' });
+        }
+
+        // Find segments that need frame generation
+        const tasksToGenerate: { segmentId: string; frameType: 'first' | 'last' }[] = [];
+
+        for (const segment of chain.segments) {
+            if (frameTypes.includes('first') && segment.firstFramePrompt && !segment.firstFrameUrl) {
+                tasksToGenerate.push({ segmentId: segment.id, frameType: 'first' });
+            }
+            if (frameTypes.includes('last') && segment.lastFramePrompt && !segment.lastFrameUrl) {
+                tasksToGenerate.push({ segmentId: segment.id, frameType: 'last' });
+            }
+        }
+
+        if (tasksToGenerate.length === 0) {
+            return res.json({
+                success: true,
+                message: 'No frames to generate - all frames already exist or no prompts set',
+                generated: 0
+            });
+        }
+
+        console.log(`[SceneChain] Generating ${tasksToGenerate.length} frames for chain ${chainId}`);
+
+        // Return immediately with task count, generation happens in background
+        res.json({
+            success: true,
+            message: `Generating ${tasksToGenerate.length} frames`,
+            tasks: tasksToGenerate,
+            total: tasksToGenerate.length
+        });
+
+        // Generate frames in background (don't await)
+        generateFramesInBackground(chain, tasksToGenerate, model);
+
+    } catch (error: any) {
+        console.error('Error starting frame generation:', error);
+        res.status(500).json({ error: error.message || 'Failed to start frame generation' });
+    }
+};
+
+// Background frame generation helper
+async function generateFramesInBackground(
+    chain: any,
+    tasks: { segmentId: string; frameType: 'first' | 'last' }[],
+    model?: string
+) {
+    const characterReferences = chain.characters
+        .map((cc: any) => cc.character)
+        .filter((c: any) => c.primaryImageUrl);
+
+    for (const task of tasks) {
+        try {
+            const segment = chain.segments.find((s: any) => s.id === task.segmentId);
+            if (!segment) continue;
+
+            const prompt = task.frameType === 'first' ? segment.firstFramePrompt : segment.lastFramePrompt;
+            if (!prompt) continue;
+
+            console.log(`[SceneChain] Generating ${task.frameType} frame for segment ${task.segmentId}`);
+
+            const options: any = {
+                mode: 'text_to_image',
+                prompt: prompt,
+                aspectRatio: chain.aspectRatio || '16:9',
+                falModel: model || 'fal-ai/flux/dev',
+            };
+
+            // Add character references
+            if (characterReferences.length > 0) {
+                options.elementReferences = characterReferences.map((c: any) => c.primaryImageUrl);
+                options.elementStrength = characterReferences[0]?.faceWeight || 0.7;
+
+                const triggerWords = characterReferences
+                    .filter((c: any) => c.triggerWord)
+                    .map((c: any) => c.triggerWord);
+                if (triggerWords.length > 0) {
+                    options.prompt = `${triggerWords.join(', ')}, ${options.prompt}`;
+                }
+            }
+
+            const result = await generationService.generateImage(options);
+
+            // Extract URL
+            let outputUrl: string | null = null;
+            const resultAny = result as any;
+
+            if (result.outputs && result.outputs.length > 0) {
+                const firstOutput = result.outputs[0];
+                if (typeof firstOutput === 'string') {
+                    outputUrl = firstOutput;
+                } else if (firstOutput && typeof firstOutput === 'object') {
+                    const urlCandidate = (firstOutput as any).url;
+                    if (typeof urlCandidate === 'string') {
+                        outputUrl = urlCandidate;
+                    }
+                }
+            }
+            if (!outputUrl && typeof resultAny.url === 'string') {
+                outputUrl = resultAny.url;
+            }
+            if (!outputUrl && resultAny.images?.[0]?.url) {
+                outputUrl = resultAny.images[0].url;
+            }
+
+            if (outputUrl) {
+                const updateData = task.frameType === 'first'
+                    ? { firstFrameUrl: outputUrl }
+                    : { lastFrameUrl: outputUrl };
+
+                await prisma.sceneChainSegment.update({
+                    where: { id: task.segmentId },
+                    data: updateData
+                });
+
+                console.log(`[SceneChain] Generated ${task.frameType} frame for segment ${task.segmentId}`);
+            }
+        } catch (error) {
+            console.error(`[SceneChain] Error generating ${task.frameType} frame for segment ${task.segmentId}:`, error);
+        }
     }
 }

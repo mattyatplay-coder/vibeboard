@@ -6,12 +6,15 @@ import fetch from 'node-fetch';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { withRetry, circuitBreakers } from '../../utils/retry';
+import { loggers, logApiCall } from '../../utils/logger';
 
 const execAsync = promisify(exec);
+const log = loggers.falai;
 
 // Configure fal client
 if (!process.env.FAL_KEY) {
-    console.warn("WARNING: FAL_KEY environment variable is not set. Fal.ai generations will fail.");
+    log.warn('FAL_KEY environment variable is not set. Fal.ai generations will fail.');
 }
 
 fal.config({
@@ -20,10 +23,39 @@ fal.config({
 
 export class FalAIAdapter implements GenerationProvider {
 
+    /**
+     * Wrapper for fal.subscribe with retry logic and circuit breaker
+     */
+    private async falSubscribeWithRetry<T>(
+        endpoint: string,
+        options: any,
+        retryOpts?: { maxRetries?: number }
+    ): Promise<T> {
+        return circuitBreakers.falai.execute(() =>
+            withRetry(
+                () => fal.subscribe(endpoint, options) as Promise<T>,
+                {
+                    maxRetries: retryOpts?.maxRetries ?? 2,
+                    initialDelayMs: 2000,
+                    maxDelayMs: 30000,
+                    onRetry: (error, attempt, delayMs) => {
+                        log.warn({
+                            endpoint,
+                            attempt,
+                            delayMs,
+                            error: error.message || error,
+                        }, `Retry ${attempt} for ${endpoint} after ${delayMs}ms`);
+                    },
+                }
+            )
+        );
+    }
+
     async analyzeImage(imageUrl: string, prompt: string): Promise<string> {
+        const startTime = Date.now();
         try {
-            console.log(`[FalAIAdapter] Analyzing image with fal-ai/llava-next...`);
-            const result: any = await fal.subscribe("fal-ai/llava-next", {
+            log.info({ imageUrl }, 'Analyzing image with fal-ai/llava-next');
+            const result: any = await this.falSubscribeWithRetry("fal-ai/llava-next", {
                 input: {
                     image_url: imageUrl,
                     prompt: prompt,
@@ -34,10 +66,10 @@ export class FalAIAdapter implements GenerationProvider {
                 logs: true,
             });
 
-            console.log("[FalAIAdapter] Analysis complete.");
+            logApiCall('falai', 'analyzeImage', true, Date.now() - startTime);
             return result.output;
         } catch (error: any) {
-            console.error("[FalAIAdapter] Analysis failed:", error);
+            logApiCall('falai', 'analyzeImage', false, Date.now() - startTime, { error: error.message });
             throw error;
         }
     }
@@ -64,6 +96,18 @@ export class FalAIAdapter implements GenerationProvider {
             const hasStructureImage = sourceImages && sourceImages.length > 0;
             const hasElementReferences = options.elementReferences && options.elementReferences.length > 0;
             const useSmartMode = hasStructureImage && hasElementReferences;
+
+            // Debug logging for character reference routing
+            console.log(`[FalAIAdapter] generateImage called:`, {
+                model: options.model,
+                hasSourceImages: hasStructureImage,
+                sourceImagesCount: sourceImages?.length || 0,
+                hasElementReferences,
+                elementReferencesCount: options.elementReferences?.length || 0,
+                elementReferences: options.elementReferences?.slice(0, 2), // First 2 for brevity
+                useSmartMode,
+                routing: useSmartMode ? 'SmartMode' : hasElementReferences ? 'IPAdapter' : 'Standard',
+            });
 
             if (useSmartMode) {
                 return this.generateSmartMode(options);
@@ -561,6 +605,286 @@ export class FalAIAdapter implements GenerationProvider {
                 error: error.message || "FaceID generation failed"
             };
         }
+    }
+
+    // ============================================================================
+    // QWEN IMAGE EDIT 2511 - Advanced Image Editing
+    // ============================================================================
+    // Qwen-Image-Edit-2511 excels at:
+    // - Geometric reasoning (pose/angle changes)
+    // - Identity preservation during edits
+    // - Multi-image compositing
+    // - Text rendering and correction
+    // - Instruction-following edits
+    // ============================================================================
+
+    /**
+     * Core Qwen Image Edit method
+     * Uses fal-ai/qwen-image-edit-2511 for instruction-based image editing
+     */
+    async editWithQwen(options: {
+        prompt: string;
+        imageUrls: string[];
+        negativePrompt?: string;
+        numInferenceSteps?: number;
+        guidanceScale?: number;
+        seed?: number;
+        imageSize?: string;
+        numImages?: number;
+    }): Promise<GenerationResult> {
+        const startTime = Date.now();
+        try {
+            log.info({
+                prompt: options.prompt,
+                imageCount: options.imageUrls.length
+            }, '[Qwen] Starting image edit');
+
+            const input: any = {
+                prompt: options.prompt,
+                image_urls: options.imageUrls,
+                negative_prompt: options.negativePrompt || "",
+                num_inference_steps: options.numInferenceSteps || 28,
+                guidance_scale: options.guidanceScale || 4.5,
+                num_images: options.numImages || 1,
+                output_format: "png",
+            };
+
+            if (options.seed !== undefined) {
+                input.seed = options.seed;
+            }
+
+            if (options.imageSize) {
+                input.image_size = options.imageSize;
+            }
+
+            const result: any = await this.falSubscribeWithRetry("fal-ai/qwen-image-edit-2511", {
+                input,
+                logs: true,
+            });
+
+            logApiCall('falai', 'qwen-image-edit', true, Date.now() - startTime);
+
+            return {
+                id: Date.now().toString(),
+                status: 'succeeded',
+                outputs: result.images?.map((img: any) => img.url) || [],
+                seed: result.seed,
+            };
+        } catch (error: any) {
+            logApiCall('falai', 'qwen-image-edit', false, Date.now() - startTime, { error: error.message });
+            log.error({ error: error.message }, '[Qwen] Image edit failed');
+            return {
+                id: Date.now().toString(),
+                status: 'failed',
+                error: error.message || "Qwen image edit failed"
+            };
+        }
+    }
+
+    /**
+     * AI Reshoot - Fix expressions, gaze, poses without regenerating
+     * Use cases:
+     * - "Make character look at camera"
+     * - "Change expression to smiling"
+     * - "Close the character's mouth"
+     * - "Turn head slightly to the left"
+     */
+    async reshootWithQwen(
+        imageUrl: string,
+        instruction: string,
+        options?: {
+            preserveBackground?: boolean;
+            seed?: number;
+        }
+    ): Promise<GenerationResult> {
+        // Build instruction prompt that preserves everything except the change
+        let prompt = instruction;
+        if (options?.preserveBackground !== false) {
+            prompt = `${instruction}. Keep the background, lighting, and all other details exactly the same.`;
+        }
+
+        log.info({ instruction, imageUrl }, '[Qwen] AI Reshoot');
+
+        return this.editWithQwen({
+            prompt,
+            imageUrls: [imageUrl],
+            negativePrompt: "different background, changed lighting, different clothes, different scene",
+            numInferenceSteps: 35, // Higher for precision edits
+            guidanceScale: 5.0,
+            seed: options?.seed,
+        });
+    }
+
+    /**
+     * Cast Assembler - Composite multiple characters into one scene
+     * Solves the multi-LoRA concept bleeding problem
+     *
+     * @param characterImages Array of character images (each with one character)
+     * @param sceneDescription Description of how to arrange them
+     * @param options Additional options
+     */
+    async assembleCharacters(
+        characterImages: string[],
+        sceneDescription: string,
+        options?: {
+            backgroundImage?: string;
+            seed?: number;
+            imageSize?: string;
+        }
+    ): Promise<GenerationResult> {
+        if (characterImages.length < 2) {
+            return {
+                id: Date.now().toString(),
+                status: 'failed',
+                error: "At least 2 character images required for assembly"
+            };
+        }
+
+        // Build the composite prompt
+        const characterLabels = characterImages.map((_, i) => `character ${i + 1}`).join(' and ');
+        const prompt = `Combine ${characterLabels} into a single coherent scene: ${sceneDescription}. ` +
+            `Maintain each character's exact appearance, face, and identity. ` +
+            `Use consistent lighting across all characters.`;
+
+        log.info({
+            characterCount: characterImages.length,
+            scene: sceneDescription
+        }, '[Qwen] Cast Assembly');
+
+        // Include background if provided
+        const allImages = options?.backgroundImage
+            ? [...characterImages, options.backgroundImage]
+            : characterImages;
+
+        return this.editWithQwen({
+            prompt,
+            imageUrls: allImages,
+            negativePrompt: "merged faces, blended features, inconsistent lighting, wrong proportions",
+            numInferenceSteps: 40, // Higher for complex multi-image compositing
+            guidanceScale: 4.5,
+            seed: options?.seed,
+            imageSize: options?.imageSize || "landscape_16_9",
+        });
+    }
+
+    /**
+     * Prop Fabrication - Reskin props while maintaining geometry
+     *
+     * @param propImage Image of the prop to modify
+     * @param transformDescription What to transform it into
+     * @param options Additional options
+     */
+    async fabricateProp(
+        propImage: string,
+        transformDescription: string,
+        options?: {
+            maintainPerspective?: boolean;
+            seed?: number;
+        }
+    ): Promise<GenerationResult> {
+        let prompt = `Transform this object into: ${transformDescription}`;
+
+        if (options?.maintainPerspective !== false) {
+            prompt += ". Maintain the exact same angle, perspective, and geometric proportions.";
+        }
+
+        log.info({ transformation: transformDescription }, '[Qwen] Prop Fabrication');
+
+        return this.editWithQwen({
+            prompt,
+            imageUrls: [propImage],
+            negativePrompt: "different angle, different perspective, changed proportions, distorted geometry",
+            numInferenceSteps: 30,
+            guidanceScale: 4.5,
+            seed: options?.seed,
+        });
+    }
+
+    /**
+     * Text/Sign Fixer - Correct gibberish text or localize signs
+     *
+     * @param imageUrl Image with text to fix
+     * @param textInstruction What to change (e.g., "Change the sign to say 'DANGER' in red")
+     * @param options Additional options
+     */
+    async fixText(
+        imageUrl: string,
+        textInstruction: string,
+        options?: {
+            matchStyle?: boolean;
+            seed?: number;
+        }
+    ): Promise<GenerationResult> {
+        let prompt = textInstruction;
+
+        if (options?.matchStyle !== false) {
+            prompt += ". Match the text style, font, color, and perspective of the surface it's on.";
+        }
+
+        log.info({ instruction: textInstruction }, '[Qwen] Text Fix');
+
+        return this.editWithQwen({
+            prompt,
+            imageUrls: [imageUrl],
+            negativePrompt: "wrong font, mismatched perspective, floating text, different lighting on text",
+            numInferenceSteps: 28,
+            guidanceScale: 4.5,
+            seed: options?.seed,
+        });
+    }
+
+    /**
+     * Pose Generation for Character Foundry (LoRA training datasets)
+     * Uses Qwen's superior geometric reasoning for accurate pose changes
+     *
+     * @param sourceImage The golden record reference image
+     * @param poseInstruction The pose/angle to generate (e.g., "change to front view facing camera")
+     * @param options Additional options including character description
+     */
+    async generatePoseWithQwen(
+        sourceImage: string,
+        poseInstruction: string,
+        options?: {
+            characterDescription?: string;
+            maintainIdentity?: boolean;
+            aspectRatio?: string;
+            seed?: number;
+        }
+    ): Promise<GenerationResult> {
+        // Build prompt optimized for pose/angle changes
+        let prompt = poseInstruction;
+
+        if (options?.characterDescription) {
+            prompt = `${options.characterDescription}, ${poseInstruction}`;
+        }
+
+        if (options?.maintainIdentity !== false) {
+            prompt += ". Preserve the character's exact facial features, hair, and all identifying characteristics.";
+        }
+
+        // Add white background for LoRA training
+        prompt += ", white background";
+
+        log.info({ pose: poseInstruction }, '[Qwen] Pose Generation for Character Foundry');
+
+        // Map aspect ratio to Qwen format
+        const imageSizeMap: Record<string, string> = {
+            '1:1': 'square_hd',
+            '3:4': 'portrait_4_3',
+            '4:3': 'landscape_4_3',
+            '9:16': 'portrait_16_9',
+            '16:9': 'landscape_16_9',
+        };
+
+        return this.editWithQwen({
+            prompt,
+            imageUrls: [sourceImage],
+            negativePrompt: "different person, changed face, different hair, inconsistent features, colored background",
+            numInferenceSteps: 35,
+            guidanceScale: 4.5,
+            seed: options?.seed,
+            imageSize: options?.aspectRatio ? imageSizeMap[options.aspectRatio] : 'square_hd',
+        });
     }
 
     async generateVideo(image: string | undefined, options: GenerationOptions): Promise<GenerationResult> {

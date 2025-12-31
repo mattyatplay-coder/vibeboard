@@ -1,0 +1,45 @@
+{
+  "name": "Magic Eraser",
+  "description": "AI-powered object removal using brush-painted masks",
+  "status": "active",
+  "addedDate": "2025-12-19",
+  "lastVerified": "2025-12-30",
+  "files": {
+    "frontend": [
+      "frontend/src/components/processing/MagicEraserPanel.tsx"
+    ],
+    "backend": [
+      "backend/src/services/processing/InpaintingService.ts"
+    ],
+    "routes": [
+      "backend/src/routes/processRoutes.ts"
+    ]
+  },
+  "endpoints": [
+    "POST /api/process/magic-eraser"
+  ],
+  "keyFunctions": {
+    "MagicEraserPanel": {
+      "description": "Canvas-based brush painting with native DOM events (not React synthetic)",
+      "criticalLogic": "Uses dimensionsRef and originalDimensionsRef to store sizes without triggering re-renders"
+    },
+    "InpaintingService.processInpainting": {
+      "description": "Calls fal-ai/object-removal/mask model",
+      "parameters": ["image_url", "mask_url", "model (best_quality)", "mask_expansion (10)"]
+    }
+  },
+  "expectedBehavior": {
+    "ui": "User paints red semi-transparent mask over areas to remove",
+    "processing": "Mask converted to binary (white on black), scaled to original image dimensions",
+    "result": "AI fills masked areas with clean, contextually appropriate content"
+  },
+  "dependencies": {
+    "external": ["fal-ai/object-removal/mask"],
+    "internal": ["Canvas API", "sharp (backend)"]
+  },
+  "knownIssues": [
+    "Brush too small causes focus on wrong element - use larger brush (15-20px default)",
+    "Thin objects leave ghost edges - increase mask_expansion to 15-20px"
+  ],
+  "backupLocation": "/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/complete backup"
+}

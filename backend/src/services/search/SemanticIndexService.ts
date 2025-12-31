@@ -5,11 +5,9 @@
  * Enables natural language search like "red dress on beach" or "moody lighting portrait".
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../prisma';
 import { GrokAdapter } from '../llm/GrokAdapter';
 import { VectorEmbeddingService } from './VectorEmbeddingService';
-
-const prisma = new PrismaClient();
 
 /**
  * Professional Cinematographer's Visual Description

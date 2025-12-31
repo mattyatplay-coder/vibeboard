@@ -156,6 +156,24 @@ export const MODEL_PRICING: Record<string, ModelPrice> = {
   'ltx-video': { free: true },
   'wan-2.2': { free: true },
   'hunyuan-video': { free: true },
+
+  // === TOGETHER AI ===
+  'together/flux-schnell': { perImage: 0.003 },
+  'together/flux-dev': { perImage: 0.025 },
+  'together/dreamshaper': { perImage: 0.0006 },
+  'together/hidream-full': { perImage: 0.009 },
+  'together/hidream-dev': { perImage: 0.0045 },
+  'together/hidream-fast': { perImage: 0.0032 },
+  'together/juggernaut-pro': { perImage: 0.0049 },
+  'together/juggernaut-lightning': { perImage: 0.0017 },
+
+  // === CIVITAI ===
+  'civitai/sdxl': { perImage: 0.02 },
+  'civitai/pony': { perImage: 0.02 },
+  'civitai/realistic-vision': { perImage: 0.01 },
+  'civitai/flux-d': { perImage: 0.025 },
+  'civitai/wan-t2v': { perSecond: 0.05 },
+  'civitai/wan-i2v': { perSecond: 0.05 },
 };
 
 /**

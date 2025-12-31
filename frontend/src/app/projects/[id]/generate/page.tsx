@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { fetchAPI } from '@/lib/api';
+import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
+import dynamic from 'next/dynamic';
+import { fetchAPI, resolveFileUrl } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { EngineSelectorV2 } from '@/components/generations/EngineSelectorV2';
-import { PromptBuilder } from '@/components/prompts/PromptBuilder';
 import {
   Loader2,
   Image as ImageIcon,
@@ -35,7 +35,7 @@ import { GenerationCard } from '@/components/generations/GenerationCard';
 import { GenerationSearch, GenerationSortFilterState } from '@/components/generations/GenerationSearch';
 import { ShotNavigator, ShotNavigatorRef } from '@/components/generations/ShotNavigator';
 import { ElementReferencePicker } from '@/components/storyboard/ElementReferencePicker';
-import { StyleSelectorModal, StyleConfig } from '@/components/storyboard/StyleSelectorModal';
+import { StyleConfig } from '@/components/storyboard/StyleSelectorModal';
 import { useSession } from '@/context/SessionContext';
 import {
   DndContext,
@@ -52,14 +52,6 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { snapCenterToCursor } from '@dnd-kit/modifiers';
 
-import { SaveElementModal } from '@/components/generations/SaveElementModal';
-import { EditElementModal } from '@/components/elements/EditElementModal';
-import { VideoMaskEditor } from '@/components/generations/VideoMaskEditor';
-import { ImageMaskEditor } from '@/components/generations/ImageMaskEditor';
-import { AudioInputModal } from '@/components/generations/AudioInputModal';
-import { DataBackupModal } from '@/components/settings/DataBackupModal';
-import { TagSelectorModal } from '@/components/generation/TagSelectorModal';
-import { CompactMotionSlider } from '@/components/generation/CompactMotionSlider';
 import { Tag } from '@/components/tag-system';
 import { getModelRequirements } from '@/lib/ModelConstraints';
 import { ALL_MODELS, PROVIDER_DEFINITIONS } from '@/lib/ModelRegistry';
@@ -69,17 +61,78 @@ import { usePromptWeighting } from '@/hooks/usePromptWeighting';
 import { WeightHintTooltip } from '@/components/prompts/WeightHintTooltip';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { usePromptVariablesStore, detectUnexpandedVariables } from '@/lib/promptVariablesStore';
-import { PromptVariablesPanel } from '@/components/prompts/PromptVariablesPanel';
 import { DynamicRatioIcon } from '@/components/ui/DynamicRatioIcon';
-import { LensKitSelector } from '@/components/generation/LensKitSelector';
 import { LensPreset, LENS_EFFECTS, buildLensPrompt } from '@/data/LensPresets';
 import { usePropBinStore } from '@/lib/propBinStore';
-import { PropBinPanel } from '@/components/prompts/PropBinPanel';
 import { usePromptTreeStore } from '@/lib/promptTreeStore';
-import { PromptTreePanel } from '@/components/prompts/PromptTreePanel';
 import { useLightingStore } from '@/lib/lightingStore';
-import { LightingStage } from '@/components/lighting/LightingStage';
-import { AcousticStudioPanel } from '@/components/audio/AcousticStudioPanel';
+import { useSessionRecoveryStore, formatTimeAgo } from '@/lib/sessionRecoveryStore';
+
+// === DYNAMIC IMPORTS for heavy modal components (loaded on demand) ===
+const PromptBuilder = dynamic(() => import('@/components/prompts/PromptBuilder').then(m => ({ default: m.PromptBuilder })), {
+  loading: () => <div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-cyan-400" /></div>,
+  ssr: false
+});
+
+const StyleSelectorModal = dynamic(() => import('@/components/storyboard/StyleSelectorModal').then(m => ({ default: m.StyleSelectorModal })), {
+  ssr: false
+});
+
+const SaveElementModal = dynamic(() => import('@/components/generations/SaveElementModal').then(m => ({ default: m.SaveElementModal })), {
+  ssr: false
+});
+
+const EditElementModal = dynamic(() => import('@/components/elements/EditElementModal').then(m => ({ default: m.EditElementModal })), {
+  ssr: false
+});
+
+const VideoMaskEditor = dynamic(() => import('@/components/generations/VideoMaskEditor').then(m => ({ default: m.VideoMaskEditor })), {
+  ssr: false
+});
+
+const ImageMaskEditor = dynamic(() => import('@/components/generations/ImageMaskEditor').then(m => ({ default: m.ImageMaskEditor })), {
+  ssr: false
+});
+
+const AudioInputModal = dynamic(() => import('@/components/generations/AudioInputModal').then(m => ({ default: m.AudioInputModal })), {
+  ssr: false
+});
+
+const DataBackupModal = dynamic(() => import('@/components/settings/DataBackupModal').then(m => ({ default: m.DataBackupModal })), {
+  ssr: false
+});
+
+const TagSelectorModal = dynamic(() => import('@/components/generation/TagSelectorModal').then(m => ({ default: m.TagSelectorModal })), {
+  ssr: false
+});
+
+const CompactMotionSlider = dynamic(() => import('@/components/generation/CompactMotionSlider').then(m => ({ default: m.CompactMotionSlider })), {
+  ssr: false
+});
+
+const LensKitSelector = dynamic(() => import('@/components/generation/LensKitSelector').then(m => ({ default: m.LensKitSelector })), {
+  ssr: false
+});
+
+const PromptVariablesPanel = dynamic(() => import('@/components/prompts/PromptVariablesPanel').then(m => ({ default: m.PromptVariablesPanel })), {
+  ssr: false
+});
+
+const PropBinPanel = dynamic(() => import('@/components/prompts/PropBinPanel').then(m => ({ default: m.PropBinPanel })), {
+  ssr: false
+});
+
+const PromptTreePanel = dynamic(() => import('@/components/prompts/PromptTreePanel').then(m => ({ default: m.PromptTreePanel })), {
+  ssr: false
+});
+
+const LightingStage = dynamic(() => import('@/components/lighting/LightingStage').then(m => ({ default: m.LightingStage })), {
+  ssr: false
+});
+
+const AcousticStudioPanel = dynamic(() => import('@/components/audio/AcousticStudioPanel').then(m => ({ default: m.AcousticStudioPanel })), {
+  ssr: false
+});
 
 interface PipelineStage {
   id: string;
@@ -378,6 +431,115 @@ export default function GeneratePage() {
     }
   }, [projectId, selectedSessionId]);
 
+  // Session Recovery Store
+  const {
+    saveSession,
+    getRecoverableSession,
+    dismissRecovery,
+    clearSession,
+    markClean,
+    recoveryDismissed,
+  } = useSessionRecoveryStore();
+
+  // Check for recoverable session on mount
+  const [showRecoveryToast, setShowRecoveryToast] = useState(false);
+  const [recoverableSession, setRecoverableSession] = useState<ReturnType<typeof getRecoverableSession>>(null);
+
+  useEffect(() => {
+    if (!projectId || !hasMounted) return;
+
+    const session = getRecoverableSession(projectId);
+    if (session && session.isDirty && !recoveryDismissed) {
+      setRecoverableSession(session);
+      setShowRecoveryToast(true);
+    }
+  }, [projectId, hasMounted, getRecoverableSession, recoveryDismissed]);
+
+  // Handle session recovery
+  const handleRestoreSession = () => {
+    if (!recoverableSession) return;
+
+    setPrompt(recoverableSession.prompt);
+    if (recoverableSession.negativePrompt) {
+      // Apply negative prompt through style config if applicable
+    }
+    setEngineConfig({ provider: 'fal', model: recoverableSession.modelId });
+    setMode(recoverableSession.mode === 'text_to_video' ? 'video' : 'image');
+    setAspectRatio(recoverableSession.aspectRatio);
+    setDuration(String(recoverableSession.duration));
+    setVariations(recoverableSession.variations);
+    setSelectedElementIds(recoverableSession.selectedElementIds);
+    if (recoverableSession.audioFileUrl) {
+      setAudioUrl(recoverableSession.audioFileUrl);
+    }
+    if (recoverableSession.lensKit) {
+      setIsAnamorphic(recoverableSession.lensKit.isAnamorphic);
+    }
+
+    markClean();
+    setShowRecoveryToast(false);
+    toast.success('Session restored successfully');
+  };
+
+  const handleDismissRecovery = () => {
+    dismissRecovery();
+    setShowRecoveryToast(false);
+  };
+
+  // Auto-save session every 500ms
+  useEffect(() => {
+    if (!projectId || !hasMounted) return;
+
+    const saveInterval = setInterval(() => {
+      // Only save if there's meaningful content
+      const hasContent = prompt.trim().length > 0 || selectedElementIds.length > 0;
+      if (!hasContent) return;
+
+      saveSession({
+        projectId,
+        prompt,
+        negativePrompt: styleConfig?.negativePrompt || '',
+        modelId: engineConfig.model,
+        mode: mode === 'video' ? 'text_to_video' : 'text_to_image',
+        aspectRatio,
+        duration: parseInt(duration, 10) || 5,
+        variations,
+        selectedElementIds,
+        audioFileUrl: audioUrl,
+        lensKit: selectedLens
+          ? {
+              lensId: selectedLens.id,
+              focalMm: selectedLens.focalMm,
+              isAnamorphic,
+            }
+          : null,
+        isDirty: true,
+      });
+    }, 500);
+
+    return () => clearInterval(saveInterval);
+  }, [
+    projectId,
+    hasMounted,
+    prompt,
+    engineConfig.model,
+    mode,
+    aspectRatio,
+    duration,
+    variations,
+    selectedElementIds,
+    audioUrl,
+    selectedLens,
+    isAnamorphic,
+    styleConfig?.negativePrompt,
+    saveSession,
+  ]);
+
+  // Clear dirty flag after successful generation
+  const handleGenerationSuccess = () => {
+    markClean();
+  };
+
   const loadElements = async () => {
     try {
       console.log('Loading elements...');
@@ -650,17 +812,55 @@ export default function GeneratePage() {
         engineConfig.model?.includes('t2v') ||
         engineConfig.model?.includes('i2v');
 
+      // Auto-detect @ElementName references in prompt and include them
+      // This ensures elements mentioned with @ syntax are included even if not manually selected
+      // Use ORIGINAL prompt (not expanded) to preserve @ElementName syntax
+      // Use case-insensitive matching and normalize separators for better UX
+      const normalizeForMatch = (str: string) =>
+        str.toLowerCase().replace(/[\s_.-]+/g, ''); // Remove spaces, underscores, dots, hyphens
+
+      const promptNormalized = normalizeForMatch(prompt);
+
+      const promptElementRefs = elements.filter(e => {
+        // Check both exact match and normalized match
+        const nameNormalized = normalizeForMatch(e.name);
+        // Look for @elementname in the normalized prompt
+        return (
+          promptNormalized.includes(`@${nameNormalized}`) ||
+          prompt.toLowerCase().includes(`@${e.name.toLowerCase()}`)
+        );
+      }).map(e => e.id);
+
+      // Debug logging for element detection
+      console.log(`[GeneratePage] Element detection:`, {
+        rawPrompt: prompt,
+        promptContains: prompt.match(/@[\w._-]+/g) || [],
+        availableElements: elements.map(e => ({ name: e.name, id: e.id })),
+        detectedRefs: promptElementRefs,
+        selectedElementIds,
+      });
+
+      // Merge explicitly selected + prompt-referenced elements (deduplicate)
+      const allReferencedElementIds = [...new Set([...selectedElementIds, ...promptElementRefs])];
+
       // Determine mode:
       // If sourceImageUrl exists -> image_to_image (or image_to_video)
       // If only selectedElementIds (Reference Elements) -> text_to_image (Flux handles refs via IP-Adapter)
       // Video models usually treat input images as start frames (image_to_video)
       const mode = isVideo
-        ? sourceImageUrl || selectedElementIds.length > 0
+        ? sourceImageUrl || allReferencedElementIds.length > 0
           ? 'image_to_video'
           : 'text_to_video'
         : sourceImageUrl
           ? 'image_to_image'
           : 'text_to_image';
+
+      // Log merged element references being sent to backend
+      console.log(`[GeneratePage] Sending to backend:`, {
+        mode,
+        sourceElementIds: allReferencedElementIds,
+        elementCount: allReferencedElementIds.length,
+      });
 
       await fetchAPI(`/projects/${projectId}/generations`, {
         method: 'POST',
@@ -668,7 +868,7 @@ export default function GeneratePage() {
           mode,
           inputPrompt: expandedPrompt,
           aspectRatio,
-          sourceElementIds: selectedElementIds,
+          sourceElementIds: allReferencedElementIds,
           sourceImages: sourceImageUrl ? [sourceImageUrl] : undefined, // Pass source image
           variations: 1,
           sessionId: selectedSessionId,
@@ -685,7 +885,7 @@ export default function GeneratePage() {
           scheduler: styleConfig?.scheduler, // Pass selected Scheduler
           guidanceScale: styleConfig?.guidanceScale || guidanceScale, // Pass selected CFG Scale
           steps: styleConfig?.steps || steps, // Pass selected Steps
-          duration: duration, // Pass selected Duration
+          duration: duration ? Number(duration) : undefined, // Pass selected Duration (convert string to number)
           negativePrompt: styleConfig?.negativePrompt, // Pass Negative Prompt
           audioUrl: finalAudioUrl, // Pass audio URL for avatar models
           referenceStrengths: elementStrengths, // Pass per-element strengths
@@ -713,6 +913,7 @@ export default function GeneratePage() {
       });
 
       setPrompt('');
+      handleGenerationSuccess(); // Clear auto-save dirty flag
       loadGenerations();
     } catch (err) {
       console.error(err);
@@ -1023,6 +1224,46 @@ export default function GeneratePage() {
       loadGenerations();
     } catch (err) {
       console.error('Video enhancement failed:', err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // AI Reshoot via Qwen Image Edit 2511
+  const handleReshoot = async (imageUrl: string, instruction: string) => {
+    setIsGenerating(true);
+    const toastId = toast.loading(`AI Reshoot: "${instruction}"...`);
+    try {
+      const result = await fetchAPI('/qwen/reshoot', {
+        method: 'POST',
+        body: JSON.stringify({
+          imageUrl: imageUrl.startsWith('http') ? imageUrl : `http://localhost:3001${imageUrl}`,
+          instruction,
+          preserveBackground: true,
+        }),
+      });
+
+      if (result.outputs && result.outputs.length > 0) {
+        // Create new generation with the reshoot result
+        await fetchAPI(`/projects/${projectId}/generations`, {
+          method: 'POST',
+          body: JSON.stringify({
+            inputPrompt: `[AI Reshoot] ${instruction}`,
+            falModel: 'fal-ai/qwen-image-edit-2511',
+            aspectRatio,
+            mode: 'image',
+            status: 'succeeded',
+            outputs: result.outputs,
+          }),
+        });
+        toast.success('AI Reshoot complete!', { id: toastId });
+        loadGenerations();
+      } else {
+        toast.error('Reshoot failed - no output', { id: toastId });
+      }
+    } catch (err) {
+      console.error('AI Reshoot failed:', err);
+      toast.error('AI Reshoot failed', { id: toastId });
     } finally {
       setIsGenerating(false);
     }
@@ -1592,6 +1833,7 @@ export default function GeneratePage() {
                         onRetake={handleRetake}
                         onInpaint={handleInpaint}
                         onEnhanceVideo={handleEnhanceVideo}
+                        onReshoot={handleReshoot}
                         isSelected={selectedGenerationIds.includes(gen.id)}
                         onToggleSelection={() => toggleGenerationSelection(gen.id)}
                         onSaveAsElement={(url, type) => {
@@ -1897,6 +2139,27 @@ export default function GeneratePage() {
                           </button>
                         </Tooltip>
 
+                        {/* 2a. Motion Scale (Video Models Only) - Visible early for video workflows */}
+                        {mode === 'video' && (
+                          <CompactMotionSlider
+                            value={motionScale}
+                            onChange={setMotionScale}
+                            engineType={
+                              engineConfig.model.includes('kling')
+                                ? 'kling'
+                                : engineConfig.model.includes('veo')
+                                  ? 'veo'
+                                  : engineConfig.model.includes('wan')
+                                    ? 'wan'
+                                    : engineConfig.model.includes('luma')
+                                      ? 'luma'
+                                      : engineConfig.model.includes('ltx')
+                                        ? 'ltx'
+                                        : 'other'
+                            }
+                          />
+                        )}
+
                         {/* 2b. Prompt Variables */}
                         <Tooltip content="Prompt Variables ($MainLook syntax)" side="top">
                           <button
@@ -2040,26 +2303,6 @@ export default function GeneratePage() {
                           )}
                         </button>
 
-                        {/* 5. Motion Scale (Video Models Only) */}
-                        {mode === 'video' && (
-                          <CompactMotionSlider
-                            value={motionScale}
-                            onChange={setMotionScale}
-                            engineType={
-                              engineConfig.model.includes('kling')
-                                ? 'kling'
-                                : engineConfig.model.includes('veo')
-                                  ? 'veo'
-                                  : engineConfig.model.includes('wan')
-                                    ? 'wan'
-                                    : engineConfig.model.includes('luma')
-                                      ? 'luma'
-                                      : engineConfig.model.includes('ltx')
-                                        ? 'ltx'
-                                        : 'other'
-                            }
-                          />
-                        )}
                       </div>
 
                       {/* Pinned Right Section - Model Selector & Generate Button */}
@@ -2286,7 +2529,7 @@ export default function GeneratePage() {
                               | 'location'
                               | 'style',
                             description: e.name,
-                            imageUrl: e.url,
+                            imageUrl: resolveFileUrl(e.url || e.fileUrl || e.thumbnail),
                             consistencyWeight: elementStrengths[e.id] || 0.8,
                           }))}
                           selectedElementIds={selectedElementIds}
@@ -2302,9 +2545,19 @@ export default function GeneratePage() {
                           initialImages={
                             styleConfig?.referenceImage &&
                             typeof styleConfig.referenceImage === 'string'
-                              ? [styleConfig.referenceImage]
+                              ? [resolveFileUrl(styleConfig.referenceImage)]
                               : []
                           }
+                          props={propBinItems
+                            .filter(p => prompt.toLowerCase().includes(`#${p.name.toLowerCase()}`))
+                            .map(p => ({
+                              id: p.id,
+                              name: p.name,
+                              description: p.description,
+                              referenceImageUrl: p.referenceImageUrl ? resolveFileUrl(p.referenceImageUrl) : undefined,
+                              category: p.category,
+                            }))}
+                          lightingPrompt={lightingEnabled ? getLightingModifier() : ''}
                           onPromptChange={(newPrompt, _negativePrompt) => {
                             setPrompt(newPrompt);
                             // Negative prompt handling can be added here
@@ -2612,6 +2865,39 @@ export default function GeneratePage() {
 
       {/* Weight Hint Tooltip - Shows when Cmd/Ctrl is held */}
       <WeightHintTooltip isVisible={isModifierHeld && isFocused} />
+
+      {/* Session Recovery Toast */}
+      {showRecoveryToast && recoverableSession && (
+        <div className="fixed bottom-24 left-1/2 z-[100] -translate-x-1/2 animate-in slide-in-from-bottom-4 fade-in duration-300">
+          <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-zinc-900/95 px-4 py-3 shadow-2xl backdrop-blur-sm">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/20">
+              <FilePlus className="h-5 w-5 text-amber-400" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-white">Unsaved session found</p>
+              <p className="truncate text-xs text-white/50">
+                "{recoverableSession.prompt.slice(0, 40)}
+                {recoverableSession.prompt.length > 40 ? '...' : ''}" • saved{' '}
+                {formatTimeAgo(recoverableSession.savedAt)}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                onClick={handleDismissRecovery}
+                className="rounded-lg px-3 py-1.5 text-xs text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                Dismiss
+              </button>
+              <button
+                onClick={handleRestoreSession}
+                className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-black transition-colors hover:bg-amber-400"
+              >
+                Restore
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </DndContext>
   );
 }

@@ -20,6 +20,7 @@ import { clsx } from 'clsx';
 import { fetchAPI, uploadFile } from '@/lib/api';
 import { useSearchParams } from 'next/navigation';
 import { EditElementModal } from '@/components/elements/EditElementModal';
+import { PropFabricatorModal } from '@/components/elements/PropFabricatorModal';
 import { SortFilterHeader, SortFilterState } from '@/components/elements/SortFilterHeader';
 import { Element as StoreElement, ElementType } from '@/lib/store';
 import { useParams } from 'next/navigation';
@@ -27,6 +28,7 @@ import { useParams } from 'next/navigation';
 import { useSession } from '@/context/SessionContext';
 import { SaveElementModal } from '@/components/generations/SaveElementModal';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { Wand2 } from 'lucide-react';
 
 export default function ElementsPage() {
   const params = useParams();
@@ -39,6 +41,7 @@ export default function ElementsPage() {
   const [selectedElement, setSelectedElement] = useState<StoreElement | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isBatchTypeModalOpen, setIsBatchTypeModalOpen] = useState(false);
+  const [propFabricatorElement, setPropFabricatorElement] = useState<StoreElement | null>(null);
 
   // Sort & Filter State
   const [sortFilter, setSortFilter] = useState<SortFilterState>({
@@ -470,6 +473,7 @@ export default function ElementsPage() {
                       onEdit={() => handleElementClick(element)}
                       onUpdate={handleUpdateElement}
                       onDelete={handleDeleteElement}
+                      onFabricate={() => setPropFabricatorElement(element)}
                       isSelected={selectedElementIds.includes(element.id)}
                       onToggleSelection={() => toggleElementSelection(element.id)}
                     />
@@ -566,6 +570,32 @@ export default function ElementsPage() {
         title={`Set Type for ${selectedElementIds.length} Elements`}
         initialName=""
       />
+
+      {propFabricatorElement && (
+        <PropFabricatorModal
+          isOpen={!!propFabricatorElement}
+          onClose={() => setPropFabricatorElement(null)}
+          propImageUrl={propFabricatorElement.url}
+          propName={propFabricatorElement.name}
+          onSaveResult={async (imageUrl, name) => {
+            // Save the fabricated result as a new element
+            try {
+              await fetchAPI(`/projects/${projectId}/elements`, {
+                method: 'POST',
+                body: JSON.stringify({
+                  name,
+                  url: imageUrl,
+                  type: 'prop',
+                  metadata: { source: 'prop-fabricator', originalId: propFabricatorElement.id },
+                }),
+              });
+              loadElements();
+            } catch (err) {
+              console.error('Failed to save fabricated prop:', err);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -575,6 +605,7 @@ function ElementCard({
   onEdit,
   onUpdate,
   onDelete,
+  onFabricate,
   isSelected,
   onToggleSelection,
 }: {
@@ -582,6 +613,7 @@ function ElementCard({
   onEdit: () => void;
   onUpdate: (id: string, updates: Partial<StoreElement>) => void;
   onDelete: (id: string) => void;
+  onFabricate?: () => void;
   isSelected?: boolean;
   onToggleSelection?: () => void;
 }) {
@@ -770,6 +802,19 @@ function ElementCard({
             >
               <Download className="h-4 w-4" />
             </button>
+            {element.type !== 'video' && onFabricate && (
+              <Tooltip content="Prop Fabricator">
+                <button
+                  onClick={e => {
+                    e.stopPropagation();
+                    onFabricate();
+                  }}
+                  className="rounded-lg bg-black/50 p-1.5 text-white transition-colors hover:bg-amber-500/20 hover:text-amber-400"
+                >
+                  <Wand2 className="h-4 w-4" />
+                </button>
+              </Tooltip>
+            )}
             <button
               onClick={handleTrash}
               className="rounded-lg bg-black/50 p-1.5 text-white transition-colors hover:bg-red-500/20 hover:text-red-400"

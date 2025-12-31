@@ -1,0 +1,59 @@
+{
+  "name": "Generation Card",
+  "description": "Interactive card displaying generation results with toolbar actions",
+  "status": "active",
+  "addedDate": "2025-12-01",
+  "lastVerified": "2025-12-30",
+  "files": {
+    "frontend": [
+      "frontend/src/components/generations/GenerationCard.tsx"
+    ],
+    "backend": [
+      "backend/src/controllers/generationController.ts",
+      "backend/src/services/GenerationService.ts"
+    ]
+  },
+  "endpoints": [
+    "GET /api/projects/:projectId/generations",
+    "POST /api/projects/:projectId/generations/:id/analyze",
+    "POST /api/projects/:projectId/generations/:id/upscale",
+    "DELETE /api/projects/:projectId/generations/:id"
+  ],
+  "keyFunctions": {
+    "GenerationCard": {
+      "description": "Displays image/video with hover toolbar using Radix DropdownMenu",
+      "criticalProps": ["generation", "onToggleSelection (takes event parameter)", "onDelete", "onUpscale", "onAnimate"]
+    },
+    "ToolbarButtons": {
+      "list": ["Fullscreen", "Upscale (dropdown)", "Animate", "Enhance (dropdown)", "AI Reshoot", "Delete", "Find Similar Composition", "Find Similar Lighting"],
+      "dropdownImplementation": "Radix UI DropdownMenu with Portal for proper z-index"
+    }
+  },
+  "expectedBehavior": {
+    "hover": "Toolbar appears on hover with smooth fade animation",
+    "selection": "Checkbox appears, card gets blue border when selected",
+    "status": "Shows Processing spinner, Failed text, or completed media",
+    "drag": "Draggable to Shot Navigator frame slots"
+  },
+  "uiElements": {
+    "upscaleDropdown": {
+      "options": [
+        {"id": "fal-ai/clarity-upscaler", "name": "Clarity 2x"},
+        {"id": "fal-ai/creative-upscaler", "name": "Clarity 4x"},
+        {"id": "fal-ai/aura-sr", "name": "Aura SR"}
+      ]
+    },
+    "enhanceDropdown": {
+      "options": [
+        {"mode": "audio-only", "title": "Add Audio Only"},
+        {"mode": "smooth-only", "title": "Smooth Only"},
+        {"mode": "full", "title": "Full Enhancement"}
+      ]
+    }
+  },
+  "dependencies": {
+    "packages": ["@radix-ui/react-dropdown-menu", "framer-motion", "@dnd-kit/core"],
+    "internal": ["Tooltip component", "ABLightbox"]
+  },
+  "backupLocation": "/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/complete backup"
+}

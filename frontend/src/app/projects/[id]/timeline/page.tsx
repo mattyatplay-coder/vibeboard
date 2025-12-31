@@ -27,8 +27,14 @@ import {
     VolumeX,
     Maximize2,
     Minimize2,
+    Layers,
 } from 'lucide-react';
 import { NLETimeline, TimelineClip } from '@/components/timeline';
+import { OverlayTrackPanel } from '@/components/overlay/OverlayTrackPanel';
+import { usePageAutoSave, TimelineSession, hasRecoverableContent } from '@/lib/pageSessionStore';
+import { RecoveryToast } from '@/components/ui/RecoveryToast';
+import { DeliveryModal } from '@/components/delivery/DeliveryModal';
+import { Youtube } from 'lucide-react';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
@@ -100,6 +106,109 @@ export default function TimelinePage() {
     const [isMuted, setIsMuted] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [previewExpanded, setPreviewExpanded] = useState(false);
+
+    // Overlay Track state
+    const [isOverlayPanelOpen, setIsOverlayPanelOpen] = useState(false);
+
+    // YouTube Delivery state
+    const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
+    const [bakedVideoPath, setBakedVideoPath] = useState<string | null>(null);
+    const [projectName, setProjectName] = useState<string>('Untitled Project');
+
+    // Session recovery
+    const [hasMounted, setHasMounted] = useState(false);
+    const [showRecoveryToast, setShowRecoveryToast] = useState(false);
+    const [recoverableSession, setRecoverableSession] = useState<TimelineSession | null>(null);
+    const {
+        saveSession,
+        getSession,
+        clearSession,
+        dismissRecovery,
+        isRecoveryDismissed,
+    } = usePageAutoSave<TimelineSession>('timeline');
+
+    // Mount detection for hydration
+    useEffect(() => {
+        setHasMounted(true);
+    }, []);
+
+    // Check for recoverable session on mount
+    useEffect(() => {
+        if (!hasMounted || !projectId) return;
+
+        const session = getSession(projectId);
+        if (session && hasRecoverableContent(session) && !isRecoveryDismissed(projectId)) {
+            setRecoverableSession(session);
+            setShowRecoveryToast(true);
+        }
+    }, [hasMounted, projectId, getSession, isRecoveryDismissed]);
+
+    // Auto-save session every 500ms (only for quick edit mode clips)
+    useEffect(() => {
+        if (!projectId || !hasMounted || editMode !== 'quick-edit') return;
+
+        const saveInterval = setInterval(() => {
+            if (quickEditClips.length === 0) return;
+
+            saveSession({
+                projectId,
+                clips: quickEditClips.map(clip => ({
+                    id: clip.id,
+                    videoUrl: clip.videoUrl,
+                    name: clip.name,
+                    duration: clip.duration,
+                    trimStart: clip.trimStart,
+                    trimEnd: clip.trimEnd,
+                })),
+                playheadPosition: currentTime,
+                zoomLevel: 50,
+                selectedClipId,
+                isDirty: true,
+            });
+        }, 500);
+
+        return () => clearInterval(saveInterval);
+    }, [projectId, hasMounted, editMode, quickEditClips, currentTime, selectedClipId, saveSession]);
+
+    // Handle session restore
+    const handleRestoreSession = () => {
+        if (!recoverableSession) return;
+
+        // Restore quick edit clips
+        if (recoverableSession.clips && recoverableSession.clips.length > 0) {
+            const restoredClips: TimelineClip[] = recoverableSession.clips.map(clip => ({
+                id: clip.id,
+                name: clip.name,
+                videoUrl: clip.videoUrl,
+                duration: clip.duration,
+                trimStart: clip.trimStart,
+                trimEnd: clip.trimEnd,
+                audioTrimStart: clip.trimStart,
+                audioTrimEnd: clip.trimEnd,
+                audioGain: 1,
+                avLinked: true,
+            }));
+            setQuickEditClips(restoredClips);
+            setEditMode('quick-edit');
+        }
+
+        if (recoverableSession.selectedClipId) {
+            setSelectedClipId(recoverableSession.selectedClipId);
+        }
+
+        setShowRecoveryToast(false);
+        setRecoverableSession(null);
+    };
+
+    // Handle dismiss recovery
+    const handleDismissRecovery = () => {
+        if (projectId) {
+            dismissRecovery(projectId);
+            clearSession(projectId);
+        }
+        setShowRecoveryToast(false);
+        setRecoverableSession(null);
+    };
 
     // Load scene chains
     useEffect(() => {
@@ -515,6 +624,10 @@ export default function TimelinePage() {
 
                 if (res.ok && data.success) {
                     setBakeResult({ success: true, url: data.finalVideoUrl });
+                    // Store path for YouTube upload
+                    if (data.videoPath) {
+                        setBakedVideoPath(data.videoPath);
+                    }
                 } else {
                     setBakeResult({ success: false, error: data.error || 'Bake failed' });
                 }
@@ -540,6 +653,10 @@ export default function TimelinePage() {
 
                 if (res.ok && data.success) {
                     setBakeResult({ success: true, url: data.finalVideoUrl });
+                    // Store path for YouTube upload
+                    if (data.videoPath) {
+                        setBakedVideoPath(data.videoPath);
+                    }
                 } else {
                     setBakeResult({ success: false, error: data.error || 'Bake failed' });
                 }
@@ -568,6 +685,15 @@ export default function TimelinePage() {
 
     return (
         <div className="flex h-screen flex-col overflow-hidden bg-black text-white">
+            {/* Session Recovery Toast */}
+            <RecoveryToast
+                isVisible={showRecoveryToast}
+                savedAt={recoverableSession?.savedAt || 0}
+                pageType="timeline"
+                onRestore={handleRestoreSession}
+                onDismiss={handleDismissRecovery}
+            />
+
             {/* Hidden file input */}
             <input
                 ref={fileInputRef}
@@ -662,6 +788,20 @@ export default function TimelinePage() {
                         {totalDuration.toFixed(1)}s
                     </div>
 
+                    {/* Overlays Button */}
+                    <button
+                        onClick={() => setIsOverlayPanelOpen(true)}
+                        className={clsx(
+                            'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all',
+                            isOverlayPanelOpen
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/10'
+                        )}
+                    >
+                        <Layers className="h-4 w-4" />
+                        Overlays
+                    </button>
+
                     {/* Bake Button */}
                     <button
                         onClick={handleBake}
@@ -714,6 +854,16 @@ export default function TimelinePage() {
                                 >
                                     Download
                                 </a>
+                                <button
+                                    onClick={() => {
+                                        setIsDeliveryModalOpen(true);
+                                        setBakeResult(null);
+                                    }}
+                                    className="ml-2 flex items-center gap-1 rounded bg-red-500/20 px-2 py-1 text-xs text-red-400 hover:bg-red-500/30"
+                                >
+                                    <Youtube className="h-3 w-3" />
+                                    YouTube
+                                </button>
                             </>
                         ) : (
                             <>
@@ -1166,6 +1316,22 @@ export default function TimelinePage() {
                     onDelete={handleDeleteClip}
                 />
             </div>
+
+            {/* Overlay Track Panel */}
+            <OverlayTrackPanel
+                isOpen={isOverlayPanelOpen}
+                onClose={() => setIsOverlayPanelOpen(false)}
+                videoDuration={clips.reduce((sum, c) => sum + (c.trimEnd - c.trimStart), 0)}
+                currentTime={currentTime}
+            />
+
+            {/* YouTube Delivery Modal */}
+            <DeliveryModal
+                isOpen={isDeliveryModalOpen}
+                onClose={() => setIsDeliveryModalOpen(false)}
+                videoPath={bakedVideoPath || bakeResult?.url || ''}
+                projectName={projectName}
+            />
         </div>
     );
 }

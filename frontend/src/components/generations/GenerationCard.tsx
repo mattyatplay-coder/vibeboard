@@ -30,6 +30,8 @@ import {
   Layers,
   Sun,
   Eye,
+  Clapperboard,
+  Send,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -60,6 +62,7 @@ interface GenerationCardProps {
   onUpscale?: (imageUrl: string, model: string) => void;
   onSaveAsElement?: (url: string, type: 'image' | 'video') => void;
   onEnhanceVideo?: (generationId: string, mode: 'full' | 'audio-only' | 'smooth-only') => void;
+  onReshoot?: (imageUrl: string, instruction: string) => Promise<void>;
   isSelected?: boolean;
   onToggleSelection?: (e: React.MouseEvent) => void;
   onFindSimilarComposition?: (generationId: string) => void;
@@ -110,6 +113,7 @@ export function GenerationCard({
   onUpscale,
   onSaveAsElement,
   onEnhanceVideo,
+  onReshoot,
   isSelected,
   onToggleSelection,
   onFindSimilarComposition,
@@ -144,6 +148,9 @@ export function GenerationCard({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showUpscaleMenu, setShowUpscaleMenu] = useState(false);
   const [showEnhanceMenu, setShowEnhanceMenu] = useState(false);
+  const [showReshootMenu, setShowReshootMenu] = useState(false);
+  const [reshootInstruction, setReshootInstruction] = useState('');
+  const [isReshooting, setIsReshooting] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
@@ -892,7 +899,7 @@ export function GenerationCard({
             className={clsx(
               'absolute z-20 flex items-center justify-between transition-opacity duration-200',
               'top-[clamp(6px,2cqh,12px)] right-[clamp(6px,2cqw,12px)] left-[clamp(6px,2cqw,12px)]',
-              isHovered || isSelected || generation.isFavorite || showUpscaleMenu || showEnhanceMenu
+              isHovered || isSelected || generation.isFavorite || showUpscaleMenu || showEnhanceMenu || showReshootMenu
                 ? 'opacity-100'
                 : 'opacity-0'
             )}
@@ -1002,6 +1009,140 @@ export function GenerationCard({
                                 </button>
                               </DropdownMenu.Item>
                             ))}
+                          </motion.div>
+                        </DropdownMenu.Content>
+                      </DropdownMenu.Portal>
+                    )}
+                  </AnimatePresence>
+                </DropdownMenu.Root>
+              )}
+
+              {/* AI Reshoot (Success + Image only) - Qwen Image Edit */}
+              {generation.status === 'succeeded' && !isVideo && onReshoot && (
+                <DropdownMenu.Root open={showReshootMenu} onOpenChange={setShowReshootMenu}>
+                  <Tooltip content="AI Reshoot - Fix expression, gaze, pose" side="top">
+                    <DropdownMenu.Trigger asChild>
+                      <button
+                        onClick={e => e.stopPropagation()}
+                        onPointerDown={e => e.stopPropagation()}
+                        className={clsx(
+                          'flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded backdrop-blur-sm transition-colors',
+                          isReshooting
+                            ? 'bg-amber-500/80 animate-pulse'
+                            : 'bg-amber-600/80 hover:bg-amber-500'
+                        )}
+                        aria-label="AI Reshoot"
+                        disabled={isReshooting}
+                      >
+                        {isReshooting ? (
+                          <Loader2 className="h-[60%] w-[60%] text-white animate-spin" />
+                        ) : (
+                          <Clapperboard className="h-[60%] w-[60%] text-white" />
+                        )}
+                      </button>
+                    </DropdownMenu.Trigger>
+                  </Tooltip>
+
+                  <AnimatePresence>
+                    {showReshootMenu && (
+                      <DropdownMenu.Portal forceMount>
+                        <DropdownMenu.Content
+                          asChild
+                          side="top"
+                          align="end"
+                          sideOffset={6}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <motion.div
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="z-[9999] w-64 overflow-hidden rounded-lg border border-white/20 bg-[#1a1a1a] p-3 shadow-xl"
+                          >
+                            <div className="mb-2 flex items-center gap-2">
+                              <Clapperboard className="h-4 w-4 text-amber-400" />
+                              <span className="text-sm font-medium text-white">AI Reshoot</span>
+                            </div>
+                            <p className="mb-2 text-[10px] text-gray-400">
+                              Fix expressions, gaze, or pose without regenerating the entire image.
+                            </p>
+
+                            {/* Quick presets */}
+                            <div className="mb-2 flex flex-wrap gap-1">
+                              {[
+                                'Look at camera',
+                                'Smile',
+                                'Close mouth',
+                                'Turn head left',
+                                'Eyes open',
+                              ].map(preset => (
+                                <button
+                                  key={preset}
+                                  onClick={() => setReshootInstruction(preset)}
+                                  className={clsx(
+                                    'rounded border px-1.5 py-0.5 text-[9px] transition-all',
+                                    reshootInstruction === preset
+                                      ? 'border-amber-500/50 bg-amber-500/20 text-amber-300'
+                                      : 'border-white/10 bg-white/5 text-gray-400 hover:border-white/20'
+                                  )}
+                                >
+                                  {preset}
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Custom instruction input */}
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={reshootInstruction}
+                                onChange={e => setReshootInstruction(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter' && reshootInstruction.trim() && mediaUrl) {
+                                    e.preventDefault();
+                                    setIsReshooting(true);
+                                    onReshoot(mediaUrl, reshootInstruction.trim())
+                                      .then(() => {
+                                        toast.success('Reshoot complete!');
+                                        setReshootInstruction('');
+                                        setShowReshootMenu(false);
+                                      })
+                                      .catch(err => toast.error(err.message || 'Reshoot failed'))
+                                      .finally(() => setIsReshooting(false));
+                                  }
+                                }}
+                                placeholder="e.g., Make character smile..."
+                                className="flex-1 rounded border border-white/10 bg-black/50 px-2 py-1.5 text-xs text-white placeholder-gray-500 outline-none focus:border-amber-500/50"
+                              />
+                              <button
+                                onClick={() => {
+                                  if (reshootInstruction.trim() && mediaUrl) {
+                                    setIsReshooting(true);
+                                    onReshoot(mediaUrl, reshootInstruction.trim())
+                                      .then(() => {
+                                        toast.success('Reshoot complete!');
+                                        setReshootInstruction('');
+                                        setShowReshootMenu(false);
+                                      })
+                                      .catch(err => toast.error(err.message || 'Reshoot failed'))
+                                      .finally(() => setIsReshooting(false));
+                                  }
+                                }}
+                                disabled={!reshootInstruction.trim() || isReshooting}
+                                className={clsx(
+                                  'rounded px-2 py-1.5 transition-all',
+                                  reshootInstruction.trim() && !isReshooting
+                                    ? 'bg-amber-500 text-white hover:bg-amber-400'
+                                    : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                                )}
+                              >
+                                {isReshooting ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Send className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+                            </div>
                           </motion.div>
                         </DropdownMenu.Content>
                       </DropdownMenu.Portal>

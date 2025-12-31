@@ -239,21 +239,34 @@ export function ElementReferencePicker({
                     )}
                     onClick={() => setActiveElementId(id)}
                   >
-                    <img
-                      src={url}
-                      alt={`Element ${idx + 1}`}
-                      className={clsx(
-                        'h-16 w-16 rounded-lg border-2 object-cover',
-                        activeElementId === id
-                          ? 'border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]'
-                          : 'border-purple-500'
-                      )}
-                      onError={e => {
-                        console.error('Image load failed for URL:', url);
-                        console.error('Original fileUrl:', el?.fileUrl);
-                        e.currentTarget.style.border = '2px solid red';
-                      }}
-                    />
+                    {url ? (
+                      <img
+                        src={url}
+                        alt={`Element ${idx + 1}`}
+                        className={clsx(
+                          'h-16 w-16 rounded-lg border-2 object-cover',
+                          activeElementId === id
+                            ? 'border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]'
+                            : 'border-purple-500'
+                        )}
+                        onError={e => {
+                          console.error('Image load failed for URL:', url);
+                          console.error('Original fileUrl:', el?.fileUrl);
+                          e.currentTarget.style.border = '2px solid red';
+                        }}
+                      />
+                    ) : (
+                      <div
+                        className={clsx(
+                          'flex h-16 w-16 items-center justify-center rounded-lg border-2 bg-gray-800',
+                          activeElementId === id
+                            ? 'border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]'
+                            : 'border-purple-500'
+                        )}
+                      >
+                        <span className="text-[10px] text-gray-500">No image</span>
+                      </div>
+                    )}
                     <div className="absolute -top-1 -left-1 z-10 flex h-5 w-5 items-center justify-center rounded-full border border-white/20 bg-purple-500 text-[10px] font-bold text-white shadow-sm">
                       {idx + 1}
                     </div>
@@ -313,7 +326,13 @@ export function ElementReferencePicker({
                           : 'cursor-not-allowed border-white/5 opacity-50'
                     )}
                   >
-                    <img src={url} alt={element.name} className="h-full w-full object-cover" />
+                    {url ? (
+                      <img src={url} alt={element.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-gray-800">
+                        <span className="text-xs text-gray-500">No image</span>
+                      </div>
+                    )}
 
                     {/* Selection Indicator */}
                     {isSelected && (

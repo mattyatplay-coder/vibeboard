@@ -191,11 +191,19 @@ export function LensKitSelector({
       <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-2">
           {LENS_PRESETS.map(lens => (
-            <button
+            <div
               key={lens.id}
+              role="button"
+              tabIndex={0}
               onClick={() => onLensChange(selectedLens?.id === lens.id ? null : lens)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onLensChange(selectedLens?.id === lens.id ? null : lens);
+                }
+              }}
               className={clsx(
-                'w-full rounded-lg border p-3 text-left transition-all',
+                'w-full cursor-pointer rounded-lg border p-3 text-left transition-all',
                 selectedLens?.id === lens.id
                   ? 'border-cyan-500/50 bg-cyan-500/20'
                   : 'border-white/10 bg-white/5 hover:border-white/20'
@@ -278,7 +286,7 @@ export function LensKitSelector({
                   </motion.div>
                 )}
               </AnimatePresence>
-            </button>
+            </div>
           ))}
         </div>
 

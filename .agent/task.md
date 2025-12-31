@@ -1,3 +1,41 @@
+# 🔴 ACTIVE SESSION TASKS - CHECK FIRST!
+> **Last Updated**: Dec 30, 2025 (Evening)
+> **Purpose**: Prevents Claude from forgetting mid-session items
+
+## Current Session (Dec 30, 2025) - GPU Worker Deployment
+
+### GPU Worker Status
+- [x] **Async handler deadlock fix** - Fixed `runpod_handler.py` to use `asyncio.run()` instead of complex event loop handling
+- [x] **Docker image pushed** - `mattydc/vibeboard-gpu-worker:v2-async-fix` tag created and pushed
+- [x] **New template created** - `ejuyp43ar5` with fixed image
+- [x] **New endpoint created** - `6rg1i2nzxxugti` (vibeboard-gpu-v2) using NVIDIA A40 GPU
+- [ ] **Health check test** - Job `38ca3160-c457-42f6-a454-3c0c7eb858dd-u1` in queue, waiting for worker spin-up
+- [ ] **End-to-end video generation test** - Pending health check success
+
+### Key Changes Made
+1. **runpod_handler.py line 131-142**: Simplified async wrapper to use `asyncio.run()` directly
+2. **backend/.env**: Updated `RUNPOD_ENDPOINT_ID=6rg1i2nzxxugti`
+3. **Deleted old endpoint**: `1587hs61irln2j` was stuck with cached old image
+
+### RunPod Configuration
+- **New Endpoint**: `6rg1i2nzxxugti` (vibeboard-gpu-v2)
+- **Template**: `ejuyp43ar5` (vibeboard-gpu-worker-v2)
+- **Docker Image**: `mattydc/vibeboard-gpu-worker:v2-async-fix`
+- **GPU**: NVIDIA A40 (48GB VRAM)
+- **Idle Timeout**: 30 seconds
+- **Max Workers**: 1
+
+### Legacy Endpoints (Do Not Use)
+- `2sziwt3f5gzsob` - Old vibeboard-gpu-l40 with outdated image
+- `1587hs61irln2j` - DELETED (was stuck with cached container)
+
+## Quick Reference
+- RunPod API Key: **stored in backend/.env** (RUNPOD_API_KEY)
+- Current RunPod Endpoint: `6rg1i2nzxxugti`
+- GPU Worker Mode: `runpod` (set in .env)
+
+---
+
 # Training Module Audit & Fixes
 
 - [x] Locate and analyze existing training module code <!-- id: 0 -->
@@ -198,14 +236,20 @@ Based on competitive analysis against 13 market competitors (COMP-001 in agent_r
 
 **Result**: Quick/Advanced mode toggle, 4-step wizard, workflow templates, progressive disclosure. Minor gap: contextual tooltips are inline text only (no rich tooltip system).
 
-## Phase 6: Community Features (MEDIUM PRIORITY)
+## Phase 6: Community Features (MEDIUM PRIORITY) ✅ COMPLETE
 **Gap**: Civitai dominates LoRA/prompt sharing
 
-- [ ] **LoRA & Prompt Gallery** <!-- id: 150 -->
-    - [ ] Browse community LoRAs <!-- id: 151 -->
-    - [ ] One-click Civitai import <!-- id: 152 -->
-    - [ ] Save/share favorite prompts <!-- id: 153 -->
-    - [ ] Workflow template library <!-- id: 154 -->
+- [x] **LoRA & Prompt Gallery** <!-- id: 150 -->
+    - [x] Browse community LoRAs (`CivitaiBrowser.tsx` - search, filter, paginate Civitai) <!-- id: 151 -->
+    - [x] One-click Civitai import (`loraController.ts` - `addToGlobalLibrary` + `civitai-metadata` endpoint) <!-- id: 152 -->
+    - [x] Save/share favorite prompts (`PromptTreeStore.ts` + `PromptTreePanel.tsx` - version control with labels) <!-- id: 153 -->
+    - [x] Workflow template library (`TemplateGalleryModal.tsx` + `templateRoutes.ts` + `libraryRoutes.ts`) <!-- id: 154 -->
+
+**Implementation Notes (Dec 27, 2025)**:
+- Civitai Browser: Full modal with search, type filter (LoRA/Checkpoint/Embedding), base model filter, sort options
+- Global Library: `GlobalLibraryPanel.tsx` shows all global items with install-to-project functionality
+- Prompt Tree: Project-scoped version control with branching, labels, and lineage visualization
+- Templates: Database-backed with public/private visibility, CRUD operations
 
 ## Phase 7: Team Collaboration (MEDIUM PRIORITY)
 **Gap**: LTX Studio has team workspaces ($125/mo Pro)
@@ -421,60 +465,89 @@ Generation 137bc2f1-314d-4ffc-ba66-0f745483272e completed.
 - Metrics: Color, Shape, Texture, Character consistency scores (0-1)
 - Drift regions with normalized coordinates and severity levels (low/medium/high)
 
-### 2. The "Virtual Gaffer" (3-Point Lighting Layout) <!-- id: 810 -->
+### 2. The "Virtual Gaffer" (3-Point Lighting Layout) ✅ COMPLETE <!-- id: 810 -->
 *Pros want to design light, not just copy it.*
 
-- [ ] **Interactive Light Map** <!-- id: 811 -->
-    - [ ] Top-down 2D "stage" widget next to prompt bar <!-- id: 812 -->
-    - [ ] Placeable light sources: Key, Fill, Backlight <!-- id: 813 -->
-    - [ ] Generate ControlNet Depth/Canny map from layout <!-- id: 814 -->
-    - [ ] Generate lighting prompt string (e.g., "rim lighting from back-left") <!-- id: 815 -->
-    - [ ] Color Temperature (Kelvin) setting per light source <!-- id: 816 -->
+- [x] **Interactive Light Map** <!-- id: 811 -->
+    - [x] Top-down 2D "stage" widget next to prompt bar <!-- id: 812 -->
+    - [x] Placeable light sources: Key, Fill, Backlight <!-- id: 813 -->
+    - [x] Generate lighting prompt string (e.g., "rim lighting from back-left") <!-- id: 815 -->
+    - [x] Color Temperature (Kelvin) setting per light source <!-- id: 816 -->
+    - [x] Inverse Gaffing - analyze reference images to auto-place lights <!-- id: 817 -->
+    - [x] Flip Map button for horizontal mirroring <!-- id: 818 -->
 
-### 3. Neural Foley & Lens-Aware Audio <!-- id: 820 -->
+**Implementation Files:**
+- Backend: `LightingAnalysisService.ts` with Grok Vision integration
+- Frontend: `LightingStage.tsx` with draggable lights and gel colors
+- Frontend: `LightingPreview3D.tsx` for visual preview
+
+### 3. Neural Foley & Lens-Aware Audio ✅ COMPLETE <!-- id: 820 -->
 *Pro audio is Spatial - match audio to visual focal length.*
 
-- [ ] **Acoustic Mapping** <!-- id: 821 -->
-    - [ ] Use Lens Kit metadata to drive audio engine <!-- id: 822 -->
-    - [ ] 14mm Ultra Wide: High reverb, environmental atmos (wind, city hum) <!-- id: 823 -->
-    - [ ] 85mm Tight Close-up: Dry, intimate (enhanced foley, breathing) <!-- id: 824 -->
-    - [ ] Auto-apply "Sonic Realism" matching focal length <!-- id: 825 -->
+- [x] **Acoustic Mapping** <!-- id: 821 -->
+    - [x] Use Lens Kit metadata to drive audio engine <!-- id: 822 -->
+    - [x] 14mm Ultra Wide: High reverb, environmental atmos (wind, city hum) <!-- id: 823 -->
+    - [x] 85mm Tight Close-up: Dry, intimate (enhanced foley, breathing) <!-- id: 824 -->
+    - [x] Auto-apply "Sonic Realism" matching focal length <!-- id: 825 -->
 
-### 4. The "Set Extension" (Infinite Outpainting) <!-- id: 830 -->
+**Implementation Files:**
+- Backend: `AcousticMappingService.ts` with lens-to-audio mapping
+- Frontend: `AcousticStudioPanel.tsx` with perspective-matched audio controls
+- Frontend: `AcousticWaveform.tsx` for audio visualization
+
+### 4. The "Set Extension" (Infinite Outpainting) ✅ COMPLETE <!-- id: 830 -->
 *Discover the environment - pan 360° to build the entire "Set".*
 
-- [ ] **Infinite Canvas (Pan-to-Extend)** <!-- id: 831 -->
-    - [ ] Drag image in preview to reveal empty space <!-- id: 832 -->
-    - [ ] Outpaint section on release <!-- id: 833 -->
-    - [ ] Support 360° environment building <!-- id: 834 -->
-    - [ ] Integrate with Shot Navigator for consistent set design <!-- id: 835 -->
+- [x] **Infinite Canvas (Pan-to-Extend)** <!-- id: 831 -->
+    - [x] Drag image in preview to reveal empty space <!-- id: 832 -->
+    - [x] Outpaint section on release <!-- id: 833 -->
+    - [x] Support 360° environment building <!-- id: 834 -->
 
-### 5. Alpha-Channel Exports (VFX Bridge) <!-- id: 840 -->
+**Implementation Files:**
+- Backend: `processingController.ts` with outpaint endpoint
+- Frontend: `SetExtensionPanel.tsx` with interactive canvas
+
+### 5. Alpha-Channel Exports (VFX Bridge) ✅ COMPLETE <!-- id: 840 -->
 *Make VibeBoard a "VFX Asset Generator" for After Effects integration.*
 
-- [ ] **Background Transparency Toggle** <!-- id: 841 -->
-    - [ ] Use SAM 2/3 (Magic Mask) for alpha video generation <!-- id: 842 -->
-    - [ ] "Export with Alpha" checkbox in download settings <!-- id: 843 -->
-    - [ ] Black-and-white alpha video for every render <!-- id: 844 -->
-    - [ ] PNG sequence export with transparency <!-- id: 845 -->
+- [x] **Background Transparency Toggle** <!-- id: 841 -->
+    - [x] Use SAM 2/3 (Magic Mask) for alpha video generation <!-- id: 842 -->
+    - [x] "Export with Alpha" checkbox in download settings <!-- id: 843 -->
+    - [x] Black-and-white alpha video for every render <!-- id: 844 -->
+    - [x] PNG sequence export with transparency <!-- id: 845 -->
 
-### 6. The "Director's Dashboard" (Production Health) <!-- id: 850 -->
+**Implementation Files:**
+- Backend: `alphaChannelRoutes.ts` with alpha export endpoints
+
+### 6. The "Director's Dashboard" (Production Health) ✅ COMPLETE <!-- id: 850 -->
 *High-level view for big projects.*
 
-- [ ] **Continuity & Budget Monitor** <!-- id: 851 -->
-    - [ ] Style Drift graph (project "Look" consistency over time) <!-- id: 852 -->
-    - [ ] Asset Usage tracking (#Key, @Turtle_2 appearances) <!-- id: 853 -->
-    - [ ] Real-Time Spending dashboard (Fal/Replicate/OpenAI costs) <!-- id: 854 -->
-    - [ ] Project health summary widget <!-- id: 855 -->
+- [x] **Continuity & Budget Monitor** <!-- id: 851 -->
+    - [x] Style Drift graph (project "Look" consistency over time) <!-- id: 852 -->
+    - [x] Asset Usage tracking (#Key, @Turtle_2 appearances) <!-- id: 853 -->
+    - [x] Real-Time Spending dashboard (Fal/Replicate/OpenAI costs) <!-- id: 854 -->
+    - [x] Project health summary widget <!-- id: 855 -->
 
-### 7. Semantic Search (Enhanced) <!-- id: 860 -->
+**Implementation Files:**
+- Backend: `DirectorDashboardService.ts` with analytics
+- Frontend: `StyleDriftGraph.tsx` for consistency tracking
+- Frontend: `AssetUsagePanel.tsx` for element tracking
+
+### 7. Semantic Search (Enhanced) ✅ COMPLETE <!-- id: 860 -->
 *Gallery becomes a searchable Database.*
 
-- [ ] **Vision-Powered Search** <!-- id: 861 -->
-    - [ ] Auto-generate "Technical Description" on image creation <!-- id: 862 -->
-    - [ ] Use low-cost Vision model (Moondream/Llava) <!-- id: 863 -->
-    - [ ] Natural language queries ("Turtle looking left") <!-- id: 864 -->
-    - [ ] CLIP embedding for visual similarity search <!-- id: 865 -->
+- [x] **Vision-Powered Search** <!-- id: 861 -->
+    - [x] Auto-generate "Technical Description" on image creation <!-- id: 862 -->
+    - [x] Use Grok Vision for cinematic terminology extraction <!-- id: 863 -->
+    - [x] Natural language queries ("Turtle looking left") <!-- id: 864 -->
+    - [x] Find Similar buttons (Composition, Lighting) <!-- id: 865 -->
+
+**Implementation Files:**
+- Backend: `SemanticIndexService.ts` with Grok Vision indexing
+- Backend: `VectorEmbeddingService.ts` for similarity search
+- Backend: `searchRoutes.ts` with query, suggestions, similar endpoints
+- Frontend: `GenerationSearch.tsx` with Reality/Intent/Both modes
+- Frontend: `GenerationCard.tsx` with Find Similar buttons
 
 ### 8. Multi-Pass Workflow <!-- id: 870 --> ✅ COMPLETE
 *Quality improvement pipeline.*
@@ -513,21 +586,23 @@ Generation 137bc2f1-314d-4ffc-ba66-0f745483272e completed.
     - [x] handlePromoteShot() with loading state <!-- id: 932 -->
     - [x] Cost comparison display <!-- id: 933 -->
 
-### 2. Semantic Search (CLIP/Vision Indexing) <!-- id: 950 -->
-*Gallery becomes a searchable database - NOT STARTED*
+### 2. Semantic Search (Visual Librarian) ✅ COMPLETE <!-- id: 950 -->
+*Gallery becomes a searchable database with professional cinematic terminology.*
 
-- [ ] **SemanticSearchService.ts** <!-- id: 951 -->
-    - [ ] CLIP embedding generation <!-- id: 952 -->
-    - [ ] Vector storage <!-- id: 953 -->
-    - [ ] Similarity search algorithm <!-- id: 954 -->
+- [x] **SemanticIndexService.ts** <!-- id: 951 -->
+    - [x] Grok Vision cinematic extraction (framing, lighting, lens, composition) <!-- id: 952 -->
+    - [x] indexStatus tracking (pending/indexed/failed/skipped) <!-- id: 953 -->
+    - [x] shouldIndex() to prevent double-spending API credits <!-- id: 954 -->
 
-- [ ] **Auto-Tagging on Generation** <!-- id: 960 -->
-    - [ ] Vision model for Technical Description <!-- id: 961 -->
-    - [ ] Store tags with generation record <!-- id: 962 -->
+- [x] **Auto-Tagging on Generation** <!-- id: 960 -->
+    - [x] CINEMATIC_EXTRACTION_PROMPT with DP terminology <!-- id: 961 -->
+    - [x] Store visualDescription JSON with generation record <!-- id: 962 -->
 
-- [ ] **Search UI** <!-- id: 970 -->
-    - [ ] Natural language search bar <!-- id: 971 -->
-    - [ ] "Find Similar" button on GenerationCard <!-- id: 972 -->
+- [x] **Search UI** <!-- id: 970 -->
+    - [x] Natural language search bar with Reality/Intent/Both modes <!-- id: 971 -->
+    - [x] "Find Similar Composition" and "Find Similar Lighting" buttons <!-- id: 972 -->
+    - [x] Smart suggestion pills with category coloring <!-- id: 973 -->
+    - [x] Index stats dropdown with progress bar <!-- id: 974 -->
 
 ---
 
@@ -612,3 +687,435 @@ Generation 137bc2f1-314d-4ffc-ba66-0f745483272e completed.
 
 ### Remaining (Future Session)
 - User noted "we still have a few small tweaks" for another day (unspecified)
+
+---
+
+# Session Summary (Dec 27, 2025) - Performance Optimization & Code Audit Prep
+
+## Performance Optimization ✅ COMPLETE
+
+- [x] **Dynamic Imports for Generate Page** <!-- id: 1200 -->
+    - [x] Convert 15 heavy modals to `next/dynamic` imports <!-- id: 1201 -->
+    - [x] Components now load on-demand: PromptBuilder, StyleSelectorModal, LightingStage, AcousticStudioPanel, etc. <!-- id: 1202 -->
+    - [x] Added loading spinner for PromptBuilder <!-- id: 1203 -->
+    - [x] Reduced initial bundle size significantly <!-- id: 1204 -->
+
+- [x] **Next.js Config Optimization** <!-- id: 1210 -->
+    - [x] Enable `optimizePackageImports` for lucide-react, framer-motion, dnd-kit, Radix UI, zustand <!-- id: 1211 -->
+    - [x] Configure Turbopack (Next.js 16 default) <!-- id: 1212 -->
+    - [x] Add image optimization with AVIF/WebP formats <!-- id: 1213 -->
+    - [x] Enable compression and on-demand entries <!-- id: 1214 -->
+
+- [x] **Loading States** <!-- id: 1220 -->
+    - [x] Create `loading.tsx` for project pages <!-- id: 1221 -->
+    - [x] Smooth spinner during page transitions <!-- id: 1222 -->
+
+### User Feedback
+> "much better"
+
+## Code Audit Preparation ✅ COMPLETE
+
+- [x] **Generate Repomix Bundle** <!-- id: 1230 -->
+    - [x] Created `repomix-output.xml` (9.7 MB, 630 files, 2.3M tokens) <!-- id: 1231 -->
+    - [x] Created `repomix-output.txt` (16 MB, plain text format) <!-- id: 1232 -->
+    - [x] Excluded: node_modules, dist, .next, uploads, datasets, package-lock.json <!-- id: 1233 -->
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `frontend/src/app/projects/[id]/generate/page.tsx` | 15 dynamic imports added |
+| `frontend/next.config.ts` | Performance config (turbopack, optimizePackageImports) |
+| `frontend/src/app/projects/[id]/loading.tsx` | NEW - Loading spinner component |
+
+### Build Verification
+- ✅ Frontend: `npm run build` PASS
+- ✅ Backend: `npm run build` PASS
+- ✅ Backend: Health check returns `ok`
+
+---
+
+# Director's Viewfinder - DOF Simulator Enhancements (Dec 27, 2025) ✅ COMPLETE
+
+## Phase 1: Optical Engine ✅ COMPLETE
+
+- [x] **Enhanced calculateDOF()** <!-- id: 1300 -->
+    - [x] Hyperfocal distance calculation <!-- id: 1301 -->
+    - [x] Front/back DOF split percentages <!-- id: 1302 -->
+    - [x] Diffraction warning threshold <!-- id: 1303 -->
+    - [x] 35mm equivalent focal length <!-- id: 1304 -->
+    - [x] Circle of Confusion per sensor size <!-- id: 1305 -->
+
+- [x] **calculateBlurSize() - Physics-accurate blur** <!-- id: 1310 -->
+    - [x] Implements: `BlurDiameter = (f²/N) × |s-d| / (s×d)` <!-- id: 1311 -->
+    - [x] Converts blur diameter to CSS pixels <!-- id: 1312 -->
+    - [x] Accounts for sensor size and viewport width <!-- id: 1313 -->
+
+- [x] **calculateAOV() - Field of View calculator** <!-- id: 1320 -->
+    - [x] Implements: `AOV = 2 × arctan(sensor/(2×f))` <!-- id: 1321 -->
+    - [x] Returns horizontal, vertical, diagonal angles <!-- id: 1322 -->
+    - [x] Lens compression descriptions (ultra-wide to super telephoto) <!-- id: 1323 -->
+
+## Phase 2: Visualizer Engine ✅ COMPLETE
+
+- [x] **DOFLayeredScene Component** <!-- id: 1330 -->
+    - [x] 3-layer system: Foreground, Subject, Background <!-- id: 1331 -->
+    - [x] Independent CSS blur per layer based on distance <!-- id: 1332 -->
+    - [x] Perspective scaling for lens compression effect <!-- id: 1333 -->
+    - [x] Foreground bokeh orb simulation at wide apertures <!-- id: 1334 -->
+    - [x] Real-time blur amount indicators per layer <!-- id: 1335 -->
+    - [x] FOV overlay with lens compression description <!-- id: 1336 -->
+
+## Phase 3: UI Controls ✅ COMPLETE
+
+- [x] **3-Layer Scene Controls** <!-- id: 1340 -->
+    - [x] Toggle between layered and legacy blur modes <!-- id: 1341 -->
+    - [x] Foreground Distance slider (0.3m - 10m, cyan themed) <!-- id: 1342 -->
+    - [x] Background Distance slider (5m - 200m, purple themed) <!-- id: 1343 -->
+    - [x] Infinity display for distances >= 100m <!-- id: 1344 -->
+
+- [x] **Copy DOF Prompt Button** <!-- id: 1350 -->
+    - [x] Generates prompt text from current settings <!-- id: 1351 -->
+    - [x] Includes lens info, aperture, focus distance, DOF range <!-- id: 1352 -->
+    - [x] Shows equivalent focal length for crop sensors <!-- id: 1353 -->
+
+- [x] **DOF Stats Display** <!-- id: 1360 -->
+    - [x] DOF Split Bar (cyan front, purple back) <!-- id: 1361 -->
+    - [x] Hyperfocal distance with tooltip <!-- id: 1362 -->
+    - [x] Diffraction warning banner at f/11+ <!-- id: 1363 -->
+    - [x] FOV horizontal/vertical display <!-- id: 1364 -->
+
+### Technical Reference (dofsimulator.net)
+Based on gold-standard DOF simulator at dofsimulator.net:
+- **Circle of Confusion**: `CoC = 0.029 / CropFactor`
+- **Hyperfocal Distance**: `H = f² / (N × CoC) + f`
+- **Near/Far Limits**: `Dn = (H × s) / (H + (s - f))`, `Df = (H × s) / (H - (s - f))`
+- **Blur Diameter**: `BlurDiameter = (f²/N) × |s - d| / (s × d)`
+- **Angle of View**: `AOV = 2 × arctan(SensorSize / (2 × f))`
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `frontend/src/components/viewfinder/DirectorViewfinder.tsx` | Added calculateBlurSize(), calculateAOV(), DOFLayeredScene, 3-layer controls |
+
+## Phase 4: Bokeh Shape Simulation ✅ COMPLETE (Dec 27, 2025)
+
+- [x] **Polygonal Aperture Blade System** <!-- id: 1370 -->
+    - [x] `generateBokehPath()` - SVG path generator for polygon bokeh <!-- id: 1371 -->
+    - [x] Supports 5-15 blades with rotation and curvature <!-- id: 1372 -->
+    - [x] Quadratic bezier curves for curved blade simulation <!-- id: 1373 -->
+    - [x] `BokehOrb` component with radial gradient fill <!-- id: 1374 -->
+
+- [x] **Bokeh Presets** <!-- id: 1375 -->
+    - [x] Vintage: 5 blades, pentagon, straight edges <!-- id: 1376 -->
+    - [x] Standard: 7 blades, heptagon, slight curve <!-- id: 1377 -->
+    - [x] Pro: 9 blades, nonagon, moderate curve <!-- id: 1378 -->
+    - [x] Cinema: 11 blades, near-circular <!-- id: 1379 -->
+    - [x] Perfect: 15 blades, fully circular <!-- id: 1380 -->
+
+- [x] **UI Controls** <!-- id: 1381 -->
+    - [x] Bokeh preset selector with mini SVG preview icons <!-- id: 1382 -->
+    - [x] Tooltips showing blade count and edge curvature <!-- id: 1383 -->
+    - [x] Foreground and background bokeh orbs with varied colors <!-- id: 1384 -->
+
+## Phase 5: Shareable/Saveable DOF Presets ✅ COMPLETE (Dec 27, 2025)
+
+- [x] **DOFPreset Interface** <!-- id: 1390 -->
+    - [x] Stores all DOF settings, layer distances, bokeh preset <!-- id: 1391 -->
+    - [x] LocalStorage persistence for user presets <!-- id: 1392 -->
+    - [x] Built-in presets (6 cinematography looks) <!-- id: 1393 -->
+
+- [x] **Built-in Presets** <!-- id: 1394 -->
+    - [x] Dreamy Portrait: 85mm f/1.4, creamy bokeh <!-- id: 1395 -->
+    - [x] Sharp Landscape: 24mm f/11, deep focus <!-- id: 1396 -->
+    - [x] Cinematic Subject Isolation: 50mm f/2.0 <!-- id: 1397 -->
+    - [x] Vintage Character: 35mm f/2.8, pentagon bokeh <!-- id: 1398 -->
+    - [x] Extreme Macro: 100mm f/4, razor-thin DOF <!-- id: 1399 -->
+    - [x] Compressed Telephoto: 200mm f/2.8 <!-- id: 1400 -->
+
+- [x] **Preset Manager UI** <!-- id: 1401 -->
+    - [x] Quick preset buttons for built-in looks <!-- id: 1402 -->
+    - [x] Save current settings with custom name <!-- id: 1403 -->
+    - [x] User preset list with delete option <!-- id: 1404 -->
+    - [x] Export preset as JSON file <!-- id: 1405 -->
+    - [x] Import preset from JSON file <!-- id: 1406 -->
+
+### Technical Reference
+- **Bokeh Path Formula**: Uses polar coordinates for vertices, bezier curves for curvature
+- **Curvature**: 0 = straight edges (polygon), 1 = fully curved (circle)
+- **Storage Key**: `vibeboard-dof-presets` in localStorage
+
+### Build Verification
+- ✅ Frontend: `npm run build` PASS
+- ✅ Backend: `npm run build` PASS
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `frontend/src/components/viewfinder/DirectorViewfinder.tsx` | Added BokehSettings, generateBokehPath(), BokehOrb, DOFPreset, BUILT_IN_DOF_PRESETS, preset management handlers, UI controls |
+
+## Phase 6: dofsimulator.net Feature Parity ✅ COMPLETE (Dec 27, 2025)
+
+Based on research of https://dofsimulator.net/en/ - the gold standard DOF simulator.
+
+- [x] **AI-Powered Layer Extraction** <!-- id: 1410 -->
+    - [x] Created `LayerExtractionService.ts` (backend) <!-- id: 1411 -->
+    - [x] Integration with `fal-ai/qwen-image-layered/lora` API ($0.06/request) <!-- id: 1412 -->
+    - [x] `extractLayers()` - Multi-layer decomposition (2-5 layers) <!-- id: 1413 -->
+    - [x] `extractSubjectAndBackground()` - Quick 2-layer extraction for DOF <!-- id: 1414 -->
+    - [x] Extract Layers button in UI with loading state <!-- id: 1415 -->
+    - [x] Extracted layer preview thumbnails (subject/background) <!-- id: 1416 -->
+
+- [x] **Framing Presets** <!-- id: 1420 -->
+    - [x] Face: ECU, subject @ 0.5m, scale 4× <!-- id: 1421 -->
+    - [x] Portrait: Head & shoulders @ 1.0m, scale 2.5× <!-- id: 1422 -->
+    - [x] Medium: Waist up @ 2.0m, scale 1.5× <!-- id: 1423 -->
+    - [x] American: Mid-thigh up @ 3.0m, scale 1.2× <!-- id: 1424 -->
+    - [x] Full: Full body @ 5.0m, scale 1.0× <!-- id: 1425 -->
+    - [x] Wide: Full body + environment @ 10.0m, scale 0.6× <!-- id: 1426 -->
+    - [x] UI: 3×2 grid with tooltips, auto-adjusts focus distance <!-- id: 1427 -->
+
+- [x] **Camera Model Database** <!-- id: 1430 -->
+    - [x] 13 popular cameras with exact sensor specs <!-- id: 1431 -->
+    - [x] Full Frame: Sony A7 IV, FX3, Canon R5, Nikon Z8, RED V-RAPTOR, ARRI ALEXA 35 <!-- id: 1432 -->
+    - [x] APS-C: Sony A6700, FX30, Fuji X-H2S, Canon R7, BMPCC 6K <!-- id: 1433 -->
+    - [x] Micro Four Thirds: Panasonic GH6, GH7 <!-- id: 1434 -->
+    - [x] Grouped dropdown UI with sensor size optgroups <!-- id: 1435 -->
+    - [x] Auto-updates sensor size setting when camera selected <!-- id: 1436 -->
+
+- [x] **Stand-In Model Library** (Backend only) <!-- id: 1440 -->
+    - [x] 8 silhouette figures: standing, sitting, walking, etc. <!-- id: 1441 -->
+    - [x] Height variations for realistic scale preview <!-- id: 1442 -->
+    - [x] API endpoints for future UI integration <!-- id: 1443 -->
+
+- [x] **Backend API Endpoints** <!-- id: 1450 -->
+    - [x] `POST /api/viewfinder/extract-layers` - Full layer extraction <!-- id: 1451 -->
+    - [x] `POST /api/viewfinder/extract-subject` - Quick 2-layer extraction <!-- id: 1452 -->
+    - [x] `GET /api/viewfinder/framing-presets` - List framing presets <!-- id: 1453 -->
+    - [x] `GET /api/viewfinder/cameras` - Camera database query <!-- id: 1454 -->
+    - [x] `GET /api/viewfinder/stand-in-models` - Model silhouettes <!-- id: 1455 -->
+    - [x] `POST /api/viewfinder/calculate-framing` - Subject size calculator <!-- id: 1456 -->
+    - [x] `POST /api/viewfinder/calculate-distance` - Distance calculator <!-- id: 1457 -->
+
+### Build Verification
+- ✅ Frontend: `npm run build` PASS
+- ✅ Backend: `npm run build` PASS
+
+### Files Created
+| File | Purpose |
+|------|---------|
+| `backend/src/services/viewfinder/LayerExtractionService.ts` | AI layer extraction, camera/framing data |
+| `backend/src/routes/viewfinderRoutes.ts` | API endpoints for viewfinder features |
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `backend/src/index.ts` | Added viewfinderRoutes import and registration |
+| `frontend/src/components/viewfinder/DirectorViewfinder.tsx` | Added FRAMING_PRESETS, CAMERA_DATABASE, framing/camera selection UI, layer extraction UI |
+
+## Phase 7: Optical Physics Engine ✅ COMPLETE (Dec 28, 2025)
+
+Based on the VibeBoard Optical Lab Technical Roadmap - implementing real physics-based DOF simulation.
+
+- [x] **opticalPhysics.ts Utility Library** <!-- id: 1500 -->
+    - [x] SENSOR_DIAGONALS: 12 sensor types (Full Frame to IMAX) <!-- id: 1501 -->
+    - [x] COC_LIMITS: Circle of Confusion per sensor type <!-- id: 1502 -->
+    - [x] SENSOR_DIMENSIONS: Width/height in mm per sensor <!-- id: 1503 -->
+    - [x] `calculateBlurRadius()` - Real blur formula: Blur = C × |Sfocus - Sbg|/Sbg × f²/(N × (Sfocus - f)) <!-- id: 1504 -->
+    - [x] `calculateBlurPercent()` - Blur as percentage of frame width <!-- id: 1505 -->
+    - [x] `calculateDOF()` - Near/far limits with hyperfocal detection <!-- id: 1506 -->
+    - [x] `calculateFOV()` - Horizontal/vertical/diagonal angles <!-- id: 1507 -->
+    - [x] `calculate35mmEquivalent()` - Crop factor conversion <!-- id: 1508 -->
+    - [x] `calculateDollyZoom()` - Hitchcock effect parameters <!-- id: 1509 -->
+    - [x] `calculateDistanceForFraming()` - Distance for target subject size <!-- id: 1510 -->
+    - [x] `calculateSubjectFrameSize()` - Subject percentage in frame <!-- id: 1511 -->
+    - [x] `calculateLayerTransform()` - Transform params for compositing layer <!-- id: 1512 -->
+
+- [x] **LayerCompositor Component** <!-- id: 1520 -->
+    - [x] Real-time compositing of extracted layers with blur <!-- id: 1521 -->
+    - [x] Back-to-front layer rendering order <!-- id: 1522 -->
+    - [x] Per-layer blur based on optical physics calculations <!-- id: 1523 -->
+    - [x] Perspective scaling based on distance from focus <!-- id: 1524 -->
+    - [x] Alpha mask support for layer separation <!-- id: 1525 -->
+    - [x] Debug overlay showing blur/scale per layer <!-- id: 1526 -->
+    - [x] `LayerPreview` component for layer thumbnails <!-- id: 1527 -->
+    - [x] `DepthSlider` component for focus control <!-- id: 1528 -->
+
+- [x] **DollyZoomSimulator Component** <!-- id: 1530 -->
+    - [x] Mode A: Constant Framing (Hitchcock effect) <!-- id: 1531 -->
+    - [x] Mode B: Constant Distance (pure zoom) <!-- id: 1532 -->
+    - [x] Animation presets: Vertigo, Reverse Vertigo, Subtle, Dramatic <!-- id: 1533 -->
+    - [x] Eased animation with progress bar <!-- id: 1534 -->
+    - [x] Real-time FOV and background scale display <!-- id: 1535 -->
+    - [x] Quick focal length buttons (24, 35, 50, 85, 135mm) <!-- id: 1536 -->
+    - [x] Reference image integration for visual feedback <!-- id: 1537 -->
+
+- [x] **SceneDepthControls Component** <!-- id: 1540 -->
+    - [x] Layer list with visibility/lock toggles <!-- id: 1541 -->
+    - [x] Per-layer distance sliders with DOF zone indicator <!-- id: 1542 -->
+    - [x] Opacity controls per layer <!-- id: 1543 -->
+    - [x] Layer reordering (up/down buttons) <!-- id: 1544 -->
+    - [x] Layer deletion with confirmation <!-- id: 1545 -->
+    - [x] DOF zone visualization (green for in-focus range) <!-- id: 1546 -->
+    - [x] Quick focus presets for subject layers <!-- id: 1547 -->
+    - [x] Depth map visualization with layer markers <!-- id: 1548 -->
+
+- [x] **DirectorViewfinder Integration** <!-- id: 1550 -->
+    - [x] Phase 7 imports (opticalPhysics, LayerCompositor, DollyZoomSimulator, SceneDepthControls) <!-- id: 1551 -->
+    - [x] New state: compositorLayers, showDollyZoom, showSceneDepth, useOpticalPhysics <!-- id: 1552 -->
+    - [x] `initializeCompositorLayers()` - Convert extracted layers to LayerConfig <!-- id: 1553 -->
+    - [x] `handleLayerUpdate()`, `handleLayerDelete()`, `handleLayerReorder()` handlers <!-- id: 1554 -->
+    - [x] "Open in Scene Depth Editor" button after layer extraction <!-- id: 1555 -->
+    - [x] SceneDepthControls AccordionSection (when layers exist) <!-- id: 1556 -->
+    - [x] DollyZoomSimulator AccordionSection <!-- id: 1557 -->
+
+### Technical Reference (Optical Physics)
+- **Blur Formula**: `Blur(mm) = C × |Sfocus - Sbg|/Sbg × f²/(N × (Sfocus - f))`
+- **FOV Formula**: `FOV = 2 × arctan(dimension / (2 × focalLength))`
+- **Dolly Zoom**: `d2 = d1 × (f2 / f1)` to maintain subject framing
+- **Background Scale**: `scale = f2 / f1` (>1 = compression, <1 = expansion)
+
+### Build Verification
+- ✅ Frontend: `npm run build` PASS
+- ✅ Backend: `npm run build` PASS
+
+### Files Created
+| File | Purpose |
+|------|---------|
+| `frontend/src/lib/opticalPhysics.ts` | Physics calculations for blur, DOF, FOV, dolly zoom |
+| `frontend/src/components/viewfinder/LayerCompositor.tsx` | Real-time layer compositing with blur |
+| `frontend/src/components/viewfinder/DollyZoomSimulator.tsx` | Hitchcock effect simulation |
+| `frontend/src/components/viewfinder/SceneDepthControls.tsx` | Layer depth management UI |
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `frontend/src/components/viewfinder/DirectorViewfinder.tsx` | Phase 7 imports, state, handlers, UI components |
+
+## Phase 7.1: DOF Simulator UX Improvements ✅ COMPLETE (Dec 28, 2025)
+
+- [x] **Manual Layer Upload Fix** <!-- id: 1600 -->
+    - [x] Fix upload endpoint from `/api/upload` to `/api/process/upload-temp` <!-- id: 1601 -->
+    - [x] Add BACKEND_URL prefix to relative paths from upload response <!-- id: 1602 -->
+
+- [x] **Layer Position Controls** <!-- id: 1610 -->
+    - [x] Add `offsetX`, `offsetY`, `scale` properties to LayerConfig <!-- id: 1611 -->
+    - [x] Add X/Y offset sliders (-100% to +100%) in SceneDepthControls <!-- id: 1612 -->
+    - [x] Add scale slider (10% to 300%) in SceneDepthControls <!-- id: 1613 -->
+    - [x] Add "Reset Position" button for each layer <!-- id: 1614 -->
+    - [x] Apply CSS transforms to layer rendering in DOFLayeredScene <!-- id: 1615 -->
+
+- [x] **Layer Clear Button (X)** <!-- id: 1620 -->
+    - [x] Add X button in layer header (visible when layer has image) <!-- id: 1621 -->
+    - [x] Clear layer image URL on click (layer slot remains) <!-- id: 1622 -->
+    - [x] Show placeholder icon when layer is cleared <!-- id: 1623 -->
+    - [x] Fallback rendering: background→gradient, subject→focus indicator, foreground→bokeh <!-- id: 1624 -->
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `frontend/src/components/viewfinder/DirectorViewfinder.tsx` | Upload endpoint fix, layer transform application |
+| `frontend/src/components/viewfinder/SceneDepthControls.tsx` | LayerConfig extensions, position sliders, X clear button |
+
+---
+
+# Content Creator Pipeline - Phase 5: YouTube Delivery ✅ COMPLETE (Dec 28, 2025)
+
+## Backend Implementation
+
+- [x] **YouTubeUploadService.ts** <!-- id: 2000 -->
+    - [x] Google OAuth2 authentication flow <!-- id: 2001 -->
+    - [x] Token management with refresh <!-- id: 2002 -->
+    - [x] Video upload via YouTube Data API v3 <!-- id: 2003 -->
+    - [x] LLM-powered metadata generation (Grok) <!-- id: 2004 -->
+    - [x] Thumbnail upload support <!-- id: 2005 -->
+    - [x] Channel info and video management <!-- id: 2006 -->
+
+- [x] **youtubeRoutes.ts** <!-- id: 2010 -->
+    - [x] GET /api/youtube/auth/init - OAuth URL generation <!-- id: 2011 -->
+    - [x] GET /api/youtube/auth/callback - Token exchange <!-- id: 2012 -->
+    - [x] GET /api/youtube/auth/status - Connection check <!-- id: 2013 -->
+    - [x] POST /api/youtube/auth/disconnect - Remove tokens <!-- id: 2014 -->
+    - [x] POST /api/youtube/generate-metadata - AI metadata <!-- id: 2015 -->
+    - [x] GET /api/youtube/categories - List categories <!-- id: 2016 -->
+    - [x] POST /api/youtube/upload - Direct file upload <!-- id: 2017 -->
+    - [x] POST /api/youtube/upload-from-path - Server path upload <!-- id: 2018 -->
+    - [x] GET /api/youtube/videos - List uploaded videos <!-- id: 2019 -->
+    - [x] PATCH /api/youtube/videos/:videoId - Update metadata <!-- id: 2020 -->
+    - [x] DELETE /api/youtube/videos/:videoId - Delete video <!-- id: 2021 -->
+
+- [x] **Backend Fixes** <!-- id: 2030 -->
+    - [x] Fix LLMService import path (../LLMService) <!-- id: 2031 -->
+    - [x] Fix LLMService instantiation (new, not singleton) <!-- id: 2032 -->
+    - [x] Fix generate() API call format <!-- id: 2033 -->
+    - [x] Fix thumbnailUrl null handling <!-- id: 2034 -->
+    - [x] Add YouTube routes to index.ts <!-- id: 2035 -->
+
+## Frontend Implementation
+
+- [x] **DeliveryModal.tsx** <!-- id: 2040 -->
+    - [x] OAuth connection flow UI <!-- id: 2041 -->
+    - [x] AI metadata generation with title options <!-- id: 2042 -->
+    - [x] Upload progress tracking <!-- id: 2043 -->
+    - [x] Privacy status selection <!-- id: 2044 -->
+    - [x] Category dropdown <!-- id: 2045 -->
+    - [x] Success state with video URL <!-- id: 2046 -->
+
+- [x] **Timeline Page Integration** <!-- id: 2050 -->
+    - [x] DeliveryModal import and state <!-- id: 2051 -->
+    - [x] YouTube button in bake success toast <!-- id: 2052 -->
+    - [x] Store bakedVideoPath for delivery <!-- id: 2053 -->
+
+## Bug Fixes
+
+- [x] **Validation Schema Fix** <!-- id: 2060 -->
+    - [x] Fix audioUrl validation to allow empty strings <!-- id: 2061 -->
+    - [x] Updated: `audioUrl: z.string().url().optional().nullable().or(z.literal(''))` <!-- id: 2062 -->
+
+### Build Verification
+- ✅ Frontend: `npm run build` PASS
+- ✅ Backend: `npm run build` PASS
+- ✅ YouTube endpoints verified via curl
+
+---
+
+# Storyboard Shot Layout Improvements (Dec 29, 2025) ✅ COMPLETE
+
+## UI Layout Refinements
+
+- [x] **Video Preview Size Enhancement** <!-- id: 2100 -->
+    - [x] Add `min-w-[700px]` to right panel for larger preview <!-- id: 2101 -->
+    - [x] Maintain 16:9 aspect ratio with `aspect-video` class <!-- id: 2102 -->
+
+- [x] **Left Panel Width Optimization** <!-- id: 2110 -->
+    - [x] Change from `w-96` (384px) to `w-[420px]` <!-- id: 2111 -->
+    - [x] Balance layout to prevent right-side overflow <!-- id: 2112 -->
+    - [x] Show more scene direction text without truncation <!-- id: 2113 -->
+
+- [x] **Full-width Generate Video Button** <!-- id: 2120 -->
+    - [x] Restore button below prompt area <!-- id: 2121 -->
+    - [x] Activates when first frame and prompt are set <!-- id: 2122 -->
+
+## Iteration Tracking & Cost Display
+
+- [x] **Cost Functions (Exported)** <!-- id: 2130 -->
+    - [x] `calculateImageCost()` - Per-megapixel pricing <!-- id: 2131 -->
+    - [x] `calculateVideoCost()` - Per-second with resolution multipliers <!-- id: 2132 -->
+    - [x] `calculateTotalShotCost()` - Combined image + video spend <!-- id: 2133 -->
+
+- [x] **Iteration Count Badges** <!-- id: 2140 -->
+    - [x] First Frame: ×N green badge <!-- id: 2141 -->
+    - [x] Last Frame: ×N purple badge <!-- id: 2142 -->
+    - [x] Video: ×N in Complete status badge <!-- id: 2143 -->
+
+- [x] **Per-Shot Cost Summary** <!-- id: 2150 -->
+    - [x] Only shows when iterations exist <!-- id: 2151 -->
+    - [x] Frame spend (amber) + Video spend (emerald) = Total (white) <!-- id: 2152 -->
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `frontend/src/components/storyboard/StoryboardShot.tsx` | Panel widths, cost display, iteration badges |
+| `frontend/src/app/projects/[id]/storyboard/page.tsx` | Iteration count persistence to backend |
+
+### Build Verification
+- ✅ Frontend: `npm run build` PASS

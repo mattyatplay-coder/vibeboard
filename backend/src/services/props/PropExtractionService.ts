@@ -13,7 +13,7 @@
  */
 
 import * as fal from '@fal-ai/serverless-client';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../prisma';
 import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -24,8 +24,6 @@ import { v4 as uuidv4 } from 'uuid';
 fal.config({
     credentials: process.env.FAL_KEY || process.env.FAL_API_KEY,
 });
-
-const prisma = new PrismaClient();
 
 // =============================================================================
 // TYPES & INTERFACES

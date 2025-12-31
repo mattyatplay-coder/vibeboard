@@ -1,0 +1,64 @@
+{
+  "name": "Visual Librarian / Semantic Search",
+  "description": "Professional MAM search using cinematic terminology",
+  "status": "active",
+  "addedDate": "2025-12-26",
+  "lastVerified": "2025-12-30",
+  "files": {
+    "frontend": [
+      "frontend/src/components/generations/GenerationSearch.tsx",
+      "frontend/src/components/generations/GenerationCard.tsx",
+      "frontend/src/components/generations/GenerationResults.tsx"
+    ],
+    "backend": [
+      "backend/src/services/search/SemanticIndexService.ts",
+      "backend/src/routes/searchRoutes.ts"
+    ]
+  },
+  "endpoints": [
+    "GET /api/projects/:projectId/search",
+    "GET /api/projects/:projectId/search/stats",
+    "GET /api/projects/:projectId/search/suggestions",
+    "POST /api/projects/:projectId/search/index",
+    "POST /api/projects/:projectId/search/retry-failed",
+    "GET /api/projects/:projectId/search/similar/composition/:id",
+    "GET /api/projects/:projectId/search/similar/lighting/:id"
+  ],
+  "keyFunctions": {
+    "SemanticIndexService.indexGeneration": {
+      "description": "Grok Vision extracts cinematic metadata from image",
+      "extracts": ["framing (ECU, CU, MS, WS)", "lighting (Low-Key, Chiaroscuro)", "lens (Anamorphic, DOF)", "composition"]
+    },
+    "GenerationSearch": {
+      "modes": ["Reality (visual content)", "Intent (prompts)", "Both"],
+      "suggestionPills": {
+        "blue": "Framing terms",
+        "amber": "Lighting terms",
+        "purple": "Lens terms",
+        "green": "Mood terms"
+      }
+    }
+  },
+  "expectedBehavior": {
+    "indexing": "Batch index generations with Grok Vision",
+    "search": "Natural language query returns scored results",
+    "discovery": "Find Similar Composition/Lighting buttons on GenerationCard",
+    "stats": "Index progress badge with retry-failed capability"
+  },
+  "prismaFields": {
+    "visualDescription": "String? - JSON with framing, lighting, lens, composition",
+    "indexedAt": "DateTime?",
+    "indexStatus": "String (pending/indexed/failed/skipped)",
+    "indexError": "String?"
+  },
+  "searchScoring": {
+    "framingTerms": "+5 points each (ECU, CU, WS)",
+    "lightingTerms": "+3 points each (Low-Key, Rim-lit)",
+    "lensTerms": "+4 points each (Anamorphic, Shallow DOF)"
+  },
+  "dependencies": {
+    "external": ["Grok Vision API"],
+    "internal": ["GrokAdapter", "Prisma"]
+  },
+  "backupLocation": "/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/complete backup"
+}

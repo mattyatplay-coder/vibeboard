@@ -26,7 +26,9 @@ export async function fetchAPI(endpoint: string, options: RequestInit = {}) {
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
-    throw new Error(error.error ? `${error.error}: ${error.message || ''}` : 'API request failed');
+    // Include validation details if present
+    const details = error.details ? ` - ${JSON.stringify(error.details)}` : '';
+    throw new Error(error.error ? `${error.error}${details}` : 'API request failed');
   }
 
   const text = await res.text();

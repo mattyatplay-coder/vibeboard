@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -57,6 +57,8 @@ model Story {
   updatedAt       DateTime @updatedAt
 
   project         Project  @relation(fields: [projectId], references: [id])
+
+  @@index([projectId])
 }
 
 model Session {
@@ -71,6 +73,8 @@ model Session {
   generations Generation[]
   scenes      Scene[]
   elements    Element[]
+
+  @@index([projectId])
 }
 
 model Element {
@@ -90,6 +94,8 @@ model Element {
   sessionId String?
 
   @@unique([projectId, name])
+  @@index([projectId])
+  @@index([type])
 }
 
 model Reference {
@@ -171,6 +177,13 @@ model Generation {
   prevGeneration Generation?  @relation("ChainedGenerations", fields: [prevGenerationId], references: [id])
   nextGenerations Generation[] @relation("ChainedGenerations")
   sceneShots     SceneShot[]
+  comments       Comment[]    // Collaborative Dailies annotations
+
+  @@index([projectId])
+  @@index([sessionId])
+  @@index([status])
+  @@index([indexStatus])
+  @@index([createdAt])
 }
 
 model Scene {
@@ -226,6 +239,9 @@ model LoRA {
 
   project     Project  @relation(fields: [projectId], references: [id])
   globalLoRA  GlobalLoRA? @relation(fields: [globalLoRAId], references: [id])
+
+  @@index([projectId])
+  @@index([baseModel])
 }
 
 // Global LoRA Library - shared across all projects
@@ -276,6 +292,20 @@ model Workflow {
   updatedAt   DateTime @updatedAt
 
   project     Project  @relation(fields: [projectId], references: [id])
+}
+
+// Workflow Templates Library (Phase 6 - Community Features)
+model WorkflowTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  category    String   @default("Custom") // e.g., "Product", "Cinematic", "Social", "Portrait"
+  config      String   // JSON with full generation config
+  previewUrl  String?  // Preview image URL
+  isPublic    Boolean  @default(false)
+  userId      String?  // Owner (null = system template)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model TrainingJob {
@@ -392,8 +422,10 @@ model SceneChainSegment {
   duration        Int      @default(5)  // seconds
 
   // Reference frames for generation guidance
-  firstFrameUrl   String?  // Reference image for the first frame
-  lastFrameUrl    String?  // Reference image for the last frame (for continuity)
+  firstFrameUrl     String?  // Reference image for the first frame
+  lastFrameUrl      String?  // Reference image for the last frame (for continuity)
+  firstFramePrompt  String?  // Image generation prompt for first frame
+  lastFramePrompt   String?  // Image generation prompt for last frame
 
   // Source (if extending from existing video/generation)
   sourceType      String?  // 'generation', 'upload', 'none'
@@ -421,6 +453,9 @@ model SceneChainSegment {
   updatedAt       DateTime @updatedAt
 
   sceneChain      SceneChain @relation(fields: [sceneChainId], references: [id], onDelete: Cascade)
+
+  @@index([sceneChainId])
+  @@index([status])
 }
 
 // Junction table for characters in scene chains
@@ -584,4 +619,64 @@ model Prop {
 
   @@index([projectId])
   @@index([category])
+}
+
+// =============================================================================
+// MODULE 5: COLLABORATIVE DAILIES - Comments, Annotations & Review
+// =============================================================================
+
+// Comment - Timestamped annotation on a generation (image or video)
+model Comment {
+  id              String   @id @default(uuid())
+  generationId    String   // Link to the Generation being reviewed
+
+  // Author (placeholder for future auth - using mock user ID for now)
+  userId          String   @default("user_1")
+  userName        String   @default("Director")
+  userAvatar      String?  // Avatar URL
+
+  // Temporal position (for videos)
+  timestamp       Float?   // Video timecode in seconds (null for images)
+
+  // Spatial position (normalized 0-1 coordinates)
+  coordinates     String?  // JSON: { x: 0.5, y: 0.3 } - null for general comments
+
+  // Comment content
+  text            String
+  type            String   @default("note") // 'note', 'approval', 'revision', 'blocker'
+
+  // Thread support (replies)
+  parentId        String?  // For reply threading
+
+  // Resolution workflow
+  resolved        Boolean  @default(false)
+  resolvedAt      DateTime?
+  resolvedBy      String?
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  generation      Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  parent          Comment?   @relation("CommentThread", fields: [parentId], references: [id])
+  replies         Comment[]  @relation("CommentThread")
+
+  @@index([generationId])
+  @@index([parentId])
+  @@index([resolved])
+}
+
+// =============================================================================
+// GLOBAL SETTINGS - App-wide configuration & OAuth tokens
+// =============================================================================
+
+// Setting - Key-value store for global configuration
+model Setting {
+  id        String   @id @default(uuid())
+  key       String   @unique  // e.g., 'youtube_tokens', 'youtube_channel', 'default_model'
+  value     String   // JSON string for complex values
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
 }

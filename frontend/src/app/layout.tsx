@@ -6,6 +6,7 @@ import { SessionProvider } from '@/context/SessionContext';
 import { DebugConsole } from '@/components/debug/DebugConsole';
 import { initVideoConsole } from '@/lib/video-console'; // Initialize interceptor
 import { Toaster } from '@/components/ui/Toaster';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
 
 // Initialize console interception on client side
 if (typeof window !== 'undefined') {
@@ -27,13 +28,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className={`${inter.className} ${inter.variable}`} suppressHydrationWarning>
-        <SessionProvider>
-          <div className="relative min-h-screen">
-            <main id="main-content">{children}</main>
-            <DebugConsole />
-          </div>
-          <Toaster />
-        </SessionProvider>
+        <ErrorBoundary>
+          <SessionProvider>
+            <div className="relative min-h-screen">
+              <main id="main-content">{children}</main>
+              <DebugConsole />
+            </div>
+            <Toaster />
+          </SessionProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

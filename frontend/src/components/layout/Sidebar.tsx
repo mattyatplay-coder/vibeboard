@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useParams } from 'next/navigation';
-import { LayoutGrid, Wand2, Clapperboard, Settings, FileText, Paintbrush, Film } from 'lucide-react';
+import { LayoutGrid, Wand2, Clapperboard, Settings, FileText, Paintbrush, Film, MessageSquare, Aperture } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 
@@ -42,6 +42,8 @@ export function Sidebar() {
     { name: 'Story Editor', href: `/projects/${projectId}/story-editor`, icon: FileText },
     { name: 'Storyboard', href: `/projects/${projectId}/storyboard`, icon: Clapperboard },
     { name: 'Timeline', href: `/projects/${projectId}/timeline`, icon: Film },
+    { name: 'Dailies', href: `/projects/${projectId}/dailies`, icon: MessageSquare },
+    { name: 'Viewfinder', href: `/projects/${projectId}/viewfinder`, icon: Aperture },
     { name: 'Training', href: `/projects/${projectId}/train`, icon: Wand2 },
   ];
 

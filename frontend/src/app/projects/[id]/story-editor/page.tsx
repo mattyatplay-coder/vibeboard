@@ -29,11 +29,15 @@ import {
   Save,
   FolderOpen,
   Trash2,
+  Image,
 } from 'lucide-react';
 import { fetchAPI, BACKEND_URL } from '@/lib/api';
+import { usePageAutoSave, StoryEditorSession, hasRecoverableContent } from '@/lib/pageSessionStore';
+import { RecoveryToast } from '@/components/ui/RecoveryToast';
 import { GenreSelector, GenrePills } from '@/components/storyboard/GenreSelector';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { Genre, GENRE_TEMPLATES, getGenreTemplate } from '@/data/GenreTemplates';
+import ThumbnailGeneratorPanel from '@/components/content/ThumbnailGeneratorPanel';
 
 // Story character for prompt injection
 interface StoryCharacter {
@@ -86,6 +90,7 @@ export default function StoryEditorPage() {
   const [pace, setPace] = useState<'slow' | 'medium' | 'fast'>('medium');
   const [targetDuration, setTargetDuration] = useState<string>(''); // User input (e.g., "5s", "2m", "90min")
   const [targetDurationSeconds, setTargetDurationSeconds] = useState<number | null>(null); // Parsed value
+  const [shotDuration, setShotDuration] = useState<number>(5); // Default duration per video shot in seconds
   const [allowNSFW, setAllowNSFW] = useState(false); // Allow NSFW content in prompts
 
   // Pipeline state
@@ -124,6 +129,9 @@ export default function StoryEditorPage() {
   const [showCharacterPicker, setShowCharacterPicker] = useState(false);
   const [loadingElements, setLoadingElements] = useState(false);
 
+  // Thumbnail generator state
+  const [showThumbnailGenerator, setShowThumbnailGenerator] = useState(false);
+
   // Progress tracking for long-running stages
   const [progressInfo, setProgressInfo] = useState<{
     stage: 'breakdown' | 'prompts' | null;
@@ -131,6 +139,18 @@ export default function StoryEditorPage() {
     total: number;
     sceneName?: string;
   } | null>(null);
+
+  // Session recovery
+  const [hasMounted, setHasMounted] = useState(false);
+  const [showRecoveryToast, setShowRecoveryToast] = useState(false);
+  const [recoverableSession, setRecoverableSession] = useState<StoryEditorSession | null>(null);
+  const {
+    saveSession,
+    getSession,
+    clearSession,
+    dismissRecovery,
+    isRecoveryDismissed,
+  } = usePageAutoSave<StoryEditorSession>('story-editor');
 
   // Load project elements on mount
   useEffect(() => {
@@ -159,6 +179,83 @@ export default function StoryEditorPage() {
     };
     loadElements();
   }, [projectId]);
+
+  // Mount detection for hydration
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  // Check for recoverable session on mount
+  useEffect(() => {
+    if (!hasMounted || !projectId) return;
+
+    const session = getSession(projectId);
+    if (session && hasRecoverableContent(session) && !isRecoveryDismissed(projectId)) {
+      setRecoverableSession(session);
+      setShowRecoveryToast(true);
+    }
+  }, [hasMounted, projectId, getSession, isRecoveryDismissed]);
+
+  // Auto-save session every 500ms
+  useEffect(() => {
+    if (!projectId || !hasMounted) return;
+
+    const saveInterval = setInterval(() => {
+      // Only save if there's meaningful content
+      const hasContent = concept.trim().length > 0 || script.trim().length > 0 || storyName.trim().length > 0;
+      if (!hasContent) return;
+
+      saveSession({
+        projectId,
+        title: storyName,
+        logline: concept,
+        scriptContent: script,
+        genre: selectedGenre || '',
+        directorStyle: style,
+        selectedCharacterIds: selectedCharacters.map(c => c.elementId || '').filter(Boolean),
+        currentSceneIndex: 0,
+        isDirty: true,
+      });
+    }, 500);
+
+    return () => clearInterval(saveInterval);
+  }, [
+    projectId,
+    hasMounted,
+    storyName,
+    concept,
+    script,
+    selectedGenre,
+    style,
+    selectedCharacters,
+    saveSession,
+  ]);
+
+  // Handle session restore
+  const handleRestoreSession = () => {
+    if (!recoverableSession) return;
+
+    setStoryName(recoverableSession.title || '');
+    setConcept(recoverableSession.logline || '');
+    setScript(recoverableSession.scriptContent || '');
+    if (recoverableSession.genre) {
+      setSelectedGenre(recoverableSession.genre as Genre);
+    }
+    setStyle(recoverableSession.directorStyle || '');
+
+    setShowRecoveryToast(false);
+    setRecoverableSession(null);
+  };
+
+  // Handle dismiss recovery
+  const handleDismissRecovery = () => {
+    if (projectId) {
+      dismissRecovery(projectId);
+      clearSession(projectId);
+    }
+    setShowRecoveryToast(false);
+    setRecoverableSession(null);
+  };
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev =>
@@ -601,6 +698,7 @@ export default function StoryEditorPage() {
               genre: selectedGenre,
               style,
               allowNSFW,
+              shotDuration, // Pass the configured shot duration
               // Include selected characters for prompt injection
               characters: selectedCharacters.length > 0 ? selectedCharacters : undefined,
             }),
@@ -613,13 +711,23 @@ export default function StoryEditorPage() {
               : typeof promptsResponse
           );
 
-          // Handle both array and object responses
+          // Handle both array and object responses and apply shotDuration to each prompt
           if (Array.isArray(promptsResponse)) {
-            allPrompts.push(...promptsResponse);
+            // Apply shotDuration to each prompt
+            const promptsWithDuration = promptsResponse.map((p: any) => ({
+              ...p,
+              duration: shotDuration, // Override with configured duration
+            }));
+            allPrompts.push(...promptsWithDuration);
           } else if (promptsResponse && typeof promptsResponse === 'object') {
             // Check if it's wrapped in a property
             if (promptsResponse.prompts && Array.isArray(promptsResponse.prompts)) {
-              allPrompts.push(...promptsResponse.prompts);
+              // Apply shotDuration to each prompt
+              const promptsWithDuration = promptsResponse.prompts.map((p: any) => ({
+                ...p,
+                duration: shotDuration, // Override with configured duration
+              }));
+              allPrompts.push(...promptsWithDuration);
             } else {
               console.warn('Unexpected prompts response format:', promptsResponse);
             }
@@ -789,15 +897,25 @@ export default function StoryEditorPage() {
               genre: selectedGenre,
               style,
               allowNSFW,
+              shotDuration, // Pass the configured shot duration
               // Include selected characters for prompt injection
               characters: selectedCharacters.length > 0 ? selectedCharacters : undefined,
             }),
           });
 
+          // Apply shotDuration to each prompt
           if (Array.isArray(promptsResponse)) {
-            allPrompts.push(...promptsResponse);
+            const promptsWithDuration = promptsResponse.map((p: any) => ({
+              ...p,
+              duration: shotDuration,
+            }));
+            allPrompts.push(...promptsWithDuration);
           } else if (promptsResponse?.prompts && Array.isArray(promptsResponse.prompts)) {
-            allPrompts.push(...promptsResponse.prompts);
+            const promptsWithDuration = promptsResponse.prompts.map((p: any) => ({
+              ...p,
+              duration: shotDuration,
+            }));
+            allPrompts.push(...promptsWithDuration);
           }
         } catch (promptError) {
           console.error(`Failed to generate prompts for scene ${i + 1}:`, promptError);
@@ -872,7 +990,7 @@ export default function StoryEditorPage() {
       totalSeconds = 0; // Reset if we have detailed breakdown
       scenes.forEach((scene: any) => {
         scene.suggestedShots?.forEach((shot: any) => {
-          totalSeconds += shot.duration || 5; // Default 5 seconds per shot
+          totalSeconds += shot.duration || shotDuration; // Use configured shot duration
         });
       });
     }
@@ -997,7 +1115,9 @@ export default function StoryEditorPage() {
               method: 'POST',
               body: JSON.stringify({
                 prompt: promptData.prompt,
-                duration: shot.duration || 5,
+                firstFramePrompt: promptData.firstFramePrompt || promptData.prompt,
+                lastFramePrompt: promptData.lastFramePrompt || null,
+                duration: shot.duration || shotDuration,
                 orderIndex: j,
                 transitionType: 'smooth',
                 // Store additional metadata in the segment
@@ -1034,6 +1154,15 @@ export default function StoryEditorPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 p-8 text-white">
+      {/* Session Recovery Toast */}
+      <RecoveryToast
+        isVisible={showRecoveryToast}
+        savedAt={recoverableSession?.savedAt || 0}
+        pageType="story-editor"
+        onRestore={handleRestoreSession}
+        onDismiss={handleDismissRecovery}
+      />
+
       {/* Header */}
       <div className="mb-8 flex items-start justify-between">
         <div>
@@ -1315,6 +1444,28 @@ The parser will automatically detect scenes and break them down into shots."
                 </div>
                 <p className="mt-1 text-[10px] text-gray-600">
                   Leave empty for auto-calculated duration based on content
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-bold tracking-wider text-gray-400 uppercase">
+                  Video Shot Duration
+                </label>
+                <select
+                  value={shotDuration}
+                  onChange={e => setShotDuration(Number(e.target.value))}
+                  className="w-full rounded-lg border border-white/10 bg-black/50 px-3 py-2 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                >
+                  <option value={3}>3 seconds</option>
+                  <option value={4}>4 seconds</option>
+                  <option value={5}>5 seconds</option>
+                  <option value={6}>6 seconds</option>
+                  <option value={7}>7 seconds</option>
+                  <option value={8}>8 seconds (VEO 3.1)</option>
+                  <option value={10}>10 seconds</option>
+                </select>
+                <p className="mt-1 text-[10px] text-gray-600">
+                  Default duration for each video shot (most models max 10s, VEO 3.1 up to 8s)
                 </p>
               </div>
 
@@ -1676,7 +1827,7 @@ The parser will automatically detect scenes and break them down into shots."
                     {scenes.map((scene: any, i: number) => {
                       const sceneDuration =
                         scene.suggestedShots?.reduce(
-                          (acc: number, shot: any) => acc + (shot.duration || 5),
+                          (acc: number, shot: any) => acc + (shot.duration || shotDuration),
                           0
                         ) || 0;
                       const sceneMins = Math.floor(sceneDuration / 60);
@@ -1897,11 +2048,10 @@ The parser will automatically detect scenes and break them down into shots."
                   <div className="space-y-4">
                     {/* Shot Header with metadata */}
                     <div className="flex items-center gap-2 border-b border-white/10 pb-2">
-                      {prompt.duration && (
-                        <span className="rounded bg-blue-500/20 px-2 py-0.5 text-[10px] font-bold text-blue-300">
-                          {prompt.duration}s
-                        </span>
-                      )}
+                      {/* Duration badge - uses prompt.duration or falls back to configured shotDuration */}
+                      <span className="rounded bg-cyan-500/20 px-2 py-0.5 text-[10px] font-bold text-cyan-300">
+                        {prompt.duration || shotDuration}s
+                      </span>
                       {prompt.cameraDescription && (
                         <span className="rounded bg-purple-500/20 px-2 py-0.5 text-[10px] text-purple-300">
                           {prompt.cameraDescription}
@@ -1980,7 +2130,7 @@ The parser will automatically detect scenes and break them down into shots."
                 <p className="mb-3 text-sm text-gray-300">
                   Ready to generate images and videos from these prompts?
                 </p>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
                     onClick={saveAndExportToStoryboard}
                     disabled={isSaving}
@@ -2012,6 +2162,18 @@ The parser will automatically detect scenes and break them down into shots."
                       Go to Storyboard
                     </button>
                   )}
+                  {/* Thumbnail Generator Button */}
+                  {selectedGenre && (selectedGenre === 'youtuber' || selectedGenre === 'onlyfans') && (
+                    <Tooltip content="Generate YouTube-optimized thumbnail">
+                      <button
+                        onClick={() => setShowThumbnailGenerator(true)}
+                        className="flex items-center gap-2 rounded-lg border border-purple-500/30 bg-purple-500/20 px-4 py-2 text-sm font-medium text-purple-300 hover:bg-purple-500/30"
+                      >
+                        <Image className="h-4 w-4" />
+                        Generate Thumbnail
+                      </button>
+                    </Tooltip>
+                  )}
                 </div>
               </div>
             </div>
@@ -2038,6 +2200,23 @@ The parser will automatically detect scenes and break them down into shots."
           )}
         </div>
       </div>
+
+      {/* Thumbnail Generator Panel */}
+      {selectedGenre && (selectedGenre === 'youtuber' || selectedGenre === 'onlyfans') && (
+        <ThumbnailGeneratorPanel
+          projectId={projectId}
+          videoTitle={storyName || concept.slice(0, 50)}
+          videoDescription={concept}
+          archetype="vlogger"
+          genre={selectedGenre === 'onlyfans' ? 'onlyfans' : 'youtuber'}
+          isOpen={showThumbnailGenerator}
+          onClose={() => setShowThumbnailGenerator(false)}
+          onThumbnailGenerated={(result) => {
+            console.log('Thumbnail generated:', result);
+            // Could save to project elements here
+          }}
+        />
+      )}
     </div>
   );
 }

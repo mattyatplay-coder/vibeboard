@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { fetchAPI } from '@/lib/api';
 import { toast } from 'sonner';
+import { usePageAutoSave, TrainSession, hasRecoverableContent } from '@/lib/pageSessionStore';
+import { RecoveryToast } from '@/components/ui/RecoveryToast';
 import {
   Loader2,
   Upload,
@@ -112,6 +114,88 @@ export default function TrainingPage() {
   const [presetStylePrefix, setPresetStylePrefix] = useState('');
   const [presetPoses, setPresetPoses] = useState<string[]>([]);
   const [newPose, setNewPose] = useState('');
+
+  // Session recovery
+  const [hasMounted, setHasMounted] = useState(false);
+  const [showRecoveryToast, setShowRecoveryToast] = useState(false);
+  const [recoverableSession, setRecoverableSession] = useState<TrainSession | null>(null);
+  const {
+    saveSession,
+    getSession,
+    clearSession,
+    dismissRecovery,
+    isRecoveryDismissed,
+  } = usePageAutoSave<TrainSession>('train');
+
+  // Mount detection
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  // Check for recoverable session
+  useEffect(() => {
+    if (!hasMounted || !projectId) return;
+    const session = getSession(projectId);
+    if (session && hasRecoverableContent(session) && !isRecoveryDismissed(projectId)) {
+      setRecoverableSession(session);
+      setShowRecoveryToast(true);
+    }
+  }, [hasMounted, projectId, getSession, isRecoveryDismissed]);
+
+  // Auto-save session (save form state)
+  useEffect(() => {
+    if (!projectId || !hasMounted) return;
+    // Only save if there's meaningful content
+    if (!newJobName && !triggerWord && !foundryPrompt && !datasetPath) return;
+
+    const saveInterval = setInterval(() => {
+      saveSession({
+        projectId,
+        jobName: newJobName,
+        triggerWord,
+        trainingType,
+        provider,
+        baseModel,
+        steps,
+        learningRate,
+        datasetPath,
+        isFoundryMode,
+        foundryPrompt,
+        selectedPreset,
+        isDirty: true,
+      });
+    }, 500);
+    return () => clearInterval(saveInterval);
+  }, [projectId, hasMounted, newJobName, triggerWord, trainingType, provider, baseModel, steps, learningRate, datasetPath, isFoundryMode, foundryPrompt, selectedPreset, saveSession]);
+
+  const handleRestoreSession = () => {
+    if (!recoverableSession) return;
+    // Restore form state
+    if (recoverableSession.jobName) setNewJobName(recoverableSession.jobName);
+    if (recoverableSession.triggerWord) setTriggerWord(recoverableSession.triggerWord);
+    if (recoverableSession.trainingType) setTrainingType(recoverableSession.trainingType as 'style' | 'character');
+    if (recoverableSession.provider) setProvider(recoverableSession.provider as 'fal' | 'replicate');
+    if (recoverableSession.baseModel) setBaseModel(recoverableSession.baseModel as 'fast' | 'dev' | 'wan-video');
+    if (recoverableSession.steps) setSteps(recoverableSession.steps);
+    if (recoverableSession.learningRate) setLearningRate(recoverableSession.learningRate);
+    if (recoverableSession.datasetPath) setDatasetPath(recoverableSession.datasetPath);
+    if (recoverableSession.isFoundryMode !== undefined) setIsFoundryMode(recoverableSession.isFoundryMode);
+    if (recoverableSession.foundryPrompt) setFoundryPrompt(recoverableSession.foundryPrompt);
+    if (recoverableSession.selectedPreset) setSelectedPreset(recoverableSession.selectedPreset);
+    // Open the form if restoring
+    setIsCreating(true);
+    setShowRecoveryToast(false);
+    setRecoverableSession(null);
+  };
+
+  const handleDismissRecovery = () => {
+    if (projectId) {
+      dismissRecovery(projectId);
+      clearSession(projectId);
+    }
+    setShowRecoveryToast(false);
+    setRecoverableSession(null);
+  };
 
   useEffect(() => {
     loadJobs();
@@ -548,6 +632,17 @@ export default function TrainingPage() {
 
   return (
     <div className="flex h-screen flex-1 flex-col overflow-hidden bg-[#0a0a0a] text-white">
+      {/* Session Recovery Toast */}
+      {recoverableSession && (
+        <RecoveryToast
+          isVisible={showRecoveryToast}
+          savedAt={recoverableSession.savedAt}
+          pageType="train"
+          onRestore={handleRestoreSession}
+          onDismiss={handleDismissRecovery}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/10 p-8">
         <div>

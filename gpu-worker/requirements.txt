@@ -1,21 +1,22 @@
 # GPU Worker - Python Dependencies
+# Note: PyTorch is pre-installed in RunPod base image (2.1.0)
+
 # Core Framework
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
 python-multipart==0.0.6
 httpx==0.26.0
 
-# ML/Deep Learning
-torch>=2.1.0
-torchvision>=0.16.0
-transformers>=4.36.0
-diffusers>=0.25.0
-accelerate>=0.25.0
+# ML/Deep Learning (pinned for PyTorch 2.1 compatibility)
+# torch and torchvision are pre-installed in RunPod base image
+transformers==4.36.0
+diffusers==0.25.0
+accelerate==0.25.0
 
 # Image Processing
 Pillow>=10.0.0
 opencv-python-headless>=4.8.0
-numpy>=1.24.0
+numpy<2.0.0
 
 # Video Processing
 moviepy>=1.0.3
@@ -24,6 +25,12 @@ moviepy>=1.0.3
 pydantic>=2.5.0
 python-dotenv>=1.0.0
 aiofiles>=23.2.0
+
+# Cloud Storage
+boto3>=1.34.0
+
+# RunPod
+runpod>=1.6.0
 
 # Optional: CUDA-specific (uncomment for GPU deployment)
 # xformers>=0.0.23

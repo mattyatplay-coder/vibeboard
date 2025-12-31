@@ -1,0 +1,4094 @@
+This is the **Functional Repair Kit**. These are the pure code changes needed to stop the app from crashing under load and to fix the critical backend bottlenecks identified in the audit.
+
+I have prioritized them by **Severity**.
+
+---
+
+### 🚨 Priority 1: Fix the "Serverless Timeout" (FFmpeg Worker)
+**The Problem:** Your `VideoStitcherService` runs FFmpeg inside the Next.js API route. If a render takes >10 seconds (which it will), Vercel kills it.
+**The Fix:** We decouple the render logic using **BullMQ** (Redis). The API *requests* a render, and a separate Worker *executes* it.
+
+**1. Create the Queue Definition (`backend/src/lib/queue.ts`)**
+```typescript
+import { Queue } from 'bullmq';
+import { Redis } from 'ioredis';
+
+// Connect to your Redis instance (Upstash or local)
+const connection = new Redis(process.env.REDIS_URL as string, {
+  maxRetriesPerRequest: null,
+});
+
+export const renderQueue = new Queue('video-render-queue', { connection });
+```
+
+**2. Create the Worker Processor (`backend/src/workers/renderWorker.ts`)**
+*This file runs in a separate process (e.g., on Railway/Fly.io).*
+```typescript
+import { Worker } from 'bullmq';
+import { VideoStitcherService } from '../services/video/VideoStitcherService';
+import { prisma } from '../lib/prisma';
+import { Redis } from 'ioredis';
+
+const stitcher = new VideoStitcherService();
+const connection = new Redis(process.env.REDIS_URL as string, { maxRetriesPerRequest: null });
+
+const worker = new Worker('video-render-queue', async (job) => {
+  const { renderPassId, clips, outputName } = job.data;
+
+  try {
+    console.log(`[Worker] Starting Render Job: ${renderPassId}`);
+    
+    // 1. Update DB to "Processing"
+    await prisma.renderPass.update({
+      where: { id: renderPassId },
+      data: { status: 'PROCESSING' }
+    });
+
+    // 2. Run the Heavy FFmpeg Task
+    const outputPath = `/tmp/${outputName}`; // Save to temp disk
+    await stitcher.bakeTimeline(clips, outputPath);
+
+    // 3. Upload to S3/Storage (Pseudo-code)
+    // const url = await uploadToS3(outputPath);
+
+    // 4. Update DB to "Completed"
+    await prisma.renderPass.update({
+      where: { id: renderPassId },
+      data: { 
+        status: 'COMPLETED',
+        url: 'https://s3.bucket...' // Use the uploaded URL
+      }
+    });
+
+    console.log(`[Worker] Job ${renderPassId} Finished.`);
+    return { success: true };
+
+  } catch (error) {
+    console.error(`[Worker] Job ${renderPassId} Failed:`, error);
+    await prisma.renderPass.update({
+      where: { id: renderPassId },
+      data: { status: 'FAILED' }
+    });
+    throw error;
+  }
+}, { connection });
+
+console.log("🚀 Render Worker Started...");
+```
+
+**3. Update the API Endpoint (`backend/src/api/render/route.ts`)**
+*Now the API just adds a job and returns instantly.*
+```typescript
+import { renderQueue } from '@/lib/queue';
+import { NextResponse } from 'next/server';
+
+export async function POST(req: Request) {
+  const body = await req.json();
+  
+  // Add to Queue (Instant response)
+  await renderQueue.add('bake-timeline', {
+    renderPassId: body.renderPassId,
+    clips: body.clips,
+    outputName: `master_${body.renderPassId}.mp4`
+  });
+
+  return NextResponse.json({ success: true, message: "Render queued" });
+}
+```
+
+---
+
+### ⚡ Priority 2: Fix the N+1 Performance Killer
+**The Problem:** The Gallery fetches a list of generations, then loops through them to fetch details. This causes 50+ DB calls for one page load.
+**The Fix:** Use Prisma's relational fetch (`include`) to get everything in **1 Query**.
+
+**Update: `backend/src/services/generation/GenerationService.ts`**
+
+```typescript
+// OLD (Inefficient)
+// const generations = await prisma.generation.findMany({ where: { userId } });
+// const enriched = await Promise.all(generations.map(async (gen) => {
+//    const user = await prisma.user.findUnique({ where: { id: gen.userId }});
+//    return { ...gen, user };
+// }));
+
+// NEW (Optimized)
+export const getRecentGenerations = async (userId: string) => {
+  return await prisma.generation.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+    include: {
+      // Fetch relations instantly
+      renderPass: {
+        select: {
+          status: true,
+          url: true,
+          duration: true
+        }
+      },
+      user: {
+        select: {
+          id: true,
+          username: true,
+          avatarUrl: true
+        }
+      },
+      // If you implement tags/assets later:
+      // tags: true 
+    }
+  });
+};
+```
+
+---
+
+### 🛡️ Priority 3: Fix the "Creator Studio" Re-Render Lag
+**The Problem:** Typing in the "Hook" text box re-renders the entire 3D node graph and gallery because state is at the top level.
+**The Fix:** Isolate the Creator Studio logic into a self-contained component with local state.
+
+**Update: `frontend/src/components/storyboard/CreatorStudioInput.tsx`**
+
+```tsx
+import React, { useState, useCallback } from 'react';
+import { CreatorControls } from './modules/CreatorControls';
+
+// Use React.memo so this component ONLY updates when its own props change,
+// preventing the parent page from forcing it to re-render unnecessarily.
+export const CreatorStudioInput = React.memo(({ onSubmit }: { onSubmit: (data: any) => void }) => {
+  
+  // LOCAL STATE (Does not trigger parent re-renders)
+  const [archetype, setArchetype] = useState('vlogger');
+  const [hook, setHook] = useState('');
+  
+  // Handler
+  const handleSubmit = () => {
+    onSubmit({ archetype, hook });
+  };
+
+  return (
+    <div className="bg-zinc-950 p-6 rounded-xl border border-zinc-800">
+      <CreatorControls 
+        selectedArchetype={archetype}
+        onArchetypeChange={setArchetype} // Local update only
+        onHookChange={setHook}           // Local update only
+      />
+      <button 
+        onClick={handleSubmit}
+        className="w-full mt-4 bg-violet-600 hover:bg-violet-500 py-4 rounded-lg font-bold text-white transition-colors"
+      >
+        Generate Viral Script
+      </button>
+    </div>
+  );
+});
+```
+
+---
+
+### 🛠️ Priority 4: Database Migration (SQLite -> Postgres)
+**The Problem:** SQLite file locking.
+**The Fix:** Update schema.
+
+**Update: `backend/prisma/schema.prisma`**
+
+```prisma
+datasource db {
+  provider = "postgresql" // CHANGED from "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Ensure your RenderPass model supports the NLE features
+model RenderPass {
+  id          String   @id @default(uuid())
+  status      String   @default("QUEUED") // QUEUED, PROCESSING, COMPLETED, FAILED
+  url         String?
+  
+  // NLE Data (New Fields)
+  trimIn      Float    @default(0.0)
+  trimOut     Float?
+  audioOffset Float    @default(0.0)
+  
+  // Relations
+  generationId String
+  generation   Generation @relation(fields: [generationId], references: [id])
+}
+```
+
+### Execution Plan for your Developer:
+1.  **Stop Dev Server.**
+2.  Update `schema.prisma` to Postgres.
+3.  Run `npx prisma generate` and `npx prisma db push`.
+4.  Install BullMQ: `npm install bullmq ioredis`.
+5.  Create the `worker.ts` file.
+6.  Update the API route to use the Queue.
+
+
+`dofsimulator.net` is the gold standard for this type of tool because it combines **optical physics formulas** with a **visual rendering engine**. To build a similar system for VibeBoard, you need to replicate three specific interconnected systems.
+
+Here is the technical roadmap for adapting their systems into your simulator.
+
+---
+
+### 1. The Optical Engine (The "Brain")
+This is a pure mathematical module that takes user inputs and outputs raw data. You can port their logic using standard optical physics formulas.
+
+**Inputs Needed:**
+*   **Focal Length ($f$):** (e.g., 50mm)
+*   **Aperture ($N$):** (e.g., f/2.8)
+*   **Focus Distance ($s$):** Distance to the subject (e.g., 3 meters).
+*   **Sensor Size / Crop Factor:** (e.g., Full Frame = 1.0, APS-C = 1.5).
+
+**Calculations to Implement:**
+1.  **Circle of Confusion ($CoC$):** This is the "tolerance" for blur. Standard value is usually **0.029mm** for Full Frame.
+    *   *Formula:* $CoC = 0.029 / \text{CropFactor}$
+2.  **Hyperfocal Distance ($H$):** The distance at which everything from half that distance to infinity is in focus.
+    *   *Formula:* $H = \frac{f^2}{N \cdot CoC} + f$
+3.  **Near Limit ($D_n$) & Far Limit ($D_f$):** The range of acceptable sharpness.
+    *   *Near:* $D_n = \frac{H \cdot s}{H + (s - f)}$
+    *   *Far:* $D_f = \frac{H \cdot s}{H - (s - f)}$ (If $s > H$, Far Limit is Infinity)
+
+**System Output:** This gives you the "Safe Zone" (e.g., "Sharp from 2.8m to 3.2m").
+
+---
+
+### 2. The Visualizer Engine (The "Look")
+This is where `dofsimulator.net` shines. It doesn't just show text; it blurs an image. You can replicate this using **CSS Filters** or **HTML5 Canvas**.
+
+**The "Blur Radius" Formula:**
+To visualize the blur correctly, you need to calculate how blurry an object at distance $d$ appears when the lens is focused at distance $s$.
+
+$$ \text{Blur Diameter (mm)} = \frac{f^2}{N} \cdot \left| \frac{s - d}{s \cdot d} \right| $$
+
+*   If $d = s$ (object is at focus distance), the result is 0 (Sharp).
+*   As $d$ moves away from $s$ (background or foreground), the value increases.
+
+**Implementation Strategy:**
+1.  **Layered Scene (2.5D):** Do not try to blur a single flat image. Build a scene with 3 distinct layers:
+    *   **Layer A (Foreground):** An object at 1m (e.g., a tree branch).
+    *   **Layer B (Subject):** The person/model at 3m.
+    *   **Layer C (Background):** The mountains/city at $\infty$.
+2.  **Dynamic CSS Blur:**
+    *   Calculate the *Blur Diameter* for the Background Distance.
+    *   Map that value to a CSS pixel blur radius (e.g., `filter: blur(15px)`).
+    *   If the user changes $f/2.8$ to $f/11$, re-calculate and update the CSS `blur()` value instantly.
+
+---
+
+### 3. The Field of View (FOV) Calculator
+The simulator adjusts the "zoom" of the background when you change the focal length. This creates the "Lens Compression" effect (where the background looks huge at 200mm but tiny at 24mm).
+
+**How to adapt this:**
+*   **Crop the Background Image:** Don't just zoom in. You need to calculate the **Angle of View (AOV)**.
+    *   *Formula:* $AOV = 2 \cdot \arctan\left(\frac{\text{SensorSize}}{2 \cdot f}\right)$
+*   **Mapping:**
+    *   If Focal Length = 24mm, show 100% of the background image.
+    *   If Focal Length = 85mm, show only the center 30% of the background image (scale it up).
+
+### Summary Checklist for VibeBoard
+To get the `dofsimulator.net` functionality, build these three components:
+1.  [ ] **`calculateDOF(f, N, distance, sensor)`**: A utility function returning Near/Far limits.
+2.  [ ] **`calculateBlurSize(targetDistance, focusDistance)`**: Returns a pixel value for CSS blur.
+3.  [ ] **React Component with 3 Layers**: A Z-stack of images where the `blur` style of each layer is driven by the function above.
+
+To build a **VibeBoard Optical Lab** that rivals `dofsimulator.net` but uses your own AI-generated content, you need to combine **Generative AI** (for layer separation) with **Optical Physics** (for the simulation).
+
+Here is the deep-dive technical roadmap for this module.
+
+### 1. The "De-Composition" Engine (AI Layer)
+The magic of `dofsimulator.net` is that the background moves independently of the subject. To do this with a static AI image, you must explode it into layers.
+
+*   **The Model:** **`fal-ai/qwen-image-layered/lora`** (or similar "Layer Diffusion" models).
+*   **The Workflow:**
+    1.  **Input:** User generated image (The "Master Shot").
+    2.  **Process:** Send to Fal.ai API.
+    3.  **Output:** You receive 3 separate RGBA images:
+        *   `Layer_0_Background.png` (Inpainted behind the subject)
+        *   `Layer_1_Subject.png` (Transparent cutout)
+        *   `Layer_2_Foreground.png` (Optional objects in front)
+*   **Why this is "Pro":** Standard background removers leave a black void behind the subject. `Qwen-Image-Layered` **inpaints** (hallucinates) the missing background pixels behind the subject, allowing you to scale the background down without seeing a hole.
+
+### 2. The Optical Physics Engine (The Math)
+You cannot just use a "Blur Slider." You need to calculate the **Circle of Confusion (CoC)** based on real lens physics.
+
+**The "Blur Radius" Algorithm:**
+This determines how many pixels of blur to apply to the Background Layer based on the user's settings.
+
+$$ \text{Blur (px)} = C \cdot \frac{|S_{focus} - S_{bg}|}{S_{bg}} \cdot \frac{f^2}{N \cdot (S_{focus} - f)} $$
+
+*   $f$: **Focal Length** (e.g., 50mm).
+*   $N$: **Aperture** (e.g., 2.8).
+*   $S_{focus}$: **Focus Distance** (Distance to Subject, e.g., 2000mm).
+*   $S_{bg}$: **Background Distance** (Distance to background, e.g., 10000mm).
+*   $C$: **Sensor Crop Factor** (Full Frame = 1.0, APS-C = 1.5).
+
+### 3. The "Dolly Zoom" & Framing Engine
+This is the feature that simulates **Lens Compression** (the background getting huge when you zoom in).
+
+*   **Mode A: Constant Framing (The "Dolly" Effect)**
+    *   *User Goal:* Keep the subject the same size on screen, but change the lens.
+    *   *Logic:* If user changes Lens from 35mm -> 85mm (2.4x zoom), you must physically move the camera back 2.4x.
+    *   *Visual Result:* The Subject stays the same size (scale 1.0). The Background scales **UP** by 2.4x (Lens Compression).
+*   **Mode B: Constant Distance (The "Crop" Effect)**
+    *   *User Goal:* Stand still and zoom in.
+    *   *Logic:* Lens changes 35mm -> 85mm.
+    *   *Visual Result:* Both Subject AND Background scale UP by 2.4x.
+
+### 4. The Data Lookups (Camera & Framing)
+To make this feel like a pro tool, avoid generic sliders. Use "Cinematographer Standard" presets.
+
+**A. Camera Sensors Database (Crop Factors)**
+| Camera Model | Sensor Size | Crop Factor ($C$) | CoC Limit |
+| :--- | :--- | :--- | :--- |
+| **Arri Alexa 35** | Super 35 | 1.5x | 0.020mm |
+| **Sony FX3** | Full Frame | 1.0x | 0.029mm |
+| **Blackmagic 6K** | Super 35 | 1.5x | 0.019mm |
+| **iPhone 15 Pro** | 1/1.28" | 3.6x | 0.008mm |
+
+**B. Framing "Shot Size" Estimator**
+When a user selects "Medium Shot," you auto-set the distance.
+*   **Close Up (CU):** ~0.5 meters
+*   **Medium Shot (MCU):** ~1.5 meters
+*   **American/Cowboy:** ~2.5 meters
+*   **Full Shot (Wide):** ~4.0 meters
+
+### Implementation Plan (Frontend Component)
+
+Here is a simplified React structure for the **`OpticalSimulator`** component:
+
+```tsx
+// The Simulator Component
+const OpticalSimulator = ({ layers }) => {
+  // State from your "Lens Kit" module
+  const [focalLength, setFocalLength] = useState(50); // mm
+  const [aperture, setAperture] = useState(2.8); // f-stop
+  const [subjectDistance, setSubjectDistance] = useState(2000); // mm
+  
+  // 1. Calculate Blur Strength (The Physics)
+  const bgBlurRadius = calculateBlur(focalLength, aperture, subjectDistance, 10000); // 10m background
+  const fgBlurRadius = calculateBlur(focalLength, aperture, subjectDistance, 500);   // 0.5m foreground
+
+  // 2. Calculate Compression (The Scale)
+  // Base scale relative to a "Standard" 35mm view
+  const compressionFactor = focalLength / 35; 
+
+  return (
+    <div className="relative w-full h-[500px] overflow-hidden bg-black">
+      
+      {/* Layer 0: Background (Blurred & Scaled) */}
+      <img 
+        src={layers.background} 
+        style={{
+          transform: `scale(${compressionFactor})`,
+          filter: `blur(${bgBlurRadius}px)`
+        }}
+        className="absolute inset-0 w-full h-full object-cover z-0 transition-all duration-300"
+      />
+
+      {/* Layer 1: Subject (Sharp & Centered) */}
+      <img 
+        src={layers.subject} 
+        className="absolute inset-0 w-full h-full object-contain z-10 drop-shadow-2xl"
+      />
+
+      {/* Layer 2: Foreground (Blurred) */}
+      <img 
+        src={layers.foreground} 
+        style={{
+          transform: `scale(${compressionFactor * 1.1})`, // Parallax effect
+          filter: `blur(${fgBlurRadius}px)`
+        }}
+        className="absolute inset-0 w-full h-full object-cover z-20 pointer-events-none"
+      />
+      
+    </div>
+  );
+};
+```
+
+### Recommendation for Immediate Action
+1.  **Backend:** Create an endpoint `/api/tools/extract-depth` that calls `fal-ai/qwen-image-layered` and saves the 3 PNGs to your storage.
+2.  **Frontend:** Add a "DOF Lab" button to your **Generate Page** (on the image detail view).
+3.  **UX:** When clicked, it loads the 3 layers into the component above and unlocks the "Lens" sliders to physically manipulate the already-generated image.
+
+This is a fantastic starting point. The mockups clearly define a **Three-Pane Architecture**:
+1.  **Left:** Asset Browser (Generations/References).
+2.  **Center:** The **Optical Canvas** (The interactive simulation).
+3.  **Right:** The **Physics Engine** (Controls).
+
+To bring this to life, we don't just need a UI; we need a real-time math engine running in the browser that translates "f/2.8" into "CSS Blur Pixels."
+
+Here is the full implementation plan and code to build the **Director's Viewfinder**.
+
+---
+
+### Phase 1: The Optical Math Engine (`src/lib/opticalPhysics.ts`)
+
+We need a utility file to handle the heavy math. This replicates the logic of `dofsimulator.net`.
+
+```typescript
+// src/lib/opticalPhysics.ts
+
+// 1. CONSTANTS
+const SENSOR_DIAGONALS = {
+  'FF': 43.27,    // Full Frame
+  'APS-C': 28.21, // Crop
+  'M4/3': 21.60   // Micro 4/3
+};
+
+const COC_LIMITS = {
+  'FF': 0.029,
+  'APS-C': 0.019,
+  'M4/3': 0.015
+};
+
+// 2. THE CORE FORMULA
+// Calculates how blurry an object is based on its distance vs focus plane
+export const calculateBlurRadius = (
+  focalLength: number,  // mm (e.g. 50)
+  aperture: number,     // f-stop (e.g. 2.8)
+  focusDist: number,    // mm (distance to subject)
+  objectDist: number,   // mm (distance to the layer: bg or fg)
+  sensorType: 'FF' | 'APS-C' | 'M4/3' = 'FF'
+): number => {
+  
+  // Prevent divide by zero
+  if (objectDist === 0 || focusDist === 0) return 0;
+  
+  // If the object is exactly at the focus plane, it's sharp.
+  if (Math.abs(objectDist - focusDist) < 10) return 0;
+
+  // Geometric Blur Formula
+  // This calculates the diameter of the blur circle in mm on the sensor
+  const numerator = Math.abs(objectDist - focusDist) * (focalLength * focalLength);
+  const denominator = objectDist * aperture * (focusDist - focalLength);
+  
+  const blurCircleMm = numerator / denominator;
+
+  // 3. CONVERT TO CSS PIXELS
+  // We need an arbitrary scaling factor to make it look "right" on a screen
+  // since we aren't printing to actual 35mm film.
+  const PIXEL_SCALE_FACTOR = 15; 
+  
+  return blurCircleMm * PIXEL_SCALE_FACTOR;
+};
+
+// 3. CALCULATE FIELD OF VIEW (For scaling effect)
+export const calculateFOV = (focalLength: number, sensorType: 'FF' | 'APS-C' = 'FF') => {
+  const sensorDiag = SENSOR_DIAGONALS[sensorType];
+  // FOV = 2 * arctan(sensorDiag / (2 * focalLength))
+  const fovRad = 2 * Math.atan(sensorDiag / (2 * focalLength));
+  return (fovRad * 180) / Math.PI; // Degrees
+};
+```
+
+---
+
+### Phase 2: The Viewfinder Component (`src/components/viewfinder/DirectorsViewfinder.tsx`)
+
+This is the main layout. It manages the state and the **Layered Canvas**.
+
+```tsx
+import React, { useState, useEffect } from 'react';
+import { calculateBlurRadius } from '@/lib/opticalPhysics';
+import { Settings, Maximize2, Camera, Layers } from 'lucide-react';
+
+export const DirectorsViewfinder = () => {
+  // --- STATE: THE PHYSICS VARIABLES ---
+  const [focalLength, setFocalLength] = useState(35); // mm
+  const [aperture, setAperture] = useState(2.8);      // f/
+  const [focusDist, setFocusDist] = useState(3000);   // mm (3 meters)
+  const [sensor, setSensor] = useState<'FF' | 'APS-C'>('FF');
+  
+  // --- STATE: THE SCENE GEOMETRY ---
+  // These would ideally come from the AI Layer Estimation, 
+  // but we allow manual override here.
+  const [fgDist, setFgDist] = useState(1000);   // Foreground is 1m away
+  const [bgDist, setBgDist] = useState(10000);  // Background is 10m away
+
+  // --- DERIVED STATE: BLUR VALUES ---
+  const [fgBlur, setFgBlur] = useState(0);
+  const [bgBlur, setBgBlur] = useState(0);
+  const [scale, setScale] = useState(1);
+
+  // Recalculate physics whenever a slider moves
+  useEffect(() => {
+    // 1. Calculate Blur
+    const newFgBlur = calculateBlurRadius(focalLength, aperture, focusDist, fgDist, sensor);
+    const newBgBlur = calculateBlurRadius(focalLength, aperture, focusDist, bgDist, sensor);
+    
+    setFgBlur(newFgBlur);
+    setBgBlur(newBgBlur);
+
+    // 2. Calculate "Dolly Zoom" Scale Effect
+    // As focal length increases, background feels closer (larger).
+    // We normalize against a standard 35mm lens.
+    const baseFocalLength = 35; 
+    const compression = 1 + ((focalLength - baseFocalLength) / 100);
+    setScale(compression);
+
+  }, [focalLength, aperture, focusDist, fgDist, bgDist, sensor]);
+
+  return (
+    <div className="flex h-screen bg-[#050505] text-white overflow-hidden">
+      
+      {/* LEFT SIDEBAR (Assets) - Simplified for example */}
+      <div className="w-20 border-r border-white/10 bg-[#09090b] flex flex-col items-center py-4">
+        <div className="w-10 h-10 bg-violet-600 rounded-md mb-6" />
+        {/* Thumbnails list would go here */}
+      </div>
+
+      {/* CENTER CANVAS (The Simulator) */}
+      <div className="flex-1 relative flex items-center justify-center bg-[#050505] overflow-hidden">
+        
+        {/* THE OPTICAL STACK */}
+        <div className="relative w-[1200px] h-[800px]">
+          
+          {/* Layer 3: BACKGROUND */}
+          <div 
+            className="absolute inset-0 z-0 transition-all duration-300 ease-out"
+            style={{ 
+              backgroundImage: 'url(/path-to-john-wick-bg-layer.png)', 
+              backgroundSize: 'cover',
+              filter: `blur(${bgBlur}px)`,
+              transform: `scale(${scale})` // Lens compression effect
+            }} 
+          />
+
+          {/* Layer 2: SUBJECT (Always sharp if focused) */}
+          <div 
+            className="absolute inset-0 z-10 flex items-center justify-center transition-all duration-300"
+            style={{ 
+               // Slight scale to simulate "Dolly" effect keeping subject constant size
+               // In a real app, you'd calculate this precisely.
+               backgroundImage: 'url(/path-to-john-wick-subject-layer.png)',
+               backgroundSize: 'contain',
+               backgroundRepeat: 'no-repeat',
+               backgroundPosition: 'center bottom',
+               filter: `blur(${Math.abs(focusDist - 3000) < 500 ? 0 : 2}px)` // Minimal blur if missed focus
+            }}
+          />
+
+          {/* Layer 1: FOREGROUND */}
+          <div 
+            className="absolute inset-0 z-20 pointer-events-none transition-all duration-300"
+            style={{ 
+              backgroundImage: 'url(/path-to-foreground-debris.png)', 
+              backgroundSize: 'cover',
+              filter: `blur(${fgBlur}px)`,
+              transform: `scale(${scale * 1.1})` // Parallax
+            }} 
+          />
+
+          {/* OVERLAYS (The Viewfinder UI) */}
+          <div className="absolute inset-0 z-30 border-2 border-white/20 m-12 rounded-sm pointer-events-none">
+             {/* Framing Crosshairs */}
+             <div className="absolute top-1/3 w-full h-px bg-white/10" />
+             <div className="absolute bottom-1/3 w-full h-px bg-white/10" />
+             <div className="absolute left-1/3 h-full w-px bg-white/10" />
+             <div className="absolute right-1/3 h-full w-px bg-white/10" />
+             
+             {/* Focus Target */}
+             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+                <div className="w-8 h-8 border-2 border-green-500 rounded-full flex items-center justify-center">
+                   <div className="w-1 h-1 bg-green-500 rounded-full" />
+                </div>
+                <span className="text-green-500 font-mono text-xs mt-2 bg-black/50 px-1">
+                   {(focusDist / 1000).toFixed(1)}m
+                </span>
+             </div>
+          </div>
+          
+        </div>
+
+        {/* Bottom Data Bar */}
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur border border-white/10 px-6 py-2 rounded-full flex gap-8 font-mono text-xs">
+           <div><span className="text-cyan-400">f/</span>{aperture}</div>
+           <div><span className="text-green-500">Focus:</span> {(focusDist/1000).toFixed(1)}m</div>
+           <div><span className="text-violet-400">Lens:</span> {focalLength}mm</div>
+           <div><span className="text-zinc-500">DOF:</span> 0.8m</div>
+        </div>
+
+      </div>
+
+      {/* RIGHT SIDEBAR (Controls) */}
+      <div className="w-80 bg-[#09090b] border-l border-white/10 p-6 flex flex-col gap-8 overflow-y-auto">
+        
+        {/* 1. LENS SELECTOR */}
+        <section>
+           <h3 className="text-xs font-bold text-amber-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+             <Camera size={12} /> Lens & Sensor
+           </h3>
+           <div className="grid grid-cols-4 gap-2 mb-4">
+              {[14, 24, 35, 50, 85, 135].map(mm => (
+                <button 
+                  key={mm}
+                  onClick={() => setFocalLength(mm)}
+                  className={`py-1 rounded text-xs font-mono border ${focalLength === mm ? 'bg-amber-500/20 border-amber-500 text-amber-500' : 'bg-white/5 border-transparent hover:bg-white/10'}`}
+                >
+                  {mm}mm
+                </button>
+              ))}
+           </div>
+           <div className="flex bg-white/5 rounded p-1">
+              <button onClick={() => setSensor('FF')} className={`flex-1 text-xs py-1 rounded ${sensor === 'FF' ? 'bg-zinc-700' : ''}`}>Full Frame</button>
+              <button onClick={() => setSensor('APS-C')} className={`flex-1 text-xs py-1 rounded ${sensor === 'APS-C' ? 'bg-zinc-700' : ''}`}>S-35</button>
+           </div>
+        </section>
+
+        {/* 2. APERTURE & FOCUS */}
+        <section className="space-y-6">
+           <h3 className="text-xs font-bold text-cyan-500 uppercase tracking-widest flex items-center gap-2">
+             <Settings size={12} /> Physics
+           </h3>
+           
+           <ControlSlider 
+             label="Aperture" 
+             val={`f/${aperture}`} 
+             min={1.2} max={22} step={0.1} 
+             value={aperture} 
+             onChange={setAperture} 
+             color="text-cyan-400"
+           />
+           
+           <ControlSlider 
+             label="Focus Distance" 
+             val={`${(focusDist/1000).toFixed(1)}m`} 
+             min={500} max={20000} step={100} 
+             value={focusDist} 
+             onChange={setFocusDist} 
+             color="text-green-500"
+           />
+        </section>
+
+        {/* 3. SCENE LAYERS (The "Magic" Trick) */}
+        <section className="space-y-6">
+           <h3 className="text-xs font-bold text-violet-500 uppercase tracking-widest flex items-center gap-2">
+             <Layers size={12} /> Scene Depth
+           </h3>
+           
+           <div className="p-3 bg-white/5 rounded border border-white/5">
+             <p className="text-[10px] text-zinc-500 mb-3">
+               Manually adjust layer depth to simulate 3D space from 2D images.
+             </p>
+             <ControlSlider 
+               label="Foreground Dist" 
+               val={`${(fgDist/1000).toFixed(1)}m`} 
+               min={100} max={3000} step={50} 
+               value={fgDist} 
+               onChange={setFgDist} 
+             />
+             <div className="h-4" />
+             <ControlSlider 
+               label="Background Dist" 
+               val={`${(bgDist/1000).toFixed(1)}m`} 
+               min={3000} max={50000} step={500} 
+               value={bgDist} 
+               onChange={setBgDist} 
+             />
+           </div>
+        </section>
+
+      </div>
+
+    </div>
+  );
+};
+
+// --- HELPER COMPONENT ---
+const ControlSlider = ({ label, val, min, max, step, value, onChange, color = "text-white" }: any) => (
+  <div>
+    <div className="flex justify-between text-xs mb-2 font-mono">
+      <span className="text-zinc-400">{label}</span>
+      <span className={color}>{val}</span>
+    </div>
+    <input 
+      type="range" 
+      min={min} max={max} step={step} 
+      value={value}
+      onChange={(e) => onChange(parseFloat(e.target.value))}
+      className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-white"
+    />
+  </div>
+);
+```
+
+### Phase 3: The Backend "Magic" (`src/api/optical/extract-layers.ts`)
+
+This is the API route that makes the simulation possible. When the user selects an image, you hit this endpoint to get the 3 layers.
+
+```typescript
+// Pseudo-code for Next.js API Route
+import { fal } from '@fal-ai/client';
+
+export async function POST(req: Request) {
+  const { imageUrl } = await req.json();
+
+  // 1. Send to Layer Diffusion Model
+  // This model separates FG/BG and inpaints the holes
+  const result = await fal.subscribe('fal-ai/image-layer-diffusion', {
+    input: {
+      image_url: imageUrl,
+      return_layers: true
+    }
+  });
+
+  // 2. Return the stack
+  return Response.json({
+    background: result.background_url, // Clean plate (no subject)
+    subject: result.subject_url,       // Transparent subject
+    foreground: result.foreground_url  // Transparent foreground debris
+  });
+}
+```
+
+### User Experience Workflow
+1.  **Select:** User clicks a generated image of a car in the rain.
+2.  **Process:** VibeBoard runs the "Extract Layers" API.
+3.  **Simulate:**
+    *   The "Subject" layer is placed at 3m.
+    *   The "Background" layer (rainy street) is placed at 15m.
+    *   The user changes aperture to **f/1.2**.
+    *   **Result:** The street blurs heavily (bokeh), the car stays sharp.
+    *   The user changes lens to **85mm**.
+    *   **Result:** The street "zooms in" (compression), creating that cinematic portrait look.
+
+This is the **VibeBoard Production Pipeline**.
+
+In professional filmmaking, the order of operations is sacred: **Development \> Pre-Production \> Production \> Post-Production.**
+
+If you skip steps (e.g., trying to edit before you have sound), you waste money and time. Here is the optimal path through your software to take a user from "Idea" to "Uploaded Video" with maximum efficiency and quality.
+
+---
+
+### 🟢 PHASE 1: DEVELOPMENT (The Blueprint)
+*Goal: Define WHAT we are making before spending tokens on pixels.*
+
+**Step 1: The Creator Studio (Scripting)**
+*   **Action:** User selects an **Archetype** (e.g., "Tech Reviewer") and types a **Hook**.
+*   **The Tool:** `CreatorStudioInput`
+*   **The Output:** A generated **Script** broken down into beat-by-beat scenes (e.g., "Scene 1: Intro," "Scene 2: Unboxing").
+*   **Why First?** This defines the structure. You can't generate shots if you don't know what the shots are.
+
+**Step 2: The Character & Prop Shop (Casting)**
+*   **Action:** User defines the "Stars" of the video to ensure consistency later.
+    *   **Character Foundry:** Train/Select the host or protagonist.
+    *   **Prop Shop:** Generate or Extract key items (e.g., "The Mystery Box") so they look the same in every shot.
+*   **The Output:** Asset IDs (`@Protagonist`, `#MysteryBox`) ready for injection.
+*   **Why Second?** If you generate Shot 1 without a consistent character, Shot 2 will look like a different person.
+
+---
+
+### 🟡 PHASE 2: PRE-VISUALIZATION (The Physics)
+*Goal: Define the "Look" and "Physics" of the world.*
+
+**Step 3: The Director's Viewfinder (Optics)**
+*   **Action:** User sets the "Global Lens DNA."
+    *   *Choice:* "Anamorphic 35mm" (Cinematic) vs. "Spherical 16mm" (Vlog).
+*   **The Tool:** `DirectorsViewfinder`
+*   **The Output:** Optical metadata (Distortion, bokeh shape, crop factor) applied to all future prompts.
+
+**Step 4: The Virtual Gaffer (Lighting)**
+*   **Action:** User sets the lighting mood.
+    *   *Choice:* "High Key" (YouTuber) vs. "Chiaroscuro" (Film Noir).
+*   **The Tool:** `LightingRig`
+*   **The Output:** Lighting metadata (Key light position, color temperature) applied to prompts.
+
+---
+
+### 🔴 PHASE 3: PRODUCTION (The Shoot)
+*Goal: Generate the raw footage.*
+
+**Step 5: The Shot Navigator (Blocking)**
+*   **Action:** User sees their Script (from Step 1) mapped onto the Node Graph.
+*   **Action:** They drag Assets (from Step 2) onto specific nodes.
+    *   *Node 1:* "Intro" + `@Protagonist` + `Lens: 16mm`
+    *   *Node 2:* "Close up" + `#MysteryBox` + `Lens: 50mm`
+
+**Step 6: The Render Queue (Drafting)**
+*   **Action:** User hits **"Generate Drafts"** (Bronze Tier).
+*   **The Tool:** `RenderQueueService`
+*   **The Output:** Low-res, quick videos (Turbo models) to check movement and composition.
+
+**Step 7: The Dailies Review (Quality Control)**
+*   **Action:** User watches the drafts.
+    *   *Fix:* "The hand looks weird in Shot 3." -> Use **Reshoot/Inpaint Suite**.
+    *   *Approve:* "Shot 1 and 2 are perfect."
+*   **Action:** User hits **"Upgrade to Master"** (Gold Tier).
+*   **The Output:** High-fidelity 4K clips.
+
+---
+
+### 🔵 PHASE 4: POST-PRODUCTION (The Polish)
+*Goal: Assemble the assets into a story.*
+
+**Step 8: The Acoustic Studio (Sound)**
+*   **Action:** The system analyzes the **Lens Data** from Step 3.
+    *   *Shot 1 (16mm):* Generates "Close, dry voiceover."
+    *   *Shot 2 (50mm):* Generates "Foley sounds of box opening."
+*   **The Tool:** `AcousticMappingService`
+*   **The Output:** Synced `.wav` files for every video clip.
+
+**Step 9: The Sequencer (Editing)**
+*   **Action:** User drags Video Masters + Audio files onto the timeline.
+*   **Action:** Performs **L-Cuts** (audio overlaps) and Trimming.
+*   **The Tool:** `NLETimeline`
+*   **The Output:** An Edit Decision List (JSON) ready for baking.
+
+**Step 10: Export & Delivery**
+*   **Action:** User clicks **"Render Project"**.
+*   **The Backend:** Runs FFmpeg (The Bake Pass).
+*   **The Output:** A final `.mp4` file.
+*   **Bonus:** Auto-upload to YouTube via API.
+
+---
+
+### 📋 The Summary Cheat Sheet
+
+| Step | Tool | Input | Output |
+| :--- | :--- | :--- | :--- |
+| **1** | **Creator Studio** | Idea / Archetype | Script / Scene List |
+| **2** | **Prop Shop** | Images / Prompts | Consistent Assets (`@ID`) |
+| **3** | **Viewfinder** | Lens Choice | Optical Metadata |
+| **4** | **Shot Navigator** | Script + Assets | Node Graph Setup |
+| **5** | **Render Queue** | Node Graph | Draft Videos |
+| **6** | **Dailies** | Drafts | Final Master Videos |
+| **7** | **Acoustic Studio** | Masters + Lens Data | Synced Audio |
+| **8** | **Sequencer** | Masters + Audio | Final Edit Timeline |
+| **9** | **Export** | Timeline | Final `.mp4` |
+
+This order ensures that **decisions flow downstream**. The user never has to "guess" the lighting in Step 5, because they already defined it in Step 4. They never have to "fix" the audio reverb in Step 9, because the Lens choice in Step 3 automatically calculated it in Step 8.
+
+Based on the screenshots provided and the logic of a professional filmmaking pipeline, here is the optimal **Order of Operations** for VibeBoard.
+
+We are moving from **Abstract (Idea)** $\to$ **Concrete (Assets)** $\to$ **Production (Generation)** $\to$ **Polishing (Post).**
+
+---
+
+### 🟢 Phase 1: Development
+*Goal: Define the blueprint so the AI knows what to build.*
+
+**1. Story Editor**
+*   **Why here?** You cannot generate a coherent video without a script. This is where you define the characters, the pacing, and the scene breakdown.
+*   **Action:** Write the concept, let the AI break it into scenes, and define the visual style text description.
+*   **Output:** A Scene List / Script.
+
+---
+
+### 🟡 Phase 2: Pre-Production (Asset Construction)
+*Goal: "Cast" your actors and build your props so they look consistent in every shot.*
+
+**2. Model Training (Character Foundry)**
+*   **Why here?** Before you generate a single frame of the movie, you need to teach the AI what your main character looks like. If you skip this, your character will look different in every shot.
+*   **Action:** Upload reference images to the "Character Foundry" to train a LoRA.
+*   **Output:** A trained model (e.g., `@ohwx_alice`).
+
+**3. Elements**
+*   **Why here?** Once your models are trained or you have static reference images (locations, props), you organize them here. This acts as your "Cast & Crew" database.
+*   **Action:** Tag your trained characters, assign voices (like "Alnilam"), and categorize props.
+*   **Output:** Clickable assets ready to be dragged into the generator.
+
+**4. Viewfinder**
+*   **Why here?** You need to establish the "Director's Eye" before shooting. This sets the physics of the camera so the AI doesn't hallucinate random lens angles.
+*   **Action:** Choose your global aspect ratio, lens package (e.g., Anamorphic 35mm), and depth of field preferences.
+*   **Output:** Optical settings that will be applied to the Generation engine.
+
+---
+
+### 🔴 Phase 3: Production (The Shoot)
+*Goal: Turn the script and assets into raw footage.*
+
+**5. Generate (Shot Navigator)**
+*   **Why here?** Now that you have a Script (Step 1), Characters (Step 2), and a Camera Lens (Step 4), you combine them here.
+*   **Action:** 
+    1.  Drag scenes from the Story Editor into the **Shot Navigator**.
+    2.  Link your **Elements** (Characters) to the shots.
+    3.  Run **Draft Renders** (Bronze tier) to check motion.
+    4.  Run **Master Renders** (Gold tier) for final quality.
+*   **Output:** High-quality raw video clips.
+
+---
+
+### 🔵 Phase 4: Post-Production (VFX & Finishing)
+*Goal: Fix errors and assemble the final cut.*
+
+**6. Roto & Paint**
+*   **Why here?** AI generation is rarely perfect. You might have a glitchy hand or a weird object in the background. You fix these *individual clips* before editing them together.
+*   **Action:** Use **Magic Eraser** to remove artifacts, or **Set Extension** to widen the frame.
+*   **Output:** Cleaned-up, VFX-approved video clips.
+
+**7. Timeline**
+*   **Why here?** Now that you have clean clips, you assemble the story.
+*   **Action:** Drag the cleaned clips onto the timeline, sync the audio (voices assigned in **Elements**), and adjust timing.
+*   **Output:** The final movie.
+
+**(Optional Loop): Dailies**
+*   *This happens continuously between Step 5 and 6.* You review the generated shots in **Dailies** to decide if they need to go to **Roto & Paint** or if they need to be re-generated.
+
+---
+
+### Summary Workflow List
+
+1.  **Story Editor** (Write)
+2.  **Model Training** (Cast)
+3.  **Elements** (Organize)
+4.  **Viewfinder** (Setup Camera)
+5.  **Generate** (Shoot)
+6.  **Roto & Paint** (Fix)
+7.  **Timeline** (Edit)
+
+Here is the **"Pro Studio" Naming Convention**.
+
+These names move away from "Tech Demos" (like "Model Training") and towards **Industry Standards** (like "Foundry" and "Sequencer"). This aligns with the dark, heavy aesthetic we established.
+
+### 🟢 Phase 1: Development
+1.  **Script Lab** (was *Story Editor*)
+    *   *Why:* "Editor" implies just text. "Lab" implies experimentation, structure, and the breaking down of concepts into data.
+2.  **Character Foundry** (was *Model Training*)
+    *   *Why:* "Training" sounds like a chore. "Foundry" sounds like you are forging something permanent and valuable. It implies industrial creation.
+3.  **Asset Bin** (was *Elements*)
+    *   *Why:* "Elements" is vague. "Bin" is the standard term editors use for the folder containing all their footage, props, and sound files.
+
+### 🟡 Phase 2: Pre-Production
+4.  **Optics Engine** (was *Viewfinder*)
+    *   *Why:* "Viewfinder" sounds passive (just looking). "Optics Engine" implies you are manipulating the physics of the lens, sensor, and light.
+
+### 🔴 Phase 3: Production
+5.  **Shot Studio** (was *Generate*)
+    *   *Why:* "Generate" is a button action, not a workspace. "Shot Studio" is the place where you block, compose, and execute the shots (Principal Photography).
+
+### 🔵 Phase 4: Post-Production
+6.  **VFX Suite** (was *Roto & Paint*)
+    *   *Why:* "Roto & Paint" is too specific. "VFX Suite" covers everything: Inpainting (fixing), Outpainting (extending), Magic Eraser, and Compositing.
+7.  **Sequencer** (was *Timeline*)
+    *   *Why:* "Timeline" is just a UI component. "Sequencer" is the engine that stitches audio, video, and effects into a final narrative flow.
+
+---
+
+### The Final Sidebar Menu Order
+*This is how it should look in your Left Navigation Rail:*
+
+1.  **Script Lab**
+2.  **Character Foundry**
+3.  **Asset Bin**
+4.  **Optics Engine**
+5.  **Shot Studio**
+6.  **VFX Suite**
+7.  **Sequencer**
+    *(Divider)*
+8.  **Dailies** (Review)
+
+The "Generative Refocusing," "Learn2Refocus," and "DiffCamera" models represent a new wave of **"Post-Capture Optics"**—using diffusion to simulate physical lens effects *after* an image is created.
+
+For **VibeBoard**, integrating these means you can move beyond simple "Blur Filters" (which look fake) to **Physically Accurate Lens Simulation**.
+
+Here is the research breakdown and the **Implementation Roadmap** for your platform.
+
+---
+
+### 🔬 The Models: Research & Capability Audit
+
+#### 1. **Generative Refocusing (GenFocus)**
+*   **Paper:** *Flexible Defocus Control from a Single Image* (arXiv:2512.16923)
+*   **The Tech:** A two-stage pipeline.
+    *   **DeblurNet:** First, it blindly removes *all* blur from an image to create a sharp "All-in-Focus" (AiF) base.
+    *   **BokehNet:** Then, it uses a depth map to re-apply blur, but allows you to inject **Custom Aperture Shapes** (e.g., hearts, stars, or vintage lens blades).
+*   **VibeBoard Use Case:** **Stylized Optics.** Use this for "Vintage Lens Emulation" or fixing accidentally blurry generations.
+*   **Code:** [GitHub Repo](https://github.com/rayray9999/Genfocus) (Python/PyTorch, Weights available).
+
+#### 2. **Learn2Refocus**
+*   **Paper:** *Learning to Refocus with Video Diffusion Models* (SIGGRAPH Asia 2025)
+*   **The Tech:** It treats "Refocusing" as a **Video Generation** task. It takes a single image and generates a **"Focal Stack"** (a video where the focus racks from front to back).
+*   **VibeBoard Use Case:** **Real-Time Scrubbing.** Instead of generating a new image every time the user moves a slider, you generate this 2-second "video" once. Then, as the user drags the "Focus" slider in VibeBoard, you simply scrub the video player to the matching frame.
+*   **Code:** [Project Page](https://learn2refocus.github.io/) (Code & Data released).
+
+#### 3. **DiffCamera**
+*   **Paper:** *Arbitrary Refocusing on Images* (SIGGRAPH Asia 2025)
+*   **The Tech:** Uses a **Diffusion Transformer** trained on synthetic data to allow "Arbitrary Refocusing." You can click *any pixel* (even a blurry background element), and it will hallucinate the details to make it sharp while blurring everything else.
+*   **VibeBoard Use Case:** **The "Fix-it" Tool.** Perfect for when a user loves a composition but the AI focused on the wrong subject.
+*   **Code:** [Project Page](https://chandlerwang14.github.io/DiffCamera-Page/) (Code links to GitHub).
+
+---
+
+### 🚀 Integration Roadmap: How to Build This into VibeBoard
+
+You should not build three separate tools. Instead, combine them into a single **"Optics Engine"** backend service.
+
+#### **Feature A: The "Rack Focus" Slider (Powered by Learn2Refocus)**
+*   **User Action:** User enters "Viewfinder Mode" on a generated image.
+*   **Backend:**
+    1.  Send image to **Learn2Refocus**.
+    2.  Generate a `.mp4` "Focal Stack" (24 frames, Focus Distance 0m $\to$ $\infty$).
+*   **Frontend (UI):**
+    *   The "Focus Distance" slider is actually a **Video Scrubber**.
+    *   Dragging it plays the video, creating a seamless, instant rack focus effect without waiting for new generations.
+
+#### **Feature B: The "Lens Character" Lab (Powered by GenFocus)**
+*   **User Action:** User selects a "Vintage Anamorphic" preset.
+*   **Backend:**
+    1.  Pass image to **DeblurNet** to get a sharp clean plate.
+    2.  Pass sharp plate to **BokehNet**.
+    3.  **Crucial Step:** Inject a custom **Kernel Image** (a black and white shape of an oval aperture) into BokehNet.
+*   **Result:** The image gets "Oval Bokeh" and "Swirly Edges" that mathematically match real anamorphic lenses.
+
+#### **Feature C: "Click-to-Focus" (Powered by DiffCamera)**
+*   **User Action:** User clicks a blurry car in the background of their shot.
+*   **Backend:**
+    1.  Capture the `(x, y)` coordinates of the click.
+    2.  Send image + coordinates to **DiffCamera**.
+    3.  The model "hallucinates" the missing details of the car (since it was blurry) and sharpens it.
+*   **Why this is huge:** Standard sharpening filters just add noise. This actually *re-generates* the lost textures.
+
+---
+
+### 🛠️ Technical Architecture (The "Optics Service")
+
+You need a new microservice in your backend to handle these heavy GPU tasks.
+
+**1. The "Depth Service" (Prerequisite)**
+All these models need depth.
+*   **Model:** **Depth Anything V2** (Fast, high res).
+*   **Pipeline:** Every time an image enters the "Optics Engine," auto-generate and cache its Depth Map.
+
+**2. The JSON Payload Structure**
+When calling your new API, the frontend should send:
+
+```json
+{
+  "job_type": "refocus",
+  "engine": "genfocus", // or 'learn2refocus'
+  "input_image": "s3://path/to/image.png",
+  "parameters": {
+    "focus_point": [0.5, 0.3], // Normalized X,Y click
+    "aperture_shape": "anamorphic_oval", // For GenFocus
+    "blur_strength": 0.8 // f-stop simulation
+  }
+}
+```
+
+### Immediate "Next Step"
+Go to the **GenFocus GitHub**, clone it, and run the `demo.py`.
+It is the most "production-ready" of the three for immediate integration into your **VFX Suite** because it handles both deblurring (fixing mistakes) and bokeh generation (adding style).
+
+Based on a deep analysis of the project pages and the specific visual artifacts they present (like the "Select Frame" slider on Learn2Refocus), here is exactly how to weaponize these research models for **Real-Time Creative Workflows** in VibeBoard.
+
+These technologies allow you to move from "Static Filters" to **"Generative Optics."**
+
+---
+
+### 1. For The Director's Viewfinder: The "Rack Focus" Engine
+**The Model:** **Learn2Refocus**
+**The Insight:** The website demonstrates a slider scrubbing through a video to change focus. This is the key to "Real-Time" interaction.
+
+*   **The Workflow:**
+    *   Instead of asking the user to pick a focus point *before* generating, you run the image through **Learn2Refocus** immediately upon generation.
+    *   **The Output:** It generates a short `.mp4` video (a "Focal Stack") where the focus sweeps from 0m to Infinity.
+*   **The Creative Feature: "The Focus Wheel"**
+    *   In your Viewfinder UI, the "Focus Distance" slider isn't a math parameter; it is a **Video Scrubber**.
+    *   **Real-Time Benefit:** As the director drags the slider, the video scrubs instantly. They see the focus "rack" from the actor's face to the background car in real-time (60fps), exactly like turning a physical lens barrel. No waiting for inference.
+
+### 2. For The Director's Viewfinder: The "Lens Character" Lab
+**The Model:** **GenFocus (Generative Refocusing)**
+**The Insight:** This model separates "Deblurring" from "Reblurring." The "Reblur" step accepts a kernel (a shape). This is your ticket to **Vintage Lens Emulation.**
+
+*   **The Workflow:**
+    *   The user clicks "Anamorphic Mode" or "Vintage Soviet Lens."
+    *   You pass the sharp base image to GenFocus along with a **Custom Aperture Map** (a black & white image of an oval, a heart, or a jagged hexagon).
+*   **The Creative Feature: "Bokeh Sculpting"**
+    *   **Anamorphic Toggle:** Instantly switches background blur from circular to **Vertical Ovals** (the signature Hollywood look).
+    *   **Swirly Bokeh:** Simulate the famous "Petzval" lens swirl by passing a twisted aperture kernel.
+    *   **Real-Time Benefit:** Because the image is already deblurred, applying the blur kernel is computationally cheaper/faster than generating from scratch.
+
+### 3. For The AB Lightbox: The "Sharpness Inspector"
+**The Model:** **DiffCamera / GenFocus (Deblur Module)**
+**The Insight:** Sometimes AI images hide bad details behind blur. A Director needs to know if the face is actually good *before* they commit to a Master Render.
+
+*   **The Workflow:**
+    *   User opens two drafts in the AB Lightbox.
+    *   They hold down a key (e.g., "Spacebar") to trigger **"X-Ray Mode."**
+*   **The Creative Feature: "Magic Peek"**
+    *   The system uses the **DeblurNet** (from GenFocus) to strip away the depth of field temporarily.
+    *   **The Reveal:** It reveals the "hidden" details. The Director can see: *"Oh, the AI actually messed up the eyes, but the blur was hiding it. I shouldn't upgrade this to Master."*
+    *   **Benefit:** Saves money by preventing upgrades on bad shots that looked "okay" because they were blurry.
+
+### 4. For The VFX Suite: "The Hallucination Fix"
+**The Model:** **DiffCamera (Arbitrary Refocusing)**
+**The Insight:** The website explicitly mentions "Hallucinated Details." While they warn about errors (Jewelry -> Temnlry), you can use this as a feature.
+
+*   **The Creative Feature: "Generative Sharpening"**
+    *   **Scenario:** You have a perfect shot, but the AI missed focus on the main character (they are slightly soft). Standard "Sharpen" filters just add noise.
+    *   **The Fix:** Use DiffCamera to selecting the character's face. The model will **Hallucinate** (invent) high-frequency skin texture and eyelash details that weren't there, effectively "reshooting" the image with perfect focus.
+
+### Summary of Implementation
+
+| Feature Name | Underlying Tech | User Experience |
+| :--- | :--- | :--- |
+| **Instant Rack Focus** | **Learn2Refocus** | Drag a slider to physically pull focus from FG to BG instantly (Video Scrub). |
+| **Lens Character** | **GenFocus** | Swap "Glass" types (Anamorphic, Vintage) by injecting aperture shapes. |
+| **X-Ray Mode** | **GenFocus (Deblur)** | Hold a key in Lightbox to remove blur and check asset quality. |
+| **Rescue Focus** | **DiffCamera** | Click a blurry subject to hallucinate crisp details and save the shot. |
+
+Using **Qwen-Image-Edit-2511** specifically for your **Character Foundry** is a strong technical choice because its geometric reasoning and instruction-following capabilities often outperform standard diffusion models for precise tasks.
+
+However, limiting it to just pose generation leaves a lot of value on the table. Because this model excels at **preserving identity while obeying spatial instructions**, you can weave it into several other modules of Vibeboard (like your Storyboard, Prop Shop, and VFX Suite).
+
+Here are four creative workflows to deploy this model beyond just training data:
+
+### 1. The "AI Reshoot" (Director’s Correction)
+**Module:** *Storyboard / Dailies*
+**The Problem:** You generate a perfect shot in your Storyboard, but the director says, *"Make him look at the camera,"* or *"Close his mouth."* Re-rolling the seed usually changes the lighting or background too much.
+**The Qwen-2511 Solution:**
+*   **Workflow:** Instead of generating a new image, you pass the existing generation into Qwen-2511 with a natural language instruction like *"Make the character look directly at the viewer"* or *"Change expression to angry."*
+*   **Why Qwen?** Unlike Flux (which often hallucinates new details when inpainting), Qwen-2511 is trained to edit *only* what is requested while freezing the rest of the pixel data. This allows for "sub-pixel" acting adjustments without breaking continuity.
+
+### 2. The "Cast Assembler" (Multi-Character Compositing)
+**Module:** *Shot Studio / Generator*
+**The Problem:** LoRAs are notoriously bad at handling two specific characters in one scene (concept bleeding). You often get a mix of both characters' features.
+**The Qwen-2511 Solution:**
+*   **Workflow:**
+    1.  Generate Character A in their pose (left side).
+    2.  Generate Character B in their pose (right side).
+    3.  Use Qwen-2511 with a prompt like: *"Put the man from Image A and the woman from Image B into a cyberpunk bar scene together."*
+*   **Why Qwen?** Its **Multi-Image Conditioning** capability allows you to feed it 2-3 reference images. It can "stitch" these distinct identities into a single coherent scene with consistent lighting, solving the multi-LoRA problem without complex ControlNet masking.
+
+### 3. The "Prop Fabrication" Engine
+**Module:** *Asset Bin / Prop Shop*
+**The Problem:** You have a generic prop (e.g., a sword), but you need it to look specific (e.g., "glowing blue laser sword") without changing its perspective or grip.
+**The Qwen-2511 Solution:**
+*   **Workflow:** User uploads a rough block-out or a stock photo of a prop.
+*   **Prompt:** *"Transform this wooden box into a rusty sci-fi ammo crate, maintain geometry."*
+*   **Why Qwen?** It has superior **Geometric Reasoning**. It understands the 3D shape of the object better than Flux, meaning it can "reskin" props in your Asset Bin to match the scene's aesthetic (e.g., turning a modern car into a Mad Max vehicle) without losing the viewing angle.
+
+### 4. Continuity & Localization Fixer
+**Module:** *VFX Suite*
+**The Problem:** AI often generates gibberish text on signs, or you need to change a sign from English to Japanese for a different story location.
+**The Qwen-2511 Solution:**
+*   **Workflow:** Highlight a street sign or screen in the background.
+*   **Prompt:** *"Change the text on the sign to say 'DANGER' in red spray paint."*
+*   **Why Qwen?** It has state-of-the-art **Text Rendering** capabilities inside the edit loop. It can replace text while matching the perspective, lighting, and grime of the original surface, making it perfect for fixing "AI gibberish" or localizing assets.
+
+### Summary: Where it fits in your Pipeline
+| Feature | Old Method | Qwen-2511 Method |
+| :--- | :--- | :--- |
+| **Pose Gen** | Flux + ControlNet | Qwen Instruction ("Turn head left") |
+| **Acting** | Re-roll Seed | "Make character smile" (Edit) |
+| **Group Shots** | Complicated Masking | Multi-Image Input Fusion |
+| **Props** | 3D Modeling | Geometric Reskinning |
+| **Text Fixes** | Photoshop | Instruction-based Inpainting |
+
+This is a massive integration effort that upgrades VibeBoard from a "wrapper" to a deep-tech production suite. To do this correctly, we need to stop treating these as separate models and treat them as two distinct **Microservices**.
+
+1.  **The Optics Engine:** (Learn2Refocus, GenFocus, DiffCamera) - *Handling Physics & Lenses.*
+2.  **The Director Engine:** (Qwen-Image-Edit) - *Handling Semantics & Acting.*
+
+Here is the step-by-step implementation guide.
+
+---
+
+### 🏗️ Infrastructure: The GPU Microservice
+Since these are PyTorch/Diffusion models, they cannot run in your Next.js/Node backend. You need a Python FastAPI service (hosted on Fly.io GPU, Replicate, or distinct AWS EC2 g5 instances).
+
+**Unified API Structure:**
+```python
+# GET /health
+# POST /optics/rack-focus (Learn2Refocus)
+# POST /optics/lens-character (GenFocus)
+# POST /optics/rescue-focus (DiffCamera)
+# POST /director/edit (Qwen)
+```
+
+---
+
+### 📦 MODULE A: The Optics Engine
+**Location:** Integrated into **Director's Viewfinder** and **Dailies**.
+
+#### 1. Implement "Learn2Refocus" (Real-Time Rack Focus)
+*   **Where:** **Director's Viewfinder** > *Focus Tab*.
+*   **The Workflow:**
+    1.  User loads a static generated image into the Viewfinder.
+    2.  **Backend Action:** Automatically trigger `POST /optics/rack-focus`.
+    3.  **Model Action:** Generates a 60-frame `.mp4` video sweeping focus from 0m $\to$ $\infty$.
+    4.  **Frontend Action:** The "Focus Distance" slider is **hijacked**. It no longer calculates math; it becomes a **video scrubber**.
+*   **Code Logic (Frontend):**
+    ```tsx
+    const FocusSlider = ({ videoUrl }) => {
+      const videoRef = useRef(null);
+      const handleScroll = (value) => {
+        // Map 0-100 slider to video duration
+        videoRef.current.currentTime = (value / 100) * videoRef.current.duration;
+      };
+      return <input type="range" onChange={(e) => handleScroll(e.target.value)} />;
+    };
+    ```
+*   **New Creative Use:** **"Breathing Snapshots."** Allow users to export this rack focus video as a "Live Photo" or subtle background asset for websites/menus where the image gently pulses focus.
+
+#### 2. Implement "GenFocus" (Vintage Lens Emulation)
+*   **Where:** **Director's Viewfinder** > *Lens Kit*.
+*   **The Workflow:**
+    1.  User selects "Lens: 1970s Anamorphic" in the UI.
+    2.  **Backend Action:** Call `POST /optics/lens-character`.
+    3.  **Payload:** Pass the image + a **Kernel Mask** (a black image with a white vertical oval).
+    4.  **Model Action:** Deblurs the image to a sharp base, then re-blurs it using the oval shape as the aperture diffraction pattern.
+*   **Frontend UI:** Add a "Bokeh Shape" dropdown in the Inspector: *Circular, Hexagon (Blade), Oval (Anamorphic), Heart (Stylized).*
+*   **New Creative Use:** **"The Dream Sequence."** Use a "Soft Halo" kernel to create glowing, dream-like blurred edges that standard Gaussian blur cannot replicate.
+
+#### 3. Implement "DiffCamera" (The Rescue Tool)
+*   **Where:** **Dailies Review** & **VFX Suite**.
+*   **The Workflow:**
+    1.  Director spots a shot where the AI focused on the background, leaving the actor soft.
+    2.  Director clicks the **"Rescue Focus"** tool (Crosshair icon).
+    3.  Director clicks the Actor's eye.
+    4.  **Backend Action:** Call `POST /optics/rescue-focus` with `{ click_coords: [x,y] }`.
+    5.  **Model Action:** Hallucinates high-frequency details on the actor (skin texture, eyelashes) and blurs the background.
+*   **New Creative Use:** **"Deep Composition Export."** Use DiffCamera to generate an **"All-in-Focus" (AiF)** version of the image where *nothing* is blurry. This is essential for VFX artists who need to cut out assets without fighting motion blur or bokeh.
+
+---
+
+### 📦 MODULE B: The Director Engine
+**Location:** **Character Foundry**, **Story Studio**, and **VFX Suite**.
+
+#### 4. Implement "Qwen-Image-Edit-2511" (The Instruction Editor)
+This model is too powerful to limit to just poses. It is your "Smart Photoshop."
+
+**Use Case A: The Character Foundry (Pose & Variant Gen)**
+*   **Current Problem:** Flux/SD models struggle to keep a character consistent when you ask for "Walking away" vs "Sitting down."
+*   **Implementation:**
+    1.  User uploads their "Golden Record" (Master Character reference).
+    2.  **Action:** User types prompts: "Sitting at a cafe," "Running in rain," "Holding a gun."
+    3.  **Qwen Action:** Uses the Master Image as a strict condition. It keeps the face/clothes 95% identical but aggressively warps the geometry to match the prompt.
+    4.  **Result:** A perfect dataset for LoRA training where the *only* variable changing is the pose.
+
+**Use Case B: The "Wardrobe Dept" (VFX Suite)**
+*   **The Workflow:** You have a perfect shot, but the character is wearing the wrong jacket.
+*   **UI:** User masks the character's body.
+*   **Prompt:** *"Change the leather jacket to a 1950s tuxedo."*
+*   **Why Qwen:** It understands the *volume* of the character. It won't just paste a flat tuxedo PNG; it will wrap the tuxedo around the existing posture and lighting.
+
+**Use Case C: "Set Dressing" (Prop Injection)**
+*   **Where:** **Shot Studio** (Generator).
+*   **The Workflow:**
+    1.  User generates a "Empty Sci-Fi Hallway."
+    2.  User drags a "Robot" from the **Asset Bin** into the scene.
+    3.  **Qwen Action:** *"Place this robot into the hallway, matching the lighting and perspective."*
+*   **Result:** Qwen acts as the compositor, blending the two images based on geometric logic rather than just pixel blending.
+
+**Use Case D: "Localization & Text" (Final Polish)**
+*   **The Problem:** AI generates gibberish text on neon signs.
+*   **The Workflow:**
+    1.  User selects a neon sign in the image using the Magic Wand.
+    2.  **Prompt:** *"Change text to 'VIBEBOARD' in pink neon."*
+    3.  **Qwen Action:** Generates legible text that obeys the glow, tilt, and perspective of the original sign.
+
+---
+
+### 🗓️ The Implementation Checklist
+
+**Phase 1: The Python API (Week 1)**
+*   [ ] Set up a Fly.io/Replicate container with CUDA 12.
+*   [ ] Clone `GenFocus`, `Learn2Refocus`, `DiffCamera` repos.
+*   [ ] Create a unified `server.py` that loads these models into VRAM (manage VRAM swapping if on a single GPU).
+*   [ ] Expose endpoints.
+
+**Phase 2: The Optics Integration (Week 2)**
+*   [ ] Update `DirectorsViewfinder.tsx` to handle video playback for focus (Learn2Refocus).
+*   [ ] Update `LensKit` UI to send kernel masks to GenFocus.
+*   [ ] Create "Rescue Focus" button in Dailies that captures X/Y coordinates.
+
+**Phase 3: The Qwen Integration (Week 3)**
+*   [ ] Update `CharacterFoundry` to use Qwen for dataset generation instead of Flux.
+*   [ ] Add an "AI Edit" tab to `Roto & Paint` that accepts natural language instructions ("Make him smile").
+
+**Phase 4: Optimization (Week 4)**
+*   [ ] Implement caching. If a user racks focus on Image A, cache the video. Don't re-run L2R every time they open the file.
+*   [ ] Add "Preview" vs "High Res" modes. Run models at 512px for UI sliders, only run 4K when exporting.
+
+**NitroGen** (from the MineDojo team) represents a massive pivot in your tech stack. It is **NOT a video generation model** (like Flux or Runway) that creates pixels from noise.
+
+Instead, NitroGen is a **Foundation Agent Model**. It watches video frames and outputs **Gamepad Actions**.
+
+**The VibeBoard Use Case:** **"Machinima Mode" / Virtual Production.**
+Instead of *hallucinating* a video, you use NitroGen to **control a Game Engine** (like Unreal, Unity, or Minecraft) to "film" a scene physically. It turns VibeBoard into a puppeteer for virtual actors.
+
+Here is exactly how to integrate this into VibeBoard as a new "Pro" module.
+
+---
+
+### 1. The Core Concept: "The AI Stuntman"
+Most AI video models struggle with complex, coherent physical actions (e.g., "Parkour across three rooftops without morphing"). Game engines handle this physics perfectly, but controlling them is hard.
+
+*   **The Workflow:**
+    1.  **Engine Link:** VibeBoard connects to a running game instance (e.g., Unreal Engine 5 or a custom glTF viewer).
+    2.  **The Prompt:** Director types *"Run forward, slide under the gate, and look left."*
+    3.  **The Agent:** NitroGen receives the live video feed from the engine, calculates the controller inputs (Stick Forward -> Button B -> Right Stick Left), and executes the move in real-time.
+    4.  **The Capture:** VibeBoard records the screen (OBS-style) to generate the video clip.
+
+### 2. Implementation: The "Virtual Production" Module
+You should add a new tab called **"Stagecraft"** or **"Machinima"** specifically for this agent-based workflow.
+
+#### **A. The "Autopilot Camera" (Drone Operator)**
+Use NitroGen to generate perfect B-Roll inside a virtual environment.
+*   **Use Case:** You have a 3D environment of a "Cyberpunk City" loaded.
+*   **Prompt:** *"Fly through the city streets smoothly, banking left at the tower."*
+*   **Result:** NitroGen controls the virtual camera drone, executing smooth cinematic movements that are hard to do with a mouse and keyboard.
+
+#### **B. The "Synthetic Data" Factory (For Character Foundry)**
+This is a killer feature for your **Character Foundry**. Training a LoRA needs consistent character images from many angles.
+*   **The Problem:** Generating 50 consistent images of a character "swinging a sword" via Flux is inconsistent.
+*   **The NitroGen Fix:**
+    1.  Load the character 3D model into a simple engine.
+    2.  Tell NitroGen: *"Perform sword combo A."*
+    3.  NitroGen executes the animation.
+    4.  **Auto-Capture:** VibeBoard takes a screenshot every 10 frames from different camera angles.
+    5.  **Result:** 100 perfectly consistent, anatomically correct images to train your Flux LoRA.
+
+#### **C. "Scouting" Agents**
+*   **Concept:** "Go find a sunset."
+*   **Workflow:** In an open-world environment (like Minecraft or a procedural UE5 world), you deploy a NitroGen agent with a visual reward function (using CLIP).
+*   **Action:** The agent wanders the world autonomously until it detects a high aesthetic score for "Sunset," then stops and records a 10-second clip.
+
+---
+
+### 🛠️ Technical Implementation Roadmap
+
+You cannot run this in the browser. It requires a local or cloud-hosted **Game Instance**.
+
+**Phase 1: The "Bridge" Service**
+You need a Python service that sits between VibeBoard and the Game Application.
+*   **Input:** Receives screenshots from the Game Window (30fps).
+*   **Process:** Sends frames to the NitroGen Model.
+*   **Output:** Sends virtual keystrokes (`pyautogui` or `gamepad` library) back to the Game Window.
+
+**Phase 2: The "Stagecraft" UI**
+Add this to your VibeBoard sidebar.
+
+```tsx
+// src/components/stagecraft/AgentControl.tsx
+
+export const AgentControl = () => {
+  return (
+    <div className="flex h-full bg-black">
+      
+      {/* LIVE VIEW (Streamed from Engine) */}
+      <div className="flex-1 relative">
+        <video src="rtmp://localhost/game-stream" className="w-full h-full object-cover" />
+        
+        {/* Overlay: The Agent's "Brain" */}
+        <div className="absolute top-4 right-4 bg-black/80 p-4 rounded border border-green-500/30 font-mono text-xs text-green-500">
+           <div>AGENT_STATE: ACTIVE</div>
+           <div>CURRENT_ACTION: [W] + [SPACE]</div>
+           <div>CONFIDENCE: 98%</div>
+        </div>
+      </div>
+
+      {/* CONTROLS */}
+      <div className="w-80 border-l border-white/10 p-4 flex flex-col gap-4">
+         <div className="bg-zinc-900 p-3 rounded">
+            <h3 className="text-xs font-bold text-zinc-500 uppercase mb-2">Director Command</h3>
+            <textarea 
+              className="w-full bg-black border border-zinc-700 rounded p-2 text-sm text-white h-24"
+              placeholder="e.g. Walk to the edge and look down..." 
+            />
+            <button className="w-full mt-2 bg-green-600 hover:bg-green-500 text-black font-bold py-2 rounded">
+               ACTION
+            </button>
+         </div>
+
+         {/* RECORDING BUFFER */}
+         <div className="flex-1 bg-zinc-900 rounded p-3">
+            <h3 className="text-xs font-bold text-zinc-500 uppercase mb-2">Captured Takes</h3>
+            {/* List of recorded MP4s from the engine */}
+         </div>
+      </div>
+    </div>
+  );
+};
+```
+
+### Summary of Value
+*   **NitroGen is NOT** for generating pixels from thin air.
+*   **NitroGen IS** for generating **Movement & Acting** inside a controlled 3D space.
+*   It bridges the gap between **Generative AI** and **Game Engines**, allowing you to create "Perfect Physics" footage that you can then style-transfer using Flux or standard Filters.
+
+**NitroGen is the wrong tool for this specific task**, but your intuition is spot on.
+
+NitroGen learns **Controller Inputs** (Press 'A' to Jump), not **Body Mechanics**. It can watch a *video game* bartender and learn which buttons to press to make him mix a drink. It *cannot* watch a real human bartender and understand how to move a 3D arm to shake a tin.
+
+To achieve the "Craft Bartender" effect—where a character mimics the nuanced, professional movements of a Japanese master (the "Hard Shake," the precise stir)—you need a different class of AI called **Markerless Motion Capture (Video-to-Animation).**
+
+Here is the "Pro" module to build this into VibeBoard.
+
+### The New Feature: "Motion Mimic" (The Mocap Lab)
+**Location:** Inside **Stagecraft** or **Character Foundry**.
+
+This module allows you to "steal" professional movement from any video source and apply it to your 3D characters.
+
+#### 1. The Tech Stack (Not NitroGen)
+You need models that specialize in **HMR (Human Mesh Recovery)** and **Hand Tracking**.
+*   **The Engine:** **DeepMotion** or **Plask** (Best for browser-based integration).
+*   **Why:** Unlike standard mocap, these models specifically track *fingers* and *props*, which is critical for bartending. You need to capture the grip on the bar spoon, not just the arm waving.
+
+#### 2. The Workflow: "The Bartender Protocol"
+Here is how a user would create your "Japanese Craft Bartender" in VibeBoard:
+
+*   **Step A: The Source (Reference)**
+    *   User uploads a YouTube clip: *"Japanese Bartender Hard Shake Technique."*
+    *   **VibeBoard Action:** The backend sends this video to the **Motion Inference API** (e.g., DeepMotion Animate 3D).
+
+*   **Step B: The Extraction (Backend)**
+    *   The AI extracts the skeletal rig (Joints) AND the hand rig (Fingers).
+    *   **Crucial Feature:** **"Foot Locking."** The AI ensures the bartender's feet don't slide around (a common AI glitch), keeping them grounded like a pro.
+
+*   **Step C: The Retargeting (Character Foundry)**
+    *   User selects their "Cyberpunk Bartender" model.
+    *   **Action:** VibeBoard "Retargets" the extracted animation onto the Cyberpunk model.
+    *   **Result:** Your 3D character performs the *exact* physical motion of the real video reference.
+
+#### 3. The "Prop Sync" Problem (The VibeBoard Solution)
+The hardest part of bartending isn't the body; it's the **Liquid and Objects**. Mocap creates a "pantomime" (the character moves their hands, but holds nothing).
+
+**The Creative Feature: "Prop Parenting"**
+*   **The UI:** In the **Stagecraft** module (Game Engine view):
+    1.  The user sees the 3D character performing the "Shake" animation.
+    2.  The user clicks the **Right Hand**.
+    3.  Selects **"Attach Prop"** $\to$ **"Silver Shaker"**.
+*   **The Logic:** VibeBoard snaps the 3D shaker model to the "Hand Bone" of the animation. Now, as the character mimics the video, the shaker follows perfectly.
+
+#### 4. The "Style Transfer" Alternative (Generative Video)
+If you don't need a 3D puppet and just want the *video* result:
+*   **Tool:** **Viggle** or **Dommo AI**.
+*   **Workflow:**
+    1.  Upload image of your Character.
+    2.  Upload video of the Bartender.
+    3.  **Prompt:** *"transfer motion"*
+*   **Result:** It generates a *new video* of your character doing the moves.
+*   **Pros/Cons:** Faster, but less editable. You can't change the camera angle later.
+
+### Summary Recommendation
+For a "Pro" tool like VibeBoard, avoid the generative video route (Viggle) for this specific feature. Go the **3D Mocap** route.
+
+**Build the "Motion Mimic" tab:**
+1.  **Input:** Video URL (Real Bartender).
+2.  **Process:** Extract Animation (via DeepMotion/Plask API).
+3.  **Output:** `.FBX` Animation file saved to your **Asset Bin**.
+4.  **Use:** Drag that `.FBX` onto any character in **Stagecraft** to make them instantly become a Master Bartender.
+
+Yes, you absolutely can create a **"Skill Acquisition Page"** in VibeBoard that searches for a specific master's technique and "learns" it.
+
+However, based on the specific bartender you mentioned, there is an important distinction to make for your search agent to work correctly:
+*   **Yuzo Komai (Bar Centifolia):** Is famous for **"Theatrics & Flair"** (e.g., slicing ice with a katana, smoke, liquid nitrogen, and "gravity-defying" bottle tricks).
+*   **Kazuo Uyeda (Tender Bar):** Is the actual inventor of the **"Hard Shake"** (the specific 3-point mechanical shake to aerate ice).
+
+If your AI searches for "Yuzo Komai Hard Shake," it might get confused because he is a *Flair* master. If you want the *Hard Shake*, you want Uyeda. If you want *Katana Ice Cutting*, you want Komai.
+
+Here is how you would build this **"Master Study" Page** in VibeBoard to handle both styles autonomously.
+
+### 1. The Workflow: "Search, Watch, Learn"
+This requires a new Agentic Workflow in your **Stagecraft** or **Motion Mimic** module.
+
+**Step A: The Search Agent (The "Scout")**
+*   **User Prompt:** *"Find videos of Yuzo Komai's ice cutting technique and Kazuo Uyeda's hard shake."*
+*   **VibeBoard Backend:**
+    1.  Uses a **Search API** (like Google/YouTube Data API) to find high-res videos matching the query.
+    2.  **Filter Logic:** It looks for static camera angles (best for AI extraction) vs. shaky vlogs (bad for AI).
+    3.  **Presentation:** It presents a grid of "Candidate Videos" to the user.
+
+**Step B: The Curation (The "Director's Cut")**
+*   **User Action:** You watch the search results.
+*   **Selection:** You click "Select" on a video of Uyeda doing his 3-point shake.
+*   **Trimming:** You use a simple slider to isolate *just* the 10 seconds of the shaking action.
+
+**Step C: The Extraction (The "Motion Heist")**
+*   **Technology:** **4D Humans** (HMR 2.0) or **DeepMotion**.
+*   **Process:** The AI watches the 10-second clip and extracts two data streams:
+    1.  **Body Rig:** The shoulder/elbow mechanics (The "Hard Shake" rhythm).
+    2.  **Hand Rig:** The finger placement on the shaker (The "Japanese Grip").
+*   **Result:** It saves a `.FBX` animation file named `Animation_HardShake_Uyeda.fbx`.
+
+**Step D: The Retargeting (The "Download")**
+*   **User Action:** You drag this new FBX onto your "Cyberpunk Bartender" character.
+*   **Result:** Your 3D character immediately snaps into the correct posture and performs the move perfectly.
+
+### 2. The UI: "The Dojo" (New Page Concept)
+This should be a sub-page of your **Character Foundry**.
+
+**Page Title:** **Skill Acquisition**
+*   **Input Field:** *"Who do you want to study?"* (e.g., "Yuzo Komai").
+*   **Video Feed:** A grid of YouTube results found by the agent.
+*   **"Learn" Button:** When clicked, it runs the extraction pipeline.
+*   **Skill Library:** A list of "Learned Moves" (e.g., *Komai_Ice_Slice*, *Uyeda_Hard_Shake*, *Pour_Japanese_Precision*).
+
+### 3. Technical Feasibility Check
+*   **Can it learn the "Hard Shake"?** **YES.** The motion is repetitive and mechanical. AI motion capture excels at this.
+*   **Can it learn "Katana Ice Cutting"?** **PARTIALLY.** It can learn the *arm motion* of the swing. However, simulating the *ice actually breaking* physically is a separate physics simulation (Destruction physics) that the AI cannot simply "watch and learn"—it has to be programmed or simulated in Unreal Engine.
+
+### Summary
+To get exactly what you asked for, I would recommend adding a **"Dojo"** tab to your **Character Foundry**.
+1.  **Search** for "Kazuo Uyeda" for the **Hard Shake** (Mechanics).
+2.  **Search** for "Yuzo Komai" for the **Performance/Flair** (Style).
+3.  **Blend** them on your character to create the ultimate "Samurai Bartender."
+
+Here is the comprehensive implementation package for **"The Dojo" (Skill Acquisition)** module.
+
+This guide assumes you are adding this to the existing **Character Foundry** we discussed earlier. It introduces a Python Microservice layer for the heavy Computer Vision tasks (Motion Capture).
+
+### Package Contents
+1.  **`The_Dojo_Spec.md`**: Detailed technical architecture, database schema, and API logic.
+2.  **`The_Dojo_Roadmap.json`**: Actionable task list for your development team.
+
+---
+
+### File 1: `The_Dojo_Spec.md`
+
+```markdown
+# 🥋 Module Spec: The Dojo (Skill Acquisition)
+**Parent Module:** Character Foundry
+**Objective:** Enable "Motion Cloning." Search for video references of human mastery (e.g., "Japanese Hard Shake") and extract high-fidelity 3D animation data to retarget onto VibeBoard characters.
+
+---
+
+## 1. Architecture Overview
+
+### The "Watcher" Pipeline
+1.  **Search Agent (Node.js):** Queries YouTube/Vimeo APIs for reference footage.
+2.  **Curation UI (React):** User selects a video and trims the specific 5-10s action window.
+3.  **Inference Engine (Python/GPU):** 
+    *   **Model:** **WHAM (World-grounded Humans with Accurate Motion)** or **4D Humans** (SOTA for video-to-motion).
+    *   **Hand Tracking:** **SMPLX** extension (Critical for bartending/finger movement).
+4.  **Retargeting (Blender/Three.js):** Maps the extracted skeleton to the user's Character LoRA/3D Proxy.
+
+---
+
+## 2. Database Schema (Prisma)
+
+We need to track "Skills" as a distinct asset type.
+
+```prisma
+// schema.prisma
+
+model Skill {
+  id            String   @id @default(uuid())
+  name          String   // e.g. "Uyeda Hard Shake"
+  description   String?
+  sourceVideoId String   // YouTube ID
+  sourceTimeIn  Float    // Start time in seconds
+  sourceTimeOut Float    // End time in seconds
+  
+  // The Extracted Data
+  animationUrl  String   // Path to .FBX or .GLB file in S3
+  rigType       String   // "SMPL", "SMPLX", "MIXAMO"
+  
+  // Relations
+  projectId     String
+  tags          String[] // ["bartending", "combat", "dance"]
+  createdAt     DateTime @default(now())
+}
+```
+
+---
+
+## 3. The ML Microservice (Python)
+
+Since Node.js cannot run heavy PyTorch models efficiently, create a small FastAPI service.
+
+**Service:** `optics-engine/motion_capture.py`
+**Tech:** Python 3.10, PyTorch, ffmpeg.
+
+```python
+# Pseudo-code for the Motion Extraction Endpoint
+from fastapi import FastAPI, Body
+from wham_api import extract_motion_from_video
+
+app = FastAPI()
+
+@app.post("/extract-skill")
+async def learn_skill(video_url: str, start: float, end: float):
+    # 1. Download & Trim Video
+    clip_path = download_and_trim(video_url, start, end)
+    
+    # 2. Run Inference (The "Watching" Phase)
+    # Output: SMPL-X parameters (Body Pose + Hand Articulation)
+    motion_data = extract_motion_from_video(
+        video_path=clip_path, 
+        model="wham_vit_h", 
+        include_hands=True
+    )
+    
+    # 3. Export to FBX
+    fbx_path = export_to_fbx(motion_data)
+    
+    return {"status": "success", "file_url": fbx_path}
+```
+
+---
+
+## 4. Frontend UI: The Dojo Tab
+
+**Location:** `frontend/src/components/foundry/DojoTab.tsx`
+
+### Layout Structure
+*   **Split Screen Interface:**
+    *   **Left (The Scanner):** YouTube Search Bar + Video Player.
+    *   **Right (The Simulator):** A 3D Canvas (React-Three-Fiber) showing a "Grey Mannequin" performing the move in real-time.
+
+### Workflow Logic
+1.  **Search:** User types "Yuzo Komai Ice Carving."
+2.  **Select:** Grid of videos appears. User clicks one.
+3.  **Trim:** A timeline scrubber appears under the video. User sets `In` (00:45) and `Out` (00:52).
+4.  **Extract:** User clicks **"Learn Move"**.
+    *   *Visual Feedback:* A terminal-style log shows: `[ANALYZING SKELETON]`, `[TRACKING FINGERS]`, `[SOLVING PHYSICS]`.
+5.  **Preview:** The "Grey Mannequin" on the right immediately starts performing the ice carving motion.
+6.  **Save:** User clicks "Save to Asset Bin."
+
+---
+
+## 5. Implementation Steps
+
+### Step A: The Search & Trim UI
+*   Install `react-player` to handle YouTube playback with precise seeking.
+*   Implement a double-ended slider (Range Slider) for the `In/Out` points.
+
+### Step B: The Backend Agent
+*   **Google YouTube Data API:** Use `search.list` to find high-res videos.
+*   **Filter Logic:** Prioritize videos with keywords like "Tutorial," "Technique," or "Performance" (cleaner angles) over "Vlog" or "Review."
+
+### Step C: The Integration
+*   When a `.fbx` is saved, allow the user to drag it onto a **Character Card** in the Foundry.
+*   Trigger a "Retargeting" preview (using `Mixamo` auto-rigger logic or Three.js `SkeletonUtils.retargetClip`).
+
+```
+
+---
+
+### File 2: `The_Dojo_Roadmap.json`
+
+```json
+{
+  "module": "The Dojo (Skill Acquisition)",
+  "parent": "Character Foundry",
+  "version": "1.0",
+  "phases": [
+    {
+      "id": "PHASE_1_DB",
+      "title": "Data Foundation",
+      "tasks": [
+        {
+          "task": "Update Prisma Schema",
+          "details": "Add 'Skill' model with fields for source video timing and resulting FBX url.",
+          "complexity": "Low"
+        },
+        {
+          "task": "Setup Asset Bucket",
+          "details": "Create S3/R2 folder specifically for '.fbx' motion assets.",
+          "complexity": "Low"
+        }
+      ]
+    },
+    {
+      "id": "PHASE_2_ML",
+      "title": "The Motion Inference Engine",
+      "tasks": [
+        {
+          "task": "Deploy Python GPU Worker",
+          "details": "Set up Fly.io/Replicate container with CUDA 12 support.",
+          "complexity": "High"
+        },
+        {
+          "task": "Implement WHAM / HMR 2.0",
+          "details": "Wrap the '4D Humans' library in a FastAPI endpoint. Ensure SMPL-X (Hand tracking) is enabled.",
+          "complexity": "Critical"
+        },
+        {
+          "task": "FBX Converter",
+          "details": "Write a utility to convert raw SMPL pose data into standard .FBX format for compatibility.",
+          "complexity": "Medium"
+        }
+      ]
+    },
+    {
+      "id": "PHASE_3_FRONTEND",
+      "title": "The Dojo UI",
+      "tasks": [
+        {
+          "task": "YouTube Search Component",
+          "details": "Build search bar connecting to YouTube Data API v3. Display results in a grid.",
+          "complexity": "Medium"
+        },
+        {
+          "task": "Video Trimmer",
+          "details": "Implement React Player with range sliders to capture Start/End timestamps.",
+          "complexity": "Medium"
+        },
+        {
+          "task": "3D Previewer",
+          "details": "Implement React-Three-Fiber scene to load and play the resulting .FBX on a dummy mannequin.",
+          "complexity": "High"
+        }
+      ]
+    },
+    {
+      "id": "PHASE_4_INTEGRATION",
+      "title": "Skill Application",
+      "tasks": [
+        {
+          "task": "Drag-and-Drop Retargeting",
+          "details": "Allow users to drag a 'Skill' onto a 'Character' to preview the motion.",
+          "complexity": "High"
+        },
+        {
+          "task": "Prop Parenting Logic",
+          "details": "Create UI to attach a 3D Prop (e.g., Shaker) to the 'RightHandIndex1' bone of the extracted animation.",
+          "complexity": "Critical"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Yes, you absolutely can use the **Dojo** to learn the specific styles of big wave and Pipeline surfers, but because surfing involves a "Vehicle" (the surfboard) and extreme environmental interference (water/spray), you cannot use the standard "motion capture" pipeline.
+
+You need to build a **"Hybrid Tracking"** pipeline. Standard AI mocap will track the human but lose the board. The board is critical to the style (e.g., the "Pig Dog" stance is defined by how the body relates to the board's rail).
+
+Here is the specific architecture to make the **Dojo** work for Pipeline Surfing.
+
+### 1. The Challenge: "The Disconnect"
+If you just run a surfing video through a standard model (like 4D Humans), you will get a 3D character floating in the air doing a squat. The AI ignores the surfboard because it thinks it's part of the background.
+*   **Result:** You lose the "Rail Work" and the specific foot placement that defines the North Shore style.
+
+### 2. The Solution: The "Hybrid Tracker" Pipeline
+You need to chain two different AI models together in the Dojo backend.
+
+**Step A: Track the Body (The Human)**
+*   **Model:** **4D Humans (HMR 2.0)**
+*   **Action:** Extracts the surfer's skeleton (Joints).
+*   **Specific Setting:** Enable **"SMPL-X Hands"**. Pipeline surfers use their hands for drag and balance (dragging the hand in the wave face to stall for the barrel). You must capture this data.
+
+**Step B: Track the Board (The Object)**
+*   **Model:** **SAM 2 (Segment Anything Model 2)**
+*   **Why SAM 2?** It is state-of-the-art for video object segmentation. It can track a specific object (the board) even when it gets partially covered by water spray or foam.
+*   **Action:**
+    1.  User clicks the surfboard *once* in the first frame.
+    2.  SAM 2 tracks the board's pixels for the rest of the clip, generating a 2D mask and centroid.
+
+**Step C: The "Magnetic Lock" (VibeBoard Custom Logic)**
+This is the code you write to glue them together.
+*   **Logic:** Calculate the 3D position of the **Human Feet** (from Step A). Calculate the 2D centroid of the **Board** (from Step B).
+*   **The Bind:** "Parent" a 3D Surfboard Asset to the midpoint between the Human's left and right foot bones. Use the SAM 2 mask orientation to determine the board's "Tilt/Roll."
+
+### 3. Workflow: "Stealing the Style"
+Here is how a user would capture **Jamie O'Brien's** Pipeline style:
+
+1.  **Search:** User types "Jamie O'Brien GoPro Pipeline." (GoPro POV footage or steady cam water angles work best).
+2.  **Filter:** Select a clip where he is *pumping* down the line (generating speed).
+3.  **Extract:** The Dojo runs the Hybrid Pipeline.
+    *   *Result:* You get an animation file: `Style_JOB_Pump.fbx`.
+4.  **Apply:** Drag this onto your character in **Stagecraft**.
+5.  **The Payoff:** Your character doesn't just "stand" on the board; they compress and extend their knees in the exact rhythm of a Pipeline pro, shifting their weight (and the board) to match the physics of the wave.
+
+### 4. Critical Limitation: "The Barrel Problem"
+*   **The Issue:** When a surfer enters the barrel (the tube), they disappear.
+*   **AI Blindness:** If the camera loses sight of the surfer, the AI assumes they vanished. The mocap will snap/glitch.
+*   **The Workaround:** You must train the Dojo on **"Exit" and "Entry"** clips separately.
+    *   Capture the "Drop In" (Entry).
+    *   Capture the "Spit Out" (Exit).
+    *   *Don't* try to capture the moment they are fully hidden inside the tube.
+
+### Summary
+Yes, you can do this. The key is to **not trust one model to do everything.**
+*   Use **4D Humans** for the Surfer.
+*   Use **SAM 2** for the Board.
+*   Use **VibeBoard Logic** to glue them together.
+
+This is a **major architectural unlock** for VibeBoard.
+
+**StoryMem** solves the "Amnesia Problem" in AI video. Currently, if you generate Shot 1 (A man walks into a bar) and Shot 2 (He orders a drink), the AI forgets what the bar looked like and changes the man's shirt.
+
+StoryMem introduces a **"Visual Memory Bank"**—a technical layer that stores keyframes from previous shots and forces the AI to "remember" them when generating the next one. This moves VibeBoard from "Clip Generator" to **"Movie Generator."**
+
+Here is the deep integration plan for **StoryMem** into VibeBoard.
+
+---
+
+### 1. The New Module: "Continuity Engine"
+**Location:** Inside **Shot Studio** or **Sequencer**.
+
+This isn't just a model; it's a state machine. It replaces the standard "Generate" button with a **"Sequential Generate"** workflow.
+
+*   **The UI Component: "The Memory Strip"**
+    *   **Visual:** A horizontal strip at the top of the **Shot Studio**.
+    *   **Function:** As you generate shots, the best frames are "pinned" to this strip.
+    *   **Interaction:** You can drag a frame from Shot 1 into the "Memory Slot" of Shot 10.
+    *   **Effect:** Shot 10 is now mathematically forced to respect the lighting, colors, and character details of Shot 1.
+
+### 2. Technical Implementation (The "M2V" Pipeline)
+StoryMem uses a specific architecture called **Memory-to-Video (M2V)**. You will likely need to implement this using the **Wan2.2** model family (which the paper is based on) or train a custom adapter for Flux.
+
+**The Workflow:**
+1.  **Input:** User Script (from Script Lab).
+2.  **Initialization:** Generate Shot 1 (The "Anchor").
+3.  **Extraction:** The system automatically uses **CLIP** to scan Shot 1 and extract "Semantic Keyframes" (e.g., a clear view of the face, a wide view of the room).
+4.  **Injection:** When generating Shot 2, these keyframes are encoded and injected into the diffusion process via a **3D VAE**.
+5.  **Loop:** Shot 2 is generated -> Keyframes extracted -> Added to Memory Bank -> Generate Shot 3.
+
+### 3. Creative Use Cases for VibeBoard
+
+#### **A. "The Infinite Zoom" (Seamless Transitions)**
+*   **The Concept:** Create a video that never cuts, but constantly evolves.
+*   **The Workflow:** Use the last frame of Shot A as the *hard* condition for the first frame of Shot B.
+*   **VibeBoard Feature:** **"Weld Clips."** Select two generated clips in the Sequencer and click "Weld." The system uses StoryMem to regenerate the *end* of Clip A and the *start* of Clip B to make them visually identical, creating an invisible edit.
+
+#### **B. "Alternate Realities" (Branching Narrative)**
+*   **The Concept:** Interactive storytelling where the plot changes but the world stays the same.
+*   **The Workflow:**
+    1.  Generate "Scene 1: The Hero enters the cave." (Save to Memory Bank).
+    2.  **Branch A:** "He finds gold." (Conditioned on Memory Bank).
+    3.  **Branch B:** "He finds a dragon." (Conditioned on *same* Memory Bank).
+*   **Result:** The cave and the hero look *identical* in both branches, which is currently impossible with standard generation.
+
+#### **C. "Flashback Generator"**
+*   **The Concept:** A character remembering a past event.
+*   **The Workflow:**
+    1.  Take a "Present Day" shot of an old man.
+    2.  Use StoryMem to generate a "Past" shot.
+    3.  **The Twist:** You lower the **"Consistency Weight"** in the Memory Bank settings. The AI keeps the facial structure (identity) but changes the age/context, creating a perfect "younger version" flashback without training a new LoRA.
+
+### 4. Integration Roadmap
+
+**Phase 1: The "Memory" Database**
+*   Update your schema to store not just video URLs, but **"Memory Latents"** (the encoded keyframes).
+*   Create a `MemoryBank` relation for every `Project`.
+
+**Phase 2: The Wan2.2 / StoryMem Adapter**
+*   Deploy the **StoryMem M2V** model (likely on a dedicated GPU node like RunPod/Replicate).
+*   This model is heavy; it needs to hold the "Memory Bank" in VRAM during generation.
+
+**Phase 3: The UI Hook**
+*   In **Shot Studio**, add a toggle: **"Enable Memory."**
+*   When ON, the "Generate" button changes to **"Continue Story"**. It implies dependency on the previous shot.
+
+### Summary
+**StoryMem** turns VibeBoard into a **Long-Form Storyteller**. It is the specific technology needed to allow a user to say "Make a 60-second movie" and actually get a coherent video, rather than 60 seconds of random hallucinations.
+
+**InfCam** is the specific technology you need to solve the "Post-Production Camera" problem.
+
+Currently, if a user generates a video in VibeBoard and says, *"I love the action, but I wish the camera panned left instead of right,"* you have to re-roll the entire seed, which changes the actors and lighting.
+
+**InfCam** (powered by the massive **Wan 2.1** video backbone) allows you to keep the video content but **change the camera movement** mathematically. It uses "Infinite Homography" to warp the latent space, meaning it doesn't need brittle 3D depth maps to understand perspective.
+
+Here is the deep integration plan to add InfCam to VibeBoard.
+
+---
+
+### 1. The New Creative Module: "The Virtual Steadicam"
+**Location:** Inside **VFX Suite** or **Shot Studio**.
+
+This is a **Video-to-Video** workflow where the input is a video, and the control signal is a *Camera Path*.
+
+#### **Creative Use Case A: "The Virtual Reshoot" (Angle Correction)**
+*   **The Scenario:** The Director likes a shot of a car driving, but the camera is static. They want a "Tracking Shot" that follows the car.
+*   **The Workflow:**
+    1.  User selects the generated clip in the Timeline.
+    2.  User clicks **"Reshoot Camera"**.
+    3.  A 3D Viewport opens (The Director's Viewfinder).
+    4.  User draws a new camera path (e.g., "Truck Left").
+    5.  **InfCam Action:** It re-generates the pixels to match the new perspective *without* changing the car's motion.
+
+#### **Creative Use Case B: "The Infinite Dolly" (Set Extension)**
+*   **The Scenario:** You have a 3-second clip of a hallway, but you want to "walk" down it for 10 seconds.
+*   **The Workflow:**
+    1.  User sets a camera path that moves *forward* (Z-axis) indefinitely.
+    2.  **InfCam Action:** It "hallucinates" new hallway geometry as the camera moves forward, keeping the lighting and texture consistent with the first frame. This creates "Infinite Zoom" transitions that are seamless.
+
+#### **Creative Use Case C: "Drone Simulator" (Static-to-Motion)**
+*   **The Scenario:** You have a single Midjourney image of a castle. You want a "Drone Orbit" video.
+*   **The Workflow:**
+    1.  User uploads the static image as Frame 1.
+    2.  User applies a "Spiral Orbit" preset from the Viewfinder.
+    3.  **InfCam Action:** It generates a video where the camera physically flies around the castle, inferring the 3D geometry of the back of the castle automatically.
+
+---
+
+### 2. Technical Architecture (The Heavy Lift)
+
+**Warning:** InfCam relies on **Wan 2.1**, which is a heavy model (14 Billion parameters). You cannot run this on standard serverless GPUs.
+
+**Infrastructure Strategy:**
+*   **The Worker:** You need a dedicated GPU node (H100 or A100 80GB) hosted on RunPod, Replicate, or MassedCompute.
+*   **Optimization:** Use the **1.3B Quantized Model** for "Preview" (Draft) renders and the **14B Model** for "Master" renders.
+
+**The API Payload Structure:**
+To control InfCam, you need to send **Camera Pose Matrices** (4x4 Matrix), not just text.
+
+```json
+{
+  "job_type": "camera_reshoot",
+  "input_video": "s3://...",
+  "camera_trajectory": [
+    // Frame 0 (Identity Matrix)
+    [1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1],
+    // Frame 1 (Moved slightly right)
+    [1, 0, 0, 0.5, 0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1],
+    // ... Frame N
+  ],
+  "fov": 60 // Field of View
+}
+```
+
+---
+
+### 3. Implementation Roadmap
+
+**Phase 1: The "Camera Recorder" (Frontend)**
+You need a way for users to generate that 4x4 Matrix JSON.
+*   **Tool:** Enhance your **Director's Viewfinder** (Stagecraft).
+*   **Feature:** **"Record Move."**
+    *   The user looks through the virtual camera in your 3D viewport.
+    *   They hit "Record" and fly the camera with WASD keys.
+    *   VibeBoard captures the camera position every frame and saves it as a `.json` trajectory file.
+
+**Phase 2: The Backend Integration**
+*   Deploy the **InfCam / Wan 2.1** container.
+*   Create an endpoint `/vfx/reshoot`.
+*   Ensure it accepts both "Single Image + Trajectory" (Drone Shot) and "Video + Trajectory" (Reshoot).
+
+**Phase 3: The "Ghost" Preview**
+*   Since Wan 2.1 takes ~4 minutes to render high-res video, give the user immediate feedback.
+*   **Feature:** **"Wireframe Preview."** Show a simple 3D grid moving according to their camera path instantly so they can confirm the *speed* of the move before committing to the heavy render.
+
+### Summary: Where it Fits
+*   **InfCam** belongs in the **VFX Suite**.
+*   It solves the **"Camera Control"** problem.
+*   It turns VibeBoard from a slot machine ("I hope I get a panning shot") into a tool ("Make this shot pan left").
+
+**FlashPortrait** (December 2025) is a massive breakthrough specifically for **"The Talking Head Problem."**
+
+Most AI video models (like Hedra or V-Express) fail after 5-10 seconds—the face starts to melt, lose identity, or jitter. **FlashPortrait** uses a new architecture ("Adaptive Latent Prediction") to achieve **6x faster generation** and, crucially, **Infinite Length** stability. It keeps the actor looking exactly like the actor for 5 minutes straight.
+
+Here is how to integrate this into VibeBoard as the **"Performance Engine."**
+
+---
+
+### 1. The Core Innovation: "The Long Take"
+Currently, VibeBoard users have to generate 4-second clips and stitch them. FlashPortrait allows for **Long-Form Dialogue Generation**.
+
+**Creative Use Case A: "The Podcast Visualizer"**
+*   **The Scenario:** A user has a 2-minute audio file of a character monologue (generated in Voice & Audio).
+*   **Old Way:** Generate twenty 6-second clips and hope the lips sync.
+*   **FlashPortrait Way:** Upload the 2-minute audio + 1 Reference Image.
+*   **Result:** A continuous, unbroken 2-minute video of that character speaking with perfect lip sync and no identity drift.
+
+**Creative Use Case B: "The Digital Stunt Double" (Video-to-Video)**
+*   **The Scenario:** You film yourself acting out a scene in your living room (bad lighting, wrong face).
+*   **The Workflow:**
+    1.  Upload your webcam video as the **"Driver Video."**
+    2.  Select your "Cyberpunk Alice" character from the **Asset Bin**.
+    3.  **FlashPortrait Action:** It transfers *only* your facial expressions and head movement to Alice, rendering her for as long as your video lasts.
+*   **Why FlashPortrait?** Its "Normalized Facial Expression Block" separates *Identity* from *Motion*, meaning Alice won't accidentally start looking like you halfway through the video.
+
+---
+
+### 2. Integration: The "Performance Lab" Module
+This fits naturally into **Voice & Audio** or a new **"Performance"** tab in the **Character Foundry**.
+
+#### **UI Feature: "Infinite Speech" Toggle**
+*   **Location:** Inside the **Character Foundry** > *Test Lab*.
+*   **Action:** When a user uploads audio longer than 10 seconds, a toggle appears: **"Use FlashPortrait (Infinite Mode)."**
+*   **Visual Feedback:** Instead of a "Progress Bar" (which implies a finite end), show a "Streaming" indicator, as the model is fast enough to almost stream the video generation.
+
+#### **UI Feature: "Expression Tuner"**
+Since FlashPortrait separates expression features, you can add sliders to control the *intensity* of the acting without changing the face.
+*   **Slider:** **"Expressiveness" (0.0 - 2.0)**.
+    *   *0.5:* Deadpan/Stoic delivery.
+    *   *1.5:* Animated, cartoon-like exaggeration.
+
+---
+
+### 3. Technical Architecture (The "Wan Synergy")
+
+**Crucial Tech Detail:** FlashPortrait is built on top of **Wan 2.1** (specifically the `Wan2.1-I2V-14B` backbone).
+*   **Good News:** You already planned to deploy Wan 2.1 for **InfCam** (the camera movement tool).
+*   **Efficiency:** You can **reuse the same GPU worker** for both modules. You just load a different "Adapter" (LoRA/ControlNet) depending on the request.
+
+**The "Unified Wan Worker" Setup:**
+1.  **Base Model:** Load `Wan2.1-I2V-14B` into VRAM (Requires ~40GB VRAM, e.g., A6000 or A100).
+2.  **Request A (Camera Move):** Load `InfCam` weights $\to$ Process.
+3.  **Request B (Talking Head):** Load `FlashPortrait` weights $\to$ Process.
+
+This saves massive server costs compared to hosting two separate 14B parameter models.
+
+---
+
+### 4. Implementation Roadmap
+
+#### **Phase 1: The "Long-Form" API**
+Create a Python service specifically for long-audio inference.
+*   **Input:** `character_image`, `audio_file` (wav/mp3), `driver_video` (optional).
+*   **Logic:** FlashPortrait uses a "Sliding Window" technique to generate infinite length. Your backend needs to chunk the audio, generate the windows, and stitch them (the model handles the stitching consistency internally, but you manage the stream).
+
+#### **Phase 2: The Frontend "Acting" Widget**
+*   **Update `CreatorStudioInput.tsx`:** Add a "Performance" mode.
+*   **UI:** A split view.
+    *   **Left:** "The Actor" (Static Image).
+    *   **Right:** "The Script" (Audio Upload or TTS Text).
+    *   **Bottom:** "Generative Timeline" (Shows the video generating in chunks: 0-5s, 5-10s...).
+
+#### **Phase 3: The "Live" Preview**
+Because FlashPortrait is **6x faster**, you can offer a "Draft" mode.
+*   **Feature:** **"Turbo Rehearsal."**
+*   Generate the video at 512px resolution (extremely fast) so the user can check the lip-sync and head movements.
+*   If they like the "Acting," they hit **"Finalize 4K"** to run the full resolution pass.
+
+### Summary Checklist
+1.  [ ] **Download:** `FlashPortrait` code and `Wan2.1` weights.
+2.  [ ] **Infrastructure:** Merge this with your **InfCam** worker plan (Shared Wan 2.1 backbone).
+3.  [ ] **Frontend:** Add "Performance Mode" to Character Foundry for converting Audio $\to$ Infinite Video.
+
+Based on the release details, **MiniMax M2.1** is **NOT a video generation model** (like their famous "Hailuo" video model). It is a **"Reasoning & Coding" Foundation Model** designed for **Agents**.
+
+While this might seem less "sexy" than a pixel generator, it is actually the **most critical piece of infrastructure** for VibeBoard.
+
+Why? Because you currently have 10+ different AI tools (Flux, FlashPortrait, InfCam, NitroGen). You need a **"Director Agent"** smart enough to know *which* tool to use and *how* to use it. M2.1 excels at **Function Calling** and **Complex Logic**, making it the perfect "Brain" to orchestrate your "Body" (Video Models).
+
+Here is how to deploy **MiniMax M2.1** as the **Operating System** of VibeBoard.
+
+---
+
+### 1. The Core Innovation: "The Shader Coder" (VFX Suite)
+**The Problem:** Most AI video editors rely on preset filters (e.g., "VHS Effect," "Glitch"). If a user wants something specific ("A heatwave distortion that only affects the left side"), they are stuck.
+**The M2.1 Solution:** M2.1 beats Claude 3.5 Sonnet at coding tasks. You can use it to write **Live Code** for visual effects.
+
+*   **The Workflow:**
+    1.  **User Prompt:** *"Give me a Matrix-style rain effect, but make the letters purple and flowing upwards."*
+    2.  **M2.1 Action:** It doesn't "hallucinate" a video; it writes a **GLSL Shader** or **FFmpeg Filter Complex** script in real-time.
+    3.  **VibeBoard Execution:** The frontend applies this code directly to the video canvas via WebGL.
+*   **The Payoff:** Infinite, customizable VFX without you needing to build a library of 1,000 presets.
+
+### 2. The "Director Agent" (Shot Studio)
+**The Problem:** Currently, converting a script into a shot list is "dumb." It usually just chunks text.
+**The M2.1 Solution:** M2.1 has extreme "Interleaved Thinking" (planning capabilities). It can act as a **Technical Director**.
+
+*   **The Workflow:**
+    1.  **Input:** *"Scene: Alice jumps off the roof, lands in a superhero pose, camera pushes in."*
+    2.  **M2.1 Analysis:** It breaks this down into *technical steps* for your other models:
+        *   *Step 1:* Call **NitroGen** to generate the "Jump & Land" physics in Unreal Engine.
+        *   *Step 2:* Call **InfCam** to generate the "Push In" camera move.
+        *   *Step 3:* Call **Flux** to style-transfer the result to look like "Alice."
+*   **The Payoff:** It turns a simple text prompt into a **Multi-Model Pipeline** automatically.
+
+### 3. The "Unreal Scripter" (Stagecraft)
+**The Problem:** NitroGen controls the game *gamepad*, but it can't modify the *environment*.
+**The M2.1 Solution:** Use M2.1 to write **Python/Blueprint scripts** for the game engine on the fly.
+
+*   **User Prompt:** *"I need this scene to happen at sunset with fog rolling in."*
+*   **M2.1 Action:** It writes a Python script for Blender/Unreal:
+    ```python
+    set_sun_angle(45)
+    enable_volumetric_fog(density=0.8)
+    ```
+*   **VibeBoard Action:** Injects this script into the Stagecraft engine via websocket.
+*   **Result:** The virtual set updates instantly to match the director's vision.
+
+---
+
+### 🛠️ Integration Roadmap
+
+#### **Phase 1: The "Code-VFX" Module**
+**Location:** **VFX Suite** > *Custom Code Tab*.
+
+1.  **Backend:** Create an endpoint `/agent/coder`.
+2.  **Prompt Engineering:**
+    > "You are a GLSL Shader expert. Write a fragment shader that achieves the visual effect described by the user. Output ONLY raw code."
+3.  **Frontend:** A "Sandbox" window that renders the shader live over the video.
+
+#### **Phase 2: The "Pipeline Router"**
+**Location:** **Shot Studio** (Hidden Layer).
+
+1.  **Logic:** When the user clicks "Generate," send the prompt to M2.1 first.
+2.  **Decision Tree:**
+    *   *If prompt contains "Talking":* Route to **FlashPortrait**.
+    *   *If prompt contains "Camera Pan":* Route to **InfCam**.
+    *   *If prompt contains "Fighting":* Route to **MiniMax Hailuo** (Video Model).
+3.  **Execution:** M2.1 returns a JSON config that tells your Render Queue *which* API to hit.
+
+#### **Phase 3: The "Localization" Bot**
+**Location:** **Asset Bin**.
+
+1.  **Use Case:** You need to translate a video for 5 regions.
+2.  **M2.1 Action:** It is a multilingual beast. It can analyze the script, translate the dialogue, and even write the **JSON captions** (`.srt` files) with perfect timing for the **Dailies** view.
+
+### Summary: Where it Fits
+*   **MiniMax M2.1** is not for *making* pixels.
+*   **MiniMax M2.1** is for *writing the code* that makes the pixels.
+*   It is the glue that allows a user to control complex 3D engines (Stagecraft) and mathematical shaders (VFX) using plain English.
+
+Yes, this is the concept of **"Self-Healing Infrastructure"** or **"Autonomic Computing."**
+
+Given **MiniMax M2.1's** strong reasoning and coding abilities, you can deploy it as an **"Immune System"** for VibeBoard.
+
+However, there is a **Golden Rule** for production:
+*   **Safe:** AI fixing *data* on the fly (e.g., "This JSON is malformed, let me fix the brackets and retry").
+*   **Risky:** AI rewriting *source code* on the live server (e.g., "I deleted this function because it caused an error"). **Do not do this.**
+
+Here is the architectural roadmap to build a **safe, self-healing system** that monitors and fixes errors in real-time.
+
+---
+
+### 1. The "Runtime Medic" (Backend Data Healer)
+**Location:** Middleware Layer (Node.js/Python).
+**Goal:** Prevent crashes caused by "Bad Inputs" or "API Hallucinations."
+
+**The Scenario:** A user generates a script. The LLM returns a JSON object, but it's missing a closing bracket. Normally, VibeBoard would crash (500 Internal Server Error).
+
+**The M2.1 Solution:**
+1.  **The Interceptor:** Wrap your API routes in a `try/catch` block specifically designed for the Medic.
+2.  **The Diagnosis:** When an error is caught, send the **Error Message** + **The Bad Data** to M2.1.
+3.  **The Prompt:** *"I received this malformed JSON and this error. Rewrite the data to fix the syntax error. Return ONLY the fixed JSON."*
+4.  **The Heal:** M2.1 fixes the JSON. The backend **automatically retries** the request with the fixed data.
+5.  **User Experience:** They never see an error. The loader just spins for 1 extra second.
+
+### 2. The "Frontend Triage" (React Error Boundaries)
+**Location:** Frontend (`src/components/ErrorBoundary.tsx`).
+**Goal:** Stop "White Screen of Death" when a UI component fails.
+
+**The Scenario:** The "Shot Navigator" tries to load a video, but the URL is undefined. The whole app crashes white.
+
+**The M2.1 Solution:**
+1.  **Smart Boundary:** Create a `<MedicBoundary>` component.
+2.  **Analysis:** When a crash happens, capture the **Component Stack Trace**.
+3.  **M2.1 Action:** Send the stack trace to M2.1.
+4.  **The Fallback:**
+    *   **Level 1 (Immediate):** M2.1 identifies the specific component that failed and tells React to unmount *only* that widget, leaving the rest of the dashboard alive.
+    *   **Level 2 (The Fix):** M2.1 analyzes the props. It realizes `videoUrl` was `null`. It instructs the frontend to render a "Placeholder Image" instead of crashing.
+
+### 3. The "Auto-Patch" Bot (DevOps Pipeline)
+**Location:** GitHub / GitLab CI/CD.
+**Goal:** Fix actual code bugs automatically (but with human review).
+
+**The Scenario:** You deployed a bug where the "Export" button calls a function that doesn't exist.
+
+**The M2.1 Solution:**
+1.  **The Listener:** Connect M2.1 to your **Sentry** or **LogRocket** feed.
+2.  **The Investigation:** When a new error spikes, M2.1 reads the stack trace and pulls the relevant file from your GitHub repo.
+3.  **The Fix:** M2.1 writes the code correction.
+4.  **The Action:** It creates a **GitHub Pull Request** named `[Auto-Fix] Undefined Export Function`.
+5.  **Notification:** It Slacks you: *"I found a bug in the Export module and wrote a fix. Click here to merge and deploy."*
+
+---
+
+### 🛠️ Implementation Guide: The "Medic" Middleware
+
+Here is the code for the **Backend Data Healer**. This is the safest and most high-value implementation to start with.
+
+**File:** `backend/src/middleware/medic.ts`
+
+```typescript
+import { MinimaxClient } from './ai/minimax'; // Your M2.1 Wrapper
+
+export const apiMedic = async (fn: Function, args: any[]) => {
+  try {
+    // Attempt the function normally
+    return await fn(...args);
+  } catch (error: any) {
+    console.warn("⚠️ API Crash Detected. Activating Medic...");
+
+    // 1. Diagnose: Is this a fixable data error?
+    if (isFixableError(error)) {
+      
+      // 2. Consult M2.1
+      const fix = await MinimaxClient.reason({
+        system: "You are an API Error Recovery Agent. Fix the malformed data input based on the error trace.",
+        user: `
+          Function: ${fn.name}
+          Error: ${error.message}
+          Bad Input: ${JSON.stringify(args)}
+        `
+      });
+
+      // 3. Retry with "Healed" Data
+      console.log("✅ Medic applied fix. Retrying...");
+      return await fn(...JSON.parse(fix)); 
+    }
+
+    // If not fixable, throw original error
+    throw error;
+  }
+};
+```
+
+### Summary: The "Self-Healing" Rules
+1.  **Runtime:** Let M2.1 fix **Data** (JSON, Strings, params) automatically.
+2.  **DevTime:** Let M2.1 write **Code Patches** via Pull Requests for you to approve.
+3.  **Frontend:** Use M2.1 to isolate crashes so the whole app doesn't die.
+
+This turns VibeBoard into a system that gets *more stable* the more it runs.
+
+Yes, this is a perfect use case for a **"Pre-Flight Check" System** powered by logic and MiniMax M2.1.
+
+In complex production pipelines, "Parameter Mismatches" (like sending an image to a text-only model) are the #1 cause of failed jobs and wasted money.
+
+Here is how to implement a **Smart Interceptor** that catches these errors *before* they leave your server, and uses M2.1 to suggest the fix.
+
+---
+
+### 1. The Architecture: "The Gatekeeper"
+You need a middleware layer that sits between the **UI** and the **External API Calls**.
+
+*   **Role:** It validates the "Intent" (User's Payload) against the "Capabilities" (Model's Rules).
+*   **The M2.1 Twist:** Instead of just saying "Error: Invalid Input," M2.1 analyzes the conflict and **proposes a solution** (e.g., "Switch models" or "Drop the image").
+
+### 2. The Logic Flow
+1.  **User clicks "Generate."**
+2.  **The Interceptor** pauses the request.
+3.  **Check 1 (Hard Rules):** Does the payload structure match the model's schema?
+    *   *Scenario:* User sends `image_url` to `flux-schnell` (which might be text-only in your integration).
+4.  **Check 2 (Soft Rules - M2.1):** Is the prompt optimal for this model?
+    *   *Scenario:* User sends a 500-token prompt to a model that truncates at 77 tokens.
+5.  **Action:**
+    *   **Auto-Fix:** If it's safe (e.g., stripping a null parameter), just do it.
+    *   **User Prompt:** If it changes the result (e.g., dropping a reference image), pop up a "Smart Warning."
+
+---
+
+### 🛠️ Implementation Guide
+
+#### **Step 1: The Capabilities Registry (`src/config/models.ts`)**
+First, define what your models *can* do.
+
+```typescript
+export const MODEL_CAPABILITIES = {
+  'flux-schnell': {
+    type: 'image',
+    inputs: ['text'], // Text Only
+    max_resolution: '1024x1024',
+    supports_lora: false
+  },
+  'flux-dev': {
+    type: 'image',
+    inputs: ['text', 'image', 'mask'], // Supports Ref Image & Inpainting
+    supports_lora: true
+  },
+  'flash-portrait': {
+    type: 'video',
+    inputs: ['image', 'audio'], // Needs Image + Audio
+    supports_text_prompt: false // Cannot use text prompts
+  }
+};
+```
+
+#### **Step 2: The "Gatekeeper" Hook (`src/hooks/useRequestGuard.ts`)**
+This runs on the frontend or backend. It checks the payload against the registry.
+
+```typescript
+import { MODEL_CAPABILITIES } from '@/config/models';
+
+export const validatePayload = (modelId: string, payload: any) => {
+  const rules = MODEL_CAPABILITIES[modelId];
+  const issues = [];
+
+  // 1. Check for Forbidden Inputs
+  if (payload.image_url && !rules.inputs.includes('image')) {
+    issues.push({
+      severity: 'CRITICAL',
+      code: 'INPUT_MISMATCH',
+      message: `The model '${modelId}' does not support Reference Images.`,
+      fix: 'remove_image', // Suggested Action
+      alternative_model: 'flux-dev' // Smart Suggestion
+    });
+  }
+
+  // 2. Check for Missing Requirements
+  if (rules.inputs.includes('audio') && !payload.audio_url) {
+    issues.push({
+      severity: 'CRITICAL',
+      message: `The model '${modelId}' requires an Audio file input.`
+    });
+  }
+
+  return issues;
+};
+```
+
+#### **Step 3: The "Smart Fix" UI (The M2.1 Integration)**
+When an issue is detected, don't just block the user. Offer a path forward.
+
+**Scenario:** User selected `Flux Schnell` (Text-Only) but dragged in a Character Reference.
+
+**Visual UI:**
+> ⚠️ **Configuration Conflict**
+> You provided a **Reference Image**, but **Flux Schnell** is text-only.
+>
+> **AI Suggested Fixes:**
+> 1.  [ **Switch to Flux Dev** ] (Keeps the image, costs $0.02 more)
+> 2.  [ **Remove Image** ] (Proceeds with text only)
+
+**The Code Implementation:**
+
+```tsx
+const handleGenerate = async () => {
+  const issues = validatePayload(selectedModel, currentPayload);
+
+  if (issues.length > 0) {
+    // If it's a complex issue, ask M2.1 for a summary (Optional)
+    // const explanation = await Minimax.explainError(issues);
+    
+    setAlert({
+      title: "Optimization Check",
+      content: issues[0].message,
+      actions: [
+        { 
+          label: `Switch to ${issues[0].alternative_model}`, 
+          onClick: () => setModel(issues[0].alternative_model) 
+        },
+        { 
+          label: "Remove Reference Image", 
+          onClick: () => removeImage() 
+        }
+      ]
+    });
+    return; // Stop the request
+  }
+
+  // Proceed if clean
+  sendToBackend(currentPayload);
+};
+```
+
+### 3. Advanced: The "Cost Guardian"
+M2.1 can also monitor **Intent vs. Cost**.
+
+*   **Scenario:** User types a simple prompt "A red ball" but has selected the **"Ultra-High-Res 8K Upscale"** pipeline ($0.50).
+*   **M2.1 Monitor:** It analyzes the prompt complexity vs. the pipeline cost.
+*   **Notification:** *"You are using a heavy production pipeline for a very simple prompt. Would you like to switch to 'Turbo Mode' ($0.01) to save credits?"*
+
+### Summary
+1.  **Define Capabilities:** Hardcode what each model accepts (Text, Image, Audio).
+2.  **Intercept:** Run a check before the API call.
+3.  **Offer Solutions:** Don't just error out. Use the logic to offer a "One-Click Fix" (Switch Model or Sanitize Payload).
+
+**ReCo (Region-Controlled Text-to-Image Generation)** allows you to fix the biggest problem in current AI generation: **Composition Roulette**.
+
+Right now, if you prompt *"A cyberpunk woman on the left and a robot on the right,"* you are gambling. The AI might merge them, swap them, or put them in the center.
+
+**ReCo** introduces **Spatial Positional Tokens**. It allows you to draw bounding boxes and say, *"This box is the Woman. This box is the Robot. This box is the Neon Sign."* The AI then generates the image respecting those exact boundaries.
+
+This moves VibeBoard from "Prompt & Pray" to **"Blocking & Directing."**
+
+Here is the deep integration plan.
+
+---
+
+### 1. The Core Innovation: "The Blocking Canvas" (Shot Studio)
+**The Problem:** Directors don't describe shots in text ("A man on the left..."); they describe them in **Space** ("Block the scene").
+**The ReCo Solution:** Replace the text-only input with a **Interactive Canvas**.
+
+*   **The Workflow:**
+    1.  **User Action:** Enters **Shot Studio**.
+    2.  **Tool:** Selects the **"Blocking Tool"** (Box Icon).
+    3.  **Action:** Draws a box on the left 1/3 of the frame. Assigns prompt: *"Cyberpunk Detective."*
+    4.  **Action:** Draws a box in the background. Assigns prompt: *"Neon Noodle Shop."*
+    5.  **Generation:** ReCo forces the detective to exist *only* in that left box and the shop *only* in the background box.
+*   **Why ReCo?** Unlike standard ControlNet (which requires an existing image), ReCo works from *scratch* (Box-to-Image), allowing pure imagination layout.
+
+### 2. The "Relation Enforcer" (Asset Bin)
+**The Problem:** "Bleeding." When you try to put two specific characters (LoRAs) in one shot, they often blend into a single hybrid person.
+**The ReCo Solution:** **Identity Isolation.**
+
+*   **The Workflow:**
+    1.  User drags **Character A** (`@Alice`) from the Asset Bin onto the left side of the frame.
+    2.  User drags **Character B** (`@Bob`) onto the right side.
+    3.  **VibeBoard Logic:** The backend automatically draws invisible ReCo bounding boxes around their coordinates.
+    4.  **Execution:** The diffusion process for `@Alice` is mathematically confined to Box A, and `@Bob` to Box B. They never touch or blend.
+
+### 3. The "Perspective Forcer" (Director's Viewfinder)
+**The Problem:** Getting extreme perspective (e.g., a giant hand reaching towards the camera) is hard with just prompts.
+**The ReCo Solution:** **Spatial Scaling.**
+
+*   **The Feature:** **"Forced Perspective Mode."**
+*   **Action:** User draws a tiny box in the center (The Hero) and a massive box covering the edges (The Monster's Claws).
+*   **Result:** The AI understands that the "Claws" must be huge and in the foreground because of the bounding box size, creating instant depth without a depth map.
+
+---
+
+### 🛠️ Integration Roadmap
+
+#### **Phase 1: The "Blocking" UI (Frontend)**
+**Location:** **Shot Studio** (Canvas Overlay).
+
+You need a drawing layer over your image preview.
+*   **Tech:** **Fabric.js** or **React-Konva**.
+*   **Interaction:** Click-and-drag to create rectangles.
+*   **Data Structure:**
+    ```typescript
+    interface Region {
+      id: string;
+      box: [x, y, w, h]; // Normalized 0-1
+      prompt: "A red sports car";
+      lora?: string; // Optional character binding
+    }
+    ```
+
+#### **Phase 2: The Backend "Regional Prompter"**
+**Location:** **Optics Engine** (Python Microservice).
+
+ReCo is conceptually similar to **GLIGEN** or **MultiDiffusion**. You don't need to retrain a massive model; you can use **Attention Masking Adapters**.
+
+*   **Implementation Strategy:** Use the **Omost** or **GLIGEN** adapter for Flux/SDXL.
+    *   *Note:* The specific "ReCo" paper uses custom tokens, but for a production app, **GLIGEN** (Grounded-Language-to-Image Generation) is the industry-standard implementation of this exact concept that works with existing models.
+*   **API Payload:**
+    ```json
+    {
+      "base_prompt": "A cinematic street scene",
+      "regions": [
+        {"bbox": [0, 0, 0.5, 1], "prompt": "Cyberpunk Detective"},
+        {"bbox": [0.6, 0.2, 0.9, 0.5], "prompt": "Flying Drone"}
+      ]
+    }
+    ```
+
+#### **Phase 3: The "Preset" Library (Storyboard)**
+Directors use standard framings. Automate them.
+*   **Feature:** **"Framing Templates."**
+*   **Presets:**
+    *   *Over the Shoulder:* Auto-draws a large blurry box in the FG (Shoulder) and a medium box in the BG (Face).
+    *   *Wide Two-Shot:* Auto-draws two equal boxes side-by-side.
+    *   *Low Angle Hero:* Auto-draws a central vertical box that tapers up.
+
+### Summary: Where it Fits
+*   **ReCo (or GLIGEN)** belongs in **Shot Studio**.
+*   It solves **"Composition Control"** and **"Multi-Character Scenes."**
+*   It turns the "Prompt Bar" into a "Drawing Board," bridging the gap between a Writer (Text) and a Director (Visuals).
+
+**MVInverse** is the specific technology you need to solve the **"Baked Lighting Problem"** in AI 3D assets.
+
+Currently, if you generate a 3D prop (like a "Golden Chalice") using standard AI (TripoSR/LGM), the lighting is "baked in." If the chalice has a shiny reflection on the left, that reflection stays there even if you move the light to the right. It looks fake in a moving scene.
+
+**MVInverse** separates the **Material** (Albedo, Roughness, Metallic) from the **Lighting**. This means you can create a prop that is *truly* physically based (PBR). If you put it in a dark cave in VibeBoard, it gets dark. If you shine a virtual flashlight on it, it sparkles dynamically.
+
+Here is the deep integration plan for **The Prop Shop**.
+
+### 1. The Core Innovation: "The Relightable Asset Pipeline"
+**Location:** **Asset Bin** > *Prop Shop*.
+
+This is a **Multi-Stage** pipeline. MVInverse doesn't generate the 3D shape from scratch; it "upgrades" a multi-view sequence into PBR textures.
+
+*   **The Workflow:**
+    1.  **Input:** User generates/uploads a single image of a prop (e.g., "Rusty Sci-Fi Helmet").
+    2.  **Stage 1 (View Gen):** Use **SV3D** or **LGM** to generate an orbital video (360 view) of the helmet.
+    3.  **Stage 2 (MVInverse):** Pass these frames into MVInverse.
+    4.  **Output:** It extracts 4 texture maps:
+        *   **Albedo:** The color without shadows (Flat).
+        *   **Normal:** The surface bumps.
+        *   **Roughness:** How shiny/matte it is.
+        *   **Metallic:** Which parts are metal vs plastic.
+    5.  **Result:** A `.glb` asset that reacts perfectly to your **Virtual Gaffer** lighting rig.
+
+### 2. Creative Use Cases
+
+#### **A. "The Chameleon Prop" (Dynamic Texturing)**
+*   **The Scenario:** You need a "Getaway Car" that works in a rainy night scene AND a sunny desert scene.
+*   **The Workflow:**
+    *   Generate the car once.
+    *   MVInverse extracts the **Roughness Map**.
+    *   **VibeBoard Logic:** You add a "Wetness" slider in the UI. This simply darkens the Albedo and lowers the value of the MVInverse Roughness map.
+    *   **Result:** The car goes from "Dusty Matte" to "Slick Wet" instantly, reacting to the HDR environment map of your scene.
+
+#### **B. "The Virtual Gaffer Test"**
+*   **The Scenario:** A Director wants to know if a specific costume material will look good under neon lights.
+*   **The Workflow:**
+    1.  Upload a swatch or photo of the costume.
+    2.  Run MVInverse to extract the **Metallic/Roughness** maps.
+    3.  Place it in the **Optics Engine** (Viewfinder).
+    4.  Swing a virtual pink neon light across it.
+    5.  **Result:** You see accurate specular highlights. If it's too shiny, you adjust the Roughness map directly in VibeBoard without re-generating the image.
+
+#### **C. "Consistent Character Skin"**
+*   **The Problem:** AI characters often look like "plastic dolls" because their skin doesn't scatter light correctly.
+*   **The MVInverse Fix:**
+    *   Extract the PBR maps for your character's face.
+    *   Use the **Normal Map** generated by MVInverse to drive "Subsurface Scattering" (SSS) in your renderer.
+    *   **Result:** The skin glows red when backlit (ears/fingers), creating photorealistic human presence.
+
+---
+
+### 🛠️ Integration Roadmap
+
+#### **Phase 1: The "Inverse" Microservice**
+**Location:** Python GPU Worker (Fly.io / Replicate).
+
+You need a chained service. MVInverse requires *camera poses*, so you need a generator that provides them (like SV3D).
+
+**Service Logic (`inverse_render.py`):**
+1.  **Input:** Single Image (URL).
+2.  **Step A (SV3D):** Generate 24 orbital frames + Camera Poses.
+3.  **Step B (MVInverse):**
+    *   Load frames + poses.
+    *   Run Inference.
+    *   **Output:** 4 folders of images (Albedo, Normals, Roughness, Metallic).
+4.  **Step C (Meshing):** Use a standard mesher (like NeRF-to-Mesh) to wrap these textures onto geometry.
+
+#### **Phase 2: The "Material Inspector" UI**
+**Location:** **Asset Bin**.
+
+When a user clicks a Prop, don't just show the image. Show the **Maps**.
+
+*   **UI Components:**
+    *   **Main View:** The 3D Object (lit by default).
+    *   **Map Toggles:** Buttons to view "Albedo Only," "Normals Only," etc.
+    *   **Material Sliders:**
+        *   *Roughness Offset:* Make it shinier/duller.
+        *   *Metallic Boost:* Make it look more like chrome.
+
+#### **Phase 3: The "Relighting" Hook**
+**Location:** **Shot Studio** (Generator).
+
+*   **Logic:** When generating a scene with a Prop from the bin, VibeBoard passes the **PBR Maps** to the video generation model (using ControlNet or T2I-Adapter).
+*   **Effect:** It forces the video generator to respect the specific "shininess" of the prop, ensuring that a gold coin *glints* exactly when the light hits it.
+
+### Summary Checklist
+1.  [ ] **Infrastructure:** Deploy **SV3D** (for view gen) and **MVInverse** (for material extraction) on the same GPU node to save transfer time.
+2.  [ ] **Frontend:** Build the "Material Inspector" in the Asset Bin.
+3.  [ ] **Feature:** Enable "Relightable" badge on assets processed this way.
+
+This upgrades your assets from "Flat Stickers" to "Physical Objects."
+
+---
+
+### File 1: `MVInverse_Implementation.md`
+
+```markdown
+# 🧊 Module Spec: The Relightable Asset Pipeline (MVInverse)
+**Parent Module:** Asset Bin / Prop Shop
+**Objective:** Upgrade AI-generated 3D assets from "baked lighting" (static) to "PBR Materials" (dynamic), allowing props to react realistically to lighting changes in the VibeBoard scene.
+
+---
+
+## 1. Architecture Overview
+
+### The "PBR Extraction" Pipeline
+This is a sequential GPU pipeline. It does not run on the user's browser.
+
+1.  **View Generator (SV3D / Zero123++):**
+    *   Takes Single Image.
+    *   Generates ~24 consistent orbital views.
+    *   **Crucial:** Must output *Camera Poses* (Azimuth/Elevation for each frame).
+2.  **Inverse Renderer (MVInverse):**
+    *   Takes the 24 images + Poses.
+    *   Decomposes them into Texture Maps (Albedo, Roughness, Metallic, Normal).
+3.  **Asset Packer (Blender Script / Trimesh):**
+    *   Takes the Maps + a base mesh (from TripoSR or similar).
+    *   Bakes them into a standard `.glb` file.
+
+---
+
+## 2. API Schema (Microservice)
+
+**Endpoint:** `POST /assets/make-relightable`
+
+**Request Payload:**
+```json
+{
+  "image_url": "https://s3.../rusty_helmet.png",
+  "resolution": 512,
+  "texture_quality": "high"
+}
+```
+
+**Response Payload:**
+```json
+{
+  "status": "success",
+  "preview_video": "https://.../spin_preview.mp4",
+  "assets": {
+    "glb": "https://.../helmet_pbr.glb",
+    "maps": {
+      "albedo": "https://.../albedo_atlas.png",
+      "roughness": "https://.../roughness_atlas.png",
+      "metallic": "https://.../metallic_atlas.png",
+      "normal": "https://.../normal_atlas.png"
+    }
+  }
+}
+```
+
+---
+
+## 3. Frontend UI: The Material Inspector
+
+**Location:** `frontend/src/components/assets/MaterialInspector.tsx`
+
+### Visual Layout
+*   **Center:** interactive `<ModelViewer>` (Three.js/R3F).
+    *   *Default:* Shows the PBR render.
+    *   *Debug Mode:* Allows viewing individual texture channels.
+*   **Right Panel (Material Tweaks):**
+    *   **Sliders:** Modifiers that offset the generated maps.
+        *   `Roughness`: -1.0 to 1.0
+        *   `Metallic`: 0.0 to 1.0
+    *   **Lighting Preview:** A "Light Orb" the user can drag around the object to test reflections.
+
+---
+
+## 4. Implementation Steps
+
+### Step A: The Multi-View Generator
+*   MVInverse needs input images.
+*   Deploy **SV3D (Stable Video 3D)**. It is currently SOTA for consistent orbital views.
+*   Ensure it outputs the `elevation` and `azimuth` arrays alongside the images.
+
+### Step B: The MVInverse Worker
+*   Clone the `Maddog241/mvinverse` repo.
+*   Create a wrapper script `inference_pipeline.py`.
+*   **Logic:**
+    1.  Receive `images` + `poses` from Step A.
+    2.  Run MVInverse inference.
+    3.  Save the resulting `albedo`, `metallic`, `roughness`, `normal` frames.
+
+### Step C: The Texture Baker (Optional but Recommended)
+*   MVInverse outputs *screenspace maps* (frames).
+*   To get a usable 3D asset, you need to project these back onto a mesh (UV Unwrapping).
+*   **Tool:** Use a **NeRF-to-Mesh** tool (like `instant-nsr-pl`) or a simple projection mapping script in Blender python if using a pre-generated mesh from TripoSR.
+
+```
+
+---
+
+### File 2: `MVInverse_Roadmap.json`
+
+```json
+{
+  "module": "Relightable Asset Pipeline",
+  "version": "1.0",
+  "phases": [
+    {
+      "id": "PHASE_1_INFRA",
+      "title": "GPU Microservice Setup",
+      "tasks": [
+        {
+          "task": "Deploy SV3D / Zero123++",
+          "details": "Set up a container to generate multi-view images from a single input. Must return camera pose metadata.",
+          "complexity": "High"
+        },
+        {
+          "task": "Deploy MVInverse",
+          "details": "Set up the MVInverse environment (PyTorch). Create a script to ingest the SV3D output format.",
+          "complexity": "High"
+        }
+      ]
+    },
+    {
+      "id": "PHASE_2_BACKEND",
+      "title": "Asset Processing Logic",
+      "tasks": [
+        {
+          "task": "Build Pipeline Script",
+          "details": "Create a Python orchestrator: Image -> SV3D -> MVInverse -> Map Storage.",
+          "complexity": "Medium"
+        },
+        {
+          "task": "Asset Storage Schema",
+          "details": "Update DB to store URLs for individual texture maps (Albedo, Roughness, etc.) linked to the main Asset ID.",
+          "complexity": "Low"
+        }
+      ]
+    },
+    {
+      "id": "PHASE_3_FRONTEND",
+      "title": "Material UI",
+      "tasks": [
+        {
+          "task": "Material Inspector Component",
+          "details": "Build a React-Three-Fiber viewer that loads a GLB and applies custom textures from the DB URLs.",
+          "complexity": "Medium"
+        },
+        {
+          "task": "Lighting Tester",
+          "details": "Add a movable point light in the 3D viewer to validate PBR properties (shininess/shadows).",
+          "complexity": "Medium"
+        }
+      ]
+    },
+    {
+      "id": "PHASE_4_INTEGRATION",
+      "title": "Scene Integration",
+      "tasks": [
+        {
+          "task": "Virtual Gaffer Hook",
+          "details": "Ensure that when this asset is placed in a Scene, it inherits the scene's HDRI/Lighting environment.",
+          "complexity": "High"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Spatia** represents the "Holy Grail" of AI filmmaking: **Spatial Consistency.**
+
+Unlike standard video models (Sora, Wan, Luma) that "dream" a new room every time you generate a clip, Spatia builds a **3D Point Cloud Memory** of the scene. It literally "remembers" that there is a chair in the corner. If you pan the camera away and pan back, the chair is *still there*, exactly as it was.
+
+This allows you to turn VibeBoard into a **Virtual Set Simulator**. You aren't just generating videos; you are building "Locations" that you can film in repeatedly from different angles.
+
+Here is the deep integration plan for Spatia.
+
+---
+
+### 1. The Core Innovation: "The Location Scout" (Asset Bin)
+**Location:** **Asset Bin** > *Locations Tab*.
+
+Currently, users save "Reference Images" of locations. Spatia upgrades these to **"Navigable Sets."**
+
+*   **The Workflow:**
+    1.  **Input:** User uploads a single Midjourney image of a "Cyberpunk Alleyway."
+    2.  **Spatia Action:** It analyzes the image and hallucinates the 3D geometry (Point Cloud) behind the perspective.
+    3.  **The "Scout" Mode:** The user can now "walk" (camera move) through this alleyway.
+    4.  **Output:** You generate 5 different shots (Wide, Medium, Close-Up, Reverse Angle) that all clearly take place in the *exact same physical alley*.
+
+### 2. The "Continuity Camera" (Shot Studio)
+**Location:** **Shot Studio** > *Camera Tools*.
+
+**The Problem:** You generate a shot of a man walking down the street. You want a second shot of him further down the street. Standard AI changes the street buildings.
+**The Spatia Solution:** **Dynamic-Static Disentanglement.**
+
+*   **The Workflow:**
+    1.  **Shot 1:** Generate the establishing shot.
+    2.  **VibeBoard Logic:** Spatia stores the "Static Scene" (Buildings) in its Memory Bank but discards the "Dynamic Entity" (The Man).
+    3.  **Shot 2:** You request "The Man stops at the corner."
+    4.  **Execution:** Spatia re-renders the *same* buildings from the new camera angle but generates a *new* animation for the man.
+    5.  **Result:** Perfect background continuity with new character acting.
+
+### 3. "The Set Dresser" (VFX Suite)
+**Location:** **VFX Suite** > *3D Edit*.
+
+Because Spatia sees the world as 3D points, you can edit the video by editing the **Geometry**, not the pixels.
+
+*   **Scenario:** There is a trash can in the shot that blocks the actor.
+*   **Old Way:** Inpaint frame-by-frame (impossible consistency).
+*   **Spatia Way:**
+    1.  Switch to **"Point Cloud View"** (a sparse 3D view of the scene).
+    2.  Select the cluster of points representing the trash can.
+    3.  Hit **Delete**.
+    4.  **Regenerate:** Spatia re-renders the video. The trash can is gone, and the background behind it is perfectly inpainted because the 3D memory "healed" itself.
+
+---
+
+### 🛠️ Technical Architecture
+
+**Spatia** is computationally heavy. It combines a **Diffusion Transformer** with a **Visual SLAM** (Simultaneous Localization and Mapping) system.
+
+#### **Phase 1: The "Memory" Microservice**
+You need a persistent GPU worker that keeps the "Scene Memory" alive during a user's session.
+
+*   **Infrastructure:** A dedicated A100 (80GB) node. You cannot use serverless "cold boot" functions easily here because loading the 3D point cloud takes time.
+*   **State Management:**
+    *   **Session Start:** User loads "Location A."
+    *   **Worker:** Loads the `point_cloud.ply` into VRAM.
+    *   **Interaction:** User generates clips. The Worker updates the `.ply` file via SLAM.
+    *   **Session End:** Save the `.ply` file to S3 (this is the "Save Game" file for that location).
+
+#### **Phase 2: The "Camera Path" Interface**
+Spatia is controlled by **Camera Trajectories** (Matrix 4x4), not just text.
+
+*   **Integration:** Connect this to your **Director's Viewfinder**.
+    *   When the user moves the virtual camera in React-Three-Fiber, you record the `[x, y, z, rot]` path.
+    *   **Payload:** Send this path + the "Location ID" to Spatia.
+    *   **Response:** Spatia renders the video matching that exact movement.
+
+#### **Phase 3: The "Object Eraser" UI**
+*   **Visualizer:** You need a simple **Point Cloud Viewer** (using `three-stdlib/PLYLoader`) in the frontend.
+*   **Interaction:** Allow users to use a "3D Brush" to select points in 3D space.
+*   **Action:** Send the "Masked Points Indices" to the backend to be purged from the memory before the next render.
+
+### Summary: Where it Fits
+*   **Spatia** is the engine for **"Virtual Production."**
+*   It belongs in **Asset Bin (Locations)** and **Shot Studio**.
+*   It solves the **"Location Consistency"** problem, allowing users to build a "Set" once and film in it forever.
+
+**DreaMontage** is not just a consistency tool; it is a **"Time-Travel Director."**
+
+While most models (Sora, Wan, Kling) only let you control the *start* (Frame 1) and maybe the *end* (Last Frame), DreaMontage lets you control **Any Frame**. You can say: *"At 0s show this face, at 5s show this explosion, and at 10s show this car crash,"* and the model effectively "connects the dots" with perfect fluid motion.
+
+This capability moves VibeBoard from "Slot Machine" (random outcomes) to **"Keyframe Animation"** (precise timing control).
+
+Here are the specific creative modules to unlock with DreaMontage.
+
+### 1. The "Morphing" VFX Suite
+**Location:** **VFX Suite** > *Transitions Tab*.
+
+Standard "Cross-Dissolve" transitions are boring. DreaMontage allows for **Semantic Morphing**—where object A physically transforms into object B.
+
+*   **Creative Workflow: "The Seamless Match Cut"**
+    *   **Input A:** A shot of a character throwing a *baseball*.
+    *   **Input B:** A shot of a spaceship flying in *orbit* (same circular shape).
+    *   **DreaMontage Action:** You set the Baseball image at `t=0s` and the Spaceship image at `t=2s`.
+    *   **Result:** The baseball spins, blurs, and *morphs* geometrically into the spaceship engine. It’s the "2001: A Space Odyssey" bone-to-spaceship cut, but generated automatically.
+
+### 2. The "Long-Form" Shot Studio
+**Location:** **Shot Studio** > *Timeline Mode*.
+
+Current AI video is limited to ~5 seconds. DreaMontage uses a "Segment-wise Auto-Regressive" approach to generate **Infinite One-Shots**.
+
+*   **Creative Workflow: "The Impossible Drone Shot"**
+    *   **Concept:** A drone flies from a living room $\to$ out the window $\to$ into the clouds $\to$ down to a desert.
+    *   **Execution:**
+        1.  Place "Living Room" image at `00:00`.
+        2.  Place "Clouds" image at `00:10`.
+        3.  Place "Desert" image at `00:20`.
+    *   **Result:** A continuous 20-second video where the camera seamlessly flies through all three environments without a single cut.
+
+### 3. The "Multi-Angle" Character Foundry
+**Location:** **Character Foundry** > *Performance Test*.
+
+You can use DreaMontage to force a character to "hit marks" (act) without losing their identity.
+
+*   **Creative Workflow: "The Emotional Journey"**
+    *   **Setup:** You have a static face of your character (Image A).
+    *   **Input:** You upload a reference of a "Screaming Face" (Image B) and a "Crying Face" (Image C).
+    *   **Action:** Set Image A at start, B at middle, C at end.
+    *   **Result:** Your character starts neutral, escalates into a scream, and collapses into tears. The model interpolates the *micro-expressions* between those keyframes perfectly.
+
+---
+
+### 🛠️ Implementation Roadmap
+
+**DreaMontage** is a comprehensive framework (likely a modified DiT / Diffusion Transformer). To implement it, you need to integrate it into your **Render Queue** logic as a "Keyframe-Based" generator.
+
+#### **Phase 1: The "Timeline Input" UI (Frontend)**
+You need a new way to input prompts. A single text box isn't enough.
+
+*   **Component:** `KeyframeTimeline.tsx`
+*   **Interaction:**
+    *   A horizontal bar representing time (e.g., 10 seconds).
+    *   **"Add Keyframe"** button.
+    *   User drags an image from the **Asset Bin** onto `t=0s`, `t=5s`, etc.
+    *   User adds a **Text Prompt** *between* the keyframes (e.g., "Camera pushes in aggressively").
+
+#### **Phase 2: The "Interpolation" Backend**
+**Location:** Dedicated GPU Worker (DreaMontage requires substantial VRAM for long contexts).
+
+*   **API Payload Structure:**
+    ```json
+    {
+      "mode": "dreamontage_interpolate",
+      "duration": 12.0, // seconds
+      "keyframes": [
+        { "time": 0.0, "image_url": "s3://.../start.png" },
+        { "time": 6.0, "image_url": "s3://.../middle.png" },
+        { "time": 12.0, "image_url": "s3://.../end.png" }
+      ],
+      "prompts": [
+        { "start": 0.0, "end": 6.0, "text": "A man aging rapidly" },
+        { "start": 6.0, "end": 12.0, "text": "Turning into dust" }
+      ]
+    }
+    ```
+
+#### **Phase 3: The "Consistency" Lock**
+*   **Feature:** **"Asset Binding."**
+*   If the user drags the *same* `@Character` into Keyframe 1 and Keyframe 3, DreaMontage implicitly understands that Keyframe 2 (the middle) must also contain that character. This solves the "disappearing character" problem in long shots.
+
+### Summary: Where it Fits
+*   **Story Editor:** Use it to visualize "Scene Transitions" (how Scene 1 flows into Scene 2).
+*   **Shot Studio:** Use it to generate **Long-Takes** (10s+) by chaining keyframes.
+*   **VFX Suite:** Use it for **Morphs** and **Impossible Cuts**.
+
+**3D-RE-GEN** represents the "Holy Grail" of **Asset Extraction**: turning a flat 2D image into a fully separable, navigable 3D scene.
+
+Most "Image-to-3D" models (like TripoSR or LGM) only generate a *single object* in a void. If you feed them a photo of a living room, they fail.
+**3D-RE-GEN** is designed to take that photo of a living room and **explode it** into:
+1.  A complete 3D Mesh of the **Room Shell** (Walls/Floor).
+2.  Separate, movable 3D Meshes for **Every Object** (Chairs, Tables, Lamps).
+3.  **Inpainted Textures** for the parts you couldn't see (e.g., the back of the sofa).
+
+This moves VibeBoard from "Generating Videos" to **"Generating Sets."**
+
+Here is the deep integration plan.
+
+---
+
+### 1. The Core Innovation: "The Scene Decomposer" (Asset Bin)
+**Location:** **Asset Bin** > *Imports*.
+
+Currently, users have to prompt for individual props ("A sci-fi chair," "A neon table"). With 3D-RE-GEN, they can "shop" from existing images.
+
+*   **The Workflow:**
+    1.  **Input:** User drags a Midjourney image of a "Cyberpunk Bar" into the Asset Bin.
+    2.  **Action:** Click **"Deconstruct Scene."**
+    3.  **3D-RE-GEN Action:**
+        *   Detects all 15 objects (bottles, stools, holograms).
+        *   Separates them from the background.
+        *   Inpaints the "hidden" geometry (the back of the bottles).
+        *   Reconstructs the empty room geometry behind them.
+    4.  **Result:** The Asset Bin is instantly populated with 15 new 3D props and 1 Environment asset, all matching the same style.
+
+### 2. The "Instant Set" (Stagecraft)
+**Location:** **Stagecraft** > *Environment Builder*.
+
+**The Problem:** Building a 3D blocking scene in Unreal/Blender takes hours.
+**The Solution:** Build it from a single reference image.
+
+*   **The Workflow:**
+    1.  User generates a "Wide Shot of a Detective's Office" in the **Script Lab**.
+    2.  User sends this image to **Stagecraft**.
+    3.  **3D-RE-GEN Action:** It turns that 2D image into a navigable 3D room.
+    4.  **User Interaction:** The user can now *physically move* the desk to the left, delete the chair, or place the camera *behind* the detective (since the back of the detective was inpainted).
+    5.  **Output:** A "Spatial Layout" ready for your **NitroGen** agents to walk around in.
+
+### 3. "The Occlusion Fixer" (VFX Suite)
+**Location:** **VFX Suite** > *Roto & Paint*.
+
+**The Scenario:** You have a generated video of a man walking, but he walks *behind* a lamp post that shouldn't be there.
+**The Fix:**
+1.  Run 3D-RE-GEN on the frame.
+2.  It identifies the lamp post as a separate 3D object.
+3.  **Action:** You simply **delete** the lamp post object.
+4.  **Result:** Because 3D-RE-GEN already reconstructed the background *behind* the post, the post vanishes, and the background is perfectly revealed.
+
+---
+
+### 🛠️ Technical Architecture
+
+**3D-RE-GEN** is a pipeline, not just a model. It chains **Instance Segmentation** (Grounded SAM), **Inpainting**, and **3D Optimization**.
+
+#### **Phase 1: The "Deconstruction" Microservice**
+**Location:** Dedicated GPU Worker.
+
+**Service Logic:**
+1.  **Segmentation:** Use **Grounded SAM** to identify "Concept Objects" (Chair, Table, Man).
+2.  **Inpainting:** Use **Application-Querying** (their specific technique) to hallucinate the back view of these objects based on the front view.
+3.  **Optimization:** Use their **4-DoF Alignment** algorithm to force the objects to snap to the floor (preventing floating furniture).
+
+#### **Phase 2: The "Layout" Data Structure**
+You need a file format to save these "Exploded Scenes."
+*   **Format:** USDZ or GLTF with a hierarchy.
+    *   `Root`
+        *   `Environment_Mesh` (Static)
+        *   `Object_1` (Movable)
+        *   `Object_2` (Movable)
+
+#### **Phase 3: The "Asset Harvester" UI**
+**Location:** **Asset Bin**.
+
+*   **UI:** When a Scene Deconstruction finishes, show an **"Exploded View"** (like an IKEA manual) where the parts hover apart.
+*   **Action:** User clicks checkboxes on the items they want to keep ("Keep the Chair, discard the Trash Can").
+*   **Save:** Selected items are saved as individual `.glb` files to the user's library.
+
+### Summary: Where it Fits
+*   **3D-RE-GEN** is the engine for **"Reverse Engineering"** images into assets.
+*   It belongs in the **Asset Bin** and **Stagecraft**.
+*   It solves the "Empty Room" problem by letting users fill their virtual sets by simply uploading a photo of a cluttered room.
+
+**CARI4D** (Context-Aware Radiance Integration for 4D) helps solve the **"Floating Hand"** and **"Clipping Butt"** problems in 3D generation.
+
+Most AI 3D character models (like HMR or standard CSM) generate a human in a "T-Pose" or a generic walk cycle in a void. If you try to put a sword in their hand, the fingers don't grip it. If you put them on a chair, they float 2 inches above it or clip through the seat.
+
+**CARI4D generates the human *around* an object.** It calculates the physics of contact, grip, and posture relative to a specific prop or environment.
+
+Here is the deep integration plan for VibeBoard.
+
+---
+
+### 1. The Core Innovation: "The Grip Engine" (Character Foundry)
+**Location:** **Character Foundry** > *Pose & Props*.
+
+This upgrades your characters from "Mannequins" to "Actors who can hold things."
+
+*   **The Problem:** You have a "Cyberpunk Samurai." You want him holding a Katana. Standard 3D models act like they have mittens on; they can't interact with the handle geometry.
+*   **The CARI4D Workflow:**
+    1.  **Input 1:** Your Character ID (Identity).
+    2.  **Input 2:** A 3D Prop from the **Asset Bin** (The Katana).
+    3.  **Prompt:** *"Holding the katana with two hands, combat stance."*
+    4.  **CARI4D Action:** It generates a 4D animation where the mesh of the hands *deforms* correctly around the hilt of the katana. The fingers wrap, the muscle tension in the shoulders reflects the weight of the sword.
+    5.  **Result:** A watertight 3D asset of `Character + Sword` ready for **Stagecraft**.
+
+### 2. The "Rider" Module (Stagecraft)
+**Location:** **Stagecraft** > *Vehicles*.
+
+**The Problem:** Putting a digital double on a motorcycle or in a car seat is a nightmare of "clipping" (geometry passing through geometry).
+**The CARI4D Solution:** **Context-Aware Seating.**
+
+*   **The Workflow:**
+    1.  User drags a "Sci-Fi Bike" into the scene.
+    2.  User drags their Character onto the Bike.
+    3.  **VibeBoard Action:** Trigger CARI4D with the Bike as the "Context Mesh."
+    4.  **Result:** The model generates the character *molded* to the seat. The feet find the pedals. The hands find the handlebars. The spine curves to match the bike's aerodynamics.
+
+### 3. "The Heavy Lift" (VFX Suite)
+**Location:** **VFX Suite** > *Digital Doubles*.
+
+CARI4D simulates the **influence of the object** on the human's motion.
+
+*   **Creative Use Case:** A character carrying a heavy mystery box.
+*   **Old Way:** The character walks normally, and you parent a box to their hands. It looks weightless and fake.
+*   **CARI4D Way:** You feed the dimensions/estimated weight of the box as context.
+*   **Result:** The generated animation shows the character leaning back to counterbalance the weight. Their steps become heavier. The interaction looks physically grounded.
+
+---
+
+### 🛠️ Technical Architecture
+
+CARI4D requires two inputs: The **Human Prompt/Image** and the **3D Object (Context)**.
+
+#### **Phase 1: The "Context" Microservice**
+**Location:** NVIDIA GPU Worker (A100).
+
+**API Payload Structure:**
+```json
+{
+  "task": "cari4d_interaction",
+  "character_prompt": "A tactical soldier",
+  "context_mesh": "s3://.../rifle.obj", // The Prop
+  "interaction_type": "holding", // or "sitting_on", "leaning_against"
+  "duration": 4.0 // seconds of animation
+}
+```
+
+#### **Phase 2: The "Socket System" (Frontend)**
+You need a UI that defines *where* the interaction happens.
+
+*   **Tool:** **"The Anchor Editor"** (inside Character Foundry).
+*   **Interaction:**
+    *   Load the Prop (e.g., a Chair).
+    *   User paints a "Contact Zone" on the chair (the seat cushion).
+    *   This mask is sent to CARI4D so it knows *where* to sit the human.
+
+#### **Phase 3: The "Merged Asset" Logic**
+When CARI4D finishes, it returns a 4D mesh (Mesh sequence).
+*   **Data Strategy:** You shouldn't save the human and the chair separately anymore. They are now a **Compound Asset**.
+*   **Asset Bin:** Save this as a new type: `Interaction_Asset`.
+    *   *Preview:* A thumbnail of the soldier holding the gun.
+    *   *Usage:* When dragged into Stagecraft, they move as one unit.
+
+### Summary: Where it Fits
+*   **CARI4D** is the **"Physics of Contact"** engine.
+*   It belongs in **Character Foundry** (for props) and **Stagecraft** (for vehicles/furniture).
+*   It solves the **"Floating/Clipping"** problem, ensuring that when your digital actors touch the world, the world touches them back.
+
+**AniX** is the engine for **"Motion Cloning" and "Video Style Transfer."**
+
+While tools like **FlashPortrait** handle faces and **NitroGen** handles game physics, **AniX** specializes in **"Any-to-Any" Video Generation.** It allows you to take the *motion* from Video A (e.g., a stick figure animation, a depth map, or a raw video) and paint it with the *appearance* of Concept B (e.g., "A Pixar movie," "A charcoal sketch," "A photorealistic drone shot").
+
+Crucially, AniX introduces **"Motion LoRAs"**—the ability to save a specific movement (like a specific dance move or camera pan) as a lightweight file that can be applied to *any* character.
+
+Here is the deep integration plan for VibeBoard.
+
+---
+
+### 1. The Core Innovation: "The Motion Library" (Asset Bin)
+**Location:** **Asset Bin** > *Motion Tab*.
+
+Currently, your Asset Bin stores **Characters** (Appearance). AniX allows you to store **Moves** (Behavior).
+
+*   **The Workflow:**
+    1.  **Input:** User uploads a video of a stuntman doing a backflip.
+    2.  **AniX Action:** It "learns" the motion patterns (using Pose or Depth extraction).
+    3.  **Save:** User saves this as a **Motion Asset** (`Motion_Backflip_01`).
+    4.  **Creative Use:**
+        *   Apply `Motion_Backflip_01` to `@Cyberpunk_Alice`.
+        *   Apply `Motion_Backflip_01` to `@Cute_Pixar_Turtle`.
+    *   **Result:** Both characters perform the exact same backflip, maintaining their own unique visual styles.
+
+### 2. The "Genre Switcher" (VFX Suite)
+**Location:** **VFX Suite** > *Style Transfer*.
+
+**The Problem:** Standard video-to-video (like Gen-1) often flickers or loses the original composition.
+**The AniX Solution:** Multi-Condition Control.
+
+*   **The Scenario:** You have a rough 3D "Blockout" animation from **Stagecraft** (grey boxes moving around). It looks boring.
+*   **The Workflow:**
+    1.  Import the "Blockout Video" into VFX Suite.
+    2.  **AniX Settings:**
+        *   *Control Signal:* **Depth Map** (Strict structure).
+        *   *Prompt:* "Cinematic Sci-Fi City, rainy, neon lights."
+    3.  **Result:** AniX paints high-fidelity textures over the grey blocks. Because it respects the Depth Map, the buildings don't wobble or warp. It turns a "Pre-viz" into a "Final Render."
+
+### 3. "The Sketch Animator" (Storyboard)
+**Location:** **Storyboard** > *Animate*.
+
+This bridges the gap between your **Story Editor** sketches and the **Shot Studio**.
+
+*   **The Workflow:**
+    1.  User draws a crude storyboard sequence:
+        *   Frame 1: Stick figure standing.
+        *   Frame 2: Stick figure punching.
+    2.  **AniX Action:** It interpolates the motion between the sketches (using Canny Edge detection).
+    3.  **Prompt:** "A boxer in a ring."
+    4.  **Result:** The stick figures are transformed into a fluid video of a boxer punching. It allows a Director to "doodle" a video into existence.
+
+---
+
+### 🛠️ Technical Architecture
+
+AniX works by disentangling **Appearance** (from the base model/LoRA) and **Motion** (from the guiding signal).
+
+#### **Phase 1: The "Signal Extractor" Service**
+**Location:** Python GPU Worker.
+
+Before you can run AniX, you need to convert raw video into "Signals" that the AI understands.
+*   **Input:** Source Video.
+*   **Processors:**
+    *   **DWPose:** Extracts OpenPose skeletons (for human motion).
+    *   **ZoeDepth:** Extracts Depth Maps (for 3D structure/camera moves).
+    *   **Canny:** Extracts Edge Maps (for sketch/line art).
+*   **Output:** A "Control Video" (e.g., a video of just black background + colored skeletons).
+
+#### **Phase 2: The "Motion LoRA" Trainer**
+This is unique to AniX. It allows for "Few-Shot" motion learning.
+*   **Logic:** If a user wants to reuse a *specific* complex motion (e.g., a specific TikTok dance) across many videos, you train a tiny adapter on that video.
+*   **API:** `POST /train/motion` -> Returns a `.safetensors` file specific to that movement.
+
+#### **Phase 3: The "Rendering" Hook (Shot Studio)**
+**Location:** **Shot Studio** (Generator).
+
+*   **UI Integration:**
+    *   Add a **"Motion Source"** dropzone in the generation panel.
+    *   User drops a video file or a "Motion Asset" here.
+*   **Backend Logic:**
+    *   If Motion Source is present, the pipeline switches from *Text-to-Video* to *AniX-Video-to-Video*.
+    *   The prompt controls the *Look*. The Motion Source controls the *Movement*.
+
+### Summary: Where it Fits
+*   **AniX** is the **"Motion Transfer"** engine.
+*   It belongs in **Asset Bin (Motion Library)** and **VFX Suite (Stylization)**.
+*   It solves the **"Physics Consistency"** problem by allowing you to generate the physics *first* (via video, mocap, or simple 3D) and paint the pixels *second*.
+
+This is the **VibeBoard 2.0 Master Architecture**.
+
+I have reconciled your current **Feature Inventory** with the **12 New Research Models** we discussed. I have also applied the **"Pro Studio" Naming Convention** to align the UI with professional filmmaking standards.
+
+Below is the **Sitemap**, the **Integration Matrix**, and the **Step-by-Step Production Workflow**.
+
+---
+
+### 1. The New Sitemap (Renaming & Restructuring)
+
+We are moving from "App Terms" to "Industry Terms."
+
+| Current Name | **New Professional Name** | Purpose | New Research Integration |
+| :--- | :--- | :--- | :--- |
+| Story Editor | **Script Lab** | Narrative Development | *MiniMax M2.1 (Director Agent)* |
+| Training | **Character Foundry** | Cast Creation | *FlashPortrait, CARI4D, Qwen-Edit* |
+| Elements | **Asset Bin** | Asset Management | *3D-RE-GEN, MVInverse, AniX* |
+| Viewfinder | **Optics Engine** | Camera Physics | *Learn2Refocus, GenFocus* |
+| Generate | **Shot Studio** | Principal Photography | *Spatia, StoryMem, ReCo, DreaMontage* |
+| Roto & Paint | **VFX Suite** | Post-Processing | *InfCam, DiffCamera, Qwen-Edit* |
+| Timeline | **Sequencer** | Editorial | *MiniMax (Auto-Caption/Cut)* |
+| *New* | **Stagecraft** | Virtual Production | *NitroGen (Game Engine Agent)* |
+
+---
+
+### 2. The Integration Matrix (Where the new tech fits)
+
+This table maps the specific research papers to your specific codebase modules.
+
+#### **A. Script Lab (Development)**
+*   **MiniMax M2.1:** Acts as the "Script Doctor." It doesn't just write text; it breaks the script down into a **Technical Shot List**, identifying which assets (Props/Locations) need to be built in the Asset Bin before shooting starts.
+
+#### **B. Character Foundry (Pre-Production)**
+*   **FlashPortrait:** Adds a **"Performance Mode"** tab. Upload audio + 1 image to generate infinite-length talking heads.
+*   **CARI4D:** Adds a **"Grip Logic"** tab. Generates the character *holding* specific props from the Asset Bin so hands don't clip.
+*   **AniX (Motion):** Adds a **"Motion Library"**. Save specific movements (e.g., "The Matrix Dodge") as assets to apply to any character.
+
+#### **C. Asset Bin (Art Department)**
+*   **3D-RE-GEN:** Adds **"Scene Deconstruction."** User uploads a photo of a room; the model splits it into individual 3D assets (Chairs, Tables) and the Room Shell.
+*   **MVInverse:** Adds **"Material Inspector."** Extracts PBR maps (Roughness/Metallic) from static images so props react to light dynamically.
+
+#### **D. Stagecraft (Virtual Sets - NEW MODULE)**
+*   **NitroGen:** Connects to a headless game engine (Unreal/Blender). User types actions ("Run and jump over the car"), and NitroGen executes them to create perfect physics reference footage.
+
+#### **E. Shot Studio (Production)**
+*   **ReCo:** Adds **"Blocking Canvas."** User draws bounding boxes to force characters/objects to appear in specific spots.
+*   **Spatia:** Adds **"Location Memory."** User loads a "Set" from the Asset Bin. The camera can pan/tilt, and the background remains geometrically consistent.
+*   **StoryMem:** Adds **"Continuity Strip."** User drags Frame 1 into Frame 2's slot to force the AI to remember costume details across shots.
+*   **DreaMontage:** Adds **"Keyframe Mode."** User defines Start, Middle, and End images; the AI generates the fluid morphing video between them.
+
+#### **F. VFX Suite (Post-Production)**
+*   **InfCam:** Adds **"Virtual Reshoot."** User draws a new camera path on an existing video to change the angle without re-generating the actors.
+*   **DiffCamera:** Adds **"Focus Rescue."** User clicks a blurry face to hallucinate sharp details.
+*   **Qwen-Image-Edit:** Adds **"Instruction Edit."** User highlights a shirt and types "Change to red silk," and the AI swaps textures while keeping geometry.
+
+#### **G. Optics Engine (Cinematography)**
+*   **Learn2Refocus:** Adds **"Real-Time Rack Focus."** The Focus Slider becomes a video scrubber that moves focus instantly.
+*   **GenFocus:** Adds **"Lens Character."** User selects "Anamorphic," and the system applies oval bokeh kernels.
+
+---
+
+### 3. The Ultimate Workflow: Step-by-Step Production
+
+Here is how a user creates a movie using **VibeBoard 2.0**.
+
+#### **Phase 1: Development**
+1.  **Script Lab:** User enters a concept: *"A Cyberpunk Noir detective scene."*
+2.  **Agent Action (MiniMax):** The system generates the script and flags missing assets: *"You need a Detective Character and a Rainy Street Location."*
+
+#### **Phase 2: Asset Construction**
+3.  **Character Foundry:** User generates "Detective Jack."
+    *   *Action:* Uses **CARI4D** to generate a version of Jack holding a revolver properly.
+    *   *Action:* Uses **FlashPortrait** to pre-generate his monologue from an audio file.
+4.  **Asset Bin:** User uploads a reference image of a street.
+    *   *Action:* **3D-RE-GEN** explodes it into a navigable 3D environment.
+    *   *Action:* **MVInverse** ensures the neon signs reflect correctly on the wet pavement.
+
+#### **Phase 3: Blocking & Physics (Stagecraft)**
+5.  **Stagecraft:** User opens the "Rainy Street" 3D set.
+    *   *Action:* User types *"Detective runs for cover."*
+    *   *Action:* **NitroGen** executes the run cycle in the 3D engine.
+    *   *Result:* A "Blockout Video" (Grey box character running) is saved.
+
+#### **Phase 4: Principal Photography (Shot Studio)**
+6.  **Shot Studio:** User imports the "Blockout Video" as a control signal.
+    *   *Action:* User applies **ReCo** boxes to ensure the neon signs stay in the background.
+    *   *Action:* User enables **Spatia** to lock the street geometry.
+    *   *Generation:* The AI paints "Detective Jack" over the running grey box using the **StoryMem** consistency buffer.
+
+#### **Phase 5: The "Reshoot" (VFX Suite)**
+7.  **Review:** The Director says, *"The camera move is too static."*
+8.  **VFX Suite:** User loads the shot.
+    *   *Action:* User draws a "Dolly Zoom" path.
+    *   *Action:* **InfCam** re-renders the video with the new camera move.
+9.  **Review:** *"The focus is soft on his eyes."*
+    *   *Action:* User clicks the eyes with **DiffCamera** to sharpen them.
+
+#### **Phase 6: Finishing (Sequencer)**
+10. **Sequencer:** User drags the final clips onto the timeline.
+    *   *Action:* **MiniMax** auto-generates captions and translates them to Spanish.
+    *   *Export:* Final render sent to YouTube.
+
+---
+
+### 4. Technical Roadmap for the Developer
+
+To achieve this, your developer needs to build **Three Microservices** to handle the new research models (since they can't all run in one monolithic Node app).
+
+**1. The "Director" Service (Node.js/TypeScript)**
+*   *Current Backend.*
+*   Handles Logic, Database (Prisma), Auth, and MiniMax Agent orchestration.
+
+**2. The "Optics" Worker (Python/FastAPI)**
+*   *Hosts:* Learn2Refocus, GenFocus, DiffCamera.
+*   *Hardware:* A10G or L40S GPU.
+*   *Task:* Fast image processing.
+
+**3. The "Heavy" Worker (Python/FastAPI)**
+*   *Hosts:* Wan 2.1 (InfCam/FlashPortrait backbone), Spatia, NitroGen.
+*   *Hardware:* A100 (80GB) or H100.
+*   *Task:* Long-form video generation and 3D reconstruction.
+
+### Immediate Action Item
+Ask your developer to:
+1.  **Rename the routes** in the frontend to match the new Sitemap (`/story-editor` -> `/script-lab`).
+2.  **Create the placeholders** in the UI for **Stagecraft** and **VFX Suite** so the navigation structure is ready.
+3.  **Prioritize the "Optics Worker"** first (GenFocus/DiffCamera) as it is easier to implement than the heavy Video models.
+
+Here is the **Master Implementation Blueprint** for VibeBoard 2.0.
+
+This package combines your current **Feature Inventory** (Fal/Replicate/Node) with the **12 New Research Models** (Spatia, InfCam, etc.) into a unified, professional workflow.
+
+It includes:
+1.  **`VibeBoard_Master_Build.md`**: The technical architectural manual.
+2.  **`VibeBoard_Tasks.json`**: The actionable ticket list for developers.
+
+---
+
+### File 1: `VibeBoard_Master_Build.md`
+
+```markdown
+# 🎬 VibeBoard 2.0: Master Implementation Blueprint
+
+**Objective:** Transform the current VibeBoard app into a vertically integrated "Virtual Production Studio" by layering advanced research models over the existing generation infrastructure.
+
+**Core Philosophy:**
+1.  **Agentic Backbone:** MiniMax M2.1 monitors traffic, fixes errors, and routes prompts.
+2.  **Microservices Architecture:** Heavy research models (Spatia, Wan 2.1) run on dedicated Python/GPU workers; logic runs on Node.js.
+3.  **Linear Production Flow:** Development $\to$ Pre-Prod $\to$ Production $\to$ Post.
+
+---
+
+## 🏗️ Phase 0: Infrastructure & The "Immune System"
+
+Before building new features, we must upgrade the engine to support heavy AI traffic.
+
+### 1. Database Upgrade
+*   **Action:** Migrate `schema.prisma` from SQLite to **PostgreSQL** (Supabase/Neon).
+*   **Reason:** SQLite locks on write. Complex agent workflows will cause race conditions without Postgres connection pooling.
+
+### 2. The "Director" Agent (MiniMax M2.1 Integration)
+We do not just use MiniMax for chat. We use it as **Middleware**.
+*   **Frontend Guard (`useRequestGuard.ts`):**
+    *   Intercepts "Generate" clicks.
+    *   Checks payload consistency (e.g., "User attached an image to a text-only model").
+    *   *Agent Action:* Suggests fixes (e.g., "Switch to Multimodal Model").
+*   **Backend Medic (`apiMedic.ts`):**
+    *   Wraps all API routes in a `try/catch`.
+    *   On error, feeds the stack trace + bad JSON to MiniMax.
+    *   *Agent Action:* MiniMax rewrites the malformed JSON and auto-retries the request without crashing the UI.
+
+### 3. The "Heavy" Worker Service
+*   **Tech:** Python (FastAPI) + Celery/BullMQ + Redis.
+*   **Hosting:** Fly.io GPU or Replicate deployments.
+*   **Purpose:** Node.js cannot run Spatia or Wan 2.1. This worker handles the heavy lifting.
+
+---
+
+## 🟢 Phase 1: Development (Script Lab)
+
+**Former Name:** Story Editor
+**Primary AI:** Anthropic Claude 3.5 (Creative) + MiniMax M2.1 (Logic)
+
+### Implementation Steps:
+1.  **The Brainstorm:**
+    *   User inputs concept. Claude generates the narrative text.
+2.  **The Breakdown (New):**
+    *   Feed the script to **MiniMax M2.1**.
+    *   *Prompt:* "Analyze this script and extract a list of required Assets (Characters, Locations, Props)."
+    *   **Output:** Auto-populate the **Asset Bin** with "Empty Slots" (e.g., [ ] Detective Character, [ ] Rainy Alley).
+3.  **The Visualization:**
+    *   Use **DreaMontage** (via Heavy Worker) to generate "Keyframe transitions" between scenes to visualize flow.
+
+---
+
+## 🟡 Phase 2: Pre-Production (Foundry & Assets)
+
+**Former Names:** Training, Elements, Viewfinder
+**Primary AI:** FlashPortrait, CARI4D, 3D-RE-GEN, MVInverse
+
+### A. Character Foundry (Cast)
+1.  **Performance Mode (New):**
+    *   *Input:* Audio File + 1 Image.
+    *   *Model:* **FlashPortrait** (via Heavy Worker).
+    *   *Output:* Infinite-length talking head video (saved to Asset Bin).
+2.  **Grip Logic (New):**
+    *   *Input:* Character LoRA + 3D Prop (from Asset Bin).
+    *   *Model:* **CARI4D**.
+    *   *Output:* A 3D asset of the character *holding* the prop correctly.
+
+### B. Asset Bin (Art Dept)
+1.  **Scene Deconstruction:**
+    *   *Input:* Upload reference photo.
+    *   *Model:* **3D-RE-GEN**.
+    *   *Output:* Breaks image into individual GLB files (Chair, Table, Room).
+2.  **Material Inspector:**
+    *   *Input:* Prop Image.
+    *   *Model:* **MVInverse**.
+    *   *Output:* Albedo/Roughness maps.
+    *   *UI:* Add sliders to tweak "Shininess" in real-time using Three.js standard material properties.
+
+### C. Optics Engine (Cinematography)
+1.  **Real-Time Rack Focus:**
+    *   *Input:* Static Image.
+    *   *Model:* **Learn2Refocus**.
+    *   *UI:* Hijack the "Focus Slider". When dragged, scrub the video generated by the model to simulate instant focus pulling.
+
+---
+
+## 🔴 Phase 3: Production (Stagecraft & Shot Studio)
+
+**Former Name:** Generate
+**Primary AI:** NitroGen, Spatia, ReCo, StoryMem
+
+### A. Stagecraft (Virtual Sets - NEW)
+*   **Integration:** Embed a lightweight WebGL viewer (or stream from Unreal Pixel Streaming).
+*   **The Agent:** Connect **NitroGen** to the inputs.
+*   **Workflow:** User types "Run and jump." NitroGen presses the virtual keys. VibeBoard records the screen.
+*   **Result:** A "Blockout Video" with perfect physics.
+
+### B. Shot Studio (Principal Photography)
+This is the main generator. We upgrade it from "Random" to "Controlled".
+1.  **Blocking Canvas (ReCo):**
+    *   Overlay a drawing canvas on the video preview.
+    *   Pass drawn bounding boxes to the **ReCo Adapter** to force asset positioning.
+2.  **Continuity Lock (StoryMem):**
+    *   Add a "Memory Strip" UI at the top.
+    *   Pass the *latent embeddings* of Shot 1 into the generation of Shot 2 via **StoryMem** to lock identity/costume.
+3.  **Location Lock (Spatia):**
+    *   If a user selects a "3D Location" from Asset Bin, pass the camera path to **Spatia** instead of using a text-to-video model.
+
+---
+
+## 🔵 Phase 4: Post-Production (VFX & Finishing)
+
+**Former Names:** Roto & Paint, Timeline
+**Primary AI:** InfCam, DiffCamera, AniX
+
+### A. VFX Suite (The Fixer)
+1.  **Virtual Reshoot:**
+    *   *UI:* User draws a new camera path arrow on a generated video.
+    *   *Model:* **InfCam**.
+    *   *Action:* Re-renders the video from the new angle.
+2.  **Focus Rescue:**
+    *   *UI:* User clicks a blurry face.
+    *   *Model:* **DiffCamera**.
+    *   *Action:* Hallucinates details to sharpen the subject.
+3.  **Style Transfer:**
+    *   *Input:* The "Blockout Video" from Stagecraft.
+    *   *Model:* **AniX**.
+    *   *Action:* Paints "Cinematic Realism" over the polygon look while keeping the motion.
+
+### B. Sequencer (Editorial)
+1.  **Assembly:** Standard timeline features (L-Cuts) supported by FFmpeg backend.
+2.  **Auto-Caption:** MiniMax M2.1 analyzes the audio track and generates `.srt` subtitles.
+3.  **Export:** Mux video, audio, and captions into final MP4.
+
+---
+
+## 🔒 Summary of Data Flow
+
+1.  **User Request** $\to$ **Request Guard** (MiniMax Check) $\to$ **Node API**.
+2.  **Node API** $\to$ **Postgres** (Job Created) $\to$ **Redis Queue**.
+3.  **Python Worker** picks up Job:
+    *   *If Video:* Loads Wan 2.1 / InfCam.
+    *   *If 3D:* Loads CARI4D / Spatia.
+    *   *If Logic:* Loads MiniMax Code Agent.
+4.  **Worker** saves result to **S3 Storage**.
+5.  **Frontend** polls status via **Supabase Realtime** or WebSockets.
+```
+
+---
+
+### File 2: `VibeBoard_Tasks.json`
+
+```json
+{
+  "project": "VibeBoard 2.0 Integration",
+  "sprints": [
+    {
+      "id": "SPRINT_1_CORE",
+      "name": "The Intelligent Core",
+      "tasks": [
+        {
+          "task_id": "1.1",
+          "title": "Migrate DB to Postgres",
+          "tech": "Prisma/Supabase",
+          "desc": "Update schema.prisma provider to postgresql. Enable connection pooling."
+        },
+        {
+          "task_id": "1.2",
+          "title": "Implement MiniMax Middleware",
+          "tech": "Node.js/MiniMax API",
+          "desc": "Create 'apiMedic.ts'. Wrap API routes to catch errors and send stack traces to MiniMax for auto-correction suggestions."
+        },
+        {
+          "task_id": "1.3",
+          "title": "Request Guard Hook",
+          "tech": "React/TypeScript",
+          "desc": "Create useRequestGuard hook to validate model capabilities (e.g. Text-only vs Image-input) before sending API calls."
+        },
+        {
+          "task_id": "1.4",
+          "title": "Rename Frontend Routes",
+          "tech": "Next.js",
+          "desc": "Rename folders: /story-editor -> /script-lab, /elements -> /asset-bin, /generate -> /shot-studio, /viewfinder -> /optics-engine."
+        }
+      ]
+    },
+    {
+      "id": "SPRINT_2_WORKERS",
+      "name": "The Heavy Workers",
+      "tasks": [
+        {
+          "task_id": "2.1",
+          "title": "Setup Python Worker Environment",
+          "tech": "FastAPI/Fly.io GPU",
+          "desc": "Deploy a container with CUDA 12 support ready to load PyTorch models."
+        },
+        {
+          "task_id": "2.2",
+          "title": "Deploy Wan 2.1 Backbone",
+          "tech": "Python",
+          "desc": "Load Wan 2.1 14B model into VRAM. Create endpoints for InfCam and FlashPortrait adapters."
+        },
+        {
+          "task_id": "2.3",
+          "title": "Deploy Spatia & 3D-RE-GEN",
+          "tech": "Python",
+          "desc": "Setup the 3D processing pipeline for location memory and scene deconstruction."
+        }
+      ]
+    },
+    {
+      "id": "SPRINT_3_PREPROD",
+      "name": "Assets & Optics",
+      "tasks": [
+        {
+          "task_id": "3.1",
+          "title": "Script Lab Decomposition",
+          "tech": "Node/MiniMax",
+          "desc": "Update Script Lab to parse generated scripts and auto-create placeholder entries in the Asset Bin."
+        },
+        {
+          "task_id": "3.2",
+          "title": "Character Foundry - Performance Mode",
+          "tech": "React/FlashPortrait",
+          "desc": "Add UI tab for 'Audio + Image' input. Connect to FlashPortrait endpoint for infinite video generation."
+        },
+        {
+          "task_id": "3.3",
+          "title": "Optics Engine - Rack Focus",
+          "tech": "React/Learn2Refocus",
+          "desc": "Change Focus Slider to a video scrubber. Connect to Learn2Refocus API to generate focal stacks."
+        }
+      ]
+    },
+    {
+      "id": "SPRINT_4_PRODUCTION",
+      "name": "Studio & VFX",
+      "tasks": [
+        {
+          "task_id": "4.1",
+          "title": "Stagecraft UI",
+          "tech": "React/WebRTC",
+          "desc": "Create a new page 'Stagecraft'. Embed video stream. Connect chat input to NitroGen agent."
+        },
+        {
+          "task_id": "4.2",
+          "title": "Shot Studio - ReCo Canvas",
+          "tech": "React/Konva",
+          "desc": "Add an overlay canvas to the generator. Allow drawing bounding boxes. Pass coordinates to ReCo adapter."
+        },
+        {
+          "task_id": "4.3",
+          "title": "VFX Suite - Virtual Reshoot",
+          "tech": "React/InfCam",
+          "desc": "Allow user to draw a camera path on an existing video. Send trajectory to InfCam API."
+        }
+      ]
+    }
+  ]
+}
+```
+
+This is the **Infrastructure Roadmap** for VibeBoard 2.0.
+
+Moving entirely to the cloud (specifically GPU-native clouds) is the smartest move for your "Pro Tool" ambition. It moves you away from "API Wrapping" (paying a premium to Replicate/Fal) and towards **"Vertical Integration"** (renting raw hardware and running the models yourself).
+
+Here is the critical breakdown of your options, ranging from "Solo Developer" to "SaaS Founder."
+
+---
+
+### 🎮 Option 1: The "Solo Architect" (Hybrid Stack)
+**Best For:** You right now. Maximum power, minimum DevOps headache.
+**Philosophy:** Don't host the *website* on a GPU machine. Host the *website* on a Web Host and the *brains* on a GPU Host.
+
+| Component | Provider | Why? | Cost Estimate |
+| :--- | :--- | :--- | :--- |
+| **Frontend** (Next.js) | **Vercel** (Free Tier) | It is optimized for React. Global Edge Network means your UI loads instantly anywhere. | **$0/mo** |
+| **Backend Logic** (Node) | **Railway** | Runs your "Director Agent" (MiniMax) and orchestrates jobs. Scales to zero when you sleep. | **~$5/mo** |
+| **Heavy AI** (Wan/Spatia) | **RunPod Serverless** | You only pay when you click "Generate." No idle costs. You run custom Docker containers here. | **~$0.40/hr** (active) |
+| **Fast AI** (Flux/SD) | **Fal.ai** | Keep using Fal for image generation. It's faster and cheaper than cold-booting a RunPod GPU for a single image. | **Pay-per-use** |
+
+**The Workflow:**
+1.  User visits `vibeboard.com` (Vercel).
+2.  User clicks "Generate Video."
+3.  Vercel calls Railway API.
+4.  Railway wakes up a **RunPod Worker** (loads Wan 2.1).
+5.  RunPod renders the video and saves it to S3.
+6.  RunPod goes back to sleep (Cost: $0).
+
+---
+
+### 🚀 Option 2: The "Pro Studio" (Consolidated GPU Cloud)
+**Best For:** When you have 10+ users or want to run "Always On" features like Stagecraft.
+**Philosophy:** Move the heavy compute to a dedicated provider to reduce latency and "cold starts."
+
+#### **The Provider: RunPod**
+RunPod is the current king of price-to-performance for AI.
+*   **Pros:** Access to H100s (required for Wan 2.1) and A40s (great for 3D). Massive template library.
+*   **Cons:** You have to build Docker containers. It is "Infrastructure as a Service," not "Backend as a Service."
+
+#### **The Architecture:**
+*   **Frontend:** Keep on **Vercel** (or move to a specialized frontend host like Netlify). *Do not host Next.js on RunPod.* It's overkill and lacks the CDN speed.
+*   **The "Worker Fleet" (RunPod):**
+    *   **Worker A (The Artist):** An `RTX A4000` pod running **Flux + ControlNet**. Always on. ($0.32/hr).
+    *   **Worker B (The Heavy):** An `A100` pod running **Wan 2.1 + Spatia**. Serverless (Scales up only when needed).
+    *   **Worker C (The Eye):** A small `3090` pod running **Optics Engine** (GenFocus/DiffCamera).
+
+**Feasibility:** Highly feasible. This allows you to offer "Pro" features (like instant rack focus) because you control the hardware.
+
+---
+
+### 🏢 Option 3: The "Enterprise" (MassedCompute / Lambda)
+**Best For:** When you launch to the public and have 1,000+ users.
+**Philosophy:** Renting "Bare Metal" to get the lowest possible cost per minute.
+
+*   **Provider:** **MassedCompute** or **Lambda Labs**.
+*   **Why?** RunPod is a reseller. MassedCompute owns the hardware. They offer H100s for ~$2.00/hr (vs AWS $30/hr).
+*   **The Upgrade Point:** Switch to this when your monthly RunPod bill hits **$1,000+**. Until then, the engineering overhead isn't worth the savings.
+
+---
+
+### ⚠️ Critical "Gotchas" (The Reality Check)
+
+**1. The "Cold Start" Problem**
+*   **Issue:** If you use "Serverless GPUs" (Option 1), the first time you click "Generate," it might take 30-60 seconds to boot the machine and load the model (Wan 2.1 is 30GB+).
+*   **The Fix:**
+    *   **Use "Network Volumes":** Store your models on a persistent drive in RunPod so they don't have to download every time.
+    *   **FlashBoot:** Enable RunPod's fast boot feature (cuts boot time to ~1s).
+
+**2. Hosting Frontend on GPUs is a Waste**
+*   **Don't Do It:** You asked about hosting *everything* on RunPod. Running a Next.js website on a GPU machine is like driving a Ferrari to the mailbox. It's expensive and inefficient.
+*   **The Exception:** If you use **Replicate**, you can host a "Web UI" inside the model container (using Gradio/Streamlit), but this is clunky for a pro tool like VibeBoard. Stick to Vercel/Railway for the UI.
+
+**3. Data Egress Costs**
+*   **Issue:** Moving 4K video files from RunPod to Vercel to the User costs money (Bandwidth).
+*   **The Fix:** Use **Cloudflare R2** for storage. It has **Zero Egress Fees**. Have RunPod upload directly to R2, and the Frontend just displays the R2 link.
+
+---
+
+### 🛠️ The Implementation Path
+
+**Step 1: The "Containerization" (Do this now)**
+You cannot move to RunPod until your AI logic is in **Docker**.
+*   Create a `Dockerfile` for your **Optics Engine** (Python/FastAPI).
+*   Test it locally. If it runs in Docker, it runs on RunPod.
+
+**Step 2: The "Endpoint" Test**
+*   Deploy **One Service** (e.g., the GenFocus Optics Engine) to a **RunPod Serverless Endpoint**.
+*   Update your VibeBoard backend to call `https://api.runpod.ai/v2/...` instead of a local python script.
+*   *Result:* You have instantly offloaded the heaviest compute from your laptop/server.
+
+**Step 3: The "Stagecraft" Deployment**
+*   This *must* be a **Pod** (Always On), not Serverless, because it needs to maintain a WebSocket connection for the game engine.
+*   Rent a cheap **RTX 3090 Pod** on RunPod Community Cloud (~$0.29/hr). Install your Unreal/Blender engine there.
+
+### Summary Recommendation
+1.  **Frontend:** Stay on **Vercel** (Free).
+2.  **Backend Logic:** Move to **Railway** (Cheap, persistent).
+3.  **Storage:** Use **Cloudflare R2** (Free egress).
+4.  **AI Models:** Deploy as **RunPod Serverless** endpoints (Pay-per-second).
+
+This stack costs you **<$10/month** when idle, but scales infinitely to **Hollywood-grade power** the moment you hit "Render."
+
+This is the **Financial Reality Check** for VibeBoard.
+
+Spending **$700/month** as a solo developer/tester indicates you are relying too heavily on **Managed APIs (Fal/Replicate/OpenAI)**. These services charge a massive premium (sometimes 500%+) for convenience.
+
+To build a sustainable 1-10 person studio, you must move from **"Renting the Taxi"** (APIs) to **"Leasing the Car"** (RunPod).
+
+Here is the Cost-Benefit Analysis of shifting your infrastructure.
+
+---
+
+### 💰 The "Bleeding" Audit: Where did your $700 go?
+
+Based on current API pricing, your $700 likely broke down like this:
+
+| Activity | Provider | Unit Cost | Volume | Total |
+| :--- | :--- | :--- | :--- | :--- |
+| **Video Gen (Dev)** | Fal/Replicate (Wan/Kling) | ~$0.10 - $0.50 / clip | ~500 generations | **$250** |
+| **Image Gen (Dev)** | Fal (Flux Pro/Dev) | ~$0.05 / image | ~2,000 images | **$100** |
+| **Training (LoRA)** | Replicate | ~$2.00 - $5.00 / run | ~20 characters | **$100** |
+| **LLM (Coding)** | Claude 3.5 / OpenAI | ~$0.01 / request | Heavy usage | **$150** |
+| **Storage/Bwidth** | Vercel/AWS | Egress fees | High res video | **$100** |
+| **TOTAL** | | | | **$700** |
+
+**The Trap:** You are paying "Production Prices" for "Debug Runs." Every time you test a button and it fails, you lose $0.50.
+
+---
+
+### 📊 The Solution: The "Hybrid Cloud" Architecture
+
+**Goal:** Drop monthly burn to **<$100** while increasing compute power for the new research models (Spatia/Wan).
+
+#### 1. The Compute Layer (RunPod vs. APIs)
+
+**Scenario:** Generating a 5-second AI Video (Wan 2.1).
+
+*   **Managed API (Current):**
+    *   Cost: **$0.10 - $0.20 per run**.
+    *   *Pros:* No setup.
+    *   *Cons:* Expensive. Rate limits. No control over model weights (can't load InfCam/StoryMem easily).
+
+*   **RunPod Serverless (Recommended):**
+    *   Hardware: 1x A100 (80GB).
+    *   Cost: **$0.0005 per second**.
+    *   Render Time: ~60 seconds.
+    *   Total Cost: **$0.03 per run**.
+    *   **SAVINGS: ~85%**
+
+*   **RunPod Dedicated Spot Instance (For "Heavy" Dev Days):**
+    *   Hardware: 1x RTX 4090 or A6000.
+    *   Cost: **$0.40 - $0.70 per hour**.
+    *   Capacity: Can generate ~50-60 videos per hour.
+    *   Cost per video: **~$0.01**.
+    *   **SAVINGS: ~95%**
+
+#### 2. The Storage Layer (Cloudflare R2 vs. Vercel/AWS)
+
+*   **Current:** If you serve video from Vercel/AWS, you pay for **Egress** (bandwidth). 1TB of video traffic = ~$90.
+*   **The Fix:** **Cloudflare R2**.
+    *   Storage: $0.015 / GB.
+    *   Egress: **$0 (Free)**.
+    *   **Impact:** You can host 4K raw files and stream them to your Dailies view for effectively zero cost.
+
+---
+
+### ⚖️ Pros, Cons & Feasibility
+
+#### **Feasibility for a Solo Dev?**
+**High.** RunPod uses Docker. Since you are building a "Pro Tool," you *need* to containerize your AI models anyway to run things like Spatia or NitroGen which don't have public APIs yet.
+
+#### **Pros:**
+1.  **Cost Control:** You pay for *time*, not *results*. If a generation fails, you debug it on the same running GPU instance without paying a new API initiation fee.
+2.  **Access to Research:** You can run **Spatia, InfCam, and FlashPortrait** immediately. You don't have to wait for Fal.ai to add them.
+3.  **Privacy:** Your script and footage stay on your controlled containers, not sent to OpenAI/Runway servers.
+
+#### **Cons (The "DevOps Tax"):**
+1.  **Cold Starts:** Serverless GPUs take 30s-60s to boot up if they are "cold." (Fixable with "FlashBoot" or keeping one small instance warm).
+2.  **Maintenance:** You have to update the Python dependencies yourself.
+
+---
+
+### 📈 Scale Upgrade Points
+
+**Phase 1: Solo / Testing (1 User)**
+*   **Stack:** RunPod Serverless (Pay-per-second) + Railway (Backend).
+*   **Cost:** ~$50/mo.
+*   **Why:** You are sporadic. You don't need a GPU running while you sleep.
+
+**Phase 2: Small Studio (2-5 Users)**
+*   **Stack:** RunPod Dedicated Pod (1x A100 or 2x A4000).
+*   **Cost:** ~$300 - $500/mo (Flat rate).
+*   **Why:** With 5 people, someone is always generating. A dedicated machine eliminates cold starts and allows for "Background Rendering" of Dailies.
+
+**Phase 3: Production Release (10+ Users)**
+*   **Stack:** Auto-Scaling Cluster (Kubernetes on RunPod/Lambda).
+*   **Cost:** Scales with revenue.
+*   **Why:** You need to handle concurrent jobs without a queue building up.
+
+---
+
+### 🛠️ The Implementation Path (Step-by-Step)
+
+Here is how to stop the $700 bleeding **today**.
+
+#### **Step 1: The "Storage" Migration (Immediate)**
+*   **Action:** Create a **Cloudflare R2** bucket.
+*   **Code:** Update your `uploadToS3` function to point to the R2 endpoint.
+*   **Benefit:** Immediate stop to bandwidth costs.
+
+#### **Step 2: The "Testing" GPU (The $0.40 Computer)**
+*   **Action:** Rent a **RunPod Community Cloud** instance (RTX 3090 or 4090) for **$0.40/hr**.
+*   **Workflow:**
+    *   When you start coding for the day, turn it on.
+    *   Deploy your **Wan 2.1 / InfCam** python script there.
+    *   Point your local VibeBoard (`localhost`) to that RunPod IP.
+    *   **Test unlimited videos for 8 hours = $3.20.** (Compared to $100+ via API).
+    *   Turn it off when you sleep.
+
+#### **Step 3: The "Production" Endpoint**
+*   **Action:** Once your Python code is stable, wrap it in a Docker container.
+*   **Deploy:** Push to **RunPod Serverless**.
+*   **Benefit:** Now your Vercel app can trigger it anytime without you manually turning on a computer.
+
+### Summary Recommendation
+**Do not stay on the API Wrapper path.** It is unviable for a video-heavy application.
+*   **Switch to RunPod (Spot Instances)** for development immediately.
+*   **Switch to R2** for storage immediately.
+*   This will drop your monthly bill from **$700 $\to$ ~$100** and unlock the advanced models you need.
+
+Here is the **VibeBoard 2.0 Master Implementation Package**.
+
+This plan is specifically architected for the **"Solo Architect"** workflow (1-User, Low Cost) to immediately stop your financial bleeding while building the professional infrastructure required to scale later.
+
+It consolidates all 15+ research models into a unified **GPU Worker** architecture running on **RunPod**, aiming to drop your operating costs from **$700/mo** to **~$80/mo** while increasing capabilities.
+
+### Package Contents
+1.  **`VibeBoard_Master_Blueprint.md`**: The architectural manual, sitemap, and specific code implementation steps.
+2.  **`VibeBoard_Implementation_Tasks.json`**: A structured task list for project management.
+
+---
+
+### File 1: `VibeBoard_Master_Blueprint.md`
+
+```markdown
+# 🎬 VibeBoard 2.0: Master Implementation Blueprint
+
+**Target Architecture:** "Solo Cloud Studio"
+**Infrastructure:** Vercel (Frontend) + Railway (Node Logic) + RunPod (Python/GPU Workers) + Cloudflare R2 (Storage).
+**Objective:** Integrate 15 advanced research models into a coherent filmmaking pipeline while minimizing API costs.
+
+---
+
+## 🗺️ 1. The Pro Studio Sitemap (Renaming & Flow)
+
+We are restructuring the app to match the **Hollywood Production Pipeline**: *Development -> Pre-Production -> Production -> Post.*
+
+| Order | **New Module Name** | Old Name | Primary AI Models | Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| **1** | **Script Lab** | Story Editor | **MiniMax M2.1** (Logic/Coding) | Scripting, breakdown, asset lists. |
+| **2** | **Character Foundry** | Training | **FlashPortrait**, **CARI4D**, **Qwen-Edit** | Training actors, performance capture, grip logic. |
+| **3** | **Asset Bin** | Elements | **3D-RE-GEN**, **MVInverse**, **AniX** | Object extraction, PBR materials, motion library. |
+| **4** | **Optics Engine** | Viewfinder | **Learn2Refocus**, **GenFocus** | Lens physics, bokeh sculpting, focus pulling. |
+| **5** | **Stagecraft** *(New)* | N/A | **NitroGen**, **MiniMax** | Virtual sets, blocking, game engine control. |
+| **6** | **Shot Studio** | Generate | **Spatia**, **StoryMem**, **ReCo**, **DreaMontage** | Principal photography, continuity generation. |
+| **7** | **VFX Suite** | Roto & Paint | **InfCam**, **DiffCamera**, **Qwen-Edit** | Reshooting, fixing, style transfer. |
+| **8** | **Sequencer** | Timeline | **MiniMax** (Captions) | Editing, audio mixing, export. |
+| **9** | **Dailies** | Dailies | **DiffCamera** (Inspection) | Review, annotation, version control. |
+
+---
+
+## 🏗️ 2. Infrastructure: The "Cost-Killer" Stack
+
+**Immediate Action:** Stop using Fal/Replicate for heavy iterative testing.
+
+### Step A: Storage Migration (Stop paying for bandwidth)
+*   **Provider:** Cloudflare R2 (S3 Compatible).
+*   **Why:** Zero egress fees.
+*   **Implementation:**
+    *   Create Bucket: `vibeboard-assets`.
+    *   Update Backend: Replace AWS S3 SDK with R2 configuration.
+
+### Step B: The "Universal" GPU Worker (RunPod)
+Instead of 10 different API subscriptions, we build **One Python Container** that loads models on demand.
+
+*   **Hardware:** RunPod Secure Cloud -> **RTX A6000 (48GB VRAM)** or **A100 (80GB)**.
+*   **Cost:** ~$0.79/hr (A6000). Turn it on when working. Turn it off when sleeping.
+*   **Architecture:** FastAPI server with a **Model Manager**.
+
+**`worker/main.py` (The Brain):**
+```python
+from fastapi import FastAPI
+from model_loader import load_model_into_vram, unload_model
+
+app = FastAPI()
+CURRENT_MODEL = None
+
+@app.post("/generate/{task}")
+async def generate(task: str, payload: dict):
+    global CURRENT_MODEL
+    
+    # 1. Dynamic VRAM Management
+    required_model = MAP_TASK_TO_MODEL[task] # e.g. "shot_studio" -> "Wan2.1"
+    if CURRENT_MODEL != required_model:
+        unload_model(CURRENT_MODEL)
+        load_model_into_vram(required_model)
+        CURRENT_MODEL = required_model
+        
+    # 2. Inference
+    result = run_inference(CURRENT_MODEL, payload)
+    
+    # 3. Upload to R2
+    url = upload_to_r2(result)
+    return {"status": "success", "url": url}
+```
+
+---
+
+## 🛠️ 3. Step-by-Step Implementation Guide
+
+### Phase 1: Core & Script Lab (The Brain)
+*Goal: Intelligent orchestration and error handling.*
+
+1.  **Deploy MiniMax M2.1 Agent (Node.js):**
+    *   Create `services/DirectorAgent.ts`.
+    *   **Function:** Intercepts frontend requests.
+    *   **Logic:** If user requests "Camera Pan," route to `InfCam`. If "Talking Head," route to `FlashPortrait`.
+2.  **Self-Healing Middleware:**
+    *   Implement `apiMedic.ts`. If a Python worker crashes or returns bad JSON, MiniMax analyzes the stderr and retries with corrected parameters.
+
+### Phase 2: Pre-Production Engines
+*Goal: Building the assets.*
+
+3.  **Asset Bin (3D-RE-GEN & MVInverse):**
+    *   **Worker Action:** Install `3d-re-gen` and `mvinverse` repos.
+    *   **UI:** Add "Deconstruct Scene" button to Asset Bin images.
+    *   **Flow:** Upload Image -> Python Worker (Split) -> Save GLBs to R2 -> Update Asset Bin DB.
+4.  **Optics Engine (GenFocus/Learn2Refocus):**
+    *   **Worker Action:** Install `GenFocus`.
+    *   **UI:** Replace "Focus Slider" with a video scrubber connected to the backend.
+    *   **Flow:** On image load -> Generate 2s Focal Stack video -> Stream to UI.
+
+### Phase 3: Production Engines (The Heavy Lift)
+*Goal: Generating the content.*
+
+5.  **Character Foundry (FlashPortrait & CARI4D):**
+    *   **Worker Action:** Install `FlashPortrait` (uses Wan2.1 backbone).
+    *   **UI:** Add "Performance" tab. Inputs: Audio + Image.
+    *   **Flow:** Python Worker chunks audio -> generates video segments -> stitches with ffmpeg -> returns MP4.
+6.  **Stagecraft (NitroGen):**
+    *   **Worker Action:** Install `Unreal Engine 5` (Headless) + `NitroGen` agent on the GPU pod.
+    *   **UI:** WebRTC stream from the GPU pod to the browser canvas.
+    *   **Flow:** User types action -> NitroGen sends keystrokes to Unreal -> Video stream updates.
+7.  **Shot Studio (Spatia & StoryMem):**
+    *   **Worker Action:** Install `Spatia` (SLAM + Diffusion).
+    *   **UI:** Add "Location Memory" toggle.
+    *   **Flow:** Save `point_cloud.ply` between generations to maintain set consistency.
+
+### Phase 4: Post-Production
+*Goal: Fixing and Refining.*
+
+8.  **VFX Suite (InfCam & DiffCamera):**
+    *   **Worker Action:** Install `InfCam` (Wan2.1 backbone).
+    *   **UI:** Add "Camera Path" drawing tool (Fabric.js) over video.
+    *   **Flow:** Send video + vector path -> InfCam warps latent space -> Return new video.
+
+---
+
+## 🧩 4. Integration Matrix (Route -> Model -> Action)
+
+| Route | User Action | Model Used | Python Worker Task |
+| :--- | :--- | :--- | :--- |
+| `/script-lab` | "Breakdown Script" | **MiniMax M2.1** | Analyze text, populate Asset DB slots. |
+| `/foundry` | "Generate Performance" | **FlashPortrait** | Audio-driven video generation (Wan backbone). |
+| `/foundry` | "Hold Prop" | **CARI4D** | Deform hand mesh around 3D object context. |
+| `/asset-bin` | "Extract Materials" | **MVInverse** | Extract Albedo/Normal/Roughness maps. |
+| `/optics` | "Rack Focus" | **Learn2Refocus** | Generate focal stack video. |
+| `/stagecraft` | "Run forward" | **NitroGen** | Send input events to game engine. |
+| `/shot-studio` | "Generate Shot" | **StoryMem** | Inject previous shot's latents into new generation. |
+| `/shot-studio` | "Block Scene" | **ReCo** | Constrain diffusion to bounding boxes. |
+| `/vfx-suite` | "Change Camera" | **InfCam** | Video-to-Video camera trajectory modification. |
+| `/vfx-suite` | "Fix Focus" | **DiffCamera** | Hallucinate high-freq details in blurred regions. |
+| `/vfx-suite` | "Edit Shirt" | **Qwen-Edit** | Instruction-based inpainting. |
+
+```
+
+---
+
+### File 2: `VibeBoard_Implementation_Tasks.json`
+
+```json
+{
+  "project": "VibeBoard 2.0 Solo-Cloud Transformation",
+  "version": "2.0",
+  "critical_path": [
+    {
+      "phase": "Phase 1: Infrastructure & Cost (Day 1-2)",
+      "tasks": [
+        {
+          "id": "INFRA-01",
+          "title": "Set up Cloudflare R2",
+          "desc": "Create buckets. Replace AWS S3 SDK in backend with R2-compatible S3 client.",
+          "priority": "Critical"
+        },
+        {
+          "id": "INFRA-02",
+          "title": "Rent RunPod GPU",
+          "desc": "Rent a Community Cloud RTX 3090 or 4090 ($0.40/hr). Install Docker, Python 3.10, CUDA 12.",
+          "priority": "Critical"
+        },
+        {
+          "id": "INFRA-03",
+          "title": "Create Python Worker Shell",
+          "desc": "Create a FastAPI server with a model loading/unloading manager to handle VRAM swapping.",
+          "priority": "High"
+        }
+      ]
+    },
+    {
+      "phase": "Phase 2: The Agentic Core (Day 3)",
+      "tasks": [
+        {
+          "id": "CORE-01",
+          "title": "MiniMax Middleware",
+          "desc": "Implement apiMedic.ts in Node backend to intercept errors and query MiniMax for fixes.",
+          "priority": "Medium"
+        },
+        {
+          "id": "CORE-02",
+          "title": "Frontend Sitemap Update",
+          "desc": "Rename routes and navigation components to match the new 'Pro Studio' nomenclature.",
+          "priority": "Medium"
+        }
+      ]
+    },
+    {
+      "phase": "Phase 3: Visual Intelligence Models (Day 4-7)",
+      "tasks": [
+        {
+          "id": "MOD-01",
+          "title": "Install Optics Engines",
+          "desc": "Deploy GenFocus and Learn2Refocus to the Python Worker. Create '/optics' endpoints.",
+          "priority": "High"
+        },
+        {
+          "id": "MOD-02",
+          "title": "Install Asset Engines",
+          "desc": "Deploy 3D-RE-GEN and MVInverse. Create '/assets/deconstruct' endpoints.",
+          "priority": "Medium"
+        }
+      ]
+    },
+    {
+      "phase": "Phase 4: Video & Physics Models (Day 8-14)",
+      "tasks": [
+        {
+          "id": "MOD-03",
+          "title": "Deploy Wan 2.1 Backbone",
+          "desc": "This is the heavy lift. Load Wan 2.1 14B. Configure adapters for InfCam and FlashPortrait.",
+          "priority": "Critical"
+        },
+        {
+          "id": "MOD-04",
+          "title": "Setup Stagecraft",
+          "desc": "Install Unreal Engine (Headless) on the RunPod instance. Setup WebRTC streaming to frontend.",
+          "priority": "Low"
+        }
+      ]
+    },
+    {
+      "phase": "Phase 5: UI Integration (Day 15+)",
+      "tasks": [
+        {
+          "id": "UI-01",
+          "title": "Blocking Canvas",
+          "desc": "Implement Fabric.js overlay in Shot Studio for ReCo bounding box inputs.",
+          "priority": "High"
+        },
+        {
+          "id": "UI-02",
+          "title": "Camera Path Drawer",
+          "desc": "Implement 3D trajectory recording in Director's Viewfinder for InfCam inputs.",
+          "priority": "Medium"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Based on the **VibeBoard 2.0 Architecture** and the cost-saving goal, here is the list of models from your current inventory that you should **KEEP** on managed APIs (Fal/Replicate/Anthropic).
+
+You are keeping these because they are either **Proprietary** (you physically cannot self-host them) or **"Burst" workloads** (cheaper to pay per API call than to keep a GPU awake for them).
+
+### 1. Image Generation (Speed & Consistency)
+**Provider: Fal.ai**
+*   **Keep:** **Flux Pro / Dev / Schnell**
+*   **Why:** Cold-booting a GPU on RunPod for a single static image takes ~20 seconds or costs money to keep warm. Fal.ai gives you **sub-second** image generation for pennies. For the **Asset Bin** and **Story Editor** thumbnails, stick with Fal.
+
+### 2. Creative Writing & Vision (The Brains)
+**Providers: Anthropic & xAI**
+*   **Keep:** **Claude 3.5 Sonnet** (Anthropic)
+    *   **Why:** It is still the king of creative writing. Use it in the **Script Lab** for dialogue and narrative structure. MiniMax is great for *logic/coding*, but Claude has better *prose*.
+*   **Keep:** **Grok 3 Vision** (xAI)
+    *   **Why:** Your **Visual Librarian** and **Inverse Gaffing** rely on Grok's vision analysis. While MiniMax has vision, Grok's specific cinematography knowledge (which you've likely prompted for) is a sunk cost/asset. Keep it for metadata tagging.
+
+### 3. Voice & Audio (The Source)
+**Provider: ElevenLabs**
+*   **Keep:** **Text-to-Speech (Turbo v2.5)**
+*   **Why:** **FlashPortrait** needs audio input to generate video. You cannot self-host an audio model that rivals ElevenLabs' emotion and prosody yet. You need this to generate the `.wav` files that drive the performance.
+
+### 4. "Closed Source" Video Models (The Backup)
+**Provider: Fal.ai**
+*   **Keep:** **Kling 1.6 / Luma Ray 2 / Google Veo**
+*   **Why:** These are proprietary. You cannot download them to RunPod.
+*   **Usage:** Keep these available in the **Shot Studio** as "Premium" options. If **Wan 2.1** (Self-Hosted) fails to generate a specific aesthetic, you need a backup engine. Mark them as "High Cost" in the UI.
+
+---
+
+### 📉 What You Are DROPPING (Moving to RunPod)
+*   ❌ **Wan 2.1 (Fal/Replicate):** Moved to Self-Hosted (Saves ~85%).
+*   ❌ **TripoSR / LGM:** Replaced by **3D-RE-GEN**.
+*   ❌ **Runway Gen-3:** Replaced by **InfCam** (Camera control) and **AniX** (Style transfer).
+*   ❌ **Replicate Training:** Replaced by **Qwen-Edit** (Character Foundry) and self-hosted LoRA scripts.
+
+### Summary Inventory to Maintain
+1.  **Flux** (Fal) - For Images.
+2.  **Claude 3.5** (Anthropic) - For Scripting.
+3.  **Grok** (xAI) - For Analysis.
+4.  **ElevenLabs** - For Voice.
+5.  **Kling/Luma** (Fal) - As Backup Video Engines.
+
+

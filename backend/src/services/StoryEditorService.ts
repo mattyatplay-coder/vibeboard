@@ -245,13 +245,14 @@ export class StoryEditorService {
 
     /**
      * @param matureContent - When true, uses Dolphin (uncensored) for creative writing.
-     *                        When false (default), uses Claude for family-friendly content.
+     *                        When false (default), uses Claude for high-quality creative writing.
      * @param technicalProvider - Provider for technical tasks (default: grok)
      */
     constructor(matureContent: boolean = false, technicalProvider: LLMProviderType = 'grok') {
         this.matureContent = matureContent;
 
-        // Claude for family-friendly creative writing, Dolphin for mature content
+        // Claude for creative writing - best at Pixar-style storytelling, screenplay formatting
+        // Dolphin for mature/uncensored content
         const creativeProvider: LLMProviderType = matureContent ? 'dolphin' : 'claude';
         this.creativeService = new LLMService(creativeProvider);
 
@@ -364,8 +365,8 @@ ${durationGuidance}
 
 Return ONLY valid JSON, no markdown formatting.`;
 
-        // Use Claude for creative outline generation
-        const providerName = this.matureContent ? 'Dolphin' : 'Claude';
+        // Use Grok for creative outline generation
+        const providerName = this.matureContent ? 'Dolphin' : 'Grok';
         console.log(`[StoryEditor] Using ${providerName} for outline generation`);
         const response = await this.creativeService.generate({
             prompt: userPrompt,
@@ -390,7 +391,7 @@ Return ONLY valid JSON, no markdown formatting.`;
 
     /**
      * Generate a full script from an outline
-     * Uses Claude for screenplay writing - excels at Pixar-style storytelling
+     * Uses Grok for screenplay writing - good at Pixar-style storytelling
      */
     async generateScript(
         outline: StoryOutline,
@@ -452,8 +453,8 @@ THEMES: ${outline.themes?.join(', ') || 'To be developed'}
 Write the full screenplay in standard format. Focus on visual storytelling for the ${genre} genre.
 Apply Pixar storytelling principles to create emotional resonance.`;
 
-        // Use Claude for screenplay writing - best at creative narrative
-        const providerName = this.matureContent ? 'Dolphin' : 'Claude';
+        // Use Grok for screenplay writing - good at creative narrative
+        const providerName = this.matureContent ? 'Dolphin' : 'Grok';
         console.log(`[StoryEditor] Using ${providerName} for screenplay generation`);
         const response = await this.creativeService.generate({
             prompt: userPrompt,

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { Gauge, ChevronDown, ChevronUp } from 'lucide-react';
+import * as Popover from '@radix-ui/react-popover';
 import clsx from 'clsx';
 
 interface CompactMotionSliderProps {
@@ -37,7 +38,7 @@ export const CompactMotionSlider: React.FC<CompactMotionSliderProps> = ({
   engineType = 'other',
   className = '',
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isOpen, setIsOpen] = React.useState(false);
 
   const currentPreset = MOTION_PRESETS.reduce((prev, curr) =>
     Math.abs(curr.value - value) < Math.abs(prev.value - value) ? curr : prev
@@ -64,27 +65,32 @@ export const CompactMotionSlider: React.FC<CompactMotionSliderProps> = ({
   );
 
   return (
-    <div className={clsx('relative', className)}>
-      {/* Compact Trigger */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className={clsx(
-          'flex h-10 items-center gap-2 rounded-lg border px-3 transition-all',
-          isOptimal
-            ? 'border-green-500/30 bg-green-500/10 text-green-400'
-            : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
-        )}
-        disabled={disabled}
-      >
-        <Gauge className="h-4 w-4" />
-        <span className="text-xs font-medium">{currentPreset.emoji}</span>
-        <span className="hidden text-xs font-medium sm:inline">{value.toFixed(1)}</span>
-        {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-      </button>
+    <Popover.Root open={isOpen} onOpenChange={setIsOpen}>
+      <Popover.Trigger asChild>
+        <button
+          className={clsx(
+            'flex h-10 items-center gap-2 rounded-lg border px-3 transition-all',
+            isOptimal
+              ? 'border-green-500/30 bg-green-500/10 text-green-400'
+              : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white',
+            className
+          )}
+          disabled={disabled}
+        >
+          <Gauge className="h-4 w-4" />
+          <span className="text-xs font-medium">{currentPreset.emoji}</span>
+          <span className="hidden text-xs font-medium sm:inline">{value.toFixed(1)}</span>
+          {isOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        </button>
+      </Popover.Trigger>
 
-      {/* Expanded Panel */}
-      {isExpanded && (
-        <div className="animate-in slide-in-from-bottom-2 fade-in absolute right-0 bottom-full z-50 mb-2 w-64 rounded-xl border border-white/10 bg-[#1a1a1a] p-3 shadow-2xl duration-150">
+      <Popover.Portal>
+        <Popover.Content
+          side="top"
+          align="end"
+          sideOffset={8}
+          className="z-50 w-64 animate-in fade-in slide-in-from-bottom-2 rounded-xl border border-white/10 bg-[#1a1a1a] p-3 shadow-2xl duration-150"
+        >
           {/* Header */}
           <div className="mb-3 flex items-center justify-between">
             <span className="flex items-center gap-2 text-xs font-semibold text-gray-300">
@@ -158,9 +164,11 @@ export const CompactMotionSlider: React.FC<CompactMotionSliderProps> = ({
               </div>
             )}
           </div>
-        </div>
-      )}
-    </div>
+
+          <Popover.Arrow className="fill-[#1a1a1a]" />
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 };
 

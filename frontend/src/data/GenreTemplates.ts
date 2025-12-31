@@ -11,6 +11,8 @@ export interface GenreTemplate {
   name: string;
   icon: string;
   description: string;
+  type: 'narrative' | 'content'; // Distinguishes Cinema vs Social/Creator workflows
+  restricted?: boolean; // When true, requires mature toggle to be visible
   recommendedTags: string[]; // tag IDs
   avoidedTags: string[]; // tag IDs
   defaultStyle: string; // additional prompt keywords
@@ -26,6 +28,7 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
     name: 'Film Noir',
     icon: '🕵️‍♀️',
     description: 'Shadowy, crime-drama aesthetic with high contrast and moral ambiguity.',
+    type: 'narrative',
     recommendedTags: [
       'chiaroscuro',
       'low_key',
@@ -57,6 +60,7 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
     name: 'Action',
     icon: '💥',
     description: 'High energy, fast-paced movement and dynamic angles.',
+    type: 'narrative',
     recommendedTags: [
       'crash_zoom_in',
       'crash_zoom_out',
@@ -89,6 +93,7 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
     name: 'Horror',
     icon: '👻',
     description: 'Unsettling atmosphere, tension, and dread.',
+    type: 'narrative',
     recommendedTags: [
       'snorricam',
       'dolly_zoom_out',
@@ -121,6 +126,7 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
     name: 'Romance',
     icon: '💘',
     description: 'Intimate, warm, and emotionally connected.',
+    type: 'narrative',
     recommendedTags: [
       'arc_left',
       'arc_right',
@@ -161,6 +167,7 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
     name: 'Documentary',
     icon: '📹',
     description: 'Realistic, observational, and authentic.',
+    type: 'narrative',
     recommendedTags: [
       'handheld',
       'shoulder_rig',
@@ -190,6 +197,7 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
     name: 'Sci-Fi',
     icon: '🛸',
     description: 'Futuristic, technological, and otherworldly.',
+    type: 'narrative',
     recommendedTags: [
       'through_object',
       'fpv_drone',
@@ -220,6 +228,7 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
     name: 'Comedy',
     icon: '😂',
     description: 'Bright, clear, and timed for humor.',
+    type: 'narrative',
     recommendedTags: [
       'static',
       'whip_pan',
@@ -240,6 +249,7 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
     name: 'Thriller',
     icon: '🔪',
     description: 'Suspenseful, gripping, and high stakes.',
+    type: 'narrative',
     recommendedTags: [
       'tracking_shot',
       'over_shoulder',
@@ -259,6 +269,7 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
     name: 'Drama',
     icon: '🎭',
     description: 'Character-driven, emotional, and grounded.',
+    type: 'narrative',
     recommendedTags: ['dolly_in', 'slow_zoom', 'medium_shot', 'rembrandt_lighting', 'cinematic'],
     avoidedTags: ['whip_pan', 'fisheye', 'distorted', 'hyperactive'],
     defaultStyle: 'dramatic lighting, emotional depth, cinematic drama',
@@ -271,6 +282,7 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
     name: 'Western',
     icon: '🤠',
     description: 'Epic landscapes, grit, and isolation.',
+    type: 'narrative',
     recommendedTags: [
       'wide_shot',
       'extreme_close_up_eyes',
@@ -290,6 +302,7 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
     name: 'Fantasy',
     icon: '🏰',
     description: 'Magical, epic, and imaginative world-building.',
+    type: 'narrative',
     recommendedTags: [
       'crane_over',
       'sweeping_shot',
@@ -308,6 +321,7 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
     name: 'Music Video',
     icon: '🎵',
     description: 'Stylized, rhythmic, and visually striking.',
+    type: 'narrative',
     recommendedTags: ['performance_shot', 'glam', 'fisheye', 'rapid_cuts', 'strobing', 'stylized'],
     avoidedTags: ['static', 'boring', 'flat'],
     defaultStyle: 'music video aesthetic, stylized lighting, dynamic composition',
@@ -320,6 +334,7 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
     name: 'Commercial',
     icon: '💼',
     description: 'Polished, clean, and product-focused.',
+    type: 'narrative',
     recommendedTags: ['hero_shot', 'beauty_lighting', 'clean_background', 'high_key', 'crisp'],
     avoidedTags: ['grainy', 'dark', 'messy', 'lo-fi'],
     defaultStyle: 'commercial luxury, high end, polished, clean look',
@@ -332,9 +347,11 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
   // ═══════════════════════════════════════════════════════════════════════════
   adult: {
     id: 'adult',
-    name: 'Adult / OnlyFans',
+    name: 'Adult / Boudoir',
     icon: '🔞',
     description: 'Intimate, sensual content for mature audiences. Glamour and boudoir aesthetics.',
+    type: 'narrative',
+    restricted: true,
     recommendedTags: [
       'glam',
       'beauty_lighting',
@@ -375,6 +392,8 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
     icon: '🔥',
     description:
       'Explicit XXX adult content. Graphic sexual acts with professional pornographic production values.',
+    type: 'narrative',
+    restricted: true,
     recommendedTags: [
       'extreme_close_up',
       'pov',
@@ -418,6 +437,78 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
       'Well-lit to show all explicit details',
     ],
   },
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CONTENT CREATOR - Social/YouTube workflows with algorithmic pacing
+  // ═══════════════════════════════════════════════════════════════════════════
+  youtuber: {
+    id: 'youtuber',
+    name: 'YouTuber / Creator',
+    icon: '📹',
+    description: 'Content creator workflows: vlogs, tech reviews, tutorials, shorts. Optimized for retention and algorithms.',
+    type: 'content',
+    recommendedTags: [
+      'handheld',
+      'whip_pan',
+      'crash_zoom_in',
+      'static',
+      'rack_focus',
+      'gimbal',
+      'fisheye',
+      'high_key',
+      'ring_light',
+      'natural_light',
+      'energetic',
+      'upbeat',
+      'authentic',
+    ],
+    avoidedTags: ['low_key', 'noir', 'horror', 'slow_motion', 'melancholic'],
+    defaultStyle: 'YouTube creator style, high energy, direct address, jump cuts, retention-focused editing',
+    colorPalette: ['#FF0000', '#FFFFFF', '#282828', '#00C853'],
+    cameraPreferences: ['Handheld', 'Static', 'Whip Pan', 'Crash Zoom'],
+    styleNotes: [
+      'Hook in the first 5 seconds',
+      'Visual change every 3-5 seconds for retention',
+      'Direct eye contact with camera',
+      'Use [A-ROLL] for talking, [B-ROLL] for cutaways',
+      'Jump cuts are encouraged for pacing',
+    ],
+  },
+  onlyfans: {
+    id: 'onlyfans',
+    name: 'OnlyFans / Exclusive',
+    icon: '🔒',
+    description: 'Exclusive creator content for subscription platforms. Intimate, personal connection with audience.',
+    type: 'content',
+    restricted: true,
+    recommendedTags: [
+      'glam',
+      'beauty_lighting',
+      'soft_focus',
+      'bokeh',
+      'rim_light',
+      'close_up',
+      'eyes_in',
+      'handheld',
+      'pov',
+      'ring_light',
+      'warm_golden',
+      'pastel_dream',
+      'intimate',
+      'sensual',
+      'seductive',
+    ],
+    avoidedTags: ['documentary', 'horror', 'aggressive', 'cold_steel', 'dutch_angle'],
+    defaultStyle: 'intimate creator content, personal connection, teaser aesthetic, subscription-worthy quality',
+    colorPalette: ['#FF4081', '#E91E63', '#F8BBD0', '#880E4F'],
+    cameraPreferences: ['POV', 'Close Up', 'Arc Shot', 'Glam Shot'],
+    styleNotes: [
+      'Personal, intimate framing',
+      'Direct address and eye contact',
+      'Soft, flattering lighting always',
+      'Tease and reveal pacing',
+      'Premium production values',
+    ],
+  },
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -453,21 +544,33 @@ export function isCameraPresetAvoided(presetId: string, genre: Genre): boolean {
 }
 
 // Genres that require mature content flag to be visible
-export const MATURE_GENRES: Genre[] = ['adult', 'hardcore'];
+export const MATURE_GENRES: Genre[] = ['adult', 'hardcore', 'onlyfans'];
+
+// Genres that are content creator (not narrative/cinema)
+export const CONTENT_GENRES: Genre[] = ['youtuber', 'onlyfans'];
 
 /**
  * Get genre options for dropdowns
  * @param includeMature - When true, includes adult/NSFW genres. Default: false
+ * @param typeFilter - Optional filter by genre type ('narrative' | 'content')
  */
 export function getGenreOptions(
-  includeMature: boolean = false
-): { value: Genre; label: string; icon: string }[] {
+  includeMature: boolean = false,
+  typeFilter?: 'narrative' | 'content'
+): { value: Genre; label: string; icon: string; type: 'narrative' | 'content' }[] {
   return Object.values(GENRE_TEMPLATES)
-    .filter(template => includeMature || !MATURE_GENRES.includes(template.id))
+    .filter(template => {
+      // Filter by mature content flag
+      if (!includeMature && template.restricted) return false;
+      // Filter by type if specified
+      if (typeFilter && template.type !== typeFilter) return false;
+      return true;
+    })
     .map(template => ({
       value: template.id,
       label: template.name,
       icon: template.icon,
+      type: template.type,
     }));
 }
 
@@ -476,4 +579,32 @@ export function getGenreOptions(
  */
 export function getGenreTemplate(genre: Genre): GenreTemplate {
   return GENRE_TEMPLATES[genre];
+}
+
+/**
+ * Check if a genre is a content creator type (vs narrative/cinema)
+ */
+export function isContentGenre(genre: Genre): boolean {
+  return GENRE_TEMPLATES[genre]?.type === 'content';
+}
+
+/**
+ * Check if a genre requires mature content toggle
+ */
+export function isRestrictedGenre(genre: Genre): boolean {
+  return GENRE_TEMPLATES[genre]?.restricted === true;
+}
+
+/**
+ * Get grouped genre options for dropdown with optgroups
+ */
+export function getGroupedGenreOptions(includeMature: boolean = false): {
+  narrative: { value: Genre; label: string; icon: string }[];
+  content: { value: Genre; label: string; icon: string }[];
+} {
+  const options = getGenreOptions(includeMature);
+  return {
+    narrative: options.filter(opt => opt.type === 'narrative'),
+    content: options.filter(opt => opt.type === 'content'),
+  };
 }

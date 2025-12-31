@@ -179,4 +179,53 @@ router.post('/director/edit', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/gpu/video/generate
+ * Generate video using Wan 2.1 (self-hosted)
+ * Text-to-Video: Provide prompt only
+ * Image-to-Video: Provide prompt + imageUrl
+ */
+router.post('/video/generate', async (req: Request, res: Response) => {
+  try {
+    const {
+      prompt,
+      imageUrl,
+      durationSeconds,
+      fps,
+      width,
+      height,
+      guidanceScale,
+      numInferenceSteps,
+      seed,
+    } = req.body;
+
+    if (!prompt) {
+      return res.status(400).json({
+        success: false,
+        error: 'prompt is required',
+      });
+    }
+
+    const result = await gpuClient.generateVideo({
+      prompt,
+      imageUrl,
+      durationSeconds,
+      fps,
+      width,
+      height,
+      guidanceScale,
+      numInferenceSteps,
+      seed,
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('[GPU Routes] Video generation failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
 export default router;

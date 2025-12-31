@@ -45,6 +45,15 @@ export class TogetherAdapter implements GenerationProvider {
         'realvis-xl': 'SG161222/RealVisXL_V4.0',
         'realistic-vision-together': 'SG161222/Realistic_Vision_V6.0_B1_noVAE',
         'dreamshaper-xl': 'Lykon/dreamshaper-xl-v2-turbo',
+        // New frontend model IDs (together/ prefix)
+        'together/flux-schnell': 'black-forest-labs/FLUX.1-schnell',
+        'together/flux-dev': 'black-forest-labs/FLUX.1-dev',
+        'together/dreamshaper': 'Lykon/DreamShaper',
+        'together/hidream-full': 'HiDream-ai/HiDream-I1-Full',
+        'together/hidream-dev': 'HiDream-ai/HiDream-I1-Dev',
+        'together/hidream-fast': 'HiDream-ai/HiDream-I1-Fast',
+        'together/juggernaut-pro': 'RunDiffusion/Juggernaut-Pro-Flux',
+        'together/juggernaut-lightning': 'RunDiffusion/Juggernaut-Lightning-Flux',
       };
 
       model = modelMap[model] || model;

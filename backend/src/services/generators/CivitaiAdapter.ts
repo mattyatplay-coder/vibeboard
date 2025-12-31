@@ -67,6 +67,11 @@ export class CivitaiAdapter implements GenerationProvider {
         'zimage-turbo': { baseModel: 'ZImageTurbo' },
         // Other
         'other': { baseModel: 'Other' },
+        // New frontend model IDs (civitai/ prefix)
+        'civitai/sdxl': { baseModel: 'SDXL 1.0', urn: 'urn:air:sdxl:checkpoint:civitai:101055@128078' },
+        'civitai/pony': { baseModel: 'Pony', urn: 'urn:air:pony:checkpoint:civitai:257749@290640' },
+        'civitai/realistic-vision': { baseModel: 'SD 1.5', urn: 'urn:air:sd1:checkpoint:civitai:4201@130072' },
+        'civitai/flux-d': { baseModel: 'Flux.1 D', urn: 'urn:air:flux1:checkpoint:civitai:618692@691639' },
     };
 
     // Video models mapping
@@ -84,6 +89,9 @@ export class CivitaiAdapter implements GenerationProvider {
         'wan-video-2-2-t2v-a14b': 'Wan Video 2.2 T2V-A14B',
         'wan-video-2-5-t2v': 'Wan Video 2.5 T2V',
         'wan-video-2-5-i2v': 'Wan Video 2.5 I2V',
+        // New frontend model IDs (civitai/ prefix)
+        'civitai/wan-t2v': 'Wan Video 2.5 T2V',
+        'civitai/wan-i2v': 'Wan Video 2.5 I2V',
     };
 
     constructor() {

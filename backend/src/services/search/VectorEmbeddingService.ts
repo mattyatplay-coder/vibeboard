@@ -15,9 +15,7 @@
  */
 
 import Replicate from 'replicate';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../prisma';
 
 export interface EmbeddingResult {
     embedding: number[];

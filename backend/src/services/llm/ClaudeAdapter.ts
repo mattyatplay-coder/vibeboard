@@ -14,21 +14,32 @@ import { LLMProvider, LLMRequest, LLMResponse } from './LLMProvider';
  * - Long-form narrative generation
  */
 export class ClaudeAdapter implements LLMProvider {
-    private client: Anthropic;
+    private client: Anthropic | null = null;
+
+    /**
+     * Get or create the Anthropic client (lazy initialization)
+     * This ensures the API key is read after dotenv.config() has run
+     */
+    private getClient(): Anthropic {
+        if (!this.client) {
+            const apiKey = process.env.ANTHROPIC_API_KEY || '';
+            if (!apiKey) {
+                throw new Error('ANTHROPIC_API_KEY is not set. Please add it to your .env file.');
+            }
+            this.client = new Anthropic({ apiKey });
+        }
+        return this.client;
+    }
 
     constructor() {
-        const apiKey = process.env.ANTHROPIC_API_KEY || '';
-        if (!apiKey) {
-            console.warn('ANTHROPIC_API_KEY is not set. Claude generations will fail.');
-        }
-        this.client = new Anthropic({ apiKey });
+        // Client is initialized lazily to ensure env vars are loaded
     }
 
     async generate(request: LLMRequest): Promise<LLMResponse> {
         try {
             console.log(`[ClaudeAdapter] Generating with model: ${request.model || 'claude-sonnet-4-20250514'}`);
 
-            const message = await this.client.messages.create({
+            const message = await this.getClient().messages.create({
                 model: request.model || 'claude-sonnet-4-20250514',
                 max_tokens: request.maxTokens || 8192,
                 system: request.systemPrompt || undefined,
@@ -65,7 +76,7 @@ export class ClaudeAdapter implements LLMProvider {
         try {
             console.log(`[ClaudeAdapter] Streaming with model: ${request.model || 'claude-sonnet-4-20250514'}`);
 
-            const stream = this.client.messages.stream({
+            const stream = this.getClient().messages.stream({
                 model: request.model || 'claude-sonnet-4-20250514',
                 max_tokens: request.maxTokens || 8192,
                 system: request.systemPrompt || undefined,

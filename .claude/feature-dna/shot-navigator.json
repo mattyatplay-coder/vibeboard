@@ -1,0 +1,56 @@
+{
+  "name": "Shot Navigator",
+  "description": "Drag-and-drop shot building with Beginning/Ending frame workflow",
+  "status": "active",
+  "addedDate": "2025-12-22",
+  "lastVerified": "2025-12-30",
+  "files": {
+    "frontend": [
+      "frontend/src/components/generations/ShotNavigator.tsx",
+      "frontend/src/app/projects/[id]/generate/page.tsx"
+    ],
+    "backend": [
+      "backend/src/controllers/sceneChainController.ts",
+      "backend/src/routes/sceneChainRoutes.ts"
+    ]
+  },
+  "endpoints": [
+    "GET /api/projects/:id/scene-chains",
+    "POST /api/projects/:id/scene-chains",
+    "GET /api/projects/:id/scene-chains/:chainId",
+    "POST /api/projects/:id/scene-chains/:chainId/segments",
+    "PATCH /api/projects/:id/scene-chains/:chainId/segments/:segmentId",
+    "DELETE /api/projects/:id/scene-chains/:chainId/segments/:segmentId",
+    "POST /api/projects/:id/scene-chains/:chainId/segments/:segmentId/generate"
+  ],
+  "keyFunctions": {
+    "ShotNavigatorRef": {
+      "methods": ["handleFrameDrop(shotId, frameType, imageUrl)", "refreshShots()"],
+      "usage": "Called from Generate page handleDragEnd"
+    },
+    "FrameSlots": {
+      "beginning": "Green border when set, accepts drag or click-to-upload",
+      "ending": "Purple border when set, optional for video generation"
+    }
+  },
+  "expectedBehavior": {
+    "sceneSelection": "Dropdown to select/create scene chains",
+    "addShot": "+ Add Shot button creates new segment",
+    "dragDrop": "Drag generations OR elements to frame slots",
+    "upload": "Click empty frame slot to trigger file picker",
+    "generate": "Generate Video button activates when beginning frame is set",
+    "status": "Pending/Generating/Complete/Failed with visual indicators",
+    "preview": "Hover-to-play for completed shot videos"
+  },
+  "visualStates": {
+    "empty": "Dashed white border",
+    "dragOver": "Blue/purple border + scale animation",
+    "set": "Green (beginning) or purple (ending) solid border",
+    "linked": "Green chain icon when both frames set"
+  },
+  "dependencies": {
+    "packages": ["@dnd-kit/core", "@dnd-kit/modifiers"],
+    "internal": ["Scene Chain API", "DraggableElementThumbnail"]
+  },
+  "backupLocation": "/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/complete backup"
+}

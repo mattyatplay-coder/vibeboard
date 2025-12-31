@@ -1,30 +1,121 @@
 'use client';
 
-import { useState, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams, useParams } from 'next/navigation';
 import { TattooPlacementPanel } from '@/components/processing/TattooPlacementPanel';
 import { MagicEraserPanel } from '@/components/processing/MagicEraserPanel';
 import { RotoscopePanel } from '@/components/processing/RotoscopePanel';
 import { SetExtensionPanel } from '@/components/processing/SetExtensionPanel';
-import { Layers, Eraser, Loader2, Film, Expand } from 'lucide-react';
+import { CastAssemblerPanel } from '@/components/processing/CastAssemblerPanel';
+import { TextFixerPanel } from '@/components/processing/TextFixerPanel';
+import { Layers, Eraser, Loader2, Film, Expand, Users, Type } from 'lucide-react';
+import { usePageAutoSave, ProcessSession, hasRecoverableContent } from '@/lib/pageSessionStore';
+import { RecoveryToast } from '@/components/ui/RecoveryToast';
 
 function ProcessPageContent() {
+  const params = useParams();
+  const projectId = params.id as string;
   const searchParams = useSearchParams();
   const imageUrl = searchParams.get('url');
   const videoUrl = searchParams.get('video');
   const tool = searchParams.get('tool'); // 'eraser', 'tattoo', 'rotoscope', or 'extend'
 
   // Compute initial tab based on URL param
-  const getInitialTab = (): 'tattoo' | 'eraser' | 'rotoscope' | 'extend' => {
+  const getInitialTab = (): 'tattoo' | 'eraser' | 'rotoscope' | 'extend' | 'cast' | 'text' => {
     if (tool === 'eraser') return 'eraser';
     if (tool === 'extend') return 'extend';
+    if (tool === 'cast') return 'cast';
+    if (tool === 'text') return 'text';
     if (tool === 'rotoscope' || videoUrl) return 'rotoscope';
     return 'tattoo';
   };
-  const [activeTab, setActiveTab] = useState<'tattoo' | 'eraser' | 'rotoscope' | 'extend'>(getInitialTab());
+  const [activeTab, setActiveTab] = useState<'tattoo' | 'eraser' | 'rotoscope' | 'extend' | 'cast' | 'text'>(getInitialTab());
+
+  // Session recovery
+  const [hasMounted, setHasMounted] = useState(false);
+  const [showRecoveryToast, setShowRecoveryToast] = useState(false);
+  const [recoverableSession, setRecoverableSession] = useState<ProcessSession | null>(null);
+  const {
+    saveSession,
+    getSession,
+    clearSession,
+    dismissRecovery,
+    isRecoveryDismissed,
+  } = usePageAutoSave<ProcessSession>('process');
+
+  // Mount detection
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  // Check for recoverable session
+  useEffect(() => {
+    if (!hasMounted || !projectId) return;
+    const session = getSession(projectId);
+    if (session && hasRecoverableContent(session) && !isRecoveryDismissed(projectId)) {
+      setRecoverableSession(session);
+      setShowRecoveryToast(true);
+    }
+  }, [hasMounted, projectId, getSession, isRecoveryDismissed]);
+
+  // Auto-save (save current image URL and tool)
+  useEffect(() => {
+    if (!projectId || !hasMounted) return;
+    const currentImageUrl = imageUrl || videoUrl;
+    if (!currentImageUrl) return;
+
+    const saveInterval = setInterval(() => {
+      saveSession({
+        projectId,
+        currentImageUrl,
+        activeTool: activeTab === 'tattoo' ? 'tattoo' : activeTab === 'eraser' ? 'magic-eraser' : activeTab === 'rotoscope' ? 'roto' : 'set-extension',
+        toolSettings: {},
+        historyIndex: 0,
+        isDirty: true,
+      });
+    }, 500);
+    return () => clearInterval(saveInterval);
+  }, [projectId, hasMounted, imageUrl, videoUrl, activeTab, saveSession]);
+
+  const handleRestoreSession = () => {
+    if (!recoverableSession) return;
+    if (recoverableSession.activeTool) {
+      const toolMap: Record<string, 'tattoo' | 'eraser' | 'rotoscope' | 'extend' | 'cast' | 'text'> = {
+        'tattoo': 'tattoo',
+        'magic-eraser': 'eraser',
+        'roto': 'rotoscope',
+        'set-extension': 'extend',
+        'cast-assembler': 'cast',
+        'text-fixer': 'text',
+      };
+      setActiveTab(toolMap[recoverableSession.activeTool] || 'tattoo');
+    }
+    setShowRecoveryToast(false);
+    setRecoverableSession(null);
+  };
+
+  const handleDismissRecovery = () => {
+    if (projectId) {
+      dismissRecovery(projectId);
+      clearSession(projectId);
+    }
+    setShowRecoveryToast(false);
+    setRecoverableSession(null);
+  };
 
   return (
     <div className="flex h-screen flex-1 flex-col overflow-hidden bg-[#0a0a0a] p-8 text-white">
+      {/* Session Recovery Toast */}
+      {recoverableSession && (
+        <RecoveryToast
+          isVisible={showRecoveryToast}
+          savedAt={recoverableSession.savedAt}
+          pageType="process"
+          onRestore={handleRestoreSession}
+          onDismiss={handleDismissRecovery}
+        />
+      )}
+
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Roto & Paint</h1>
 
@@ -70,6 +161,26 @@ function ProcessPageContent() {
           >
             <Expand className="h-4 w-4" /> Set Extension
           </button>
+          <button
+            onClick={() => setActiveTab('cast')}
+            className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'cast'
+                ? 'bg-violet-600 text-white shadow-lg'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <Users className="h-4 w-4" /> Cast Assembler
+          </button>
+          <button
+            onClick={() => setActiveTab('text')}
+            className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'text'
+                ? 'bg-emerald-600 text-white shadow-lg'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <Type className="h-4 w-4" /> Text Fixer
+          </button>
         </div>
       </div>
 
@@ -78,6 +189,8 @@ function ProcessPageContent() {
         {activeTab === 'eraser' && <MagicEraserPanel initialImageUrl={imageUrl || undefined} />}
         {activeTab === 'rotoscope' && <RotoscopePanel initialVideoUrl={videoUrl || undefined} />}
         {activeTab === 'extend' && <SetExtensionPanel initialImageUrl={imageUrl || undefined} />}
+        {activeTab === 'cast' && <CastAssemblerPanel projectId={projectId} />}
+        {activeTab === 'text' && <TextFixerPanel initialImageUrl={imageUrl || undefined} />}
       </div>
     </div>
   );

@@ -22,6 +22,7 @@ interface GenerationResultsProps {
   onRetake: (url: string) => void;
   onInpaint: (url: string, ar?: string) => void;
   onEnhanceVideo: (id: string, mode?: 'full' | 'audio-only' | 'smooth-only') => Promise<void>;
+  onReshoot?: (imageUrl: string, instruction: string) => Promise<void>;
 
   // Batch
   onBatchMove: (sessionId: string) => Promise<void>;
@@ -50,6 +51,7 @@ export function GenerationResults({
   onRetake,
   onInpaint,
   onEnhanceVideo,
+  onReshoot,
   onBatchMove,
   onBatchDelete,
   onBatchDownload,
@@ -313,6 +315,7 @@ export function GenerationResults({
                 onRetake={onRetake}
                 onInpaint={onInpaint}
                 onEnhanceVideo={onEnhanceVideo}
+                onReshoot={onReshoot}
                 isSelected={selectedGenerationIds.includes(gen.id)}
                 onToggleSelection={e => onToggleSelection(gen.id, e)}
                 onSaveAsElement={(url, type) => onSaveElement(url, type)}

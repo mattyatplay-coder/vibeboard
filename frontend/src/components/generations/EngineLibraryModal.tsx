@@ -82,12 +82,19 @@ export function EngineLibraryModal({
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const [loraOnly, setLoraOnly] = useState(false);
 
-  // Update selected category when modal opens or initialCategory changes
+  // Staged model selection - only applied when user clicks "Apply Model"
+  const [stagedModelId, setStagedModelId] = useState<string>(currentModelId);
+
+  // Update selected category and staged model when modal opens
   React.useEffect(() => {
-    if (isOpen && initialCategory) {
-      setSelectedCategory(initialCategory);
+    if (isOpen) {
+      if (initialCategory) {
+        setSelectedCategory(initialCategory);
+      }
+      // Reset staged selection to current model when modal opens
+      setStagedModelId(currentModelId);
     }
-  }, [isOpen, initialCategory]);
+  }, [isOpen, initialCategory, currentModelId]);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Get provider counts for MAKER filter
@@ -161,9 +168,22 @@ export function EngineLibraryModal({
   // Actually, simple grid is better for now.
 
   const handleSelect = (model: ModelInfo) => {
-    onSelect(model);
-    // onClose(); // Keep open to allow parameter adjustment
+    // Stage the selection - don't apply yet
+    setStagedModelId(model.id);
   };
+
+  const handleApply = () => {
+    const model = ALL_MODELS.find(m => m.id === stagedModelId);
+    if (model) {
+      onSelect(model);
+    }
+    onClose();
+  };
+
+  // Get staged model info for footer display
+  const stagedModel = useMemo(() => {
+    return ALL_MODELS.find(m => m.id === stagedModelId);
+  }, [stagedModelId]);
 
   return (
     <AnimatePresence>
@@ -386,11 +406,11 @@ export function EngineLibraryModal({
               </div>
 
               {/* Grid */}
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 overflow-y-auto p-6 pb-24">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {filteredModels.map(model => {
                     const providerDef = PROVIDER_DEFINITIONS[model.provider];
-                    const isSelected = currentModelId === model.id;
+                    const isSelected = stagedModelId === model.id;
 
                     return (
                       <div
@@ -495,6 +515,37 @@ export function EngineLibraryModal({
                     <p>No models found matching "{searchQuery}"</p>
                   </div>
                 )}
+              </div>
+
+              {/* Footer */}
+              <div className="absolute right-0 bottom-0 left-64 flex items-center justify-between border-t border-white/10 bg-black/90 px-6 py-4 backdrop-blur-sm">
+                <div className="flex items-center gap-3 text-sm text-gray-400">
+                  {stagedModel ? (
+                    <>
+                      <span className="font-medium text-white">{stagedModel.name}</span>
+                      <span className="text-gray-600">•</span>
+                      <span className="text-emerald-400">{getModelPriceString(stagedModel.id)}</span>
+                    </>
+                  ) : (
+                    <span>No model selected</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={onClose}
+                    className="px-4 py-2 text-sm font-medium text-gray-400 transition-colors hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleApply}
+                    disabled={!stagedModel}
+                    className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Check className="h-4 w-4" />
+                    Apply Model
+                  </button>
+                </div>
               </div>
             </div>
           </motion.div>

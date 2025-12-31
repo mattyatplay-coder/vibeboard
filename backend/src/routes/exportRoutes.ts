@@ -7,13 +7,12 @@
 
 import { Router, Request, Response } from 'express';
 import { MasterExportService, TimelineClipInput, MasterExportOptions } from '../services/export/MasterExportService';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../prisma';
 import path from 'path';
 import fs from 'fs';
 import { upload } from '../middleware/upload';
 
 const router = Router({ mergeParams: true });
-const prisma = new PrismaClient();
 const masterExportService = MasterExportService.getInstance();
 
 /**

@@ -3,6 +3,10 @@ import { LLMProvider, LLMRequest, LLMResponse } from './LLMProvider';
 import fs from 'fs';
 import path from 'path';
 import { KnowledgeBaseService } from '../knowledge/KnowledgeBaseService';
+import { withRetry, circuitBreakers } from '../../utils/retry';
+import { loggers, logApiCall } from '../../utils/logger';
+
+const log = loggers.grok;
 
 export class GrokAdapter implements LLMProvider {
     private apiKey: string;
@@ -11,8 +15,23 @@ export class GrokAdapter implements LLMProvider {
     constructor() {
         this.apiKey = process.env.XAI_API_KEY || '';
         if (!this.apiKey) {
-            console.warn('XAI_API_KEY is not set. Grok generations will fail.');
+            log.warn('XAI_API_KEY is not set. Grok generations will fail.');
         }
+    }
+
+    /**
+     * Make API call with retry logic and circuit breaker
+     */
+    private async makeRequest<T>(fn: () => Promise<T>): Promise<T> {
+        return circuitBreakers.grok.execute(() =>
+            withRetry(fn, {
+                maxRetries: 2,
+                initialDelayMs: 1000,
+                onRetry: (error, attempt, delayMs) => {
+                    log.warn({ attempt, delayMs, error: error.message }, `Retry ${attempt} after ${delayMs}ms`);
+                },
+            })
+        );
     }
 
     async generate(request: LLMRequest): Promise<LLMResponse> {
@@ -25,30 +44,32 @@ export class GrokAdapter implements LLMProvider {
                 const knowledge = await KnowledgeBaseService.getInstance().getGlobalContext();
                 finalSystemPrompt = `${knowledge}\n\n${finalSystemPrompt}`;
             } catch (kErr) {
-                console.warn('GrokAdapter: Failed to inject knowledge base context', kErr);
+                log.warn({ error: kErr }, 'Failed to inject knowledge base context');
             }
 
-            console.log(`[GrokAdapter] Sending request to ${this.baseUrl}/chat/completions`);
-            console.log(`[GrokAdapter] Key present: ${this.apiKey ? 'Yes' : 'No'}`);
+            log.debug({ model: request.model || 'grok-3' }, 'Sending chat completion request');
 
-            const response = await axios.post(
-                `${this.baseUrl}/chat/completions`,
-                {
-                    messages: [
-                        ...(finalSystemPrompt ? [{ role: 'system', content: finalSystemPrompt }] : []),
-                        { role: 'user', content: request.prompt }
-                    ],
-                    model: request.model || 'grok-3',
-                    temperature: request.temperature || 0.7,
-                    max_tokens: request.maxTokens,
-                    stream: false
-                },
-                {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${this.apiKey}`
+            const response = await this.makeRequest(() =>
+                axios.post(
+                    `${this.baseUrl}/chat/completions`,
+                    {
+                        messages: [
+                            ...(finalSystemPrompt ? [{ role: 'system', content: finalSystemPrompt }] : []),
+                            { role: 'user', content: request.prompt }
+                        ],
+                        model: request.model || 'grok-3',
+                        temperature: request.temperature || 0.7,
+                        max_tokens: request.maxTokens,
+                        stream: false
+                    },
+                    {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.apiKey}`
+                        },
+                        timeout: 60000 // 60 second timeout for text generation
                     }
-                }
+                )
             );
 
             const completion = response.data.choices[0].message.content;
@@ -63,7 +84,7 @@ export class GrokAdapter implements LLMProvider {
                 }
             };
         } catch (error: any) {
-            console.error('Grok API Error:', error.response?.data || error.message);
+            log.error({ error: error.response?.data || error.message }, 'Grok API Error');
             throw new Error(`Grok generation failed: ${error.message}`);
         }
     }
@@ -76,7 +97,7 @@ export class GrokAdapter implements LLMProvider {
                 const knowledge = await KnowledgeBaseService.getInstance().getGlobalContext();
                 finalSystemPrompt = `${knowledge}\n\n${finalSystemPrompt}`;
             } catch (kErr) {
-                console.warn('GrokAdapter: Failed to inject knowledge base context', kErr);
+                log.warn({ error: kErr }, 'Failed to inject knowledge base context');
             }
 
             const response = await axios.post(
@@ -96,7 +117,8 @@ export class GrokAdapter implements LLMProvider {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${this.apiKey}`
                     },
-                    responseType: 'stream'
+                    responseType: 'stream',
+                    timeout: 120000 // 120 second timeout for streaming
                 }
             );
 
@@ -224,26 +246,29 @@ export class GrokAdapter implements LLMProvider {
                 });
             }
 
-            const response = await axios.post(
-                `${this.baseUrl}/chat/completions`,
-                {
-                    messages: [
-                        {
-                            role: 'user',
-                            content: contentConfig
-                        }
-                    ],
-                    model: 'grok-2-vision-1212',
-                    temperature: 0.1, // Very low temp for consistent/deterministic analysis
-                    max_tokens: 2000,
-                    stream: false
-                },
-                {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${this.apiKey}`
+            const response = await this.makeRequest(() =>
+                axios.post(
+                    `${this.baseUrl}/chat/completions`,
+                    {
+                        messages: [
+                            {
+                                role: 'user',
+                                content: contentConfig
+                            }
+                        ],
+                        model: 'grok-2-vision-1212',
+                        temperature: 0.1, // Very low temp for consistent/deterministic analysis
+                        max_tokens: 2000,
+                        stream: false
+                    },
+                    {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.apiKey}`
+                        },
+                        timeout: 90000 // 90 second timeout for vision analysis
                     }
-                }
+                )
             );
 
             return response.data.choices[0].message.content;

@@ -7,6 +7,7 @@ export class OpenRouterService {
     this.client = new OpenAI({
       apiKey: process.env.OPENROUTER_API_KEY,
       baseURL: 'https://openrouter.ai/api/v1',
+      timeout: 90000, // 90 second timeout for API requests
       defaultHeaders: {
         'HTTP-Referer': process.env.CORS_ORIGIN || 'http://localhost:3000', // To identify your app on OpenRouter rankings
         'X-Title': 'VibeBoard',

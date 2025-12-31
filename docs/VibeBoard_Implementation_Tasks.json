@@ -1,0 +1,277 @@
+{
+  "project": "VibeBoard 2.0 Solo-Cloud Transformation",
+  "version": "2.0",
+  "created": "2025-12-30",
+  "objective": "Reduce operating costs from $700/mo to ~$80/mo while increasing capabilities",
+  "architecture": {
+    "frontend": "Vercel (Next.js)",
+    "backend": "Railway (Node.js/Express)",
+    "gpu_workers": "RunPod (Python/FastAPI)",
+    "storage": "Cloudflare R2",
+    "llm": "Claude 3.5 + Grok + MiniMax M2.1"
+  },
+  "critical_path": [
+    {
+      "phase": "Phase 1: Infrastructure & Cost (Day 1-2)",
+      "priority": "CRITICAL",
+      "estimated_savings": "$100/mo immediately",
+      "tasks": [
+        {
+          "id": "INFRA-01",
+          "title": "Set up Cloudflare R2",
+          "desc": "Create buckets. Replace AWS S3 SDK in backend with R2-compatible S3 client.",
+          "priority": "Critical",
+          "files_to_modify": [
+            "backend/src/services/storage/StorageService.ts",
+            "backend/.env"
+          ],
+          "acceptance_criteria": [
+            "R2 bucket created: vibeboard-assets",
+            "Backend can upload/download files from R2",
+            "Zero egress fees confirmed"
+          ]
+        },
+        {
+          "id": "INFRA-02",
+          "title": "Rent RunPod GPU",
+          "desc": "Rent a Community Cloud RTX 3090 or 4090 ($0.40/hr). Install Docker, Python 3.10, CUDA 12.",
+          "priority": "Critical",
+          "acceptance_criteria": [
+            "RunPod account created",
+            "GPU instance accessible via SSH",
+            "Docker and CUDA verified working"
+          ]
+        },
+        {
+          "id": "INFRA-03",
+          "title": "Create Python Worker Shell",
+          "desc": "Create a FastAPI server with a model loading/unloading manager to handle VRAM swapping.",
+          "priority": "High",
+          "new_files": [
+            "worker/main.py",
+            "worker/model_loader.py",
+            "worker/requirements.txt",
+            "worker/Dockerfile"
+          ],
+          "acceptance_criteria": [
+            "FastAPI server starts on RunPod",
+            "Health endpoint returns 200",
+            "Model loading/unloading tested"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": "Phase 2: The Agentic Core (Day 3)",
+      "priority": "HIGH",
+      "tasks": [
+        {
+          "id": "CORE-01",
+          "title": "MiniMax Middleware",
+          "desc": "Implement apiMedic.ts in Node backend to intercept errors and query MiniMax for fixes.",
+          "priority": "Medium",
+          "new_files": [
+            "backend/src/services/llm/MiniMaxAdapter.ts",
+            "backend/src/middleware/apiMedic.ts"
+          ],
+          "acceptance_criteria": [
+            "MiniMax API integration working",
+            "Error interception and retry logic tested",
+            "Self-healing demonstrated on test failure"
+          ]
+        },
+        {
+          "id": "CORE-02",
+          "title": "Frontend Sitemap Update",
+          "desc": "Rename routes and navigation components to match the new 'Pro Studio' nomenclature.",
+          "priority": "Medium",
+          "route_mapping": {
+            "/story-editor": "/script-lab",
+            "/train": "/foundry",
+            "/elements": "/asset-bin",
+            "/viewfinder": "/optics",
+            "/generate": "/shot-studio",
+            "/process": "/vfx-suite",
+            "/timeline": "/sequencer",
+            "/dailies": "/dailies"
+          },
+          "files_to_modify": [
+            "frontend/src/components/layout/Sidebar.tsx",
+            "frontend/src/app/projects/[id]/*"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": "Phase 3: Visual Intelligence Models (Day 4-7)",
+      "priority": "HIGH",
+      "tasks": [
+        {
+          "id": "MOD-01",
+          "title": "Install Optics Engines",
+          "desc": "Deploy GenFocus and Learn2Refocus to the Python Worker. Create '/optics' endpoints.",
+          "priority": "High",
+          "models": ["GenFocus", "Learn2Refocus"],
+          "new_files": [
+            "worker/models/optics.py",
+            "backend/src/routes/opticsRoutes.ts"
+          ],
+          "acceptance_criteria": [
+            "GenFocus generates focal stack video",
+            "Learn2Refocus adjusts focus in existing images",
+            "API endpoint returns video URL"
+          ]
+        },
+        {
+          "id": "MOD-02",
+          "title": "Install Asset Engines",
+          "desc": "Deploy 3D-RE-GEN and MVInverse. Create '/assets/deconstruct' endpoints.",
+          "priority": "Medium",
+          "models": ["3D-RE-GEN", "MVInverse"],
+          "new_files": [
+            "worker/models/assets.py",
+            "backend/src/routes/assetDeconstructRoutes.ts"
+          ],
+          "acceptance_criteria": [
+            "Image -> GLB mesh extraction working",
+            "PBR material maps (Albedo/Normal/Roughness) generated",
+            "Assets saved to R2 with DB references"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": "Phase 4: Video & Physics Models (Day 8-14)",
+      "priority": "CRITICAL",
+      "tasks": [
+        {
+          "id": "MOD-03",
+          "title": "Deploy Wan 2.1 Backbone",
+          "desc": "This is the heavy lift. Load Wan 2.1 14B. Configure adapters for InfCam and FlashPortrait.",
+          "priority": "Critical",
+          "models": ["Wan 2.1 14B", "InfCam", "FlashPortrait"],
+          "vram_required": "48GB+ (A6000 or A100)",
+          "new_files": [
+            "worker/models/video_generation.py",
+            "worker/models/camera_control.py",
+            "worker/models/talking_head.py"
+          ],
+          "acceptance_criteria": [
+            "Wan 2.1 generates video on RunPod",
+            "InfCam camera trajectory modification working",
+            "FlashPortrait audio-driven generation working",
+            "Cost per video < $0.05"
+          ]
+        },
+        {
+          "id": "MOD-04",
+          "title": "Setup Stagecraft",
+          "desc": "Install Unreal Engine (Headless) on the RunPod instance. Setup WebRTC streaming to frontend.",
+          "priority": "Low",
+          "models": ["NitroGen"],
+          "new_files": [
+            "worker/stagecraft/unreal_controller.py",
+            "frontend/src/components/stagecraft/WebRTCViewer.tsx"
+          ],
+          "notes": "Defer until core video pipeline is stable"
+        }
+      ]
+    },
+    {
+      "phase": "Phase 5: UI Integration (Day 15+)",
+      "priority": "MEDIUM",
+      "tasks": [
+        {
+          "id": "UI-01",
+          "title": "Blocking Canvas",
+          "desc": "Implement Fabric.js overlay in Shot Studio for ReCo bounding box inputs.",
+          "priority": "High",
+          "new_files": [
+            "frontend/src/components/shot-studio/BlockingCanvas.tsx"
+          ],
+          "acceptance_criteria": [
+            "User can draw bounding boxes on canvas",
+            "Boxes sent to ReCo for constrained generation",
+            "Generated image respects box positions"
+          ]
+        },
+        {
+          "id": "UI-02",
+          "title": "Camera Path Drawer",
+          "desc": "Implement 3D trajectory recording in Director's Viewfinder for InfCam inputs.",
+          "priority": "Medium",
+          "new_files": [
+            "frontend/src/components/optics/CameraPathDrawer.tsx"
+          ],
+          "acceptance_criteria": [
+            "User can draw camera path over video",
+            "Path exported as trajectory data",
+            "InfCam applies trajectory to video"
+          ]
+        }
+      ]
+    }
+  ],
+  "models_inventory": {
+    "keep_on_apis": [
+      {
+        "model": "Flux Pro/Dev/Schnell",
+        "provider": "Fal.ai",
+        "reason": "Sub-second image generation, low cost per image"
+      },
+      {
+        "model": "Claude 3.5 Sonnet",
+        "provider": "Anthropic",
+        "reason": "Best creative writing, irreplaceable for scripting"
+      },
+      {
+        "model": "Grok 3 Vision",
+        "provider": "xAI",
+        "reason": "Visual analysis, metadata tagging (Visual Librarian)"
+      },
+      {
+        "model": "ElevenLabs TTS",
+        "provider": "ElevenLabs",
+        "reason": "Audio input for FlashPortrait, no open-source equivalent"
+      },
+      {
+        "model": "Kling 1.6 / Luma Ray 2 / Veo",
+        "provider": "Fal.ai",
+        "reason": "Proprietary backup engines, mark as 'Premium' in UI"
+      }
+    ],
+    "move_to_runpod": [
+      {
+        "model": "Wan 2.1 14B",
+        "replaces": "Fal/Replicate Wan",
+        "savings": "~85%"
+      },
+      {
+        "model": "3D-RE-GEN",
+        "replaces": "TripoSR / LGM",
+        "savings": "100% (open source)"
+      },
+      {
+        "model": "InfCam",
+        "replaces": "Runway Gen-3 camera control",
+        "savings": "100% (open source)"
+      },
+      {
+        "model": "FlashPortrait",
+        "replaces": "Replicate talking head models",
+        "savings": "~90%"
+      },
+      {
+        "model": "Qwen-Edit",
+        "replaces": "Replicate training/editing",
+        "savings": "~90%"
+      }
+    ]
+  },
+  "cost_projection": {
+    "current_monthly": 700,
+    "projected_monthly": 80,
+    "savings_percent": 88,
+    "breakeven_days": 3
+  }
+}

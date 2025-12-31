@@ -1,0 +1,50 @@
+{
+  "name": "Engine Library Modal",
+  "description": "Model selection modal with filtering by capability and provider",
+  "status": "frozen",
+  "addedDate": "2025-12-01",
+  "lastVerified": "2025-12-30",
+  "files": {
+    "frontend": [
+      "frontend/src/components/generations/EngineLibraryModal.tsx",
+      "frontend/src/components/generations/EngineSelectorV2.tsx",
+      "frontend/src/lib/ModelRegistry.ts"
+    ]
+  },
+  "endpoints": [],
+  "keyFunctions": {
+    "EngineLibraryModal": {
+      "props": ["isOpen", "onClose", "currentModelId", "onSelect", "initialCategory"],
+      "noExtraProps": "NO duration, setDuration, variations props - those are managed by Generate page"
+    },
+    "EngineSelectorV2": {
+      "description": "Compact pill showing Provider Icon + Model Name",
+      "autoSwitch": "Auto-switches mode (image/video) based on model type"
+    }
+  },
+  "sidebar": {
+    "useCaseSection": ["All Uses", "Image Generation", "Text to Video", "Animation (I2V)", "Character & Avatar"],
+    "favorites": "With count badge",
+    "makerSection": "Provider filter with model counts, multi-select"
+  },
+  "filters": {
+    "loraOnly": "Purple toggle button, uses getModelConstraints(model.id).supportsLoRA",
+    "loraBadge": "Amber badge on compatible models (Flux Dev, Flux Schnell)"
+  },
+  "expectedBehavior": {
+    "open": "Opens full-screen modal with sidebar and grid",
+    "filter": "Categories in sidebar, LoRA toggle, provider multi-select",
+    "select": "Click model card → calls onSelect → auto-closes",
+    "modeSwitch": "Selecting video model auto-switches Generate page to video mode"
+  },
+  "doNotRemove": [
+    "LoRA filter toggle",
+    "Provider multi-select",
+    "Favorites section",
+    "Model count stats"
+  ],
+  "dependencies": {
+    "internal": ["ModelRegistry", "getModelConstraints", "getProviderIcon"]
+  },
+  "backupLocation": "/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/complete backup"
+}

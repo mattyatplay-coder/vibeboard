@@ -36,7 +36,7 @@ import { NegativePromptManager } from './NegativePromptManager';
 import { TagSelectorModal } from '@/components/generation/TagSelectorModal';
 import { Tag } from '@/components/tag-system';
 import { clsx } from 'clsx';
-import { fetchAPI } from '@/lib/api';
+import { fetchAPI, resolveFileUrl } from '@/lib/api';
 import { useDebouncedCallback } from 'use-debounce';
 import { getLoRACompatibility, getModelConstraints } from '@/lib/ModelConstraints';
 
@@ -131,14 +131,29 @@ interface LoRASuggestionMatch {
   civitaiSearchUrl: string;
 }
 
+interface PropItem {
+  id: string;
+  name: string;
+  description: string;
+  referenceImageUrl?: string;
+  category?: string;
+}
+
 interface PromptBuilderProps {
   initialPrompt?: string;
   modelId: string;
   generationType: 'image' | 'video';
+  // For frame prompts in storyboard: the video model that will use this frame
+  // Allows AI to optimize frame prompts for specific video model characteristics
+  videoModelId?: string;
   elements?: ElementItem[];
   selectedElementIds?: string[]; // IDs of elements already selected in toolbar (read-only display)
   initialLoRAs?: LoRAItem[];
   initialImages?: string[];
+  // Prop Bin items for object consistency
+  props?: PropItem[];
+  // Virtual Gaffer lighting setup (generated prompt modifier)
+  lightingPrompt?: string;
   onPromptChange: (prompt: string, negativePrompt?: string) => void;
   onRecommendationsChange?: (recommendations: EnhancedResult['recommendations']) => void;
   onScriptParsed?: (prompts: { visual: string; motion: string; audio: string }) => void;
@@ -154,10 +169,13 @@ export function PromptBuilder({
   initialPrompt = '',
   modelId,
   generationType,
+  videoModelId,
   elements = [],
   selectedElementIds = [],
   initialLoRAs = [],
   initialImages = [],
+  props = [],
+  lightingPrompt = '',
   onPromptChange,
   onRecommendationsChange,
   onScriptParsed,
@@ -327,6 +345,7 @@ export function PromptBuilder({
           prompt,
           modelId,
           generationType,
+          videoModelId, // For frame prompts: the video model that will consume this frame
           elements: selectedElementObjects,
           primaryCharacterId,
           loraIds: selectedLoRAs.map(l => l.id),
@@ -349,9 +368,19 @@ export function PromptBuilder({
           customNegativePrompt,
           consistencyPriority,
           images: [
-            ...images,
-            ...selectedElementObjects.map(e => e.imageUrl).filter((url): url is string => !!url),
-          ], // Combine manual uploads + element images
+            ...images.map(img => resolveFileUrl(img)),
+            ...selectedElementObjects.map(e => resolveFileUrl(e.imageUrl)).filter((url): url is string => !!url),
+            // Include prop reference images
+            ...props.filter(p => p.referenceImageUrl).map(p => resolveFileUrl(p.referenceImageUrl!)),
+          ], // Combine manual uploads + element images + prop images (resolved to full URLs)
+          // Prop Bin items for object consistency
+          props: props.map(p => ({
+            name: p.name,
+            description: p.description,
+            category: p.category,
+          })),
+          // Virtual Gaffer lighting setup
+          lightingPrompt: lightingPrompt || undefined,
         }),
       });
 
@@ -379,6 +408,7 @@ export function PromptBuilder({
     prompt,
     modelId,
     generationType,
+    videoModelId,
     elements,
     selectedElements,
     primaryCharacterId,
@@ -394,6 +424,8 @@ export function PromptBuilder({
     consistencyPriority,
     onPromptChange,
     onRecommendationsChange,
+    props,
+    lightingPrompt,
   ]);
 
   // Debounced auto-enhance on significant changes
@@ -1098,7 +1130,8 @@ export function PromptBuilder({
 
             {/* Components breakdown */}
             <div className="mt-3 grid grid-cols-2 gap-2">
-              {enhancedPrompt.components.triggerWords.length > 0 && (
+              {/* Only show trigger words if LoRAs are actually selected */}
+              {selectedLoRAs.length > 0 && enhancedPrompt.components.triggerWords.length > 0 && (
                 <div className="rounded-lg bg-yellow-500/10 p-2">
                   <span className="text-[10px] font-bold text-yellow-400">Trigger Words</span>
                   <div className="mt-1 text-[10px] text-yellow-300">

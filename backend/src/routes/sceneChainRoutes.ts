@@ -17,7 +17,9 @@ import {
     uploadSegmentFrame,
     getSegment,
     generateSegment,
-    stitchChain
+    stitchChain,
+    generateFrame,
+    generateAllFrames
 } from '../controllers/sceneChainController';
 
 const router = Router({ mergeParams: true });
@@ -45,6 +47,10 @@ router.post('/:id/segments/:segmentId/frame', upload.single('file'), uploadSegme
 
 // Segment generation
 router.post('/:id/segments/:segmentId/generate', generateSegment);
+
+// Frame image generation
+router.post('/:id/segments/:segmentId/generate-frame', generateFrame);
+router.post('/:id/generate-all-frames', generateAllFrames);
 
 // Character associations
 router.post('/:id/characters', addCharacterToChain);

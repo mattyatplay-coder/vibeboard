@@ -17,10 +17,10 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../prisma';
+import { queueService, RenderJobData } from '../queue/QueueService';
 
 const execAsync = promisify(exec);
-const prisma = new PrismaClient();
 
 export interface TimelineClipInput {
     id: string;
@@ -837,6 +837,170 @@ export class MasterExportService {
         } catch (error) {
             fs.rmSync(workDir, { recursive: true, force: true });
             throw error;
+        }
+    }
+
+    // ========================================
+    // Queue-Based Async Methods
+    // ========================================
+
+    /**
+     * Submit timeline bake job to queue (async)
+     * Returns job ID for polling status
+     */
+    async bakeTimelineAsync(
+        clips: TimelineClipInput[],
+        options: MasterExportOptions
+    ): Promise<{ jobId: string; exportId: string }> {
+        const exportId = `master_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+        // Prepare output path
+        const outputPath = path.join(
+            this.exportDir,
+            options.projectId,
+            `${options.exportName || exportId}.${this.getExtension(options.format)}`
+        );
+
+        // Collect input paths from clips
+        const inputPaths = clips.map(c => c.videoPath);
+
+        // Submit to render queue
+        const job = await queueService.addRenderJob({
+            type: 'bake',
+            projectId: options.projectId,
+            inputPaths,
+            outputPath,
+            options: {
+                codec: options.format === 'h264' ? 'h264' : 'prores',
+                fps: options.frameRate || 24,
+            },
+            // Store full data for worker to process
+            metadata: {
+                clips: JSON.stringify(clips),
+                options: JSON.stringify(options),
+                exportId,
+            },
+        } as RenderJobData & { metadata: Record<string, string> });
+
+        const jobId = job.id!;
+        console.log(`[MasterExport] Bake job submitted: ${jobId} (exportId: ${exportId})`);
+
+        return { jobId, exportId };
+    }
+
+    /**
+     * Submit scene chain export job to queue (async)
+     */
+    async exportSceneChainAsync(
+        projectId: string,
+        sceneChainId: string,
+        options: Partial<MasterExportOptions> = {}
+    ): Promise<{ jobId: string; exportId: string }> {
+        // Fetch scene chain to get clips
+        const sceneChain = await prisma.sceneChain.findUnique({
+            where: { id: sceneChainId },
+            include: {
+                segments: {
+                    orderBy: { orderIndex: 'asc' },
+                },
+            },
+        });
+
+        if (!sceneChain) {
+            throw new Error(`Scene chain not found: ${sceneChainId}`);
+        }
+
+        // Convert segments to timeline clips
+        const clips: TimelineClipInput[] = sceneChain.segments
+            .filter(seg => seg.outputUrl)
+            .map(seg => ({
+                id: seg.id,
+                name: seg.prompt?.substring(0, 50) || `Segment ${seg.orderIndex}`,
+                videoPath: seg.outputUrl!,
+                duration: seg.duration,
+                trimStart: seg.trimStart,
+                trimEnd: seg.trimEnd ?? seg.duration,
+                audioTrimStart: seg.audioTrimStart,
+                audioTrimEnd: seg.audioTrimEnd ?? seg.duration,
+                audioGain: seg.audioGain,
+                avLinked: true,
+                prompt: seg.prompt || undefined,
+            }));
+
+        if (clips.length === 0) {
+            throw new Error('No rendered segments to export');
+        }
+
+        return this.bakeTimelineAsync(clips, {
+            projectId,
+            sceneChainId,
+            format: 'h264',
+            frameRate: 24,
+            includeEDL: true,
+            includeSidecar: true,
+            ...options,
+        } as MasterExportOptions);
+    }
+
+    /**
+     * Get job status from queue
+     */
+    async getJobStatus(jobId: string): Promise<{
+        status: 'waiting' | 'active' | 'completed' | 'failed';
+        progress?: number;
+        result?: MasterExportResult;
+        error?: string;
+    }> {
+        const status = await queueService.getJobStatus('render', jobId);
+
+        if (!status) {
+            return { status: 'waiting' };
+        }
+
+        if (status.state === 'completed' && status.result) {
+            return {
+                status: 'completed',
+                progress: 100,
+                result: status.result.data as MasterExportResult,
+            };
+        }
+
+        if (status.state === 'failed') {
+            return {
+                status: 'failed',
+                error: status.result?.error || 'Unknown error',
+            };
+        }
+
+        return {
+            status: status.state as 'waiting' | 'active',
+            progress: status.progress,
+        };
+    }
+
+    /**
+     * Cancel a pending or active bake job
+     */
+    async cancelJob(jobId: string): Promise<boolean> {
+        try {
+            const queue = queueService.getQueue('render');
+            if (!queue) return false;
+
+            const job = await queue.getJob(jobId);
+            if (!job) return false;
+
+            const state = await job.getState();
+            if (state === 'waiting' || state === 'delayed') {
+                await job.remove();
+                console.log(`[MasterExport] Job ${jobId} cancelled`);
+                return true;
+            }
+
+            // Can't cancel active jobs easily
+            return false;
+        } catch (error) {
+            console.error(`[MasterExport] Failed to cancel job ${jobId}:`, error);
+            return false;
         }
     }
 }

@@ -1,0 +1,66 @@
+{
+  "name": "Character Foundry",
+  "description": "Synthetic dataset generation from single image for LoRA training",
+  "status": "active",
+  "addedDate": "2025-12-20",
+  "lastVerified": "2025-12-30",
+  "files": {
+    "frontend": [
+      "frontend/src/app/projects/[id]/train/page.tsx"
+    ],
+    "backend": [
+      "backend/src/services/training/DatasetGeneratorService.ts",
+      "backend/src/controllers/trainingController.ts"
+    ],
+    "routes": [
+      "backend/src/routes/trainingRoutes.ts"
+    ]
+  },
+  "endpoints": [
+    "GET /api/training/pose-presets",
+    "POST /api/training/jobs/:id/generate-dataset"
+  ],
+  "keyFunctions": {
+    "DatasetGeneratorService.generateSyntheticDataset": {
+      "description": "Generates 18-34 pose variations from single reference image",
+      "models": ["fal-ai/flux-2-max/edit (flux mode)", "fal-ai/qwen-image/edit-plus (qwen mode)"],
+      "modes": ["flux", "qwen", "hybrid"]
+    },
+    "Pose Presets": {
+      "universal": "20 poses - any character",
+      "swimwear": "19 poses - no pockets",
+      "casual": "21 poses - includes pockets",
+      "formal": "18 poses - professional",
+      "fantasy": "21 poses - combat/heroic",
+      "anime": "22 poses - exaggerated",
+      "cartoon": "18 poses - mascots",
+      "pixar3d": "23 poses - Pixar style",
+      "pixar3d_surfer": "27 poses - surfing action",
+      "pixar3d_sea_turtle": "23 poses - aquatic"
+    }
+  },
+  "expectedBehavior": {
+    "input": "Single high-quality reference image + trigger word",
+    "process": "Vision LLM auto-captions if no description, generates pose variations",
+    "output": "Images saved to backend/datasets/synthetic_{jobId}/ with caption .txt files"
+  },
+  "technicalDetails": {
+    "directionLanguage": "Uses frame-relative terms ('nose pointing toward left edge') not 'facing left'",
+    "framingLanguage": "Explicit cropping ('no legs visible', 'cropped at chest')",
+    "aspectRatios": {
+      "closeUp": "1:1",
+      "mediumShot": "3:4",
+      "fullBody": "9:16"
+    }
+  },
+  "hybridModeLogic": {
+    "geometricPoseKeywords": ["front view", "side profile", "three-quarter view", "back view", "looking over shoulder"],
+    "geometricPoses": "Use Qwen for angle/pose changes",
+    "expressionPoses": "Use Flux for expression/action poses"
+  },
+  "dependencies": {
+    "external": ["fal-ai/flux-2-max/edit", "fal-ai/qwen-image/edit-plus"],
+    "internal": ["GrokAdapter (vision)", "FalAIAdapter"]
+  },
+  "backupLocation": "/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/complete backup"
+}

@@ -29,6 +29,7 @@ router.post('/enhance', async (req: Request, res: Response) => {
       customNegativePrompt,
       modelId,
       generationType = 'image',
+      videoModelId, // For frame prompts: the video model that will consume this frame
       elements = [],
       primaryCharacterId,
       loraIds = [],
@@ -44,6 +45,8 @@ router.post('/enhance', async (req: Request, res: Response) => {
       consistencyPriority = 0.7,
       image, // Single legacy image
       images = [], // Array of images (preferred)
+      props = [], // Prop Bin items for object consistency
+      lightingPrompt, // Virtual Gaffer lighting setup
     } = req.body;
 
     if (!prompt) {
@@ -130,11 +133,26 @@ router.post('/enhance', async (req: Request, res: Response) => {
       ? elements.find((e: ElementReference) => e.id === primaryCharacterId)
       : elements.find((e: ElementReference) => e.type === 'character');
 
+    // Normalize images to array
+    const resolvedImages = images && images.length > 0 ? images : image ? [image] : [];
+    console.log(`[PromptEnhance] Received ${resolvedImages.length} images:`,
+      resolvedImages.slice(0, 3).map((url: string) => url?.substring(0, 100) + (url?.length > 100 ? '...' : ''))
+    );
+
+    // Log props and lighting
+    if (props && props.length > 0) {
+      console.log(`[PromptEnhance] Received ${props.length} props:`, props.map((p: any) => p.name));
+    }
+    if (lightingPrompt) {
+      console.log(`[PromptEnhance] Received lighting prompt:`, lightingPrompt.substring(0, 100));
+    }
+
     // Build enhancement request
     const request: PromptEnhancementRequest = {
       originalPrompt: prompt,
       modelId,
       generationType,
+      videoModelId, // For frame prompts: the video model that will consume this frame
       elements,
       primaryCharacter,
       loras,
@@ -148,7 +166,9 @@ router.post('/enhance', async (req: Request, res: Response) => {
       addNegativePrompt,
       consistencyPriority,
       customNegativePrompt, // Pass the custom negative prompt
-      images: images && images.length > 0 ? images : image ? [image] : [], // Normalize to array
+      images: resolvedImages,
+      props, // Prop Bin items for object consistency
+      lightingPrompt, // Virtual Gaffer lighting setup
     };
 
     // Enhance the prompt

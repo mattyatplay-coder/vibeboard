@@ -1,9 +1,7 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../prisma';
 import { StorageService } from '../services/StorageService';
 import fs from 'fs';
-
-const prisma = new PrismaClient();
 
 export const uploadWorkflow = async (req: Request, res: Response) => {
   try {

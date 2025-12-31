@@ -1,10 +1,8 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../prisma';
 
 import { GenerationService } from '../services/GenerationService';
 import { PromptBuilder } from '../services/PromptBuilder';
-
-const prisma = new PrismaClient({});
 
 // Helper to safely parse JSON fields
 const safeParse = (data: any, fieldName: string, id: string) => {
@@ -103,120 +101,122 @@ const processQueue = async () => {
           : generation.usedLoras
         : {};
 
-      // Fetch Element References (for IP-Adapter / Character Consistency)
+      // ========== OPTIMIZED: Single batch query for elements ==========
+      // Parse sourceElementIds and @mentions, then fetch all needed elements in ONE query
       let elementReferences: string[] = [];
       const sourceIdsRaw = generation.sourceElementIds;
-      console.log(`[DEBUG] sourceIdsRaw: ${JSON.stringify(sourceIdsRaw)}`);
-      const sourceIds = sourceIdsRaw
+      const sourceIds: string[] = sourceIdsRaw
         ? typeof sourceIdsRaw === 'string'
           ? JSON.parse(sourceIdsRaw)
           : sourceIdsRaw
         : [];
-      console.log(`[DEBUG] sourceIds parsed: ${JSON.stringify(sourceIds)}`);
+
+      // Parse @ mentions from the prompt
+      const mentionRegex = /@([a-zA-Z0-9_.-]+)/g;
+      const mentions = [...generation.inputPrompt.matchAll(mentionRegex)].map(match => match[1].toLowerCase());
+
+      console.log(`[DEBUG] sourceIds: ${JSON.stringify(sourceIds)}, @mentions: ${mentions.join(', ') || 'NONE'}`);
 
       // Map to store URL -> Strength for the adapter
       const referenceStrengthsByUrl: Record<string, number> = {};
 
-      // NEW: Track element types for smart IP-Adapter routing
+      // Track element types for smart IP-Adapter routing
       let elementReferencesWithTypes: { url: string; type: string; strength: number }[] = [];
 
-      if (Array.isArray(sourceIds) && sourceIds.length > 0) {
-        const elements = await prisma.element.findMany({
-          where: { id: { in: sourceIds } },
+      // SINGLE QUERY: Fetch elements by ID OR by name (for @mentions) - avoids N+1!
+      const hasSourceIds = Array.isArray(sourceIds) && sourceIds.length > 0;
+      const hasMentions = mentions.length > 0;
+
+      if (hasSourceIds || hasMentions) {
+        // Build optimized OR query
+        const whereConditions: any[] = [];
+        if (hasSourceIds) {
+          whereConditions.push({ id: { in: sourceIds } });
+        }
+        if (hasMentions) {
+          // For @mentions, we need to check within project scope
+          whereConditions.push({
+            projectId: generation.projectId,
+            // Use OR with multiple name conditions for case-insensitive matching
+            OR: mentions.map(m => ({ name: { equals: m, mode: 'insensitive' as const } })),
+          });
+        }
+
+        const allElements = await prisma.element.findMany({
+          where: whereConditions.length > 1 ? { OR: whereConditions } : whereConditions[0],
         });
-        console.log(`[DEBUG] Found ${elements.length} elements for IP-Adapter`);
+        console.log(`[DEBUG] Fetched ${allElements.length} elements in single query`);
 
-        // Map to file URLs, build strength map, AND track types
-        elementReferences = elements
-          .map(e => {
-            if (e.fileUrl) {
-              const strength =
-                usedLorasParsed?.referenceStrengths?.[e.id] ??
-                usedLorasParsed?.referenceCreativity ??
-                0.6;
-              referenceStrengthsByUrl[e.fileUrl] = strength;
-
-              // Track with type for routing
-              elementReferencesWithTypes.push({
-                url: e.fileUrl,
-                type: e.type || 'other',
-                strength: strength,
-              });
-
-              return e.fileUrl;
-            }
-            return null;
-          })
-          .filter((url): url is string => !!url);
-
-        console.log(`[DEBUG] Resolved elementReferences: ${JSON.stringify(elementReferences)}`);
-        console.log(
-          `[DEBUG] Mapped referenceStrengthsByUrl: ${JSON.stringify(referenceStrengthsByUrl)}`
+        // Separate into sourceId elements and @mentioned elements
+        const sourceIdElements = allElements.filter(e => sourceIds.includes(e.id));
+        const mentionedElements = allElements.filter(e =>
+          mentions.includes(e.name.toLowerCase()) && !sourceIds.includes(e.id)
         );
-        console.log(
-          `[DEBUG] Element types: ${elementReferencesWithTypes.map(e => `${e.type}(${e.strength})`).join(', ')}`
-        );
-      } else {
-        console.log(`[DEBUG] No sourceIds found for IP-Adapter`);
+
+        // Process sourceId elements (with strength from usedLoras)
+        sourceIdElements.forEach(e => {
+          if (e.fileUrl) {
+            const strength =
+              usedLorasParsed?.referenceStrengths?.[e.id] ??
+              usedLorasParsed?.referenceCreativity ??
+              0.6;
+            referenceStrengthsByUrl[e.fileUrl] = strength;
+            elementReferencesWithTypes.push({
+              url: e.fileUrl,
+              type: e.type || 'other',
+              strength: strength,
+            });
+            elementReferences.push(e.fileUrl);
+          }
+        });
+
+        // Process @mentioned elements (default strength 0.7)
+        mentionedElements.forEach(e => {
+          if (e.fileUrl && !elementReferences.includes(e.fileUrl)) {
+            referenceStrengthsByUrl[e.fileUrl] = 0.7;
+            elementReferencesWithTypes.push({
+              url: e.fileUrl,
+              type: e.type || 'image',
+              strength: 0.7,
+            });
+            elementReferences.push(e.fileUrl);
+            console.log(`[DEBUG] Added @${e.name} to elementReferences`);
+          }
+        });
+
+        console.log(`[DEBUG] Resolved ${elementReferences.length} elementReferences`);
       }
 
       // Fetch Source Images (for Image-to-Image / Structure)
       let sourceImages: string[] = [];
-      if (usedLorasParsed && usedLorasParsed.sourceImages) {
-        sourceImages = usedLorasParsed.sourceImages;
+      if (usedLorasParsed?.sourceImages && Array.isArray(usedLorasParsed.sourceImages)) {
+        sourceImages = [...usedLorasParsed.sourceImages];
       }
-      // else if (usedLorasParsed && usedLorasParsed.sourceImageUrl) {
-      //    sourceImages = [usedLorasParsed.sourceImageUrl];
-      // }
-      console.log(`[DEBUG] Resolved sourceImages: ${JSON.stringify(sourceImages)}`);
 
-      // FALLBACK: If no Element References (Face) are provided, but a Source Image (Structure) is,
-      // use the Source Image for the Face Reference as well.
-      // This ensures "Reference Image" is used for both I2I and IP-Adapter if not specified otherwise.
+      // FALLBACK: If no Element References, use Source Images for IP-Adapter
       if (elementReferences.length === 0 && sourceImages.length > 0) {
-        console.log(
-          `[DEBUG] No elementReferences found. Using sourceImages as fallback for IP-Adapter.`
-        );
+        console.log(`[DEBUG] Using sourceImages as fallback for IP-Adapter`);
         elementReferences = [...sourceImages];
       }
 
-      // Check for sourceImages array (from image-to-image)
-      if (usedLorasParsed?.sourceImages && Array.isArray(usedLorasParsed.sourceImages)) {
-        usedLorasParsed.sourceImages.forEach((img: string) => {
-          if (!sourceImages.includes(img)) {
-            sourceImages.push(img);
-          }
-        });
+      // Also add @mentioned elements to sourceImages for I2I compatibility
+      elementReferencesWithTypes.forEach(ref => {
+        if (!sourceImages.includes(ref.url)) {
+          sourceImages.push(ref.url);
+        }
+      });
+
+      // Final debug log for element references
+      console.log(`\n--- FINAL ELEMENT REFERENCES ---`);
+      console.log(`Count: ${elementReferences.length}`);
+      if (elementReferences.length === 0) {
+        console.log('⚠️ WARNING: No element references found!');
+        console.log('   - Check if @mentions were parsed correctly');
+        console.log('   - Check if sourceElementIds were passed from frontend');
+      } else {
+        elementReferences.forEach((ref, i) => console.log(`  [${i}]: ${ref}`));
       }
-
-      // Parse @ mentions from the prompt
-      const mentionRegex = /@([a-zA-Z0-9_.-]+)/g;
-      const mentions = [...generation.inputPrompt.matchAll(mentionRegex)].map(match => match[1]);
-
-      if (mentions.length > 0) {
-        console.log(`Found mentions in prompt: ${mentions.join(', ')}`);
-        // Note: Prisma doesn't support case-insensitive 'in' filter directly
-        // We filter in-memory for case-insensitivity
-        const mentionedElements = await prisma.element.findMany({
-          where: {
-            projectId: generation.projectId, // Scope to project
-          },
-        });
-        const filteredElements = mentionedElements.filter(e =>
-          mentions.some(m => e.name.toLowerCase() === m.toLowerCase())
-        );
-        console.log(
-          `Found ${filteredElements.length} matching elements for mentions:`,
-          filteredElements.map(e => e.name)
-        );
-
-        // Add mentioned images to sourceImages (if not already present)
-        filteredElements.forEach(e => {
-          if (e.fileUrl && !sourceImages.includes(e.fileUrl)) {
-            sourceImages.push(e.fileUrl);
-          }
-        });
-      }
+      console.log('--- END ELEMENT REFERENCES ---\n');
 
       // Resolve LoRAs
       let resolvedLoras: { path: string; strength: number }[] = [];
@@ -381,6 +381,36 @@ const processQueue = async () => {
         data: { resolvedPrompt },
       });
 
+      // ==========================================
+      // COMPREHENSIVE DEBUG: Final options before calling service
+      // ==========================================
+      console.log('\n========== GENERATION DEBUG ==========');
+      console.log(`Generation ID: ${generationId}`);
+      console.log(`Mode: ${options.mode}`);
+      console.log(`Model: ${options.model}`);
+      console.log(`Prompt: ${options.prompt?.substring(0, 100)}...`);
+      console.log(`\n--- ELEMENT REFERENCES (IP-Adapter) ---`);
+      console.log(`Count: ${options.elementReferences?.length || 0}`);
+      if (options.elementReferences && options.elementReferences.length > 0) {
+        options.elementReferences.forEach((ref, i) => {
+          console.log(`  [${i}]: ${ref}`);
+        });
+      } else {
+        console.log('  (EMPTY - No character references will be used)');
+      }
+      console.log(`\n--- SOURCE IMAGES (Structure/I2I) ---`);
+      console.log(`Count: ${options.sourceImages?.length || 0}`);
+      if (options.sourceImages && options.sourceImages.length > 0) {
+        options.sourceImages.forEach((img, i) => {
+          console.log(`  [${i}]: ${img}`);
+        });
+      } else {
+        console.log('  (EMPTY)');
+      }
+      console.log(`\n--- LoRAs ---`);
+      console.log(`Count: ${options.loras?.length || 0}`);
+      console.log(`========================================\n`);
+
       // Call Service
       let result;
       if (
@@ -486,8 +516,12 @@ export const createGeneration = async (req: Request, res: Response) => {
       guidanceScale, // Extract guidanceScale
     } = req.body;
 
-    console.log('[createGeneration] Starting creation...');
-    console.log('[createGeneration] Request body:', JSON.stringify(req.body, null, 2));
+    console.log('\n========== CREATE GENERATION REQUEST ==========');
+    console.log(`[createGeneration] sourceElementIds from request: ${JSON.stringify(sourceElementIds)}`);
+    console.log(`[createGeneration] sourceImages from request: ${JSON.stringify(req.body.sourceImages)}`);
+    console.log(`[createGeneration] inputPrompt: ${inputPrompt?.substring(0, 100)}...`);
+    console.log(`[createGeneration] Full request body:`, JSON.stringify(req.body, null, 2));
+    console.log('================================================\n');
 
     const generation = await prisma.generation.create({
       data: {
@@ -575,7 +609,19 @@ export const getGenerations = async (req: Request, res: Response) => {
 
     const generations = await prisma.generation.findMany({
       where,
-      include: { session: true },
+      include: {
+        session: true,
+        styleGuide: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        // Include comment count for Dailies review workflow
+        _count: {
+          select: { comments: true },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
     console.log(`[getGenerations] found ${generations.length} generations`);

@@ -1,6 +1,22 @@
 version: '3.8'
 
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: vibeboard-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - vibeboard-net
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   postgres:
     image: postgres:15-alpine
     container_name: vibeboard-postgres
@@ -22,9 +38,11 @@ services:
       - "3001:3001"
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-vibeboard}
+      REDIS_URL: redis://redis:6379
       PORT: 3001
     depends_on:
       - postgres
+      - redis
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -32,6 +50,23 @@ services:
     networks:
       - vibeboard-net
     command: sh -c "npx prisma generate && npm run dev"
+
+  worker:
+    build: ./backend
+    container_name: vibeboard-worker
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-vibeboard}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - uploads_data:/app/uploads
+    networks:
+      - vibeboard-net
+    command: sh -c "npx prisma generate && npm run worker"
 
   frontend:
     build: ./frontend
@@ -49,9 +84,31 @@ services:
       - vibeboard-net
     command: npm run dev
 
+  # GPU Worker - ML/Optics Operations (CPU mode for development)
+  # For GPU deployment, use RunPod Serverless
+  gpu-worker:
+    build: ./gpu-worker
+    container_name: vibeboard-gpu-worker
+    ports:
+      - "8000:8000"
+    environment:
+      DEVICE: cpu
+      MODEL_CACHE_DIR: /tmp/models
+      VIBEBOARD_BACKEND_URL: http://backend:3001
+    volumes:
+      - ./gpu-worker:/app
+      - gpu_models:/tmp/models
+    networks:
+      - vibeboard-net
+    # Only start if explicitly requested (GPU work should use RunPod)
+    profiles:
+      - gpu
+
 volumes:
+  redis_data:
   postgres_data:
   uploads_data:
+  gpu_models:
 
 
 networks:

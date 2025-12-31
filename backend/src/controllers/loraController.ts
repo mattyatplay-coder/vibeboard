@@ -1,11 +1,9 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../prisma';
 
 import * as fal from "@fal-ai/serverless-client";
 import axios from 'axios';
 import { getModelMetadataSyncService, civitaiToMetadata, fetchCivitaiModel, parseDescriptionSettings, settingsToRecommendedSettings, ParsedRecommendedSettings } from '../services/sync/ModelMetadataSync';
-
-const prisma = new PrismaClient();
 
 // Configure fal client
 if (process.env.FAL_KEY) {

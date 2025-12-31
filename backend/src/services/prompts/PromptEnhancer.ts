@@ -46,6 +46,10 @@ export interface PromptEnhancementRequest {
     modelId: string;
     generationType: 'image' | 'video';
 
+    // For frame prompts: the video model that will consume this frame
+    // Allows enhancement to optimize for specific video model characteristics
+    videoModelId?: string;
+
     // Character/Element References
     elements?: ElementReference[];
     primaryCharacter?: ElementReference;  // Main focus character
@@ -75,6 +79,16 @@ export interface PromptEnhancementRequest {
 
     // Optional images for Vision analysis
     images?: string[]; // Array of Base64 or URLs
+
+    // Prop Bin items for object consistency
+    props?: Array<{
+        name: string;
+        description: string;
+        category?: string;
+    }>;
+
+    // Virtual Gaffer lighting setup
+    lightingPrompt?: string;
 }
 
 // Detected trigger word mapping
@@ -395,12 +409,26 @@ JSON ONLY, no markdown.`;
             consistencyKeywords
         );
 
+        // Filter trigger words to only include those from actual selected LoRAs
+        // The LLM may detect trigger patterns in the prompt text, but we should only
+        // show trigger words if the corresponding LoRA is actually selected
+        const validTriggerWords = (request.loras && request.loras.length > 0) ? triggerWords : [];
+        const llmTriggerWords = llmResult?.components?.triggerWords || [];
+        // Only keep LLM-detected trigger words if they match our computed trigger words
+        const filteredLlmTriggerWords = llmTriggerWords.filter((tw: string) =>
+            validTriggerWords.some(vtw => vtw.toLowerCase() === tw.toLowerCase())
+        );
+
         return {
             prompt: enhancedPromptText,
             negativePrompt,
             triggerDetections, // Include detection info for UI transparency
-            components: llmResult?.components || {
-                triggerWords,
+            components: llmResult?.components ? {
+                ...llmResult.components,
+                // Use only trigger words from selected LoRAs, not LLM-detected patterns
+                triggerWords: filteredLlmTriggerWords.length > 0 ? filteredLlmTriggerWords : validTriggerWords
+            } : {
+                triggerWords: validTriggerWords,
                 characterDescription,
                 qualityBoosters,
                 styleElements: request.style ? [request.style] : [],
@@ -501,7 +529,7 @@ JSON ONLY, no markdown.`;
                 aliasPatterns.push(nameMatch[1].toLowerCase());
             }
 
-            // Extract name from trigger word (e.g., "ohwx_angelica4" -> "angelica")
+            // Extract name from trigger word (e.g., "ohwx_character" -> "character")
             const triggerNameMatch = triggerWord.match(/(?:ohwx_|sks_|zwx_)?([a-zA-Z]+)/i);
             if (triggerNameMatch && triggerNameMatch[1].length > 2) {
                 aliasPatterns.push(triggerNameMatch[1].toLowerCase());
@@ -718,7 +746,7 @@ JSON ONLY, no markdown.`;
         visionContext?: string,
         lessons?: string[] // Add lessons parameter
     ): Promise<any> {
-        const systemPrompt = this.buildLLMSystemPrompt(guide, request.generationType);
+        const systemPrompt = this.buildLLMSystemPrompt(guide, request.generationType, request.videoModelId);
 
         // 7. BUILD LLM PROMPT
         const userPrompt = this.buildLLMUserPrompt(
@@ -935,17 +963,39 @@ JSON ONLY, no markdown.`;
      */
     private buildLLMSystemPrompt(
         guide: ModelPromptGuide | null,
-        type: 'image' | 'video'
+        type: 'image' | 'video',
+        videoModelId?: string
     ): string {
+        // Add video model context when enhancing frame prompts
+        let videoModelContext = '';
+        if (videoModelId && type === 'image') {
+            // Extract model name for context
+            const modelName = videoModelId.split('/').pop()?.replace(/-/g, ' ') || videoModelId;
+            videoModelContext = `
+IMPORTANT: This frame prompt will be used with the "${modelName}" video model.
+Optimize the prompt for smooth video interpolation:
+- Include clear subject positioning (left, right, center, foreground, background)
+- Describe lighting direction and intensity for consistency between frames
+- Avoid ambiguous poses that could interpolate oddly
+- Include environmental anchor points (floor, walls, objects) for spatial consistency
+- For Kling/Wan models: emphasize motion-friendly compositions
+- For Luma/Hunyuan models: include atmospheric details for smooth transitions
+
+`;
+        }
+
         const basePrompt = `You are an expert AI prompt engineer specializing in ${type} generation. Your task is to rewrite user prompts to maximize quality and character consistency.
+${videoModelContext}
 
 CRITICAL RULES FOR TRIGGER WORDS:
-1. Trigger words (like "ohwx_angelica4") MUST be placed at the VERY START of the prompt
+1. Trigger words MUST be placed at the VERY START of the prompt
 2. Trigger words must be SEPARATED from the rest of the prompt with a comma
 3. NEVER concatenate trigger words with other text - they must stand alone
-4. Example CORRECT format: "ohwx_angelica4, a woman standing in a garden..."
-5. Example WRONG format: "ohwx_angelica4 woman standing in a garden..." (missing comma)
-6. Example WRONG format: "ohwx_angelica4a woman standing..." (concatenated with text)
+4. ONLY use trigger words that are explicitly provided to you - NEVER invent trigger words
+5. Example CORRECT format: "[trigger], a woman standing in a garden..."
+6. Example WRONG format: "[trigger] woman standing in a garden..." (missing comma)
+7. Example WRONG format: "[trigger]a woman standing..." (concatenated with text)
+8. If NO trigger words are provided, do NOT add any trigger word - just enhance the prompt
 
 OTHER RULES:
 7. Character consistency is the TOP PRIORITY - include detailed physical descriptions
@@ -1112,6 +1162,26 @@ Example: "${triggerWords[0]}, [rest of enhanced prompt...]"
 CONSISTENCY PRIORITY: ${(request.consistencyPriority * 100).toFixed(0)}% (${request.consistencyPriority > 0.7 ? 'HIGH' : 'NORMAL'})
 
 `;
+
+        // Add Prop Bin items for object consistency
+        if (request.props && request.props.length > 0) {
+            prompt += `PROP BIN ITEMS (Objects that MUST appear with these exact descriptions):
+${request.props.map(p => `  - #${p.name}: "${p.description}"${p.category ? ` [${p.category}]` : ''}`).join('\n')}
+
+INSTRUCTION: When the prompt references these props (e.g., "#JohnWickCar"), use the EXACT description provided above. These are canonical descriptions for object consistency.
+
+`;
+        }
+
+        // Add Virtual Gaffer lighting setup
+        if (request.lightingPrompt) {
+            prompt += `VIRTUAL GAFFER LIGHTING SETUP:
+"${request.lightingPrompt}"
+
+INSTRUCTION: Incorporate this precise lighting setup into the enhanced prompt. The lighting was configured by the user using a professional 3-point lighting tool.
+
+`;
+        }
 
         if (visionContext) {
             prompt += `VISUAL CONTEXT (from Reference Image):

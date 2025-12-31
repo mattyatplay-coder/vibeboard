@@ -43,7 +43,9 @@ export type Genre =
   | 'western'
   | 'fantasy'
   | 'adult' // Mature content - only visible when allowNSFW is enabled
-  | 'hardcore'; // Explicit adult content - only visible when allowNSFW is enabled
+  | 'hardcore' // Explicit adult content - only visible when allowNSFW is enabled
+  | 'youtuber' // Content creator - YouTube/Social workflows
+  | 'onlyfans'; // Adult content creator - restricted, requires mature toggle
 
 export const CAMERA_PRESETS: Record<string, CameraCategory> = {
   // ═══════════════════════════════════════════════════════════════════

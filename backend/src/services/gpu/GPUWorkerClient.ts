@@ -41,6 +41,18 @@ export interface DirectorEditParams {
   strength?: number;
 }
 
+export interface VideoGenerationParams {
+  prompt: string;
+  imageUrl?: string;  // For I2V mode
+  durationSeconds?: number;
+  fps?: number;
+  width?: number;
+  height?: number;
+  guidanceScale?: number;
+  numInferenceSteps?: number;
+  seed?: number;
+}
+
 export interface ProcessingResult {
   success: boolean;
   outputUrl?: string;
@@ -198,6 +210,25 @@ export class GPUWorkerClient {
   }
 
   /**
+   * Generate video using Wan 2.1
+   * Text-to-Video: Provide prompt only
+   * Image-to-Video: Provide prompt + imageUrl
+   */
+  async generateVideo(params: VideoGenerationParams): Promise<ProcessingResult> {
+    return this.executeOperation('video_generate', {
+      prompt: params.prompt,
+      image_url: params.imageUrl,
+      duration_seconds: params.durationSeconds ?? 4.0,
+      fps: params.fps ?? 24,
+      width: params.width ?? 1280,
+      height: params.height ?? 720,
+      guidance_scale: params.guidanceScale ?? 7.5,
+      num_inference_steps: params.numInferenceSteps ?? 50,
+      seed: params.seed,
+    });
+  }
+
+  /**
    * Execute operation based on deployment mode
    */
   private async executeOperation(
@@ -299,6 +330,9 @@ export class GPUWorkerClient {
       lens_character: '/optics/lens-character',
       rescue_focus: '/optics/rescue-focus',
       director_edit: '/director/edit',
+      video_generate: '/video/generate',
+      video_t2v: '/video/generate',
+      video_i2v: '/video/generate',
     };
     return endpoints[operation] || `/${operation}`;
   }
