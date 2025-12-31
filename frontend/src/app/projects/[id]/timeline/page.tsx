@@ -428,25 +428,10 @@ export default function TimelinePage() {
             const localTime = videoPreviewRef.current.currentTime;
             setCurrentTime(localTime);
 
-            // Only sync to NLE Timeline when NOT playing (scrubbing/paused)
-            // During playback, skip seeking to prevent audio distortion from constant buffer resets
-            // Also skip if we're currently syncing FROM the NLE Timeline to prevent feedback loops
-            if (selectedClipId && timelineRef.current && !isPlaying && !isSyncingFromNLE.current) {
-                // Calculate cumulative time for current clip
-                let accumulatedTime = 0;
-                for (const clip of clips) {
-                    if (clip.id === selectedClipId) {
-                        // Found current clip - add clip-local position to get global time
-                        const globalTime = accumulatedTime + (localTime - clip.trimStart);
-                        timelineRef.current.seek(globalTime);
-                        break;
-                    }
-                    const effectiveDuration = clip.duration - clip.trimStart - clip.trimEnd;
-                    accumulatedTime += effectiveDuration;
-                }
-            }
+            // Note: NLE Timeline sync is handled by the timeline's own time tracking
+            // The isSyncingFromNLE ref prevents feedback loops when timeline seeks video
         }
-    }, [clips, selectedClipId, isPlaying]);
+    }, []);
 
     const handleVideoEnded = useCallback(() => {
         setIsPlaying(false);
