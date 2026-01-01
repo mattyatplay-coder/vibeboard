@@ -11,6 +11,7 @@ import {
   PosePresetKey,
   CustomPosePresetData,
 } from '../services/training/DatasetGeneratorService';
+import { queueService, TrainingJobData } from '../services/queue/QueueService';
 
 const datasetService = new DatasetService(); // Instantiate
 // @ts-ignore - Prisma client types might not be fully updated in IDE
@@ -26,11 +27,14 @@ export const trainingController = {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
+      // Sanitize trigger word: trim whitespace, replace spaces with underscores, lowercase
+      const sanitizedTrigger = triggerWord.trim().replace(/\s+/g, '_').toLowerCase();
+
       const job = await prisma.trainingJob.create({
         data: {
           projectId,
           name,
-          triggerWord,
+          triggerWord: sanitizedTrigger,
           datasetUrl: '', // Will be updated after upload
           status: 'uploading',
           steps: steps ? parseInt(steps) : 1000,
@@ -46,7 +50,7 @@ export const trainingController = {
     }
   },
 
-  // STAGE 1: Curation
+  // STAGE 1: Curation (queued to avoid blocking event loop)
   curateJob: async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -62,129 +66,169 @@ export const trainingController = {
         return res.status(400).json({ error: 'No data provided for curation' });
       }
 
-      console.log(`[Curation] Job ${id} - Starting Smart Curation...`);
+      console.log(`[Curation] Job ${id} - Queuing Smart Curation...`);
 
-      // Output Directory for Curated Files
-      const curatedDir = path.resolve(__dirname, `../../datasets/job_${id}_curated`);
-      if (!fs.existsSync(curatedDir)) fs.mkdirSync(curatedDir, { recursive: true });
-
-      // 1. Gather Candidates
-      let candidates: string[] = [];
-
-      // A. Local Path
-      if (hasDatasetPath && fs.existsSync(datasetPath)) {
-        const getAllFiles = (dirPath: string, arrayOfFiles: string[] = []) => {
-          const files = fs.readdirSync(dirPath);
-          files.forEach(function (file) {
-            const fullPath = path.join(dirPath, file);
-            if (fs.statSync(fullPath).isDirectory()) {
-              arrayOfFiles = getAllFiles(fullPath, arrayOfFiles);
-            } else {
-              arrayOfFiles.push(fullPath);
-            }
-          });
-          return arrayOfFiles;
-        };
-
-        const localFiles = getAllFiles(datasetPath);
-        for (const lf of localFiles) {
-          const ext = path.extname(lf).toLowerCase();
-          if (['.mp4', '.mov', '.avi', '.mkv'].includes(ext)) {
-            // Extract frames from local video
-            const frameDir = path.join(
-              path.resolve(__dirname, '../../uploads/temp_frames'),
-              `job_${id}_local_${path.basename(lf)}`
-            );
-            if (!fs.existsSync(frameDir)) fs.mkdirSync(frameDir, { recursive: true });
-            try {
-              const frames = await datasetService.extractFramesFromVideo(lf, frameDir);
-              candidates.push(...frames);
-            } catch (e) {
-              console.error(`Local video frame extraction failed for ${lf}`, e);
-            }
-          } else if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
-            candidates.push(lf);
-          }
-        }
-      }
-
-      // B. Uploaded Files
-      for (const file of trainingFiles) {
-        if (file.mimetype.startsWith('video/')) {
-          const frameDir = path.join(
-            path.dirname(file.path),
-            `job_${id}_frames_${path.basename(file.filename)}`
-          );
-          if (!fs.existsSync(frameDir)) fs.mkdirSync(frameDir);
-          try {
-            const frames = await datasetService.extractFramesFromVideo(file.path, frameDir);
-            candidates.push(...frames);
-          } catch (e) {
-            console.error(`Frame extraction failed`, e);
-          }
-        } else {
-          candidates.push(file.path);
-        }
-      }
-
-      // 2. Reference Embedding (if any)
-      let referenceEmbedding: number[] | null = null;
-      if (referenceFiles.length > 0) {
-        const refPaths = referenceFiles.map(f => f.path);
-        try {
-          referenceEmbedding = await datasetService.calculateReferenceEmbedding(refPaths);
-        } catch (e) {
-          console.error('Ref embedding failed', e);
-        }
-      }
-
-      // 3. Selection & Processing
-      // We want to process ALL valid candidates if no limit, but typically we want top 75
-      // But user might want to curate EVERYTHING. Let's cap at 100 for now.
-      const selected = await datasetService.curateDataset(candidates, referenceEmbedding, 100);
-
-      // 4. Process and Save to Final Directory
-      let processCount = 0;
-      for (const candidate of selected) {
-        try {
-          // Use processedImage which crops/removes BG
-          // We need to bypass DatasetService's internal path logic slightly by giving it our curatedDir name
-          // But DatasetService joins paths relative to datasetsDir.
-          // Let's manually move the result.
-
-          // Actually, let's just use processImage and then move key files?
-          // processImage writes to datasets/datasetName
-          const result = await datasetService.processImage(
-            candidate,
-            `job_${id}_curated`,
-            referenceEmbedding
-          );
-          if (result.status === 'success') processCount++;
-        } catch (e) {
-          console.error('Processing failed', e);
-        }
-      }
-
-      // Cleanup Inputs
-      [...trainingFiles, ...referenceFiles].forEach(f => {
-        if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
-      });
-
-      // Update Job Status
+      // Update job status to indicate curation is starting
       await prisma.trainingJob.update({
         where: { id },
-        data: { status: 'completed_curation' },
+        data: { status: 'curating' },
       });
 
-      res.json({
-        message: 'Curation complete',
-        count: processCount,
-        curatedPath: curatedDir,
-      });
+      // Collect file paths for the queue (files have been uploaded by multer)
+      const uploadedFilePaths = trainingFiles.map(f => f.path);
+      const referenceFilePaths = referenceFiles.map(f => f.path);
+
+      // Check if queue is available
+      if (queueService.isAvailable()) {
+        // Queue the heavy curation work
+        const job = await queueService.addTrainingJob({
+          type: 'curate',
+          jobId: id,
+          projectId: '', // Will be fetched from training job
+          datasetPath: hasDatasetPath ? datasetPath : undefined,
+          uploadedFiles: uploadedFilePaths,
+          referenceFiles: referenceFilePaths,
+        });
+
+        console.log(`[Curation] Job ${id} queued with queue job ID: ${job.id}`);
+
+        // Return 202 Accepted - client should poll for status
+        return res.status(202).json({
+          message: 'Curation job queued. Poll training job status for progress.',
+          jobId: id,
+          queueJobId: job.id,
+          statusUrl: `/api/training/jobs/${id}`,
+        });
+      } else {
+        // Fallback: Run synchronously if Redis not available (development mode)
+        console.warn(`[Curation] Redis not available, running synchronously for job ${id}`);
+        await trainingController.curateJobSync(id, datasetPath, trainingFiles, referenceFiles);
+
+        res.json({
+          message: 'Curation complete (sync mode)',
+          jobId: id,
+        });
+      }
     } catch (error: any) {
       console.error('Curation failed:', error);
       res.status(500).json({ error: 'Curation failed' });
     }
+  },
+
+  // Internal: Synchronous curation (called by queue worker or fallback)
+  curateJobSync: async (
+    jobId: string,
+    datasetPath: string | undefined,
+    trainingFiles: Express.Multer.File[],
+    referenceFiles: Express.Multer.File[]
+  ) => {
+    console.log(`[Curation] Job ${jobId} - Starting Smart Curation (sync)...`);
+
+    // Output Directory for Curated Files
+    const curatedDir = path.resolve(__dirname, `../../datasets/job_${jobId}_curated`);
+    if (!fs.existsSync(curatedDir)) fs.mkdirSync(curatedDir, { recursive: true });
+
+    // 1. Gather Candidates
+    let candidates: string[] = [];
+
+    // A. Local Path
+    if (datasetPath && fs.existsSync(datasetPath)) {
+      const getAllFiles = (dirPath: string, arrayOfFiles: string[] = []) => {
+        const files = fs.readdirSync(dirPath);
+        files.forEach(function (file) {
+          const fullPath = path.join(dirPath, file);
+          if (fs.statSync(fullPath).isDirectory()) {
+            arrayOfFiles = getAllFiles(fullPath, arrayOfFiles);
+          } else {
+            arrayOfFiles.push(fullPath);
+          }
+        });
+        return arrayOfFiles;
+      };
+
+      const localFiles = getAllFiles(datasetPath);
+      for (const lf of localFiles) {
+        const ext = path.extname(lf).toLowerCase();
+        if (['.mp4', '.mov', '.avi', '.mkv'].includes(ext)) {
+          // Extract frames from local video
+          const frameDir = path.join(
+            path.resolve(__dirname, '../../uploads/temp_frames'),
+            `job_${jobId}_local_${path.basename(lf)}`
+          );
+          if (!fs.existsSync(frameDir)) fs.mkdirSync(frameDir, { recursive: true });
+          try {
+            const frames = await datasetService.extractFramesFromVideo(lf, frameDir);
+            candidates.push(...frames);
+          } catch (e) {
+            console.error(`Local video frame extraction failed for ${lf}`, e);
+          }
+        } else if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+          candidates.push(lf);
+        }
+      }
+    }
+
+    // B. Uploaded Files
+    for (const file of trainingFiles) {
+      if (file.mimetype.startsWith('video/')) {
+        const frameDir = path.join(
+          path.dirname(file.path),
+          `job_${jobId}_frames_${path.basename(file.filename)}`
+        );
+        if (!fs.existsSync(frameDir)) fs.mkdirSync(frameDir);
+        try {
+          const frames = await datasetService.extractFramesFromVideo(file.path, frameDir);
+          candidates.push(...frames);
+        } catch (e) {
+          console.error(`Frame extraction failed`, e);
+        }
+      } else {
+        candidates.push(file.path);
+      }
+    }
+
+    // 2. Reference Embedding (if any)
+    let referenceEmbedding: number[] | null = null;
+    if (referenceFiles.length > 0) {
+      const refPaths = referenceFiles.map(f => f.path);
+      try {
+        referenceEmbedding = await datasetService.calculateReferenceEmbedding(refPaths);
+      } catch (e) {
+        console.error('Ref embedding failed', e);
+      }
+    }
+
+    // 3. Selection & Processing
+    const selected = await datasetService.curateDataset(candidates, referenceEmbedding, 100);
+
+    // 4. Process and Save to Final Directory
+    let processCount = 0;
+    for (const candidate of selected) {
+      try {
+        const result = await datasetService.processImage(
+          candidate,
+          `job_${jobId}_curated`,
+          referenceEmbedding
+        );
+        if (result.status === 'success') processCount++;
+      } catch (e) {
+        console.error('Processing failed', e);
+      }
+    }
+
+    // Cleanup Inputs
+    [...trainingFiles, ...referenceFiles].forEach(f => {
+      if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
+    });
+
+    // Update Job Status
+    await prisma.trainingJob.update({
+      where: { id: jobId },
+      data: { status: 'completed_curation' },
+    });
+
+    console.log(`[Curation] Job ${jobId} - Curation complete. Processed ${processCount} images.`);
+    return { count: processCount, curatedPath: curatedDir };
   },
 
   // STAGE 2: Start Training (from curated folder)

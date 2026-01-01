@@ -10,6 +10,7 @@
  */
 
 import { LLMService } from '../LLMService';
+import { embeddingService, VectorEmbeddingService } from '../llm/VectorEmbeddingService';
 import {
     PIXAR_STORYTELLING_RULES,
     GENRE_GUIDES,
@@ -22,6 +23,9 @@ import {
 } from './GenreStyleGuide';
 import * as fs from 'fs';
 import * as path from 'path';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INTERFACES
@@ -655,6 +659,310 @@ Visual Style: ${scene.visualStyle}`,
             colorPalette: genreGuide.colorPalette,
             promptPrefix: genreGuide.promptPrefix
         };
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // RAG RETRIEVAL METHODS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Find stylistically similar scripts using semantic search
+     * Uses pgvector for efficient similarity search
+     */
+    async findSimilarScripts(
+        query: string,
+        options: {
+            genre?: string;
+            limit?: number;
+            minSimilarity?: number;
+        } = {}
+    ): Promise<{
+        script: {
+            id: string;
+            title: string;
+            genre: string;
+            synopsis: string;
+        };
+        similarity: number;
+        excerpts: string[];
+    }[]> {
+        const { genre, limit = 5, minSimilarity = 0.6 } = options;
+
+        console.log(`[ScriptAnalyzer] RAG search: "${query}" (genre: ${genre || 'any'})`);
+
+        try {
+            // Get query embedding
+            const queryEmbedding = await embeddingService.getQueryEmbedding(query);
+
+            // Build the similarity search query using pgvector
+            // Note: This requires the ScriptLibrary model with vector extension
+            const results = await prisma.$queryRaw<Array<{
+                id: string;
+                title: string;
+                genre: string;
+                synopsis: string;
+                sample_excerpts: string;
+                similarity: number;
+            }>>`
+                SELECT
+                    id,
+                    title,
+                    genre,
+                    synopsis,
+                    "sampleExcerpts" as sample_excerpts,
+                    1 - (embedding <=> ${queryEmbedding}::vector) as similarity
+                FROM "ScriptLibrary"
+                WHERE
+                    embedding IS NOT NULL
+                    ${genre ? prisma.$queryRaw`AND genre = ${genre}` : prisma.$queryRaw``}
+                ORDER BY embedding <=> ${queryEmbedding}::vector
+                LIMIT ${limit}
+            `;
+
+            return results
+                .filter(r => r.similarity >= minSimilarity)
+                .map(r => ({
+                    script: {
+                        id: r.id,
+                        title: r.title,
+                        genre: r.genre,
+                        synopsis: r.synopsis,
+                    },
+                    similarity: r.similarity,
+                    excerpts: JSON.parse(r.sample_excerpts || '[]'),
+                }));
+        } catch (error: any) {
+            console.error('[ScriptAnalyzer] RAG search failed:', error.message);
+            // Fallback to in-memory cache search if database fails
+            return this.fallbackSimilaritySearch(query, genre, limit);
+        }
+    }
+
+    /**
+     * Fallback similarity search using in-memory cache
+     * Used when database vector search is unavailable
+     */
+    private async fallbackSimilaritySearch(
+        query: string,
+        genre?: string,
+        limit: number = 5
+    ): Promise<{
+        script: {
+            id: string;
+            title: string;
+            genre: string;
+            synopsis: string;
+        };
+        similarity: number;
+        excerpts: string[];
+    }[]> {
+        const queryEmbedding = await embeddingService.getQueryEmbedding(query);
+        const results: Array<{
+            script: { id: string; title: string; genre: string; synopsis: string };
+            similarity: number;
+            excerpts: string[];
+        }> = [];
+
+        for (const analysis of this.analysisCache.values()) {
+            if (genre && analysis.genre.toLowerCase() !== genre.toLowerCase()) {
+                continue;
+            }
+
+            // Create a combined text from analysis for embedding comparison
+            const analysisText = [
+                analysis.narrativeVoice.tone.join(' '),
+                analysis.narrativeVoice.dialogueStyle,
+                analysis.signatureElements.recurringThemes.join(' '),
+                analysis.characterPatterns.archetypes.join(' '),
+            ].join(' ');
+
+            const analysisEmbedding = await embeddingService.getEmbedding(analysisText);
+            const similarity = embeddingService.cosineSimilarity(queryEmbedding, analysisEmbedding);
+
+            results.push({
+                script: {
+                    id: analysis.title.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+                    title: analysis.title,
+                    genre: analysis.genre,
+                    synopsis: analysis.narrativeVoice.tone.join(', '),
+                },
+                similarity,
+                excerpts: analysis.sampleExcerpts || [],
+            });
+        }
+
+        return results
+            .sort((a, b) => b.similarity - a.similarity)
+            .slice(0, limit);
+    }
+
+    /**
+     * RAG-enhanced story generation
+     * Retrieves similar scripts and uses them as context for generation
+     */
+    async generateStoryWithRAG(
+        request: StoryGenerationRequest & {
+            useRAG?: boolean;
+            ragTopK?: number;
+        }
+    ): Promise<GeneratedStoryOutline> {
+        console.log(`[ScriptAnalyzer] Generating story with RAG: "${request.concept}"`);
+
+        let ragContext = '';
+
+        if (request.useRAG !== false) {
+            // Find similar scripts for context
+            const similarScripts = await this.findSimilarScripts(request.concept, {
+                genre: request.targetGenre,
+                limit: request.ragTopK || 3,
+            });
+
+            if (similarScripts.length > 0) {
+                ragContext = '\n\n=== SIMILAR SCRIPT REFERENCES (for style inspiration) ===';
+                for (const result of similarScripts) {
+                    ragContext += `\n\nScript: "${result.script.title}" (${result.script.genre})`;
+                    ragContext += `\nSimilarity: ${(result.similarity * 100).toFixed(1)}%`;
+                    if (result.excerpts.length > 0) {
+                        ragContext += `\nStyle Excerpts:\n${result.excerpts.slice(0, 2).map(e => `  "${e}"`).join('\n')}`;
+                    }
+                }
+                ragContext += '\n\n=== END REFERENCES ===\n';
+
+                console.log(`[ScriptAnalyzer] Found ${similarScripts.length} similar scripts for RAG context`);
+            }
+        }
+
+        // Modify the request to include RAG context
+        const enhancedRequest = {
+            ...request,
+            customConstraints: [
+                ...(request.customConstraints || []),
+                ...(ragContext ? [`Use these similar scripts as style references:${ragContext}`] : []),
+            ],
+        };
+
+        // Use the existing story generation with enhanced context
+        return this.generateStoryOutline(enhancedRequest);
+    }
+
+    /**
+     * Ingest a script into the vector database for RAG retrieval
+     */
+    async ingestScriptForRAG(
+        scriptContent: string,
+        metadata: {
+            title: string;
+            genre: string;
+            subGenres?: string[];
+            writer?: string;
+            year?: number;
+        }
+    ): Promise<{ id: string; chunksCreated: number }> {
+        console.log(`[ScriptAnalyzer] Ingesting script for RAG: "${metadata.title}"`);
+
+        // First, analyze the script to extract patterns
+        const analysis = await this.analyzeScript(scriptContent, metadata.title, metadata.genre);
+
+        // Create synopsis from analysis
+        const synopsis = [
+            `${analysis.narrativeVoice.tone.join(', ')} ${metadata.genre}`,
+            `featuring ${analysis.characterPatterns.archetypes.slice(0, 3).join(', ')}`,
+            `with themes of ${analysis.signatureElements.recurringThemes.slice(0, 3).join(', ')}`,
+        ].join(' ');
+
+        // Create embedding from combined analysis
+        const embeddingText = [
+            metadata.title,
+            metadata.genre,
+            synopsis,
+            analysis.narrativeVoice.dialogueStyle,
+            analysis.signatureElements.recurringThemes.join(' '),
+            analysis.characterPatterns.archetypes.join(' '),
+            analysis.visualSuggestions.colorPalette.join(' '),
+        ].join(' | ');
+
+        const embedding = await embeddingService.getEmbedding(embeddingText);
+
+        // Store in database
+        try {
+            const script = await prisma.$executeRaw`
+                INSERT INTO "ScriptLibrary" (
+                    id, title, genre, "subGenres", writer, year, synopsis,
+                    "narrativeVoice", "characterPatterns", "visualStyle",
+                    "sampleExcerpts", "promptTemplates", embedding, "createdAt", "updatedAt"
+                ) VALUES (
+                    gen_random_uuid(),
+                    ${metadata.title},
+                    ${metadata.genre},
+                    ${JSON.stringify(metadata.subGenres || [])}::jsonb,
+                    ${metadata.writer || null},
+                    ${metadata.year || null},
+                    ${synopsis},
+                    ${JSON.stringify(analysis.narrativeVoice)}::jsonb,
+                    ${JSON.stringify(analysis.characterPatterns)}::jsonb,
+                    ${JSON.stringify(analysis.visualSuggestions)}::jsonb,
+                    ${JSON.stringify(analysis.sampleExcerpts)}::jsonb,
+                    ${JSON.stringify(analysis.promptTemplates)}::jsonb,
+                    ${embedding}::vector,
+                    NOW(),
+                    NOW()
+                )
+                ON CONFLICT (title) DO UPDATE SET
+                    synopsis = EXCLUDED.synopsis,
+                    "narrativeVoice" = EXCLUDED."narrativeVoice",
+                    embedding = EXCLUDED.embedding,
+                    "updatedAt" = NOW()
+            `;
+
+            console.log(`[ScriptAnalyzer] Script ingested: "${metadata.title}"`);
+
+            return {
+                id: metadata.title.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+                chunksCreated: 1,
+            };
+        } catch (error: any) {
+            console.error('[ScriptAnalyzer] Failed to ingest script:', error.message);
+            throw new Error(`Failed to ingest script: ${error.message}`);
+        }
+    }
+
+    /**
+     * Get RAG stats for monitoring
+     */
+    async getRAGStats(): Promise<{
+        totalScripts: number;
+        indexedScripts: number;
+        genreBreakdown: Record<string, number>;
+    }> {
+        try {
+            const total = await prisma.$queryRaw<[{ count: bigint }]>`
+                SELECT COUNT(*) as count FROM "ScriptLibrary"
+            `;
+            const indexed = await prisma.$queryRaw<[{ count: bigint }]>`
+                SELECT COUNT(*) as count FROM "ScriptLibrary" WHERE embedding IS NOT NULL
+            `;
+            const genres = await prisma.$queryRaw<Array<{ genre: string; count: bigint }>>`
+                SELECT genre, COUNT(*) as count FROM "ScriptLibrary" GROUP BY genre
+            `;
+
+            const genreBreakdown: Record<string, number> = {};
+            for (const g of genres) {
+                genreBreakdown[g.genre] = Number(g.count);
+            }
+
+            return {
+                totalScripts: Number(total[0]?.count || 0),
+                indexedScripts: Number(indexed[0]?.count || 0),
+                genreBreakdown,
+            };
+        } catch (error) {
+            console.warn('[ScriptAnalyzer] Failed to get RAG stats:', error);
+            return {
+                totalScripts: this.analysisCache.size,
+                indexedScripts: this.analysisCache.size,
+                genreBreakdown: {},
+            };
+        }
     }
 }
 

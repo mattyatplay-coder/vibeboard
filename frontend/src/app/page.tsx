@@ -174,7 +174,7 @@ export default function ProjectSelector() {
           {projects.map(project => (
             <Link
               key={project.id}
-              href={`/projects/${project.id}/elements`}
+              href={`/projects/${project.id}/story-editor`}
               className="group relative block rounded-xl border border-white/10 bg-white/5 p-6 transition-all hover:border-white/20 hover:bg-white/10"
             >
               <Tooltip content="Delete Project" side="top">

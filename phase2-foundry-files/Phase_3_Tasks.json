@@ -1,0 +1,25 @@
+{
+  "phase": "Phase 3: Asset Bin",
+  "tasks": [
+    {
+      "id": "GPU-CLIENT-03",
+      "title": "Update GPU Client",
+      "desc": "Add 'deconstructScene' and 'extractMaterials' methods to GPUWorkerClient.ts mapping to tasks 'scene_deconstruct' and 'extract_pbr'."
+    },
+    {
+      "id": "BACKEND-ASSET-01",
+      "title": "Create Asset Controller",
+      "desc": "Implement assetController.ts with deconstruct/extract endpoints. Register routes in index.ts."
+    },
+    {
+      "id": "UI-ASSET-01",
+      "title": "Deconstruct Button",
+      "desc": "Add action button to ElementCard. Show loading spinner when metadata.deconstructStatus is 'processing'."
+    },
+    {
+      "id": "UI-ASSET-02",
+      "title": "3D Result Handling",
+      "desc": "When deconstruction finishes (via webhook or poll), the new 3D assets should appear in the bin as new Elements linked to the parent image."
+    }
+  ]
+}

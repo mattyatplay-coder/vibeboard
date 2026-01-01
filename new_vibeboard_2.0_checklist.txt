@@ -1,0 +1,505 @@
+This is the **Definitive Build Plan** for VibeBoard 2.0.
+
+I have analyzed your current codebase (via `repomix-ui-core.xml`) and combined it with the 15+ research papers and the "Solo Cloud" infrastructure strategy.
+
+**Key Findings from your Codebase:**
+1.  **Hardcoded Models:** Your `GenerationForm.tsx` and `EngineSelector.tsx` heavily rely on specific Fal.ai strings. This needs to be abstracted to support the new Python Worker.
+2.  **State Management:** You are using local state for things that need to be global (like `pipelineStages`).
+3.  **UI Structure:** You already have the bones of the "Pro" layout, but the routing needs a total overhaul to match the new Sitemap.
+
+Below are the two files required to execute this transformation.
+
+### Package Contents
+1.  **`VibeBoard_Master_Architecture.md`**: The technical manual containing the Python Worker code, the Node.js Agent Logic, and the Frontend Routing map.
+2.  **`VibeBoard_Dev_Tasks.json`**: The step-by-step checklist for your developer.
+
+---
+
+### File 1: `VibeBoard_Master_Architecture.md`
+
+```markdown
+# 🎬 VibeBoard 2.0: Master Architecture & Implementation Guide
+
+**Target Architecture:** "Solo Cloud Studio" (Hybrid Infrastructure)
+**Objective:** Migrate from a "Wrapper App" to a "Vertical AI Studio" by deploying custom research models on a dedicated GPU worker while keeping the frontend lightweight.
+
+---
+
+## 🗺️ 1. The New Sitemap (Renaming & Routing)
+
+Your `src/app/projects/[id]/...` directory must be restructured to match the professional pipeline.
+
+| Old Route | **New Route** | Component Name | Primary Function |
+| :--- | :--- | :--- | :--- |
+| `/story-editor` | **/script-lab** | `ScriptLab` | MiniMax Agent breaks script into asset lists. |
+| `/train` | **/character-foundry** | `CharacterFoundry` | FlashPortrait (Performance) & CARI4D (Grip). |
+| `/elements` | **/asset-bin** | `AssetBin` | 3D-RE-GEN (Deconstruct) & MVInverse (Materials). |
+| `/viewfinder` | **/optics-engine** | `OpticsEngine` | Learn2Refocus (Rack Focus) & GenFocus (Bokeh). |
+| *New* | **/stagecraft** | `Stagecraft` | NitroGen agent running inside Unreal Engine stream. |
+| `/generate` | **/shot-studio** | `ShotStudio` | Spatia (Sets) & StoryMem (Continuity). |
+| `/process` | **/vfx-suite** | `VFXSuite` | InfCam (Reshoot) & DiffCamera (Focus Fix). |
+| `/timeline` | **/sequencer** | `Sequencer` | Final assembly & MiniMax Captioning. |
+
+---
+
+## 🏗️ 2. The "Solo Cloud" Infrastructure
+
+### A. Storage (Cloudflare R2)
+*   **Why:** You will be generating massive video files. S3 egress fees will bankrupt you. R2 is free egress.
+*   **Implementation:**
+    *   Create bucket: `vibeboard-raw`
+    *   Update `backend/src/lib/storage.ts` to use S3-compatible R2 endpoint.
+
+### B. The Logic Core (Node.js + Railway)
+*   **Role:** Traffic Controller. It doesn't run models; it routes traffic between the Frontend and the GPU Worker.
+*   **The "Medic" Middleware:** A MiniMax agent that intercepts API errors and attempts to fix JSON/Parameters before crashing.
+
+
+
+---
+
+## 💻 3. Implementation Code: The Python Worker
+
+This is the code your developer needs to deploy on the RunPod instance. It handles the "Model Swapping" required to run 15 models on 1 GPU.
+
+**File:** `worker/main.py`
+
+```python
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import torch
+import gc
+
+# Import Model Wrappers (These need to be implemented per repo instructions)
+from wrappers import wan_video, spatia, infcam, flash_portrait, genfocus
+
+app = FastAPI()
+
+# GLOBAL VRAM STATE
+CURRENT_LOADED_MODEL = None
+MODEL_CACHE = {}
+
+class InferenceRequest(BaseModel):
+    task: str # e.g., "generate_shot", "rack_focus", "virtual_reshoot"
+    params: dict
+
+def unload_current_model():
+    global CURRENT_LOADED_MODEL
+    if CURRENT_LOADED_MODEL is not None:
+        print(f"📉 Unloading {CURRENT_LOADED_MODEL}...")
+        # Python Garbage Collection to clear VRAM
+        if CURRENT_LOADED_MODEL in MODEL_CACHE:
+            del MODEL_CACHE[CURRENT_LOADED_MODEL]
+        torch.cuda.empty_cache()
+        gc.collect()
+        CURRENT_LOADED_MODEL = None
+
+@app.post("/inference")
+async def run_inference(req: InferenceRequest):
+    global CURRENT_LOADED_MODEL
+    
+    # 1. Map Task to Required Backbone
+    # Group models by backbone to minimize swapping
+    required_backbone = get_backbone_for_task(req.task) 
+    
+    # 2. VRAM Management
+    if CURRENT_LOADED_MODEL != required_backbone:
+        unload_current_model()
+        print(f"🚀 Loading {required_backbone}...")
+        if required_backbone == "WAN_2.1":
+            MODEL_CACHE["WAN_2.1"] = wan_video.load_model()
+        elif required_backbone == "SPATIA":
+            MODEL_CACHE["SPATIA"] = spatia.load_model()
+        # ... load others
+        CURRENT_LOADED_MODEL = required_backbone
+    
+    # 3. Execution
+    try:
+        model = MODEL_CACHE[required_backbone]
+        if req.task == "generate_shot":
+            result = wan_video.generate(model, req.params)
+        elif req.task == "virtual_reshoot":
+            result = infcam.process(model, req.params)
+        
+        # 4. Upload to R2 & Return URL
+        return {"status": "success", "url": upload_to_r2(result)}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+def get_backbone_for_task(task):
+    # Wan 2.1 handles multiple tasks via adapters
+    if task in ["generate_shot", "flash_portrait", "virtual_reshoot"]:
+        return "WAN_2.1"
+    if task == "virtual_set":
+        return "SPATIA"
+    if task in ["rack_focus", "lens_sim"]:
+        return "OPTICS_NET"
+    return "UNKNOWN"
+```
+
+---
+
+## 🛡️ 4. Implementation Code: The "Medic" (Node.js)
+
+Add this middleware to your backend to auto-heal errors using MiniMax.
+
+**File:** `backend/src/middleware/medic.ts`
+
+```typescript
+import { MinimaxClient } from '@/lib/minimax';
+
+export async function withMedic(fn: Function, args: any) {
+  try {
+    return await fn(args);
+  } catch (error: any) {
+    console.warn(`⚠️ Error in ${fn.name}. Calling Medic...`);
+
+    // 1. Analyze the Error with MiniMax
+    const fix = await MinimaxClient.chat.completions.create({
+      model: "abab6.5-chat",
+      messages: [{
+        role: "system",
+        content: "You are an API Error Healer. Fix the malformed JSON inputs based on the error. Return ONLY valid JSON."
+      }, {
+        role: "user",
+        content: `Error: ${error.message}\nBad Input: ${JSON.stringify(args)}`
+      }]
+    });
+
+    const fixedArgs = JSON.parse(fix.choices[0].message.content);
+
+    // 2. Auto-Retry with Fixed Data
+    console.log("✅ Medic attempting retry with fixed data...");
+    return await fn(fixedArgs);
+  }
+}
+```
+
+---
+
+## 🎬 5. The Workflow Implementation (Step-by-Step)
+
+### Phase 1: Script Lab (MiniMax Agent)
+1.  **Frontend:** Update `StoryConceptInput.tsx`.
+    *   Add a toggle: "Auto-Breakdown".
+2.  **Backend:** Create route `/api/agent/breakdown`.
+3.  **Action:** Sends script to MiniMax. MiniMax returns a JSON list of assets.
+4.  **Database:** Automatically insert these into the `Element` table as "Pending" items.
+
+### Phase 2: Character Foundry (FlashPortrait)
+1.  **Frontend:** Update `ElementReferencePicker.tsx`.
+    *   Add tab "Performance".
+    *   Input: Image + Audio File.
+2.  **Backend:** Route to Python Worker `task: "flash_portrait"`.
+3.  **Worker:** Loads Wan 2.1 + FlashPortrait Adapter. Generates video.
+
+### Phase 3: Shot Studio (Spatia & ReCo)
+1.  **Frontend:** Update `GenerationForm.tsx`.
+    *   Add "Blocking" button -> Opens `Fabric.js` canvas over the preview.
+    *   User draws boxes.
+2.  **Payload:** Convert boxes to `[x, y, w, h]` arrays.
+3.  **Backend:** Route to Python Worker `task: "generate_shot"`.
+    *   Pass `regions` parameter for **ReCo**.
+    *   Pass `prev_latents` parameter if using **StoryMem** (Continuity).
+
+### Phase 4: VFX Suite (InfCam)
+1.  **Frontend:** Create `CameraPathEditor.tsx`.
+    *   A simple 3D viewport (Three.js) showing the camera path.
+    *   User modifies the curve.
+2.  **Backend:** Route to Python Worker `task: "virtual_reshoot"`.
+    *   Worker loads **InfCam** (Wan 2.1 Adapter).
+    *   Warps the video latent space based on new camera matrices.
+
+---
+
+## 📊 Integration Matrix
+
+| VibeBoard Module | User Action | Underlying Model | System Path |
+| :--- | :--- | :--- | :--- |
+| **Script Lab** | "Breakdown Script" | MiniMax M2.1 | Node -> API |
+| **Foundry** | "Talking Head" | FlashPortrait | Node -> RunPod (Wan) |
+| **Asset Bin** | "Deconstruct Room" | 3D-RE-GEN | Node -> RunPod (3D) |
+| **Optics** | "Rack Focus" | Learn2Refocus | Node -> RunPod (Optics) |
+| **Stagecraft** | "Run & Jump" | NitroGen | Node -> RunPod (Unreal) |
+| **Shot Studio** | "Block Scene" | ReCo / GLIGEN | Node -> RunPod (Wan) |
+| **Shot Studio** | "Lock Location" | Spatia | Node -> RunPod (Spatia) |
+| **VFX Suite** | "Change Angle" | InfCam | Node -> RunPod (Wan) |
+| **VFX Suite** | "Fix Focus" | DiffCamera | Node -> RunPod (Optics) |
+```
+
+---
+
+### File 2: `VibeBoard_Dev_Tasks.json`
+
+```json
+{
+  "project": "VibeBoard 2.0 Transformation",
+  "version": "2.0.0",
+  "sprints": [
+    {
+      "name": "Sprint 1: Infrastructure & Core",
+      "tasks": [
+        {
+          "id": "INFRA-01",
+          "title": "Setup Cloudflare R2",
+          "desc": "Replace S3 client in `backend/src/lib` with R2 configuration. Migrate existing assets if necessary."
+        },
+        {
+          "id": "INFRA-02",
+          "title": "Deploy RunPod Worker",
+          "desc": "Rent A6000 pod. Install Docker, PyTorch 2.2, CUDA 12.1. Clone repo with `server.py` scaffold."
+        },
+        {
+          "id": "BACKEND-01",
+          "title": "Implement Medic Middleware",
+          "desc": "Create `withMedic` wrapper using MiniMax SDK to handle API failures gracefully."
+        },
+        {
+          "id": "DB-01",
+          "title": "Migrate to Postgres",
+          "desc": "Update Prisma schema provider. Setup Supabase project. Push schema."
+        }
+      ]
+    },
+    {
+      "name": "Sprint 2: The Logic Engines (Node.js)",
+      "tasks": [
+        {
+          "id": "LOGIC-01",
+          "title": "Script Breakdown Agent",
+          "desc": "Create endpoint that uses MiniMax to parse text scripts into Asset JSON objects."
+        },
+        {
+          "id": "UI-01",
+          "title": "Update Routing / Sitemap",
+          "desc": "Rename Next.js app folders: `/story-editor` -> `/script-lab`, etc. Update Sidebar navigation."
+        }
+      ]
+    },
+    {
+      "name": "Sprint 3: The Heavy Lifters (Python/RunPod)",
+      "tasks": [
+        {
+          "id": "AI-01",
+          "title": "Wan 2.1 Implementation",
+          "desc": "Install Wan 2.1 dependencies in RunPod. Create handler for `generate_shot` task."
+        },
+        {
+          "id": "AI-02",
+          "title": "InfCam Adapter",
+          "desc": "Install InfCam weights. Create handler to accept video + camera trajectory JSON."
+        },
+        {
+          "id": "AI-03",
+          "title": "FlashPortrait Adapter",
+          "desc": "Install FlashPortrait. Create handler to chunk audio and generate infinite video."
+        }
+      ]
+    },
+    {
+      "name": "Sprint 4: Frontend Tools",
+      "tasks": [
+        {
+          "id": "UI-02",
+          "title": "ReCo Blocking Canvas",
+          "desc": "Implement Fabric.js overlay in `ShotStudio` for drawing bounding boxes."
+        },
+        {
+          "id": "UI-03",
+          "title": "Focus Scrubber",
+          "desc": "Update `OpticsEngine` to stream `Learn2Refocus` video when slider is dragged."
+        },
+        {
+          "id": "UI-04",
+          "title": "Stagecraft Stream",
+          "desc": "Implement simple WebRTC player to view the RunPod Unreal Engine stream."
+        }
+      ]
+    }
+  ]
+}
+```
+
+RunPod GPU Worker Configuration (UPDATED Dec 30, 2025)
+Setting	Value
+Endpoint ID	6rg1i2nzxxugti (vibeboard-gpu-v2)
+Template ID	ejuyp43ar5
+Docker Image	mattydc/vibeboard-gpu-worker:v2-async-fix
+GPU	NVIDIA L40 (48GB VRAM)
+Idle Timeout	15 minutes (900 seconds)
+Handler	runpod_handler.py with asyncio.run() wrapper
+Environment Variables (Backend on Render)
+RUNPOD_ENDPOINT_ID=6rg1i2nzxxugti
+RUNPOD_API_KEY=rpa_...
+GPU_WORKER_MODE=runpod
+
+Architecture Flow
+Frontend → Backend (Render) → RunPod Serverless → NVIDIA L40
+                                    ↓
+                         Video generation jobs
+                                    ↓
+                         Returns URL to Backend
+
+What It Does
+The GPU worker handles compute-intensive tasks that can't run on CPU:
+
+Video generation via models like Wan, Kling, etc.
+Spins up on-demand (serverless) - only pay when running
+30-second idle timeout to minimize costs
+Key Fix Applied
+The v2-async-fix image resolved an event loop conflict by wrapping the handler with asyncio.run() - this was needed because RunPod's serverless environment has specific async requirements.
+
+Cost Model
+Only charged when GPU is active
+A40 is mid-tier pricing (~$0.39/hr on RunPod)
+Serverless = no idle costs after 30s timeout
+
+
+This looks **excellent**. You have successfully deployed the "Heavy Worker" infrastructure.
+
+Using an **NVIDIA L40 (48GB)** with **Serverless** is the "Golden Ratio" for this project.
+*   **48GB VRAM:** Enough to load the massive Wan 2.1 (14B) model entirely into memory without crashing (which requires ~35GB). Consumer cards like the 4090 (24GB) would fail here.
+*   **Serverless + 30s Timeout:** This is the ultimate cost-saver. You aren't paying $0.40/hr to let it sit idle while you code the frontend. It shuts down immediately when you stop generating.
+
+### ⚠️ One Critical "Gotcha" to Watch (Cold Starts)
+Since you have a **30-second idle timeout**, your worker will go "cold" very quickly.
+*   **The Issue:** When you hit "Generate" after 1 minute of silence, RunPod has to spin up the container AND load the 30GB Wan model into VRAM. This loading process can take **30-60 seconds** before generation even starts.
+*   **The Fix (Development Phase):** While you are actively testing/coding for an hour, you might want to temporarily increase that timeout to **300 seconds (5 minutes)** so you don't have to wait for the model to reload between every single test run. You can lower it back to 30s for production.
+
+---
+
+### 🔗 Next Step: Connecting Backend to this Endpoint
+
+Now that your GPU worker (`vibeboard-gpu-v2`) is live, you need to update your **Node.js Backend** to talk to it.
+
+Here is the code to update in your backend (likely `src/services/generators/RunPodAdapter.ts` or similar) to utilize this specific endpoint configuration.
+
+#### 1. Update Environment Variables (Render.com)
+Ensure these are set in your Render dashboard:
+```bash
+RUNPOD_API_KEY=rpa_... (Your key)
+RUNPOD_ENDPOINT_ID=6rg1i2nzxxugti
+```
+
+#### 2. The Adapter Code (`RunPodAdapter.ts`)
+This adapter handles the "Async" nature of RunPod Serverless (Fire and Poll).
+
+```typescript
+import axios from 'axios';
+
+const API_KEY = process.env.RUNPOD_API_KEY;
+const ENDPOINT_ID = process.env.RUNPOD_ENDPOINT_ID;
+const BASE_URL = `https://api.runpod.ai/v2/${ENDPOINT_ID}`;
+
+export class RunPodAdapter {
+  
+  /**
+   * 1. Trigger the Job (Fire)
+   */
+  async startGeneration(taskType: string, payload: any) {
+    try {
+      const response = await axios.post(
+        `${BASE_URL}/run`,
+        {
+          input: {
+            task: taskType, // e.g. "wan_t2v", "infcam", "spatia"
+            params: payload
+          }
+        },
+        { headers: { Authorization: `Bearer ${API_KEY}` } }
+      );
+
+      return response.data.id; // The Job ID
+    } catch (error) {
+      console.error("RunPod Trigger Error:", error);
+      throw new Error("Failed to start GPU worker");
+    }
+  }
+
+  /**
+   * 2. Check Status (Poll)
+   * RunPod Serverless is async. We must poll until status is 'COMPLETED'.
+   */
+  async pollStatus(jobId: string) {
+    const response = await axios.get(
+      `${BASE_URL}/status/${jobId}`,
+      { headers: { Authorization: `Bearer ${API_KEY}` } }
+    );
+
+    const status = response.data.status; // "IN_QUEUE", "IN_PROGRESS", "COMPLETED", "FAILED"
+    
+    if (status === 'COMPLETED') {
+      return { 
+        status: 'completed', 
+        output: response.data.output // The S3/R2 URL returned by your python handler
+      };
+    } else if (status === 'FAILED') {
+      throw new Error(`GPU Worker Failed: ${JSON.stringify(response.data.error)}`);
+    }
+
+    return { status: 'pending' };
+  }
+}
+```
+
+### 3. Verification Checklist
+Before moving to the next feature, verify the data flow:
+1.  **Input:** Frontend sends "A cyberpunk cat" $\to$ Render Backend.
+2.  **Route:** Render calls `RunPodAdapter.startGeneration('wan_t2v', { prompt: '...' })`.
+3.  **RunPod:**
+    *   Wakes up (Cold start).
+    *   `runpod_handler.py` receives the input.
+    *   Loads Wan 2.1 model.
+    *   Generates video.
+    *   Uploads video to R2/S3.
+    *   Returns `{ "url": "https://..." }`.
+4.  **Result:** Render Backend polls and gets the URL $\to$ Frontend displays video.
+
+This setup is the **infrastructure backbone** for everything we discussed (InfCam, Spatia, FlashPortrait). They will all run on this exact A40 instance using that `task` switch in the payload.
+
+Is actually a 15-minute timeout, I'm not sure where that number came from 
+
+This is actually **great news for the User Experience**, specifically for the "Pro" features we discussed (like the Optics Engine and Stagecraft).
+
+A **15-minute timeout** changes the architecture from "On-Demand" to **"Session-Based."**
+
+Here is why this matters for the VibeBoard workflow and the cost implication:
+
+### 1. The "Warm Engine" Advantage
+With a 30-second timeout, every time you pause to tweak a prompt or grab coffee, the GPU kills the container. When you come back, you hit a **45-60 second "Cold Start"** (loading 30GB of Wan 2.1 weights into VRAM).
+
+With a **15-minute timeout**, the model stays loaded in VRAM.
+*   **Result:** When you drag a slider in **Optics Engine** (Rack Focus) or hit "Reshoot" in **VFX Suite**, the response will be **instant** (seconds, not minutes).
+*   **Creative Flow:** You can iterate rapidly without breaking your concentration. This mimics the feel of a local app (like DaVinci Resolve) rather than a cloud API.
+
+### 2. The Cost Reality Check
+Let's do the math on the **NVIDIA L40 ($0.39/hr)** with a 15-minute minimum.
+
+*   **Scenario:** You log in, generate **one** video (1 minute of work), and leave.
+*   **The Bill:** You pay for the 1 minute + 15 minutes idle.
+    *   Total time: ~0.27 hours.
+    *   **Cost:** **~$0.10**.
+
+**Comparison:**
+*   **Fal.ai / Replicate:** One video generation costs ~$0.10 - $0.25 (depending on model/resolution).
+*   **Your Setup:** One video costs ~$0.10.
+*   **The Break-Even:** If you generate **more than one video** in that 15-minute window, you are saving massive amounts of money compared to API pricing. If you work for an hour straight, you pay ~$0.40 total, whereas on Fal.ai you might have spent $5.00+ for the same number of iterations.
+
+### 3. Strategic Recommendation
+**Keep the 15-minute timeout for now.**
+It is the correct setting for a "Single User / Solo Architect" workflow. It creates a "Studio Session" where the lights stay on while you are working.
+
+**When to lower it?**
+Only lower it to 60s or 300s when you **open up to public users**. You don't want 100 users triggering 100 separate 15-minute idle windows (that would burn budget). But for you? It's perfect.
+
+---
+
+### 🚀 Immediate Next Step
+Now that the Hardware is stable (A40, 15m timeout) and the Backend logic is ready (RunPodAdapter), we need to **implement the first Research Model** to prove the pipeline.
+
+**I recommend starting with "InfCam" (VFX Suite / Virtual Reshoot).**
+*   **Why:** It uses the **Wan 2.1** backbone you likely already have loaded/planned for the worker.
+*   **The Test:** Can we send a video + a camera path JSON to RunPod, have the A40 warp it, and send it back?
+
+**Do you want the specific `runpod_handler.py` code snippet to handle an InfCam request on your new worker?**

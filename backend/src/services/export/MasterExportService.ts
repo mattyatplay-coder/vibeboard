@@ -44,6 +44,23 @@ export interface TimelineClipInput {
     cinematicTags?: any;
 }
 
+export interface TechnicalStripOptions {
+    enabled: boolean;
+    position: 'top' | 'bottom';     // Where to render the strip
+    showTimecode: boolean;           // HH:MM:SS:FF
+    showCamera?: string;             // e.g., "ARRI Alexa 35"
+    showLens?: string;               // e.g., "Zeiss Master Prime 50mm T1.3"
+    showFocalLength?: number;        // e.g., 50
+    showFStop?: string;              // e.g., "T1.3"
+    showProject?: string;            // Project name
+    showScene?: string;              // Scene/chain name
+    showFrame?: boolean;             // Current frame number
+    showDate?: boolean;              // Recording date
+    fontSize?: number;               // Default 16
+    backgroundColor?: string;        // Default "black@0.7"
+    textColor?: string;              // Default "white"
+}
+
 export interface MasterExportOptions {
     projectId: string;
     sceneChainId: string;
@@ -54,6 +71,7 @@ export interface MasterExportOptions {
     audioCodec?: 'aac' | 'pcm'; // Default 'aac'
     includeEDL?: boolean;       // Generate CMX 3600 EDL
     includeSidecar?: boolean;   // Generate JSON with shot DNA
+    technicalStrip?: TechnicalStripOptions; // Metadata burn-in overlay
 }
 
 export interface MasterExportResult {
@@ -207,6 +225,97 @@ export class MasterExportService {
     }
 
     /**
+     * Build Technical Strip drawtext filter for metadata burn-in
+     * Returns a filter string to overlay camera/lens/timecode info on the video
+     */
+    private buildTechnicalStripFilter(
+        options: TechnicalStripOptions,
+        frameRate: number,
+        inputLabel: string,
+        outputLabel: string
+    ): string {
+        const fontSize = options.fontSize || 16;
+        const fontColor = options.textColor || 'white';
+        const bgColor = options.backgroundColor || 'black@0.7';
+        const yPos = options.position === 'top' ? '10' : 'h-th-10';
+
+        // Build text segments
+        const textParts: string[] = [];
+
+        if (options.showProject) {
+            textParts.push(options.showProject);
+        }
+        if (options.showScene) {
+            textParts.push(options.showScene);
+        }
+        if (options.showCamera) {
+            textParts.push(options.showCamera);
+        }
+        if (options.showLens) {
+            textParts.push(options.showLens);
+        }
+        if (options.showFocalLength) {
+            textParts.push(`${options.showFocalLength}mm`);
+        }
+        if (options.showFStop) {
+            textParts.push(options.showFStop);
+        }
+        if (options.showDate) {
+            textParts.push(new Date().toISOString().split('T')[0]);
+        }
+
+        // Static text portion (left side)
+        const staticText = textParts.join(' | ');
+
+        // Build drawtext filters
+        const drawFilters: string[] = [];
+
+        // Background strip
+        drawFilters.push(
+            `drawbox=y=${options.position === 'top' ? '0' : 'ih-' + (fontSize + 20)}:w=iw:h=${fontSize + 20}:color=${bgColor}:t=fill`
+        );
+
+        // Static text (left-aligned)
+        if (staticText) {
+            drawFilters.push(
+                `drawtext=text='${this.escapeFFmpegText(staticText)}':fontsize=${fontSize}:fontcolor=${fontColor}:x=10:y=${yPos}:fontfile=/System/Library/Fonts/Helvetica.ttc`
+            );
+        }
+
+        // Timecode (right-aligned, dynamic)
+        if (options.showTimecode) {
+            // FFmpeg timecode expression: HH:MM:SS:FF
+            drawFilters.push(
+                `drawtext=text='%{pts\\:hms}':fontsize=${fontSize}:fontcolor=${fontColor}:x=w-tw-10:y=${yPos}:fontfile=/System/Library/Fonts/Menlo.ttc`
+            );
+        }
+
+        // Frame counter (next to timecode if both enabled)
+        if (options.showFrame) {
+            const xOffset = options.showTimecode ? 'w-tw-120' : 'w-tw-10';
+            drawFilters.push(
+                `drawtext=text='F\\:%{frame_num}':fontsize=${fontSize}:fontcolor=${fontColor}:x=${xOffset}:y=${yPos}:start_number=1:fontfile=/System/Library/Fonts/Menlo.ttc`
+            );
+        }
+
+        return `[${inputLabel}]${drawFilters.join(',')}[${outputLabel}]`;
+    }
+
+    /**
+     * Escape text for FFmpeg drawtext filter
+     * Handles special characters that need escaping
+     */
+    private escapeFFmpegText(text: string): string {
+        return text
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "'\\''")
+            .replace(/:/g, '\\:')
+            .replace(/%/g, '%%')
+            .replace(/\[/g, '\\[')
+            .replace(/\]/g, '\\]');
+    }
+
+    /**
      * Build FFmpeg complex filter graph with L-Cut support
      *
      * L-Cut Logic:
@@ -266,13 +375,29 @@ export class MasterExportService {
 
         // === CONCATENATION ===
         // Concatenate all video streams
+        // If technical strip is enabled, output to intermediate label first
+        const hasTechStrip = options.technicalStrip?.enabled;
+        const concatOutputLabel = hasTechStrip ? 'concat_v' : 'outv';
+
         if (clips.length > 1) {
             filters.push(
-                `${videoOutputs.join('')}concat=n=${clips.length}:v=1:a=0[outv]`
+                `${videoOutputs.join('')}concat=n=${clips.length}:v=1:a=0[${concatOutputLabel}]`
             );
         } else {
             // Single clip - just alias the output
-            filters.push(`[v0]copy[outv]`);
+            filters.push(`[v0]copy[${concatOutputLabel}]`);
+        }
+
+        // === TECHNICAL STRIP OVERLAY ===
+        // Apply metadata burn-in after concatenation if enabled
+        if (hasTechStrip && options.technicalStrip) {
+            const techStripFilter = this.buildTechnicalStripFilter(
+                options.technicalStrip,
+                options.frameRate || 24,
+                concatOutputLabel,
+                'outv'
+            );
+            filters.push(techStripFilter);
         }
 
         // Mix all audio streams (handles overlapping audio from L/J-cuts)

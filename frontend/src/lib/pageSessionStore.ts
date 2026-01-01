@@ -131,6 +131,9 @@ interface PageSessionState {
     // Recovery UI state per page
     recoveryDismissed: Record<string, boolean>;
 
+    // Global disable flag for testing - set to true to suppress all recovery toasts
+    recoveryDisabled: boolean;
+
     // Actions
     saveSession: <T extends PageSession>(session: Partial<T> & { projectId: string; pageType: PageType }) => void;
     getSession: <T extends PageSession>(projectId: string, pageType: PageType) => T | null;
@@ -139,6 +142,7 @@ interface PageSessionState {
     dismissRecovery: (projectId: string, pageType: PageType) => void;
     isRecoveryDismissed: (projectId: string, pageType: PageType) => boolean;
     markClean: (projectId: string, pageType: PageType) => void;
+    setRecoveryDisabled: (disabled: boolean) => void;
 }
 
 // Session is considered stale after 24 hours
@@ -219,6 +223,7 @@ export const usePageSessionStore = create<PageSessionState>()(
         (set, get) => ({
             sessions: {},
             recoveryDismissed: {},
+            recoveryDisabled: true, // Set to true to suppress all recovery toasts for testing
 
             saveSession: (session) => {
                 const key = getSessionKey(session.projectId, session.pageType);
@@ -313,8 +318,14 @@ export const usePageSessionStore = create<PageSessionState>()(
             },
 
             isRecoveryDismissed: (projectId, pageType) => {
+                // If globally disabled, always report as dismissed
+                if (get().recoveryDisabled) return true;
                 const key = getSessionKey(projectId, pageType);
                 return get().recoveryDismissed[key] ?? false;
+            },
+
+            setRecoveryDisabled: (disabled) => {
+                set({ recoveryDisabled: disabled });
             },
 
             markClean: (projectId, pageType) => {

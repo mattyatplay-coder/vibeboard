@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Aperture, Camera, ChevronDown, Info, Sparkles, X } from 'lucide-react';
+import { Aperture, Camera, ChevronDown, Info, Sparkles, Star, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Tooltip } from '@/components/ui/Tooltip';
 import {
@@ -14,6 +14,9 @@ import {
   ANAMORPHIC_MODIFIERS,
   buildLensPrompt,
 } from '@/data/LensPresets';
+
+// localStorage key for lens favorites
+const LENS_FAVORITES_KEY = 'vibeboard-lens-favorites';
 
 interface LensKitSelectorProps {
   selectedLens: LensPreset | null;
@@ -40,6 +43,46 @@ export function LensKitSelector({
 }: LensKitSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showInfo, setShowInfo] = useState<string | null>(null);
+  const [favorites, setFavorites] = useState<string[]>([]);
+
+  // Load favorites from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(LENS_FAVORITES_KEY);
+      if (stored) {
+        setFavorites(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error('Failed to load lens favorites:', e);
+    }
+  }, []);
+
+  // Toggle favorite status for a lens
+  const toggleFavorite = (lensId: string) => {
+    setFavorites(prev => {
+      const newFavorites = prev.includes(lensId)
+        ? prev.filter(id => id !== lensId)
+        : [...prev, lensId];
+      // Persist to localStorage
+      try {
+        localStorage.setItem(LENS_FAVORITES_KEY, JSON.stringify(newFavorites));
+      } catch (e) {
+        console.error('Failed to save lens favorites:', e);
+      }
+      return newFavorites;
+    });
+  };
+
+  // Sort lenses: favorites first, then by focal length
+  const sortedLensPresets = useMemo(() => {
+    return [...LENS_PRESETS].sort((a, b) => {
+      const aFav = favorites.includes(a.id);
+      const bFav = favorites.includes(b.id);
+      if (aFav && !bFav) return -1;
+      if (!aFav && bFav) return 1;
+      return a.focalMm - b.focalMm;
+    });
+  }, [favorites]);
 
   const toggleEffect = (effectId: string) => {
     if (selectedEffects.includes(effectId)) {
@@ -191,105 +234,149 @@ export function LensKitSelector({
 
       {/* Lens Presets Grid */}
       <div className="flex-1 overflow-y-auto p-4">
+        {/* Favorites section header */}
+        {favorites.length > 0 && (
+          <div className="mb-2 flex items-center gap-1.5 text-[10px] tracking-wider text-amber-400/80 uppercase">
+            <Star className="h-3 w-3 fill-amber-400" />
+            <span>Favorites ({favorites.length})</span>
+          </div>
+        )}
         <div className="space-y-2">
-          {LENS_PRESETS.map(lens => (
-            <div
-              key={lens.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => onLensChange(selectedLens?.id === lens.id ? null : lens)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onLensChange(selectedLens?.id === lens.id ? null : lens);
-                }
-              }}
-              className={clsx(
-                'w-full cursor-pointer rounded-lg border p-3 text-left transition-all',
-                selectedLens?.id === lens.id
-                  ? 'border-cyan-500/50 bg-cyan-500/20'
-                  : 'border-white/10 bg-white/5 hover:border-white/20'
-              )}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-white">{lens.name}</span>
-                    <span
-                      className={clsx(
-                        'rounded border px-1.5 py-0.5 text-[10px]',
-                        LENS_CATEGORY_COLORS[lens.category]
-                      )}
-                    >
-                      {lens.category}
-                    </span>
-                  </div>
-                  <p className="mt-1 line-clamp-1 text-[11px] text-gray-400">{lens.description}</p>
-                </div>
-                <button
-                  onClick={e => {
-                    e.stopPropagation();
-                    setShowInfo(showInfo === lens.id ? null : lens.id);
-                  }}
-                  className="rounded p-1 transition-colors hover:bg-white/10"
-                >
-                  <Info className="h-3.5 w-3.5 text-gray-500" />
-                </button>
-              </div>
+          {sortedLensPresets.map((lens, index) => {
+            const isFavorite = favorites.includes(lens.id);
+            // Show separator between favorites and non-favorites
+            const showSeparator = index > 0 &&
+              favorites.includes(sortedLensPresets[index - 1].id) &&
+              !isFavorite;
 
-              {/* Expanded Info */}
-              <AnimatePresence>
-                {showInfo === lens.id && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="mt-2 space-y-2 border-t border-white/10 pt-2">
-                      {/* Characteristics */}
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px]">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Distortion:</span>
-                          <span className="text-gray-300">{lens.characteristics.distortion}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Compression:</span>
-                          <span className="text-gray-300">{lens.characteristics.compression}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">DoF:</span>
-                          <span className="text-gray-300">{lens.characteristics.depthOfField}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Perspective:</span>
-                          <span className="text-gray-300">{lens.characteristics.perspective}</span>
-                        </div>
-                      </div>
-                      {/* Use Cases */}
-                      <div className="flex flex-wrap gap-1">
-                        {lens.useCases.map((use, i) => (
-                          <span
-                            key={i}
-                            className="rounded bg-white/5 px-1.5 py-0.5 text-[9px] text-gray-400"
-                          >
-                            {use}
-                          </span>
-                        ))}
-                      </div>
-                      {/* Film Examples */}
-                      {lens.filmExamples && (
-                        <div className="text-[9px] text-gray-500 italic">
-                          <Camera className="mr-1 inline h-3 w-3" />
-                          {lens.filmExamples.join(' | ')}
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
+            return (
+              <div key={lens.id}>
+                {showSeparator && (
+                  <div className="mb-2 mt-4 border-t border-white/10 pt-2 text-[10px] tracking-wider text-gray-500 uppercase">
+                    All Lenses
+                  </div>
                 )}
-              </AnimatePresence>
-            </div>
-          ))}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onLensChange(selectedLens?.id === lens.id ? null : lens)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onLensChange(selectedLens?.id === lens.id ? null : lens);
+                    }
+                  }}
+                  className={clsx(
+                    'w-full cursor-pointer rounded-lg border p-3 text-left transition-all',
+                    selectedLens?.id === lens.id
+                      ? 'border-cyan-500/50 bg-cyan-500/20'
+                      : isFavorite
+                        ? 'border-amber-500/30 bg-amber-500/5 hover:border-amber-500/50'
+                        : 'border-white/10 bg-white/5 hover:border-white/20'
+                  )}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-white">{lens.name}</span>
+                        <span
+                          className={clsx(
+                            'rounded border px-1.5 py-0.5 text-[10px]',
+                            LENS_CATEGORY_COLORS[lens.category]
+                          )}
+                        >
+                          {lens.category}
+                        </span>
+                        {isFavorite && (
+                          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                        )}
+                      </div>
+                      <p className="mt-1 line-clamp-1 text-[11px] text-gray-400">{lens.description}</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Tooltip content={isFavorite ? "Remove from favorites" : "Add to favorites"} side="left">
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            toggleFavorite(lens.id);
+                          }}
+                          className={clsx(
+                            'rounded p-1 transition-colors',
+                            isFavorite
+                              ? 'text-amber-400 hover:bg-amber-500/20'
+                              : 'text-gray-500 hover:bg-white/10 hover:text-amber-400'
+                          )}
+                        >
+                          <Star className={clsx('h-3.5 w-3.5', isFavorite && 'fill-current')} />
+                        </button>
+                      </Tooltip>
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          setShowInfo(showInfo === lens.id ? null : lens.id);
+                        }}
+                        className="rounded p-1 transition-colors hover:bg-white/10"
+                      >
+                        <Info className="h-3.5 w-3.5 text-gray-500" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expanded Info */}
+                  <AnimatePresence>
+                    {showInfo === lens.id && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-2 space-y-2 border-t border-white/10 pt-2">
+                          {/* Characteristics */}
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px]">
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Distortion:</span>
+                              <span className="text-gray-300">{lens.characteristics.distortion}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Compression:</span>
+                              <span className="text-gray-300">{lens.characteristics.compression}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">DoF:</span>
+                              <span className="text-gray-300">{lens.characteristics.depthOfField}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Perspective:</span>
+                              <span className="text-gray-300">{lens.characteristics.perspective}</span>
+                            </div>
+                          </div>
+                          {/* Use Cases */}
+                          <div className="flex flex-wrap gap-1">
+                            {lens.useCases.map((use, i) => (
+                              <span
+                                key={i}
+                                className="rounded bg-white/5 px-1.5 py-0.5 text-[9px] text-gray-400"
+                              >
+                                {use}
+                              </span>
+                            ))}
+                          </div>
+                          {/* Film Examples */}
+                          {lens.filmExamples && (
+                            <div className="text-[9px] text-gray-500 italic">
+                              <Camera className="mr-1 inline h-3 w-3" />
+                              {lens.filmExamples.join(' | ')}
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Lens Effects Section */}

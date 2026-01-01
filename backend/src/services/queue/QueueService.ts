@@ -14,7 +14,7 @@ import { Queue, QueueEvents, Job, JobsOptions } from 'bullmq';
 import IORedis from 'ioredis';
 
 // Job type definitions
-export type JobType = 'render' | 'generation' | 'indexing' | 'export' | 'analysis';
+export type JobType = 'render' | 'generation' | 'indexing' | 'export' | 'analysis' | 'training';
 
 export interface RenderJobData {
     type: 'bake' | 'concat' | 'transcode' | 'thumbnail';
@@ -62,12 +62,24 @@ export interface AnalysisJobData {
     options?: Record<string, unknown>;
 }
 
+export interface TrainingJobData {
+    type: 'curate' | 'start' | 'generate_dataset';
+    jobId: string;
+    projectId: string;
+    datasetPath?: string;
+    uploadedFiles?: string[];
+    referenceFiles?: string[];
+    triggerWord?: string;
+    options?: Record<string, unknown>;
+}
+
 export type QueueJobData =
     | RenderJobData
     | GenerationJobData
     | IndexingJobData
     | ExportJobData
-    | AnalysisJobData;
+    | AnalysisJobData
+    | TrainingJobData;
 
 export interface JobResult {
     success: boolean;
@@ -83,6 +95,7 @@ const QUEUE_NAMES = {
     indexing: 'vibeboard-indexing',
     export: 'vibeboard-export',
     analysis: 'vibeboard-analysis',
+    training: 'vibeboard-training',
 } as const;
 
 // Default job options by queue type
@@ -116,6 +129,12 @@ const DEFAULT_JOB_OPTIONS: Record<JobType, JobsOptions> = {
         backoff: { type: 'fixed', delay: 5000 },
         removeOnComplete: { count: 200 },
         removeOnFail: { count: 50 },
+    },
+    training: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 10000 },
+        removeOnComplete: { count: 50 },
+        removeOnFail: { count: 25 },
     },
 };
 
@@ -273,6 +292,13 @@ class QueueService {
      */
     async addAnalysisJob(data: AnalysisJobData, options?: Partial<JobsOptions>): Promise<Job<AnalysisJobData>> {
         return this.addJob('analysis', data, options);
+    }
+
+    /**
+     * Add a training job (dataset curation, LoRA training)
+     */
+    async addTrainingJob(data: TrainingJobData, options?: Partial<JobsOptions>): Promise<Job<TrainingJobData>> {
+        return this.addJob('training', data, options);
     }
 
     /**

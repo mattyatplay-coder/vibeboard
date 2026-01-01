@@ -67,6 +67,7 @@ import { usePropBinStore } from '@/lib/propBinStore';
 import { usePromptTreeStore } from '@/lib/promptTreeStore';
 import { useLightingStore } from '@/lib/lightingStore';
 import { useSessionRecoveryStore, formatTimeAgo } from '@/lib/sessionRecoveryStore';
+import { ProducerWidget } from '@/components/ui/ProducerWidget';
 
 // === DYNAMIC IMPORTS for heavy modal components (loaded on demand) ===
 const PromptBuilder = dynamic(() => import('@/components/prompts/PromptBuilder').then(m => ({ default: m.PromptBuilder })), {
@@ -357,16 +358,17 @@ export default function GeneratePage() {
     }
   }, [engineConfig.model]);
 
-  // Sync engine config to global store for SpendingWidget
+  // Sync engine config to global store for SpendingWidget and ProducerWidget
   const setCurrentConfig = useEngineConfigStore(state => state.setCurrentConfig);
   React.useEffect(() => {
     const currentModel = ALL_MODELS.find(m => m.id === engineConfig.model);
     setCurrentConfig({
       modelId: engineConfig.model,
       duration: duration + 's',
+      aspectRatio: aspectRatio,
       isVideo: currentModel?.type === 'video' || false,
     });
-  }, [engineConfig.model, duration, setCurrentConfig]);
+  }, [engineConfig.model, duration, aspectRatio, setCurrentConfig]);
 
   const handleAddTag = (tag: string, category: string) => {
     const prefix = prompt ? `${prompt}, ` : '';
@@ -445,14 +447,20 @@ export default function GeneratePage() {
   const [showRecoveryToast, setShowRecoveryToast] = useState(false);
   const [recoverableSession, setRecoverableSession] = useState<ReturnType<typeof getRecoverableSession>>(null);
 
-  useEffect(() => {
-    if (!projectId || !hasMounted) return;
+  // TEMPORARILY DISABLED FOR TESTING - Re-enable after Sprint 1 UX testing
+  // useEffect(() => {
+  //   if (!projectId || !hasMounted) return;
+  //
+  //   const session = getRecoverableSession(projectId);
+  //   if (session && session.isDirty && !recoveryDismissed) {
+  //     setRecoverableSession(session);
+  //     setShowRecoveryToast(true);
+  //   }
+  // }, [projectId, hasMounted, getRecoverableSession, recoveryDismissed]);
 
-    const session = getRecoverableSession(projectId);
-    if (session && session.isDirty && !recoveryDismissed) {
-      setRecoverableSession(session);
-      setShowRecoveryToast(true);
-    }
+  // Placeholder effect to satisfy lint - remove when re-enabling above
+  useEffect(() => {
+    // Session recovery temporarily disabled
   }, [projectId, hasMounted, getRecoverableSession, recoveryDismissed]);
 
   // Handle session recovery
@@ -2898,6 +2906,9 @@ export default function GeneratePage() {
           </div>
         </div>
       )}
+
+      {/* Producer Widget - Cost Guardian */}
+      <ProducerWidget />
     </DndContext>
   );
 }

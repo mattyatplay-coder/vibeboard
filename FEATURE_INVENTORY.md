@@ -1,7 +1,7 @@
 # VibeBoard - Master Feature & Resource Inventory
 
-> **Last Updated**: December 29, 2025
-> **Version**: 1.0
+> **Last Updated**: December 31, 2025
+> **Version**: 1.2
 > **Purpose**: Comprehensive catalog of all tools, features, and capabilities in VibeBoard
 
 ---
@@ -9,13 +9,14 @@
 ## Table of Contents
 
 1. [Executive Summary](#executive-summary)
-2. [AI Providers & Models](#ai-providers--models)
-3. [Frontend Pages](#frontend-pages)
-4. [Backend Services](#backend-services)
-5. [UI Components](#ui-components)
-6. [Data Files & Static Resources](#data-files--static-resources)
-7. [API Endpoints](#api-endpoints)
-8. [Cost Reference](#cost-reference)
+2. [Phase 7: Team Collaboration](#phase-7-team-collaboration)
+3. [AI Providers & Models](#ai-providers--models)
+4. [Frontend Pages](#frontend-pages)
+5. [Backend Services](#backend-services)
+6. [UI Components](#ui-components)
+7. [Data Files & Static Resources](#data-files--static-resources)
+8. [API Endpoints](#api-endpoints)
+9. [Cost Reference](#cost-reference)
 
 ---
 
@@ -32,7 +33,140 @@ VibeBoard is a **self-hosted AI video production platform** with:
 | **Frontend Pages** | 13 |
 | **Backend Services** | 68 files across 22 directories |
 | **UI Components** | 122 React components |
-| **API Endpoints** | 100+ |
+| **API Endpoints** | 200+ (38 categories) |
+
+---
+
+## Phase 7: Team Collaboration
+
+> **Status**: ✅ Complete (December 31, 2025)
+> **Purpose**: Transform VibeBoard from "Personal Studio" to "Multi-Tenant Platform"
+
+### Overview
+
+Phase 7 introduces team-based collaboration with:
+- **Multi-tenant architecture** - Teams as core tenant unit
+- **Role-Based Access Control (RBAC)** - Owner, Admin, Member, Viewer roles
+- **Shared asset libraries** - Elements & LoRAs accessible team-wide
+- **Project sharing** - Projects belong to users but can be assigned to teams
+- **Version Control** - Sequencer snapshots for timeline state preservation
+
+### Team Model
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | UUID | Primary key |
+| `name` | String | Team display name |
+| `slug` | String | URL-friendly identifier (unique) |
+| `tier` | Enum | `free`, `pro`, `enterprise` |
+| `maxMembers` | Int | Member limit (default: 5) |
+| `maxProjects` | Int | Project limit (default: 10) |
+| `monthlyGenerationsLimit` | Int | Generation quota (default: 1000) |
+| `members` | Relation | TeamMember[] |
+| `projects` | Relation | Project[] |
+| `elements` | Relation | Element[] |
+| `loras` | Relation | LoRA[] |
+
+### TeamMember Roles
+
+| Role | Permissions |
+|------|-------------|
+| `owner` | Full control, can delete team, transfer ownership |
+| `admin` | Add/remove members, manage projects, cannot delete team |
+| `member` | Create content, use shared assets, cannot manage members |
+| `viewer` | Read-only access to team content |
+
+### Team API Endpoints (`/api/teams`)
+
+| Method | Endpoint | Purpose | Auth |
+|--------|----------|---------|------|
+| POST | `/` | Create team | Required |
+| GET | `/` | List user's teams | Required |
+| GET | `/:teamId` | Get team details | Required |
+| GET | `/slug/:slug` | Get team by slug | Required |
+| PATCH | `/:teamId` | Update team | Admin+ |
+| DELETE | `/:teamId` | Delete team | Owner only |
+| POST | `/:teamId/members` | Add member | Admin+ |
+| PATCH | `/:teamId/members/:memberId` | Update member role | Admin+ |
+| DELETE | `/:teamId/members/:memberId` | Remove member | Admin+ |
+| POST | `/:teamId/leave` | Leave team (self) | Member |
+| GET | `/:teamId/quota` | Check quota status | Required |
+
+### Asset Sharing
+
+**Elements & LoRAs inherit teamId from parent project:**
+
+```typescript
+// When creating an element, inherit teamId from project
+const teamId = await getProjectTeamId(projectId);
+const element = await prisma.element.create({
+    data: { projectId, teamId, name, type, fileUrl, ... }
+});
+```
+
+**Multi-tenant query pattern for projects:**
+
+```typescript
+// Users see their own projects + team projects
+const projects = await prisma.project.findMany({
+    where: {
+        OR: [
+            { userId: user.id },           // User's own projects
+            { teamId: { in: userTeamIds } } // Team projects
+        ]
+    }
+});
+```
+
+### Version Control (Sequencer Snapshots)
+
+**SequencerSnapshot Model:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | UUID | Primary key |
+| `projectId` | UUID | Parent project |
+| `name` | String | Snapshot name |
+| `createdAt` | DateTime | When saved |
+| `state` | JSON | Complete timeline state |
+
+**Snapshot State Contents:**
+- Segment order and timing
+- Trim points (video and audio)
+- Audio gain settings
+- L-Cut/J-Cut offsets
+- Any timeline-specific metadata
+
+**Snapshot Endpoints (`/api/projects/:projectId/sequencer/snapshots`):**
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/` | Save snapshot |
+| GET | `/` | List snapshots |
+| GET | `/:snapshotId` | Get snapshot |
+| POST | `/:snapshotId/restore` | Restore (auto-backup before restore) |
+| DELETE | `/:snapshotId` | Delete snapshot |
+
+### Key Implementation Files
+
+| File | Purpose |
+|------|---------|
+| `backend/src/routes/teamRoutes.ts` | Team API endpoints |
+| `backend/src/controllers/teamController.ts` | Team business logic |
+| `backend/src/services/TeamService.ts` | Team operations service |
+| `backend/src/controllers/projectController.ts` | Multi-tenant project queries |
+| `backend/src/controllers/elementController.ts` | Asset teamId inheritance |
+| `backend/src/routes/sequencerRoutes.ts` | Version control endpoints |
+| `backend/prisma/schema.prisma` | Team, TeamMember, SequencerSnapshot models |
+
+### Tier Limits
+
+| Feature | Free | Pro | Enterprise |
+|---------|------|-----|------------|
+| Team members | 5 | 25 | Unlimited |
+| Projects | 10 | 100 | Unlimited |
+| Monthly generations | 1,000 | 10,000 | Unlimited |
+| Asset storage | 5 GB | 50 GB | Unlimited |
 
 ---
 
@@ -292,6 +426,32 @@ VibeBoard is a **self-hosted AI video production platform** with:
 
 ## API Endpoints
 
+### Teams (`/api/teams/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/` | Create team |
+| GET | `/` | List user's teams |
+| GET | `/:teamId` | Get team details |
+| GET | `/slug/:slug` | Get team by slug |
+| PATCH | `/:teamId` | Update team |
+| DELETE | `/:teamId` | Delete team (owner only) |
+| POST | `/:teamId/members` | Add member |
+| PATCH | `/:teamId/members/:memberId` | Update member role |
+| DELETE | `/:teamId/members/:memberId` | Remove member |
+| POST | `/:teamId/leave` | Leave team |
+| GET | `/:teamId/quota` | Get quota status |
+
+### Sequencer Snapshots (`/api/projects/:projectId/sequencer/snapshots`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/` | Save snapshot |
+| GET | `/` | List snapshots |
+| GET | `/:snapshotId` | Get snapshot |
+| POST | `/:snapshotId/restore` | Restore snapshot |
+| DELETE | `/:snapshotId` | Delete snapshot |
+
 ### Generation (`/api/projects/:projectId/`)
 
 | Method | Endpoint | Purpose |
@@ -388,7 +548,327 @@ VibeBoard is a **self-hosted AI video production platform** with:
 | POST | `/grid` | Grid-based tracking |
 | POST | `/points` | User point tracking |
 | POST | `/planar` | 4-corner surface tracking |
+| POST | `/homography` | Calculate transform matrix |
 | POST | `/composite` | Composite prop onto video |
+| POST | `/preview-frame` | Single frame preview |
+
+### Authentication (`/api/auth/`)
+
+| Method | Endpoint | Purpose | Auth |
+|--------|----------|---------|------|
+| POST | `/register` | Create new user account | Public |
+| POST | `/login` | Login with email/password | Public |
+| POST | `/refresh` | Refresh access token | Public (with refresh token) |
+| POST | `/logout` | Revoke current refresh token | Public |
+| POST | `/logout-all` | Revoke all user tokens | Required |
+| GET | `/me` | Get current user info | Required |
+
+### Backup & Restore (`/api/projects/:projectId/backup`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/export` | Export project data as JSON |
+| POST | `/import` | Import project from JSON backup |
+
+### Acoustic Studio (`/api/acoustic/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/recipe` | Generate audio recipe for lens |
+| GET | `/mappings` | Get all lens-to-reverb mappings |
+| GET | `/lens/:focalLength` | Get mapping for specific focal length |
+| GET | `/genre-ir` | Get genre-specific impulse responses |
+| GET | `/moods` | Get mood-based audio presets |
+| POST | `/batch` | Generate batch audio recipes |
+
+### Continuity Checking (`/api/continuity/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/check` | Check visual continuity between frames |
+| POST | `/scene` | Analyze scene continuity |
+
+### LLM Generation (`/api/llm/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/generate` | Generate text with LLM |
+| POST | `/stream` | Stream LLM response |
+
+### GPU Worker (`/api/gpu/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/health` | Check GPU worker health |
+| POST | `/optics/rack-focus` | Generate rack focus effect |
+| POST | `/optics/lens-character` | Apply lens character effects |
+| POST | `/rescue-focus` | DiffCamera focus rescue |
+| POST | `/director/edit` | Director Edit (InfCam) |
+| POST | `/video/generate` | Generate video on GPU |
+
+### Overlay Tracks (`/api/overlays/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/lower-third` | Generate lower third graphic |
+| GET | `/styles` | Get available overlay styles |
+| GET | `/presets` | Get overlay presets |
+| POST | `/tracks` | Create overlay track |
+| POST | `/composite` | Composite overlay onto video |
+| POST | `/preview` | Preview overlay |
+
+### Content Creator (`/api/creator/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/generate-script` | Generate creator script |
+| POST | `/generate-shot-list` | Generate shot list |
+| POST | `/generate-visual-prompts` | Generate visual prompts |
+| POST | `/generate-thumbnail` | Generate thumbnail |
+
+### Render Queue (`/api/projects/:projectId/render-queue/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/jobs` | Create render job |
+| GET | `/jobs` | List render jobs |
+| GET | `/jobs/:jobId` | Get job details |
+| DELETE | `/jobs/:jobId` | Cancel/delete job |
+| POST | `/jobs/:jobId/passes` | Add render pass |
+| POST | `/jobs/:jobId/promote` | Promote to higher quality |
+| GET | `/version-stack/:shotId` | Get version stack |
+| GET | `/version-stacks` | Get all version stacks |
+| GET | `/cost-comparison` | Compare draft vs master costs |
+
+### Video Extension (`/api/extend-video/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/analyze` | Analyze video for extension |
+| POST | `/generate` | Generate extended video |
+| GET | `/status/:id` | Check extension status |
+| POST | `/batch` | Batch extend multiple videos |
+
+### Virtual Gaffer (`/api/lighting/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/analyze` | Analyze image for lighting setup |
+| GET | `/presets` | Get lighting presets |
+
+### DOF Simulator (`/api/viewfinder/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/extract-layers` | Extract depth layers from image |
+| POST | `/composite` | Composite layers with DOF |
+| GET | `/presets` | Get lens/camera presets |
+
+### Global Library (`/api/library/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/loras` | List global LoRAs |
+| POST | `/loras` | Add LoRA to global library |
+| GET | `/models` | List available models |
+| GET | `/workflows` | List workflow templates |
+
+### Project LoRAs (`/api/projects/:projectId/loras`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/` | List project LoRAs |
+| POST | `/` | Add LoRA to project |
+| DELETE | `/:loraId` | Remove LoRA |
+| POST | `/civitai-metadata` | Fetch Civitai metadata |
+
+### Project Workflows (`/api/projects/:projectId/workflows`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/` | List workflows |
+| POST | `/` | Create workflow |
+| GET | `/:workflowId` | Get workflow |
+| PATCH | `/:workflowId` | Update workflow |
+| DELETE | `/:workflowId` | Delete workflow |
+
+### Model Parameters (`/api/projects/:projectId/parameters`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/` | Get model parameters |
+| POST | `/` | Save parameter preset |
+| PATCH | `/:presetId` | Update preset |
+| DELETE | `/:presetId` | Delete preset |
+
+### Sessions (`/api/projects/:projectId/sessions`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/` | List sessions |
+| POST | `/` | Create session |
+| GET | `/:sessionId` | Get session |
+| PATCH | `/:sessionId` | Update session |
+| DELETE | `/:sessionId` | Delete session |
+
+### Scenes (`/api/projects/:projectId/scenes`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/` | List scenes |
+| POST | `/` | Create scene |
+| GET | `/:sceneId` | Get scene |
+| PATCH | `/:sceneId` | Update scene |
+| DELETE | `/:sceneId` | Delete scene |
+
+### Props (`/api/projects/:projectId/props`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/` | List props |
+| POST | `/` | Create prop |
+| POST | `/extract` | Extract prop from image |
+| DELETE | `/:propId` | Delete prop |
+
+### Stories (`/api/projects/:projectId/stories`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/` | List stories |
+| POST | `/` | Create story |
+| GET | `/:storyId` | Get story |
+| PATCH | `/:storyId` | Update story |
+| DELETE | `/:storyId` | Delete story |
+| POST | `/:storyId/export-storyboard` | Export to storyboard |
+
+### AI Providers (`/api/providers/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/` | List available providers |
+| GET | `/:provider/models` | List models for provider |
+| GET | `/:provider/health` | Check provider health |
+
+### Character Foundry (`/api/foundry/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/generate-performance` | Generate character performance |
+| POST | `/flash-portrait` | FlashPortrait generation |
+| GET | `/presets` | Get character presets |
+
+### Optics Engine (`/api/optics/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/rack-focus` | Generate rack focus |
+| POST | `/lens-character` | Apply lens character |
+| GET | `/lenses` | Get lens database |
+| POST | `/preview` | Preview optics effect |
+
+### Camera Database (`/api/cameras/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/` | List cameras |
+| GET | `/:cameraId` | Get camera details |
+| GET | `/:cameraId/lenses` | Get compatible lenses |
+
+### Shot Studio (`/api/projects/:projectId/shot-studio`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/spatia` | Generate 3D set |
+| POST | `/reco` | Apply ReCo compositional control |
+| POST | `/shot` | Generate shot |
+
+### VFX Suite (`/api/projects/:projectId/vfx`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/virtual-reshoot` | InfCam virtual camera move |
+| POST | `/focus-rescue` | DiffCamera focus fix |
+| POST | `/motion-fix` | Fix motion artifacts |
+| POST | `/cleanup` | General VFX cleanup |
+
+### Webhooks (`/api/webhooks/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/fal` | Fal.ai completion webhook |
+| POST | `/replicate` | Replicate training webhook |
+
+### Elements (Global) (`/api/elements`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/` | List all elements across projects |
+
+### Elements (Project) (`/api/projects/:projectId/elements`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/` | List project elements |
+| POST | `/` | Upload element |
+| POST | `/from-generation` | Create from generation URL |
+| GET | `/:elementId` | Get element |
+| PATCH | `/:elementId` | Update element |
+| DELETE | `/:elementId` | Delete element |
+
+### Templates (`/api/templates/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/` | List workflow templates |
+| POST | `/` | Save as template |
+| GET | `/:templateId` | Get template |
+| DELETE | `/:templateId` | Delete template |
+
+### Comments & Annotations (`/api/projects/:projectId/comments`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/:generationId` | Get comments for generation |
+| POST | `/:generationId` | Add comment |
+| DELETE | `/:generationId/:commentId` | Delete comment |
+
+### Dashboard Analytics (`/api/dashboard/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/stats` | Get dashboard statistics |
+| GET | `/cost-breakdown` | Get cost breakdown |
+| GET | `/usage` | Get usage metrics |
+
+### AI Feedback (`/api/ai-feedback/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/` | Submit feedback on AI analysis |
+| GET | `/stats` | Get feedback statistics |
+
+### Alpha Channel (`/api/alpha/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/extract` | Extract alpha channel (SAM 2) |
+| POST | `/sequence` | Export PNG sequence with alpha |
+
+### Prompts (`/api/prompts/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/enhance` | Enhance prompt with LLM |
+| GET | `/presets` | Get prompt presets |
+
+### RAG System (`/api/story-style/rag/`)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/search` | Semantic script search |
+| POST | `/generate` | RAG-enhanced story generation |
+| POST | `/ingest` | Ingest script to library |
+| GET | `/stats` | Get RAG system statistics |
 
 ---
 
@@ -435,6 +915,8 @@ VibeBoard is a **self-hosted AI video production platform** with:
 
 | Date | Version | Changes |
 |------|---------|---------|
+| Dec 31, 2025 | 1.2 | Complete API endpoint audit: Added 26 new endpoint categories (Auth, Backup, Acoustic, Continuity, LLM, GPU, Overlays, Creator, Render Queue, Video Extension, Lighting, Viewfinder, Library, LoRAs, Workflows, Parameters, Sessions, Scenes, Props, Stories, Providers, Foundry, Optics, Cameras, Shot Studio, VFX, Webhooks, Elements, Templates, Comments, Dashboard, AI Feedback, Alpha Channel, Prompts, RAG) |
+| Dec 31, 2025 | 1.1 | Added Phase 7: Team Collaboration (Teams, RBAC, Asset Sharing, Version Control) |
 | Dec 29, 2025 | 1.0 | Initial comprehensive inventory |
 
 ---

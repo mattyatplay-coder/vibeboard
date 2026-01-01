@@ -370,4 +370,147 @@ router.get('/visual-recommendation/:genre', (req: Request, res: Response) => {
     });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// RAG ENDPOINTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/story-style/rag/search
+ * Semantic search for similar scripts in the library
+ */
+router.post('/rag/search', async (req: Request, res: Response) => {
+    try {
+        const { query, genre, limit = 5, minSimilarity = 0.6 } = req.body;
+
+        if (!query) {
+            return res.status(400).json({ error: 'Missing required field: query' });
+        }
+
+        const analyzer = getScriptAnalyzer();
+        const results = await analyzer.findSimilarScripts(query, {
+            genre,
+            limit,
+            minSimilarity
+        });
+
+        res.json({
+            query,
+            genre: genre || 'all',
+            count: results.length,
+            results
+        });
+    } catch (error) {
+        console.error('RAG search failed:', error);
+        res.status(500).json({
+            error: 'RAG search failed',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+/**
+ * POST /api/story-style/rag/generate
+ * RAG-enhanced story generation - retrieves similar scripts for context
+ */
+router.post('/rag/generate', async (req: Request, res: Response) => {
+    try {
+        const {
+            concept,
+            targetGenre,
+            directorStyle,
+            cinematographerStyle,
+            targetLength,
+            includePixarRules,
+            customConstraints,
+            useRAG = true,
+            ragTopK = 3
+        } = req.body;
+
+        if (!concept || !targetGenre) {
+            return res.status(400).json({
+                error: 'Missing required fields: concept, targetGenre'
+            });
+        }
+
+        const analyzer = getScriptAnalyzer();
+        const outline = await analyzer.generateStoryWithRAG({
+            concept,
+            targetGenre,
+            directorStyle,
+            cinematographerStyle,
+            targetLength: targetLength || 'medium',
+            includePixarRules: includePixarRules !== false,
+            customConstraints,
+            useRAG,
+            ragTopK
+        });
+
+        res.json({
+            ragEnabled: useRAG,
+            outline
+        });
+    } catch (error) {
+        console.error('RAG generation failed:', error);
+        res.status(500).json({
+            error: 'RAG generation failed',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+/**
+ * POST /api/story-style/rag/ingest
+ * Ingest a script into the RAG system
+ */
+router.post('/rag/ingest', async (req: Request, res: Response) => {
+    try {
+        const { content, title, genre, subGenres, writer, year } = req.body;
+
+        if (!content || !title || !genre) {
+            return res.status(400).json({
+                error: 'Missing required fields: content, title, genre'
+            });
+        }
+
+        const analyzer = getScriptAnalyzer();
+        const result = await analyzer.ingestScriptForRAG(content, {
+            title,
+            genre,
+            subGenres,
+            writer,
+            year
+        });
+
+        res.json({
+            success: true,
+            ...result
+        });
+    } catch (error) {
+        console.error('RAG ingestion failed:', error);
+        res.status(500).json({
+            error: 'RAG ingestion failed',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+/**
+ * GET /api/story-style/rag/stats
+ * Get RAG system statistics
+ */
+router.get('/rag/stats', async (req: Request, res: Response) => {
+    try {
+        const analyzer = getScriptAnalyzer();
+        const stats = await analyzer.getRAGStats();
+
+        res.json(stats);
+    } catch (error) {
+        console.error('Failed to get RAG stats:', error);
+        res.status(500).json({
+            error: 'Failed to get RAG stats',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
 export default router;

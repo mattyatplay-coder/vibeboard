@@ -346,3 +346,223 @@ export async function fullPipelineStream(req: Request, res: Response) {
         }
     }
 }
+
+/**
+ * Extract characters, locations, and props from a script and create Element placeholders
+ * POST /api/story-editor/auto-breakdown
+ *
+ * This is the "Script Lab" feature that populates the Asset Bin with
+ * placeholder elements extracted from the screenplay.
+ */
+export async function autoBreakdownAssets(req: Request, res: Response) {
+    try {
+        const { projectId, script, outline } = req.body;
+
+        if (!projectId) {
+            return res.status(400).json({ error: 'projectId is required' });
+        }
+
+        if (!script && !outline) {
+            return res.status(400).json({ error: 'Either script or outline is required' });
+        }
+
+        console.log(`[Script Lab] Auto-breakdown for project ${projectId}`);
+
+        const { prisma } = await import('../prisma');
+        const { LLMService } = await import('../services/LLMService');
+
+        const llmService = new LLMService('grok');
+
+        // Build analysis prompt
+        const analysisPrompt = `Analyze this screenplay/outline and extract ALL production assets needed.
+
+${script ? `SCREENPLAY:\n${script}` : ''}
+${outline ? `OUTLINE:\n${JSON.stringify(outline, null, 2)}` : ''}
+
+Return a JSON object with:
+{
+    "characters": [
+        { "name": "Character Name", "role": "protagonist|antagonist|supporting|minor", "description": "Visual description for AI generation" }
+    ],
+    "locations": [
+        { "name": "Location Name", "description": "Visual description of the location" }
+    ],
+    "props": [
+        { "name": "Prop Name", "description": "Description of the prop/object" }
+    ]
+}
+
+RULES:
+1. Extract EVERY named character mentioned
+2. Extract ALL locations (INT/EXT scene headings)
+3. Extract significant props mentioned in action lines
+4. Descriptions should be vivid enough for AI image generation
+5. Only return valid JSON, no other text`;
+
+        const llmResponse = await llmService.generate({
+            prompt: analysisPrompt,
+            systemPrompt: 'You are a Line Producer extracting production assets from a screenplay. Return only valid JSON.',
+            temperature: 0.3,
+            maxTokens: 4000,
+        });
+
+        // Parse the LLM response
+        let assets: { characters: any[]; locations: any[]; props: any[] } = {
+            characters: [],
+            locations: [],
+            props: []
+        };
+
+        try {
+            const jsonMatch = llmResponse.content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                assets = JSON.parse(jsonMatch[0]);
+            }
+        } catch (parseError) {
+            console.error('[Script Lab] Failed to parse LLM response:', parseError);
+        }
+
+        // Create Element placeholders in the database
+        const createdElements: any[] = [];
+        const errors: string[] = [];
+
+        console.log(`[Script Lab] Parsed assets: ${JSON.stringify(assets, null, 2)}`);
+
+        // 1. Create Character elements
+        for (const char of assets.characters || []) {
+            try {
+                const element = await prisma.element.upsert({
+                    where: {
+                        projectId_name: {
+                            projectId,
+                            name: char.name,
+                        }
+                    },
+                    create: {
+                        projectId,
+                        name: char.name,
+                        type: 'character',
+                        fileUrl: '', // Placeholder - to be generated
+                        metadata: JSON.stringify({
+                            role: char.role,
+                            description: char.description,
+                            status: 'pending',
+                            source: 'script-lab'
+                        })
+                    },
+                    update: {
+                        metadata: JSON.stringify({
+                            role: char.role,
+                            description: char.description,
+                            status: 'pending',
+                            source: 'script-lab'
+                        })
+                    }
+                });
+                createdElements.push({ ...element, assetType: 'character' });
+                console.log(`[Script Lab] Created character: ${char.name}`);
+            } catch (e: any) {
+                const errMsg = `Character "${char.name}": ${e.message || e}`;
+                console.error(`[Script Lab] ${errMsg}`);
+                errors.push(errMsg);
+            }
+        }
+
+        // 2. Create Location elements
+        for (const loc of assets.locations || []) {
+            try {
+                const element = await prisma.element.upsert({
+                    where: {
+                        projectId_name: {
+                            projectId,
+                            name: loc.name,
+                        }
+                    },
+                    create: {
+                        projectId,
+                        name: loc.name,
+                        type: 'location',
+                        fileUrl: '', // Placeholder - to be generated
+                        metadata: JSON.stringify({
+                            description: loc.description,
+                            status: 'pending',
+                            source: 'script-lab'
+                        })
+                    },
+                    update: {
+                        metadata: JSON.stringify({
+                            description: loc.description,
+                            status: 'pending',
+                            source: 'script-lab'
+                        })
+                    }
+                });
+                createdElements.push({ ...element, assetType: 'location' });
+                console.log(`[Script Lab] Created location: ${loc.name}`);
+            } catch (e: any) {
+                const errMsg = `Location "${loc.name}": ${e.message || e}`;
+                console.error(`[Script Lab] ${errMsg}`);
+                errors.push(errMsg);
+            }
+        }
+
+        // 3. Create Prop elements
+        for (const prop of assets.props || []) {
+            try {
+                const element = await prisma.element.upsert({
+                    where: {
+                        projectId_name: {
+                            projectId,
+                            name: prop.name,
+                        }
+                    },
+                    create: {
+                        projectId,
+                        name: prop.name,
+                        type: 'prop',
+                        fileUrl: '', // Placeholder - to be generated
+                        metadata: JSON.stringify({
+                            description: prop.description,
+                            status: 'pending',
+                            source: 'script-lab'
+                        })
+                    },
+                    update: {
+                        metadata: JSON.stringify({
+                            description: prop.description,
+                            status: 'pending',
+                            source: 'script-lab'
+                        })
+                    }
+                });
+                createdElements.push({ ...element, assetType: 'prop' });
+                console.log(`[Script Lab] Created prop: ${prop.name}`);
+            } catch (e: any) {
+                const errMsg = `Prop "${prop.name}": ${e.message || e}`;
+                console.error(`[Script Lab] ${errMsg}`);
+                errors.push(errMsg);
+            }
+        }
+
+        console.log(`[Script Lab] Created ${createdElements.length} asset placeholders, ${errors.length} errors`);
+
+        res.json({
+            success: true,
+            assetsCreated: createdElements.length,
+            breakdown: {
+                characters: assets.characters?.length || 0,
+                locations: assets.locations?.length || 0,
+                props: assets.props?.length || 0
+            },
+            elements: createdElements,
+            errors: errors.length > 0 ? errors : undefined
+        });
+
+    } catch (error) {
+        console.error('[Script Lab] Auto-breakdown failed:', error);
+        res.status(500).json({
+            error: 'Auto-breakdown failed',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+}

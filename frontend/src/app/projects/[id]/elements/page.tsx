@@ -14,6 +14,9 @@ import {
   Copy,
   CheckSquare,
   Tag,
+  Box,
+  Layers,
+  Loader2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
@@ -29,6 +32,7 @@ import { useSession } from '@/context/SessionContext';
 import { SaveElementModal } from '@/components/generations/SaveElementModal';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { Wand2 } from 'lucide-react';
+import { MaterialViewModal } from '@/components/elements/MaterialViewModal';
 
 export default function ElementsPage() {
   const params = useParams();
@@ -42,6 +46,10 @@ export default function ElementsPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isBatchTypeModalOpen, setIsBatchTypeModalOpen] = useState(false);
   const [propFabricatorElement, setPropFabricatorElement] = useState<StoreElement | null>(null);
+
+  // Phase 3: Asset Bin state
+  const [processingElementIds, setProcessingElementIds] = useState<Set<string>>(new Set());
+  const [materialViewElement, setMaterialViewElement] = useState<StoreElement | null>(null);
 
   // Sort & Filter State
   const [sortFilter, setSortFilter] = useState<SortFilterState>({
@@ -208,6 +216,84 @@ export default function ElementsPage() {
       loadElements();
       alert('Failed to delete element');
     }
+  };
+
+  // Phase 3: Asset Bin - Scene Deconstruction (2D → 3D)
+  const handleDeconstruct = async (element: StoreElement) => {
+    if (processingElementIds.has(element.id)) return;
+
+    setProcessingElementIds(prev => new Set(prev).add(element.id));
+
+    try {
+      const response = await fetchAPI(`/projects/${projectId}/assets/deconstruct`, {
+        method: 'POST',
+        body: JSON.stringify({
+          elementId: element.id,
+          outputFormat: '3d_gaussian',
+          qualityLevel: 'standard',
+        }),
+      });
+
+      if (response.success) {
+        alert(`Scene deconstruction complete! Created ${response.createdElements?.length || 0} 3D assets.`);
+        loadElements(); // Refresh to show new child elements
+      } else {
+        alert(`Deconstruction failed: ${response.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error('Failed to deconstruct scene', err);
+      alert('Failed to deconstruct scene. Check console for details.');
+    } finally {
+      setProcessingElementIds(prev => {
+        const next = new Set(prev);
+        next.delete(element.id);
+        return next;
+      });
+    }
+  };
+
+  // Phase 3: Asset Bin - PBR Material Extraction
+  const handleExtractMaterials = async (element: StoreElement) => {
+    if (processingElementIds.has(element.id)) return;
+
+    setProcessingElementIds(prev => new Set(prev).add(element.id));
+
+    try {
+      const response = await fetchAPI(`/projects/${projectId}/assets/extract-materials`, {
+        method: 'POST',
+        body: JSON.stringify({
+          elementId: element.id,
+          materialType: 'auto',
+          resolution: 1024,
+        }),
+      });
+
+      if (response.success) {
+        // Refresh elements to get updated metadata with PBR maps
+        await loadElements();
+        // Find the updated element and show material view
+        const updatedElement = elements.find(e => e.id === element.id);
+        if (updatedElement) {
+          setMaterialViewElement(updatedElement);
+        }
+      } else {
+        alert(`Material extraction failed: ${response.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error('Failed to extract materials', err);
+      alert('Failed to extract materials. Check console for details.');
+    } finally {
+      setProcessingElementIds(prev => {
+        const next = new Set(prev);
+        next.delete(element.id);
+        return next;
+      });
+    }
+  };
+
+  // Phase 3: View existing PBR maps
+  const handleViewMaterials = (element: StoreElement) => {
+    setMaterialViewElement(element);
   };
 
   // Batch Selection State
@@ -474,6 +560,10 @@ export default function ElementsPage() {
                       onUpdate={handleUpdateElement}
                       onDelete={handleDeleteElement}
                       onFabricate={() => setPropFabricatorElement(element)}
+                      onDeconstruct={() => handleDeconstruct(element)}
+                      onExtractMaterials={() => handleExtractMaterials(element)}
+                      onViewMaterials={() => handleViewMaterials(element)}
+                      isProcessing={processingElementIds.has(element.id)}
                       isSelected={selectedElementIds.includes(element.id)}
                       onToggleSelection={() => toggleElementSelection(element.id)}
                     />
@@ -596,6 +686,16 @@ export default function ElementsPage() {
           }}
         />
       )}
+
+      {/* Phase 3: Material View Modal for PBR maps */}
+      {materialViewElement && (
+        <MaterialViewModal
+          isOpen={!!materialViewElement}
+          onClose={() => setMaterialViewElement(null)}
+          elementName={materialViewElement.name}
+          pbrMaps={(materialViewElement.metadata as any)?.pbrMaps || {}}
+        />
+      )}
     </div>
   );
 }
@@ -606,6 +706,10 @@ function ElementCard({
   onUpdate,
   onDelete,
   onFabricate,
+  onDeconstruct,
+  onExtractMaterials,
+  onViewMaterials,
+  isProcessing,
   isSelected,
   onToggleSelection,
 }: {
@@ -614,6 +718,10 @@ function ElementCard({
   onUpdate: (id: string, updates: Partial<StoreElement>) => void;
   onDelete: (id: string) => void;
   onFabricate?: () => void;
+  onDeconstruct?: () => void;
+  onExtractMaterials?: () => void;
+  onViewMaterials?: () => void;
+  isProcessing?: boolean;
   isSelected?: boolean;
   onToggleSelection?: () => void;
 }) {
@@ -812,6 +920,66 @@ function ElementCard({
                   className="rounded-lg bg-black/50 p-1.5 text-white transition-colors hover:bg-amber-500/20 hover:text-amber-400"
                 >
                   <Wand2 className="h-4 w-4" />
+                </button>
+              </Tooltip>
+            )}
+            {element.type !== 'video' && onDeconstruct && (
+              <Tooltip content="Deconstruct to 3D">
+                <button
+                  onClick={e => {
+                    e.stopPropagation();
+                    if (!isProcessing) onDeconstruct();
+                  }}
+                  disabled={isProcessing}
+                  className={clsx(
+                    'rounded-lg bg-black/50 p-1.5 transition-colors',
+                    isProcessing
+                      ? 'cursor-not-allowed text-gray-500'
+                      : 'text-white hover:bg-cyan-500/20 hover:text-cyan-400'
+                  )}
+                >
+                  {isProcessing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Box className="h-4 w-4" />
+                  )}
+                </button>
+              </Tooltip>
+            )}
+            {element.type !== 'video' && onExtractMaterials && (
+              <Tooltip content="Extract PBR Materials">
+                <button
+                  onClick={e => {
+                    e.stopPropagation();
+                    if (!isProcessing) onExtractMaterials();
+                  }}
+                  disabled={isProcessing}
+                  className={clsx(
+                    'rounded-lg bg-black/50 p-1.5 transition-colors',
+                    isProcessing
+                      ? 'cursor-not-allowed text-gray-500'
+                      : 'text-white hover:bg-purple-500/20 hover:text-purple-400'
+                  )}
+                >
+                  {isProcessing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Layers className="h-4 w-4" />
+                  )}
+                </button>
+              </Tooltip>
+            )}
+            {/* View existing PBR maps if available */}
+            {element.type !== 'video' && onViewMaterials && (element.metadata as any)?.pbrMaps && (
+              <Tooltip content="View PBR Materials">
+                <button
+                  onClick={e => {
+                    e.stopPropagation();
+                    onViewMaterials();
+                  }}
+                  className="rounded-lg bg-purple-500/30 p-1.5 text-purple-400 transition-colors hover:bg-purple-500/40"
+                >
+                  <Layers className="h-4 w-4" />
                 </button>
               </Tooltip>
             )}

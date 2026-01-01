@@ -1,0 +1,682 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  elements    Element[]
+  references  Reference[]
+  styleGuides StyleGuide[]
+  generations Generation[]
+  scenes      Scene[]
+  sessions    Session[]
+  loras       LoRA[]
+  modelParameters ModelParameter[]
+  workflows   Workflow[]
+  trainingJobs TrainingJob[]
+  customPosePresets CustomPosePreset[]
+  characters  Character[]
+  sceneChains SceneChain[]
+  stories     Story[]
+}
+
+// Story drafts from Story Editor
+model Story {
+  id              String   @id @default(uuid())
+  projectId       String
+  name            String
+  genre           String   // 'action', 'horror', 'adult', 'hardcore', etc.
+  concept         String   // Original concept/logline
+
+  // Generated content (JSON strings for SQLite)
+  outline         String?  // JSON: StoryOutline with acts, beats, characters
+  script          String?  // Full screenplay text
+  scenes          String?  // JSON: Array of scene breakdowns with shots
+  prompts         String?  // JSON: Array of generated prompts
+
+  // Settings
+  allowNSFW       Boolean  @default(false)
+  targetDuration  Int?     // Target duration in seconds
+  directorStyle   String?  // Selected director style
+
+  // State
+  status          String   @default("draft") // 'draft', 'outline', 'script', 'breakdown', 'complete', 'exported'
+  exportedAt      DateTime? // When exported to storyboard
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project         Project  @relation(fields: [projectId], references: [id])
+
+  @@index([projectId])
+}
+
+model Session {
+  id          String   @id @default(uuid())
+  projectId   String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project      @relation(fields: [projectId], references: [id])
+  generations Generation[]
+  scenes      Scene[]
+  elements    Element[]
+
+  @@index([projectId])
+}
+
+model Element {
+  id        String   @id @default(uuid())
+  projectId String
+  name      String   // Unique per project logic handled in app or composite unique constraint
+  type      String   // 'character', 'prop', 'product', 'location', 'other'
+  fileUrl   String
+  isFavorite Boolean @default(false)
+  tags      String   @default("[]") // JSON array string for SQLite
+  metadata  String?  // JSON string for SQLite
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id])
+  session Session? @relation(fields: [sessionId], references: [id])
+  sessionId String?
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@index([type])
+}
+
+model Reference {
+  id        String   @id @default(uuid())
+  projectId String
+  name      String
+  fileUrl   String
+  metadata  String?  // JSON string for SQLite
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id])
+}
+
+model StyleGuide {
+  id              String   @id @default(uuid())
+  projectId       String
+  name            String
+  description     String?
+  files           String?  // JSON string for SQLite - List of file URLs
+  derivedMetadata String?  // JSON string for SQLite - Color palettes, etc.
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project     Project      @relation(fields: [projectId], references: [id])
+  generations Generation[]
+}
+
+model Generation {
+  id                 String   @id @default(uuid())
+  projectId          String
+  mode               String   // 'text_to_image', etc.
+  inputPrompt        String
+  resolvedPrompt     String?
+  shotType           String?
+  cameraAngle        String?
+  location           String?
+  lighting           String?
+  outputResolution   String?
+  aspectRatio        String?
+  variations         Int      @default(1)
+  styleGuideId       String?
+  sourceElementIds   String?  // JSON string for SQLite
+  sourceReferenceIds String?  // JSON string for SQLite
+
+  name               String?
+  tags               String   @default("[]") // JSON array string for SQLite
+  engine             String   @default("fal") // 'fal', 'comfy'
+  usedLoras          String?  // JSON string for SQLite - List of { id, strength, path }
+
+  prevGenerationId   String?
+  sessionId          String?
+  isFavorite         Boolean  @default(false)
+  status             String   @default("queued") // 'queued', 'running', 'succeeded', 'failed'
+  failureReason      String?
+  outputs            String?  // JSON string for SQLite - List of { type, url, thumbnail_url }
+  provider           String?
+  actualCost         Float?
+  inferenceTime      Int?     // milliseconds
+  rating             Int?     // 1-5 stars
+  aiAnalysis         String?  // JSON string from Grok
+  feedbackNotes      String?  // User manual notes
+
+  // Semantic Search fields
+  visualDescription  String?  // JSON: { description, subjects, colors, mood, composition, objects }
+  indexedAt          DateTime? // When the visual description was generated
+  indexStatus        String   @default("pending") // 'pending', 'indexed', 'failed', 'skipped'
+  indexError         String?  // Error message if indexing failed
+
+  // CLIP Vector Embedding for visual similarity search
+  vectorEmbedding    String?  // JSON: 768-dimensional float array from CLIP
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  project        Project      @relation(fields: [projectId], references: [id])
+  session        Session?     @relation(fields: [sessionId], references: [id])
+  styleGuide     StyleGuide?  @relation(fields: [styleGuideId], references: [id])
+  prevGeneration Generation?  @relation("ChainedGenerations", fields: [prevGenerationId], references: [id])
+  nextGenerations Generation[] @relation("ChainedGenerations")
+  sceneShots     SceneShot[]
+  comments       Comment[]    // Collaborative Dailies annotations
+
+  @@index([projectId])
+  @@index([sessionId])
+  @@index([status])
+  @@index([indexStatus])
+  @@index([createdAt])
+}
+
+model Scene {
+  id          String   @id @default(uuid())
+  projectId   String
+  name        String
+  description String?
+  referenceElementIds String?  // JSON string for SQLite - Element IDs to use as IP-Adapter references
+  inheritReferences   Boolean  @default(true)
+  defaultReferenceStrength Float @default(0.7)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sessionId   String?
+  project Project     @relation(fields: [projectId], references: [id])
+  session Session?    @relation(fields: [sessionId], references: [id])
+  shots   SceneShot[]
+}
+
+model SceneShot {
+  id           String   @id @default(uuid())
+  sceneId      String
+  generationId String
+  index        Int
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  scene      Scene      @relation(fields: [sceneId], references: [id])
+  generation Generation @relation(fields: [generationId], references: [id])
+}
+
+model LoRA {
+  id          String   @id @default(uuid())
+  projectId   String
+  name        String
+  triggerWord String?
+  triggerWords String? // JSON array for multiple trigger words
+  aliasPatterns String? // JSON array of custom aliases (e.g., ["sarah", "sara"]) for prompt detection
+  fileUrl     String   // Local path or HF URL
+  baseModel   String   // 'SDXL', 'Flux', 'SVD', 'Other'
+  strength    Float    @default(1.0)
+  strengthMin Float    @default(0.5)
+  strengthMax Float    @default(1.2)
+  imageUrl    String?  // Thumbnail
+  type        String   @default("other") // 'checkpoint', 'lora', 'embedding'
+  category    String?  // 'character', 'style', 'concept', 'clothing', 'pose', 'background', 'effect', 'other'
+  characterAttributes String? // JSON for character-specific attributes
+  recommendedSettings String? // JSON string for SQLite compatibility
+  globalLoRAId String? // Reference to global library item
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project  @relation(fields: [projectId], references: [id])
+  globalLoRA  GlobalLoRA? @relation(fields: [globalLoRAId], references: [id])
+
+  @@index([projectId])
+  @@index([baseModel])
+}
+
+// Global LoRA Library - shared across all projects
+model GlobalLoRA {
+  id          String   @id @default(uuid())
+  name        String
+  triggerWord String?
+  aliasPatterns String? // JSON array of custom aliases (e.g., ["sarah", "sara"]) for prompt detection
+  fileUrl     String   // Local path or HF URL
+  baseModel   String   // 'SDXL', 'Flux', 'SD1.5', 'Other'
+  strength    Float    @default(1.0)
+  imageUrl    String?  // Thumbnail
+  type        String   @default("lora") // 'checkpoint', 'lora', 'embedding'
+  category    String?  // 'character', 'style', 'concept', 'clothing', 'pose', 'background', 'effect', 'other'
+  recommendedSettings String? // JSON string for SQLite compatibility
+  civitaiModelId String? // For linking back to Civitai
+  civitaiVersionId String?
+  description String?
+  tags        String   @default("[]") // JSON array string for SQLite
+  usageCount  Int      @default(0) // Track popularity
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Project installations
+  projectInstalls LoRA[]
+}
+
+model ModelParameter {
+  id        String   @id @default(uuid())
+  projectId String
+  type      String   // 'sampler', 'scheduler'
+  name      String   // Display name e.g. "DPM++ 2M Karras"
+  value     String   // API value e.g. "dpmpp_2m_karras"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project   Project  @relation(fields: [projectId], references: [id])
+}
+
+model Workflow {
+  id          String   @id @default(uuid())
+  projectId   String
+  name        String
+  description String?
+  fileUrl     String
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project  @relation(fields: [projectId], references: [id])
+}
+
+// Workflow Templates Library (Phase 6 - Community Features)
+model WorkflowTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  category    String   @default("Custom") // e.g., "Product", "Cinematic", "Social", "Portrait"
+  config      String   // JSON with full generation config
+  previewUrl  String?  // Preview image URL
+  isPublic    Boolean  @default(false)
+  userId      String?  // Owner (null = system template)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model TrainingJob {
+  id            String   @id @default(uuid())
+  projectId     String
+  name          String
+  triggerWord   String
+  datasetUrl    String?
+  providerJobId String?
+  status        String   @default("uploading") // 'uploading', 'queued', 'training', 'completed', 'failed'
+  loraUrl       String?
+  error         String?
+  steps         Int      @default(1000)
+  learningRate  Float    @default(0.0001)
+  isStyle       Boolean  @default(true)
+  provider      String   @default("fal") // 'fal', 'replicate'
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  project       Project  @relation(fields: [projectId], references: [id])
+}
+
+// Custom Pose Presets for Character Foundry
+model CustomPosePreset {
+  id          String   @id @default(uuid())
+  projectId   String?  // null = global preset available to all projects
+  name        String
+  description String?
+  stylePrefix String?  // Prepended to all prompts for style consistency
+  poses       String   // JSON array of pose prompt strings
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project? @relation(fields: [projectId], references: [id])
+}
+
+// Character profiles for consistency across generations
+model Character {
+  id              String   @id @default(uuid())
+  projectId       String
+  name            String
+  description     String?
+
+  // Reference images for this character
+  referenceImages String   // JSON array of image URLs
+  primaryImageUrl String?  // Main headshot/reference
+
+  // Character attributes for prompt injection
+  attributes      String?  // JSON: { age, gender, ethnicity, hairColor, eyeColor, distinguishingFeatures }
+
+  // LoRA/Embedding association
+  loraId          String?  // If trained LoRA exists
+  triggerWord     String?  // Trigger word for this character
+
+  // Wardrobe/outfit definitions
+  outfits         String?  // JSON array: [{ name, description, imageUrl }]
+  defaultOutfitId String?
+
+  // Consistency settings
+  faceWeight      Float    @default(0.8)  // IP-Adapter face strength
+  styleWeight     Float    @default(0.5)  // Style preservation strength
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project         Project  @relation(fields: [projectId], references: [id])
+  sceneChainCharacters SceneChainCharacter[]
+
+  @@unique([projectId, name])
+}
+
+// Scene Chain for video extension workflows
+model SceneChain {
+  id              String   @id @default(uuid())
+  projectId       String
+  name            String
+  description     String?
+
+  // Chain configuration
+  targetDuration  Int?     // Total target duration in seconds
+  transitionStyle String   @default("smooth") // 'smooth', 'cut', 'fade', 'morph'
+
+  // Style consistency
+  styleGuideId    String?
+  colorGrading    String?  // Color grading preset
+  aspectRatio     String   @default("16:9")
+
+  // Model preferences
+  preferredModel  String?  // Preferred generation model
+
+  status          String   @default("draft") // 'draft', 'generating', 'complete', 'failed'
+
+  // Final stitched video output
+  finalVideoUrl   String?  // URL of the final stitched video
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project         Project  @relation(fields: [projectId], references: [id])
+  segments        SceneChainSegment[]
+  characters      SceneChainCharacter[]
+}
+
+// Individual segment in a scene chain
+model SceneChainSegment {
+  id              String   @id @default(uuid())
+  sceneChainId    String
+
+  // Position in chain
+  orderIndex      Int
+
+  // Content
+  prompt          String
+  duration        Int      @default(5)  // seconds
+
+  // Reference frames for generation guidance
+  firstFrameUrl     String?  // Reference image for the first frame
+  lastFrameUrl      String?  // Reference image for the last frame (for continuity)
+  firstFramePrompt  String?  // Image generation prompt for first frame
+  lastFramePrompt   String?  // Image generation prompt for last frame
+
+  // Source (if extending from existing video/generation)
+  sourceType      String?  // 'generation', 'upload', 'none'
+  sourceId        String?  // ID of generation or uploaded video
+  sourceUrl       String?  // Direct URL if uploaded
+
+  // Output
+  generationId    String?  // ID of generated result
+  outputUrl       String?  // Final output URL
+
+  // Transition to next segment
+  transitionType  String   @default("smooth") // Override chain default
+
+  // L-Cut / J-Cut support (independent audio trimming)
+  trimStart       Float    @default(0)  // Video trim in-point (seconds)
+  trimEnd         Float?                // Video trim out-point (seconds)
+  audioTrimStart  Float    @default(0)  // Audio trim in-point (seconds) - for L-Cut
+  audioTrimEnd    Float?                // Audio trim out-point (seconds)
+  audioGain       Float    @default(1)  // Audio volume multiplier (0-2)
+
+  status          String   @default("pending") // 'pending', 'generating', 'complete', 'failed'
+  failureReason   String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  sceneChain      SceneChain @relation(fields: [sceneChainId], references: [id], onDelete: Cascade)
+
+  @@index([sceneChainId])
+  @@index([status])
+}
+
+// Junction table for characters in scene chains
+model SceneChainCharacter {
+  id            String   @id @default(uuid())
+  sceneChainId  String
+  characterId   String
+
+  // Override character settings for this chain
+  overrideFaceWeight  Float?
+  overrideStyleWeight Float?
+  overrideOutfitId    String?
+
+  createdAt     DateTime @default(now())
+
+  sceneChain    SceneChain @relation(fields: [sceneChainId], references: [id], onDelete: Cascade)
+  character     Character  @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([sceneChainId, characterId])
+}
+
+// =============================================================================
+// MULTI-PASS RENDER QUEUE - DB-Backed Persistence
+// =============================================================================
+
+// RenderJob - Container for a shot, tracks quality passes and overall status
+model RenderJob {
+  id              String   @id @default(uuid())
+  projectId       String
+  sceneChainId    String?  // Optional link to scene chain
+  segmentId       String?  // Optional link to specific segment
+
+  // Job identification
+  name            String   // e.g., "Shot 4" or "Hero Wide"
+  orderIndex      Int      @default(0)
+
+  // Recipe - Locked creative settings (JSON for SQLite)
+  recipe          String   // JSON: ShotRecipe with prompt, lensKit, lightingSetup, etc.
+
+  // Element snapshot - Prevents "Project Decay"
+  elementSnapshot String?  // JSON: Snapshot of element URLs at job creation
+
+  // Aggregated status
+  status          String   @default("pending") // 'pending', 'rendering', 'review', 'approved', 'failed'
+  currentQuality  String   @default("draft")   // 'draft', 'review', 'master'
+
+  // Cost tracking
+  totalCost       Float    @default(0)
+
+  // Watermark/burn-in settings
+  burnInMetadata  Boolean  @default(false)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  passes          RenderPass[]
+
+  @@index([projectId])
+  @@index([sceneChainId])
+}
+
+// RenderPass - Individual render iteration (Draft 1, Draft 2, Master, etc.)
+model RenderPass {
+  id              String   @id @default(uuid())
+  jobId           String
+
+  // Quality tier
+  quality         String   // 'draft', 'review', 'master'
+  passNumber      Int      @default(1)  // For multiple drafts: Draft 1, Draft 2, etc.
+
+  // Seed management for deterministic upgrades
+  lockedSeed      Int?     // Seed to use (inherited from parent or user-specified)
+  seedSource      String   @default("random") // 'random', 'inherited', 'user'
+  resultSeed      Int?     // Actual seed used (captured for inheritance)
+
+  // Parent-child relationship for quality upgrades
+  parentPassId    String?  // The draft pass this was upgraded from
+  // childPassIds tracked via relation
+
+  // Model used
+  modelId         String   // e.g., 'fal-ai/ltx-video' for draft
+
+  // Output
+  outputUrl       String?
+  thumbnailUrl    String?
+  generationId    String?  // Link to Generation record if created
+
+  // Status
+  status          String   @default("pending") // 'pending', 'rendering', 'complete', 'failed'
+  failureReason   String?
+
+  // Review workflow
+  needsReview     Boolean  @default(false)
+  reviewedAt      DateTime?
+  reviewedBy      String?  // Future: user ID
+  reviewNotes     String?
+
+  // Cost
+  cost            Float    @default(0)
+  renderTime      Int?     // milliseconds
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  job             RenderJob   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  parentPass      RenderPass? @relation("PassUpgrade", fields: [parentPassId], references: [id])
+  childPasses     RenderPass[] @relation("PassUpgrade")
+
+  @@index([jobId])
+  @@index([parentPassId])
+}
+
+// =============================================================================
+// MODULE 7: THE PROP SHOP - Extracted Assets & 3D Proxies
+// =============================================================================
+
+// Prop - Extracted asset with background removal and optional 3D proxy
+model Prop {
+  id              String   @id @default(uuid())
+  projectId       String
+
+  // Basic info
+  name            String
+  description     String?
+  category        String   @default("object") // 'object', 'texture', 'material', 'vehicle', 'weapon', 'food', 'furniture', 'other'
+
+  // Source information
+  sourceType      String   // 'generation', 'upload', 'element', 'url'
+  sourceId        String?  // ID of source generation/element
+  sourceUrl       String?  // Original image URL before extraction
+
+  // Extracted asset (BiRefNet output)
+  extractedUrl    String   // PNG with transparency
+  thumbnailUrl    String?  // Small preview thumbnail
+
+  // Extraction metadata
+  extractionModel String   @default("birefnet") // 'birefnet', 'sam2', 'manual'
+  edgeQuality     Float?   // 0-1 edge refinement score
+  hasAlpha        Boolean  @default(true)
+
+  // Dimensions & material analysis
+  width           Int?
+  height          Int?
+  aspectRatio     String?
+
+  // Material Inspector data (JSON for SQLite)
+  materialAnalysis String? // JSON: { dominantColors, reflectivity, transparency, texture, suggestedLighting }
+
+  // 3D Proxy (TripoSR/LGM output)
+  proxy3dUrl      String?  // GLB/GLTF file URL
+  proxy3dModel    String?  // 'triposr', 'lgm', 'none'
+  proxy3dStatus   String   @default("none") // 'none', 'generating', 'complete', 'failed'
+
+  // Usage tracking
+  usageCount      Int      @default(0)
+  isFavorite      Boolean  @default(false)
+  tags            String   @default("[]") // JSON array string
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([category])
+}
+
+// =============================================================================
+// MODULE 5: COLLABORATIVE DAILIES - Comments, Annotations & Review
+// =============================================================================
+
+// Comment - Timestamped annotation on a generation (image or video)
+model Comment {
+  id              String   @id @default(uuid())
+  generationId    String   // Link to the Generation being reviewed
+
+  // Author (placeholder for future auth - using mock user ID for now)
+  userId          String   @default("user_1")
+  userName        String   @default("Director")
+  userAvatar      String?  // Avatar URL
+
+  // Temporal position (for videos)
+  timestamp       Float?   // Video timecode in seconds (null for images)
+
+  // Spatial position (normalized 0-1 coordinates)
+  coordinates     String?  // JSON: { x: 0.5, y: 0.3 } - null for general comments
+
+  // Comment content
+  text            String
+  type            String   @default("note") // 'note', 'approval', 'revision', 'blocker'
+
+  // Thread support (replies)
+  parentId        String?  // For reply threading
+
+  // Resolution workflow
+  resolved        Boolean  @default(false)
+  resolvedAt      DateTime?
+  resolvedBy      String?
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  generation      Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  parent          Comment?   @relation("CommentThread", fields: [parentId], references: [id])
+  replies         Comment[]  @relation("CommentThread")
+
+  @@index([generationId])
+  @@index([parentId])
+  @@index([resolved])
+}
+
+// =============================================================================
+// GLOBAL SETTINGS - App-wide configuration & OAuth tokens
+// =============================================================================
+
+// Setting - Key-value store for global configuration
+model Setting {
+  id        String   @id @default(uuid())
+  key       String   @unique  // e.g., 'youtube_tokens', 'youtube_channel', 'default_model'
+  value     String   // JSON string for complex values
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}

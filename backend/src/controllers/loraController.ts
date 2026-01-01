@@ -12,6 +12,17 @@ if (process.env.FAL_KEY) {
     });
 }
 
+// =============================================================================
+// PHASE 7: Multi-Tenant Helper - Get project's teamId for asset inheritance
+// =============================================================================
+async function getProjectTeamId(projectId: string): Promise<string | null> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { teamId: true },
+  });
+  return project?.teamId ?? null;
+}
+
 export const getLoRAs = async (req: Request, res: Response) => {
     try {
         const { projectId } = req.params;
@@ -168,9 +179,13 @@ export const createLoRA = async (req: Request, res: Response) => {
         // Infer category if not provided
         const finalCategory = category || inferCategory(name, tags);
 
+        // Phase 7: Inherit teamId from project for shared asset access
+        const teamId = await getProjectTeamId(projectId);
+
         const lora = await prisma.loRA.create({
             data: {
                 projectId,
+                teamId,
                 name,
                 triggerWord,
                 triggerWords: triggerWords ? JSON.stringify(triggerWords) : (triggerWord ? JSON.stringify([triggerWord]) : null),

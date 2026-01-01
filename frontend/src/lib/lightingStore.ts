@@ -667,10 +667,21 @@ function getEffectiveIntensity(intensity: number, distance: number): number {
   return Math.min(100, intensity * falloffFactor);
 }
 
+// UX-009: Undo/Redo history for lighting changes
+interface LightingHistoryEntry {
+  lights: LightSource[];
+  timestamp: number;
+}
+
 interface LightingState {
   lights: LightSource[];
   isEnabled: boolean;
   selectedLightId: string | null;
+
+  // UX-009: Undo/Redo history
+  _past: LightingHistoryEntry[];
+  _future: LightingHistoryEntry[];
+  _maxHistory: number;
 
   // Actions
   addLight: (type: LightType) => void;
@@ -681,6 +692,13 @@ interface LightingState {
   toggleEnabled: () => void;
   loadPreset: (presetId: string) => void;
   clearAll: () => void;
+
+  // UX-009: Undo/Redo actions
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+  _pushHistory: () => void;
 
   // Getters
   generatePromptModifier: () => string;
@@ -694,6 +712,65 @@ export const useLightingStore = create<LightingState>()(
       isEnabled: false,
       selectedLightId: null,
 
+      // UX-009: Undo/Redo state
+      _past: [],
+      _future: [],
+      _maxHistory: 50,
+
+      // UX-009: Push current state to history before making changes
+      _pushHistory: () => {
+        const { lights, _past, _maxHistory } = get();
+        const entry: LightingHistoryEntry = {
+          lights: JSON.parse(JSON.stringify(lights)), // Deep clone
+          timestamp: Date.now(),
+        };
+        const newPast = [..._past, entry].slice(-_maxHistory);
+        set({ _past: newPast, _future: [] });
+      },
+
+      // UX-009: Undo last change
+      undo: () => {
+        const { lights, _past, _future } = get();
+        if (_past.length === 0) return;
+
+        const previous = _past[_past.length - 1];
+        const newPast = _past.slice(0, -1);
+        const currentEntry: LightingHistoryEntry = {
+          lights: JSON.parse(JSON.stringify(lights)),
+          timestamp: Date.now(),
+        };
+
+        set({
+          lights: previous.lights,
+          _past: newPast,
+          _future: [currentEntry, ..._future],
+          selectedLightId: null, // Clear selection on undo
+        });
+      },
+
+      // UX-009: Redo last undone change
+      redo: () => {
+        const { lights, _past, _future } = get();
+        if (_future.length === 0) return;
+
+        const next = _future[0];
+        const newFuture = _future.slice(1);
+        const currentEntry: LightingHistoryEntry = {
+          lights: JSON.parse(JSON.stringify(lights)),
+          timestamp: Date.now(),
+        };
+
+        set({
+          lights: next.lights,
+          _past: [..._past, currentEntry],
+          _future: newFuture,
+          selectedLightId: null,
+        });
+      },
+
+      canUndo: () => get()._past.length > 0,
+      canRedo: () => get()._future.length > 0,
+
       addLight: type => {
         const typeNames: Record<LightType, string> = {
           key: 'Key Light',
@@ -703,6 +780,9 @@ export const useLightingStore = create<LightingState>()(
           practical: 'Practical',
           ambient: 'Ambient',
         };
+
+        // UX-009: Save history before change
+        get()._pushHistory();
 
         // Use timestamp + random suffix for unique IDs (prevents collisions when adding multiple lights rapidly)
         const newLight: LightSource = {
@@ -724,6 +804,8 @@ export const useLightingStore = create<LightingState>()(
       },
 
       removeLight: id => {
+        // UX-009: Save history before change
+        get()._pushHistory();
         set(state => ({
           lights: state.lights.filter(l => l.id !== id),
           selectedLightId: state.selectedLightId === id ? null : state.selectedLightId,
@@ -731,12 +813,27 @@ export const useLightingStore = create<LightingState>()(
       },
 
       updateLight: (id, updates) => {
+        // UX-009: Save history before change (but debounce slider drags)
+        const now = Date.now();
+        const { _past } = get();
+        const lastEntry = _past[_past.length - 1];
+        // Only push if last entry was more than 500ms ago (debounce rapid slider changes)
+        if (!lastEntry || now - lastEntry.timestamp > 500) {
+          get()._pushHistory();
+        }
         set(state => ({
           lights: state.lights.map(l => (l.id === id ? { ...l, ...updates } : l)),
         }));
       },
 
       moveLight: (id, x, y) => {
+        // UX-009: Debounce drag operations - only save history every 500ms
+        const now = Date.now();
+        const { _past } = get();
+        const lastEntry = _past[_past.length - 1];
+        if (!lastEntry || now - lastEntry.timestamp > 500) {
+          get()._pushHistory();
+        }
         set(state => ({
           lights: state.lights.map(l => (l.id === id ? { ...l, x, y } : l)),
         }));
@@ -754,6 +851,9 @@ export const useLightingStore = create<LightingState>()(
         const preset = LIGHTING_PRESETS.find(p => p.id === presetId);
         if (!preset) return;
 
+        // UX-009: Save history before loading preset
+        get()._pushHistory();
+
         const lights: LightSource[] = preset.lights.map((l, i) => ({
           ...l,
           id: `light-${Date.now()}-${i}`,
@@ -766,6 +866,8 @@ export const useLightingStore = create<LightingState>()(
       },
 
       clearAll: () => {
+        // UX-009: Save history before clearing
+        get()._pushHistory();
         set({ lights: [], selectedLightId: null });
       },
 

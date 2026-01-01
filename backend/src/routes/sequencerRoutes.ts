@@ -6,6 +6,10 @@
  * - Caption/subtitle generation via MiniMax M2.1
  * - Final FFmpeg bake with NLE-compatible output
  * - EPK (Electronic Press Kit) export
+ *
+ * Phase 7 Addition: Version Control (SequencerSnapshots)
+ * - Save/restore timeline states for non-destructive editing
+ * - Version naming (e.g., "Director's Cut V2")
  */
 
 import { Router } from 'express';
@@ -13,6 +17,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { MasterExportService } from '../services/export/MasterExportService';
 import { LLMService } from '../services/LLMService';
+import { AuthenticatedRequest, withAuth } from '../middleware/auth';
 
 const router = Router({ mergeParams: true });
 
@@ -389,6 +394,370 @@ router.post('/export-epk', async (req: Request, res: Response) => {
     });
   }
 });
+
+// =============================================================================
+// PHASE 7: VERSION CONTROL (SequencerSnapshots)
+// =============================================================================
+
+/**
+ * Save current timeline state as a snapshot
+ * POST /api/projects/:projectId/sequencer/snapshots
+ */
+router.post('/snapshots', withAuth, async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id;
+    const { sceneChainId, versionName, description } = req.body;
+
+    if (!sceneChainId) {
+      return res.status(400).json({ error: 'sceneChainId is required' });
+    }
+    if (!versionName) {
+      return res.status(400).json({ error: 'versionName is required' });
+    }
+
+    // Get current scene chain with all segments
+    const sceneChain = await prisma.sceneChain.findFirst({
+      where: { id: sceneChainId, projectId },
+      include: {
+        segments: {
+          orderBy: { orderIndex: 'asc' },
+        },
+      },
+    });
+
+    if (!sceneChain) {
+      return res.status(404).json({ error: 'Scene chain not found' });
+    }
+
+    // Serialize full timeline state to JSON (only fields that exist in schema)
+    const clipData = JSON.stringify({
+      sceneChainName: sceneChain.name,
+      segments: sceneChain.segments.map(seg => ({
+        id: seg.id,
+        orderIndex: seg.orderIndex,
+        prompt: seg.prompt,
+        duration: seg.duration,
+        trimStart: seg.trimStart,
+        trimEnd: seg.trimEnd,
+        audioTrimStart: seg.audioTrimStart,
+        audioTrimEnd: seg.audioTrimEnd,
+        audioGain: seg.audioGain,
+        transitionType: seg.transitionType,
+        status: seg.status,
+        outputUrl: seg.outputUrl,
+        sourceUrl: seg.sourceUrl,
+        sourceType: seg.sourceType,
+        sourceId: seg.sourceId,
+        firstFrameUrl: seg.firstFrameUrl,
+        lastFrameUrl: seg.lastFrameUrl,
+        firstFramePrompt: seg.firstFramePrompt,
+        lastFramePrompt: seg.lastFramePrompt,
+        generationId: seg.generationId,
+      })),
+      savedAt: new Date().toISOString(),
+    });
+
+    // Create snapshot
+    const snapshot = await prisma.sequencerSnapshot.create({
+      data: {
+        projectId,
+        sceneChainId,
+        versionName,
+        description: description || null,
+        clipData,
+        createdBy: userId || 'anonymous',
+      },
+    });
+
+    console.log(`[Sequencer] Saved snapshot "${versionName}" for scene chain ${sceneChainId}`);
+
+    return res.status(201).json({
+      success: true,
+      snapshot: {
+        id: snapshot.id,
+        versionName: snapshot.versionName,
+        description: snapshot.description,
+        createdAt: snapshot.createdAt,
+        segmentCount: sceneChain.segments.length,
+      },
+    });
+  } catch (error) {
+    console.error('[Sequencer] Save snapshot failed:', error);
+    return res.status(500).json({
+      error: 'Failed to save snapshot',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * List all snapshots for a scene chain
+ * GET /api/projects/:projectId/sequencer/snapshots?sceneChainId=xxx
+ */
+router.get('/snapshots', withAuth, async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    const { sceneChainId } = req.query;
+
+    const where: any = { projectId };
+    if (sceneChainId) {
+      where.sceneChainId = sceneChainId as string;
+    }
+
+    const snapshots = await prisma.sequencerSnapshot.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        sceneChainId: true,
+        versionName: true,
+        description: true,
+        createdBy: true,
+        createdAt: true,
+      },
+    });
+
+    return res.json({
+      snapshots,
+      count: snapshots.length,
+    });
+  } catch (error) {
+    console.error('[Sequencer] List snapshots failed:', error);
+    return res.status(500).json({
+      error: 'Failed to list snapshots',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * Get a specific snapshot with full clip data
+ * GET /api/projects/:projectId/sequencer/snapshots/:snapshotId
+ */
+router.get('/snapshots/:snapshotId', withAuth, async (req: Request, res: Response) => {
+  try {
+    const { projectId, snapshotId } = req.params;
+
+    const snapshot = await prisma.sequencerSnapshot.findFirst({
+      where: { id: snapshotId, projectId },
+    });
+
+    if (!snapshot) {
+      return res.status(404).json({ error: 'Snapshot not found' });
+    }
+
+    // Parse clip data
+    let clipData;
+    try {
+      clipData = JSON.parse(snapshot.clipData);
+    } catch {
+      clipData = null;
+    }
+
+    return res.json({
+      id: snapshot.id,
+      sceneChainId: snapshot.sceneChainId,
+      versionName: snapshot.versionName,
+      description: snapshot.description,
+      createdBy: snapshot.createdBy,
+      createdAt: snapshot.createdAt,
+      clipData,
+    });
+  } catch (error) {
+    console.error('[Sequencer] Get snapshot failed:', error);
+    return res.status(500).json({
+      error: 'Failed to get snapshot',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * Restore timeline to a snapshot state
+ * POST /api/projects/:projectId/sequencer/snapshots/:snapshotId/restore
+ *
+ * This creates a new auto-save snapshot of current state before restoring,
+ * so the user can always revert if they don't like the restored version.
+ */
+router.post('/snapshots/:snapshotId/restore', withAuth, async (req: Request, res: Response) => {
+  try {
+    const { projectId, snapshotId } = req.params;
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id;
+    const { createBackup = true } = req.body;
+
+    const snapshot = await prisma.sequencerSnapshot.findFirst({
+      where: { id: snapshotId, projectId },
+    });
+
+    if (!snapshot) {
+      return res.status(404).json({ error: 'Snapshot not found' });
+    }
+
+    // Parse snapshot clip data
+    let clipData;
+    try {
+      clipData = JSON.parse(snapshot.clipData);
+    } catch {
+      return res.status(400).json({ error: 'Invalid snapshot data' });
+    }
+
+    const sceneChainId = snapshot.sceneChainId;
+
+    // Get current scene chain
+    const currentChain = await prisma.sceneChain.findFirst({
+      where: { id: sceneChainId, projectId },
+      include: { segments: true },
+    });
+
+    if (!currentChain) {
+      return res.status(404).json({ error: 'Scene chain not found' });
+    }
+
+    // Create auto-backup of current state before restoring
+    if (createBackup && currentChain.segments.length > 0) {
+      const backupData = JSON.stringify({
+        sceneChainName: currentChain.name,
+        segments: currentChain.segments.map(seg => ({
+          id: seg.id,
+          orderIndex: seg.orderIndex,
+          prompt: seg.prompt,
+          duration: seg.duration,
+          trimStart: seg.trimStart,
+          trimEnd: seg.trimEnd,
+          audioTrimStart: seg.audioTrimStart,
+          audioTrimEnd: seg.audioTrimEnd,
+          audioGain: seg.audioGain,
+          transitionType: seg.transitionType,
+          status: seg.status,
+          outputUrl: seg.outputUrl,
+          sourceUrl: seg.sourceUrl,
+          sourceType: seg.sourceType,
+          sourceId: seg.sourceId,
+          firstFrameUrl: seg.firstFrameUrl,
+          lastFrameUrl: seg.lastFrameUrl,
+          firstFramePrompt: seg.firstFramePrompt,
+          lastFramePrompt: seg.lastFramePrompt,
+          generationId: seg.generationId,
+        })),
+        savedAt: new Date().toISOString(),
+      });
+
+      await prisma.sequencerSnapshot.create({
+        data: {
+          projectId,
+          sceneChainId,
+          versionName: `Auto-backup before restore (${new Date().toLocaleString()})`,
+          description: `Automatic backup created before restoring "${snapshot.versionName}"`,
+          clipData: backupData,
+          createdBy: userId || 'system',
+        },
+      });
+    }
+
+    // Delete current segments
+    await prisma.sceneChainSegment.deleteMany({
+      where: { sceneChainId },
+    });
+
+    // Restore segments from snapshot (only using fields that exist in schema)
+    if (clipData.segments && Array.isArray(clipData.segments)) {
+      for (const seg of clipData.segments) {
+        await prisma.sceneChainSegment.create({
+          data: {
+            sceneChainId,
+            orderIndex: seg.orderIndex ?? 0,
+            prompt: seg.prompt ?? '',
+            duration: seg.duration ?? 5,
+            trimStart: seg.trimStart ?? 0,
+            trimEnd: seg.trimEnd,
+            audioTrimStart: seg.audioTrimStart ?? 0,
+            audioTrimEnd: seg.audioTrimEnd,
+            audioGain: seg.audioGain ?? 1,
+            transitionType: seg.transitionType ?? 'smooth',
+            status: seg.status || 'pending',
+            outputUrl: seg.outputUrl,
+            sourceUrl: seg.sourceUrl,
+            sourceType: seg.sourceType,
+            sourceId: seg.sourceId,
+            firstFrameUrl: seg.firstFrameUrl,
+            lastFrameUrl: seg.lastFrameUrl,
+            firstFramePrompt: seg.firstFramePrompt,
+            lastFramePrompt: seg.lastFramePrompt,
+            generationId: seg.generationId,
+          },
+        });
+      }
+    }
+
+    // Update scene chain name if it was saved
+    if (clipData.sceneChainName) {
+      await prisma.sceneChain.update({
+        where: { id: sceneChainId },
+        data: {
+          name: clipData.sceneChainName,
+          updatedAt: new Date(),
+        },
+      });
+    }
+
+    console.log(`[Sequencer] Restored snapshot "${snapshot.versionName}" to scene chain ${sceneChainId}`);
+
+    return res.json({
+      success: true,
+      message: `Restored to "${snapshot.versionName}"`,
+      restoredSegments: clipData.segments?.length || 0,
+      backupCreated: createBackup,
+    });
+  } catch (error) {
+    console.error('[Sequencer] Restore snapshot failed:', error);
+    return res.status(500).json({
+      error: 'Failed to restore snapshot',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * Delete a snapshot
+ * DELETE /api/projects/:projectId/sequencer/snapshots/:snapshotId
+ */
+router.delete('/snapshots/:snapshotId', withAuth, async (req: Request, res: Response) => {
+  try {
+    const { projectId, snapshotId } = req.params;
+
+    const snapshot = await prisma.sequencerSnapshot.findFirst({
+      where: { id: snapshotId, projectId },
+    });
+
+    if (!snapshot) {
+      return res.status(404).json({ error: 'Snapshot not found' });
+    }
+
+    await prisma.sequencerSnapshot.delete({
+      where: { id: snapshotId },
+    });
+
+    console.log(`[Sequencer] Deleted snapshot "${snapshot.versionName}"`);
+
+    return res.json({
+      success: true,
+      message: `Deleted snapshot "${snapshot.versionName}"`,
+    });
+  } catch (error) {
+    console.error('[Sequencer] Delete snapshot failed:', error);
+    return res.status(500).json({
+      error: 'Failed to delete snapshot',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// =============================================================================
+// EXPORT STATUS & LISTING
+// =============================================================================
 
 /**
  * Get export status

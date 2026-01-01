@@ -31,6 +31,8 @@ import {
   Image as ImageIcon,
   Loader2,
   FlipHorizontal,
+  Undo2,
+  Redo2,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -97,6 +99,82 @@ const LIGHT_CONFIG: Record<LightType, { icon: typeof Lightbulb; color: string; l
   practical: { icon: Lightbulb, color: '#34d399', label: 'Practical' },
   ambient: { icon: Sun, color: '#94a3b8', label: 'Ambient' },
 };
+
+/**
+ * UX-010: Quick Presets - Intent-Driven Shortcuts
+ * One-click access to common creative lighting setups.
+ * Each preset includes a gradient preview of its color palette.
+ */
+interface QuickPreset {
+  id: string;
+  name: string;
+  emoji: string;
+  colors: [string, string]; // [primary, secondary] for gradient preview
+  description: string;
+  lights: Omit<LightSource, 'id'>[];
+}
+
+const QUICK_PRESETS: QuickPreset[] = [
+  {
+    id: 'cyberpunk',
+    name: 'Neon City',
+    emoji: '🌃',
+    colors: ['#ff0055', '#00ccff'],
+    description: 'Dual-tone hard rim lighting',
+    lights: [
+      { type: 'key', name: 'Neon Pink Key', x: 0.25, y: 0.6, intensity: 0.8, colorTemp: 6500, softness: 0.3, enabled: true, useGel: true, gelColor: '#ff0055', distance: 0.5 },
+      { type: 'rim', name: 'Cyan Rim', x: 0.85, y: 0.2, intensity: 0.9, colorTemp: 8000, softness: 0.2, enabled: true, useGel: true, gelColor: '#00ccff', distance: 0.4 },
+      { type: 'ambient', name: 'Dark Ambient', x: 0.5, y: 0.5, intensity: 0.15, colorTemp: 4000, softness: 1.0, enabled: true, useGel: false, gelColor: '#ffffff', distance: 1.0 },
+    ],
+  },
+  {
+    id: 'rembrandt',
+    name: 'Studio Master',
+    emoji: '🎨',
+    colors: ['#ffeedd', '#1a1a1a'],
+    description: 'Classic 45° key with dark fill',
+    lights: [
+      { type: 'key', name: 'Rembrandt Key', x: 0.3, y: 0.55, intensity: 0.85, colorTemp: 3200, softness: 0.5, enabled: true, useGel: false, gelColor: '#ffffff', distance: 0.5 },
+      { type: 'fill', name: 'Dark Fill', x: 0.75, y: 0.6, intensity: 0.2, colorTemp: 4500, softness: 0.8, enabled: true, useGel: false, gelColor: '#ffffff', distance: 0.7 },
+      { type: 'back', name: 'Hair Light', x: 0.5, y: 0.1, intensity: 0.5, colorTemp: 5600, softness: 0.3, enabled: true, useGel: false, gelColor: '#ffffff', distance: 0.3 },
+    ],
+  },
+  {
+    id: 'golden',
+    name: 'Sunset',
+    emoji: '🌅',
+    colors: ['#ffaa00', '#663399'],
+    description: 'Warm soft key, cool ambient fill',
+    lights: [
+      { type: 'key', name: 'Golden Hour Key', x: 0.15, y: 0.5, intensity: 0.9, colorTemp: 2700, softness: 0.7, enabled: true, useGel: true, gelColor: '#ffaa00', distance: 0.6 },
+      { type: 'fill', name: 'Twilight Fill', x: 0.8, y: 0.55, intensity: 0.35, colorTemp: 8500, softness: 0.9, enabled: true, useGel: true, gelColor: '#663399', distance: 0.8 },
+      { type: 'rim', name: 'Sun Rim', x: 0.1, y: 0.15, intensity: 0.7, colorTemp: 2200, softness: 0.2, enabled: true, useGel: true, gelColor: '#ff6600', distance: 0.3 },
+    ],
+  },
+  {
+    id: 'noir',
+    name: 'Film Noir',
+    emoji: '🎬',
+    colors: ['#ffffff', '#000000'],
+    description: 'High contrast, dramatic shadows',
+    lights: [
+      { type: 'key', name: 'Hard Key', x: 0.2, y: 0.45, intensity: 1.0, colorTemp: 5600, softness: 0.1, enabled: true, useGel: false, gelColor: '#ffffff', distance: 0.4 },
+      { type: 'back', name: 'Edge Light', x: 0.85, y: 0.15, intensity: 0.6, colorTemp: 6000, softness: 0.1, enabled: true, useGel: false, gelColor: '#ffffff', distance: 0.3 },
+    ],
+  },
+  {
+    id: 'horror',
+    name: 'Horror',
+    emoji: '👻',
+    colors: ['#00ff00', '#330000'],
+    description: 'Under-lit with colored accents',
+    lights: [
+      { type: 'key', name: 'Uplight Key', x: 0.5, y: 0.9, intensity: 0.6, colorTemp: 4000, softness: 0.3, enabled: true, useGel: true, gelColor: '#88ff88', distance: 0.3 },
+      { type: 'rim', name: 'Red Rim', x: 0.9, y: 0.2, intensity: 0.4, colorTemp: 3000, softness: 0.2, enabled: true, useGel: true, gelColor: '#ff0000', distance: 0.5 },
+      { type: 'ambient', name: 'Dread Ambient', x: 0.5, y: 0.5, intensity: 0.1, colorTemp: 5000, softness: 1.0, enabled: true, useGel: true, gelColor: '#220000', distance: 1.0 },
+    ],
+  },
+];
 
 // Convert Kelvin to RGB for visual display
 function kelvinToRgb(kelvin: number): string {
@@ -177,6 +255,10 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
   const [analysisStatus, setAnalysisStatus] = useState<string>('');
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
+  // UX-011: Keyboard shortcut guide visibility and gel picker expansion
+  const [showShortcutGuide, setShowShortcutGuide] = useState(false);
+  const [showGelPicker, setShowGelPicker] = useState(false);
+
   const {
     lights,
     isEnabled,
@@ -191,9 +273,104 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
     clearAll,
     generatePromptModifier,
     getLightingDescription,
+    // UX-009: Undo/Redo
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = useLightingStore();
 
+  // UX-009 & UX-011: Keyboard shortcuts for undo/redo and lighting controls
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input field
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const modifierKey = isMac ? e.metaKey : e.ctrlKey;
+
+      // Undo/Redo (Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z, Cmd/Ctrl+Y)
+      if (modifierKey && e.key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+        return;
+      }
+      if (modifierKey && e.key === 'y') {
+        e.preventDefault();
+        redo();
+        return;
+      }
+
+      // UX-011: Gaffer's Keyboard shortcuts (no modifier needed)
+      switch (e.key.toLowerCase()) {
+        case '?':
+          // Toggle shortcut guide
+          e.preventDefault();
+          setShowShortcutGuide(prev => !prev);
+          break;
+
+        case 'l':
+          // Toggle light library/add menu
+          e.preventDefault();
+          setShowAddMenu(prev => !prev);
+          break;
+
+        case 'g':
+          // Toggle gel picker for selected light
+          if (selectedLightId) {
+            e.preventDefault();
+            // Toggle useGel on the selected light
+            const light = lights.find(l => l.id === selectedLightId);
+            if (light) {
+              updateLight(selectedLightId, { useGel: !light.useGel });
+            }
+            setShowGelPicker(prev => !prev);
+          }
+          break;
+
+        case 'delete':
+        case 'backspace':
+          // Delete selected light
+          if (selectedLightId) {
+            e.preventDefault();
+            removeLight(selectedLightId);
+          }
+          break;
+
+        case 'escape':
+          // Deselect light and close panels
+          e.preventDefault();
+          selectLight(null);
+          setShowAddMenu(false);
+          setShowPresets(false);
+          setShowShortcutGuide(false);
+          setShowGelPicker(false);
+          break;
+      }
+    };
+
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, undo, redo, selectedLightId, lights, updateLight, removeLight, selectLight]);
+
   const selectedLight = lights.find(l => l.id === selectedLightId);
+
+  // UX-010: Apply Quick Preset
+  const applyQuickPreset = useCallback((preset: QuickPreset) => {
+    const newLights: LightSource[] = preset.lights.map((light, index) => ({
+      ...light,
+      id: `light-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 7)}`,
+    }));
+    useLightingStore.setState({ lights: newLights, isEnabled: true, selectedLightId: null });
+  }, []);
 
   // Handle reference image drop for Inverse Gaffing
   const handleFileDrop = useCallback(async (file: File) => {
@@ -486,6 +663,33 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
             </AnimatePresence>
           </div>
 
+          {/* UX-010: Quick Presets - Intent-Driven Shortcuts */}
+          <div className="flex items-center gap-1 border-l border-white/10 pl-2">
+            {QUICK_PRESETS.map(preset => (
+              <Tooltip key={preset.id} content={`${preset.name}: ${preset.description}`} side="top">
+                <button
+                  onClick={() => applyQuickPreset(preset)}
+                  className="group relative flex h-8 items-center gap-1 overflow-hidden rounded-lg border border-white/10 px-2 transition-all hover:border-white/20 hover:scale-105"
+                  style={{
+                    background: `linear-gradient(135deg, ${preset.colors[0]}20, ${preset.colors[1]}20)`,
+                  }}
+                >
+                  {/* Gradient preview bar */}
+                  <div
+                    className="absolute bottom-0 left-0 h-0.5 w-full opacity-50 transition-opacity group-hover:opacity-100"
+                    style={{
+                      background: `linear-gradient(90deg, ${preset.colors[0]}, ${preset.colors[1]})`,
+                    }}
+                  />
+                  <span className="text-sm">{preset.emoji}</span>
+                  <span className="text-[10px] font-medium text-gray-300 group-hover:text-white">
+                    {preset.name}
+                  </span>
+                </button>
+              </Tooltip>
+            ))}
+          </div>
+
           <button
             onClick={clearAll}
             className="flex items-center gap-1.5 rounded bg-white/5 px-3 py-1.5 text-xs text-gray-400 transition-colors hover:bg-red-500/10 hover:text-red-400"
@@ -493,6 +697,38 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
             <RotateCcw className="h-3 w-3" />
             Clear
           </button>
+
+          {/* UX-009: Undo/Redo Buttons */}
+          <div className="flex items-center gap-1 border-l border-white/10 pl-2">
+            <Tooltip content="Undo (⌘Z)" side="top">
+              <button
+                onClick={undo}
+                disabled={!canUndo()}
+                className={clsx(
+                  'flex items-center justify-center rounded p-1.5 transition-colors',
+                  canUndo()
+                    ? 'text-gray-400 hover:bg-white/10 hover:text-white'
+                    : 'cursor-not-allowed text-gray-600'
+                )}
+              >
+                <Undo2 className="h-3.5 w-3.5" />
+              </button>
+            </Tooltip>
+            <Tooltip content="Redo (⌘⇧Z)" side="top">
+              <button
+                onClick={redo}
+                disabled={!canRedo()}
+                className={clsx(
+                  'flex items-center justify-center rounded p-1.5 transition-colors',
+                  canRedo()
+                    ? 'text-gray-400 hover:bg-white/10 hover:text-white'
+                    : 'cursor-not-allowed text-gray-600'
+                )}
+              >
+                <Redo2 className="h-3.5 w-3.5" />
+              </button>
+            </Tooltip>
+          </div>
 
           {/* Flip Map - horizontally mirror all lights when AI flips left/right */}
           <Tooltip content="Flip all lights horizontally (fix left/right when AI gets it reversed)" side="top">
@@ -1121,7 +1357,82 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
               Apply Lighting
             </button>
           </div>
+
+          {/* UX-011: Keyboard shortcut hint */}
+          <div className="mt-2 text-center">
+            <button
+              onClick={() => setShowShortcutGuide(true)}
+              className="text-[10px] text-gray-600 transition-colors hover:text-gray-400"
+            >
+              Press <kbd className="rounded bg-white/10 px-1 py-0.5 font-mono">?</kbd> for keyboard shortcuts
+            </button>
+          </div>
         </div>
+
+        {/* UX-011: Keyboard Shortcut Guide Overlay */}
+        <AnimatePresence>
+          {showShortcutGuide && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+              onClick={() => setShowShortcutGuide(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                onClick={e => e.stopPropagation()}
+                className="w-72 rounded-xl border border-amber-500/30 bg-zinc-900/95 p-4 shadow-2xl"
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Lightbulb className="h-4 w-4 text-amber-400" />
+                    <h4 className="text-sm font-semibold text-white">Gaffer&apos;s Keyboard</h4>
+                  </div>
+                  <button
+                    onClick={() => setShowShortcutGuide(false)}
+                    className="text-gray-500 transition-colors hover:text-white"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {[
+                    { key: 'L', action: 'Add Light Menu', color: 'text-cyan-400' },
+                    { key: 'G', action: 'Toggle Gel Color', color: 'text-purple-400' },
+                    { key: 'Del', action: 'Delete Selected Light', color: 'text-red-400' },
+                    { key: 'Esc', action: 'Deselect / Close', color: 'text-gray-400' },
+                    { key: '⌘Z', action: 'Undo', color: 'text-amber-400' },
+                    { key: '⌘⇧Z', action: 'Redo', color: 'text-amber-400' },
+                    { key: '?', action: 'This Guide', color: 'text-white' },
+                  ].map(shortcut => (
+                    <div
+                      key={shortcut.key}
+                      className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2"
+                    >
+                      <kbd
+                        className={clsx(
+                          'min-w-[36px] rounded bg-zinc-800 px-2 py-1 text-center font-mono text-xs',
+                          shortcut.color
+                        )}
+                      >
+                        {shortcut.key}
+                      </kbd>
+                      <span className="text-xs text-gray-300">{shortcut.action}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-3 text-center text-[10px] text-gray-500">
+                  Click anywhere or press Esc to close
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

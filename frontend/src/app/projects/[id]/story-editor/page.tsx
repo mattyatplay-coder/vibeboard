@@ -30,6 +30,7 @@ import {
   FolderOpen,
   Trash2,
   Image,
+  Package,
 } from 'lucide-react';
 import { fetchAPI, BACKEND_URL } from '@/lib/api';
 import { usePageAutoSave, StoryEditorSession, hasRecoverableContent } from '@/lib/pageSessionStore';
@@ -131,6 +132,13 @@ export default function StoryEditorPage() {
 
   // Thumbnail generator state
   const [showThumbnailGenerator, setShowThumbnailGenerator] = useState(false);
+
+  // Script Lab: Auto-breakdown state
+  const [isBreakingDown, setIsBreakingDown] = useState(false);
+  const [breakdownResult, setBreakdownResult] = useState<{
+    assetsCreated: number;
+    breakdown: { characters: number; locations: number; props: number };
+  } | null>(null);
 
   // Progress tracking for long-running stages
   const [progressInfo, setProgressInfo] = useState<{
@@ -1017,6 +1025,49 @@ export default function StoryEditorPage() {
     (acc: number, scene: any) => acc + (scene.suggestedShots?.length || 0),
     0
   );
+
+  // Script Lab: Auto-breakdown assets from script
+  const handleAutoBreakdown = async () => {
+    if (!script && !outline) {
+      alert('Please generate a script or outline first');
+      return;
+    }
+
+    setIsBreakingDown(true);
+    setBreakdownResult(null);
+
+    try {
+      const response = await fetchAPI('/story-editor/auto-breakdown', {
+        method: 'POST',
+        body: JSON.stringify({
+          projectId,
+          script: script || undefined,
+          outline: outline || undefined,
+        }),
+      });
+
+      if (response.success) {
+        setBreakdownResult({
+          assetsCreated: response.assetsCreated,
+          breakdown: response.breakdown,
+        });
+        // Refresh project elements to show new assets
+        const elements = await fetchAPI(`/projects/${projectId}/elements`);
+        const characterElements = (elements || []).filter(
+          (e: ProjectElement) =>
+            e.type === 'character' || e.type === 'image' || e.metadata?.triggerWord
+        );
+        setProjectElements(characterElements);
+      } else {
+        alert('Auto-breakdown failed: ' + (response.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('[Script Lab] Auto-breakdown error:', error);
+      alert('Auto-breakdown failed. Check console for details.');
+    } finally {
+      setIsBreakingDown(false);
+    }
+  };
 
   // Save story to project and export to storyboard
   const saveAndExportToStoryboard = async () => {
@@ -1951,6 +2002,42 @@ The parser will automatically detect scenes and break them down into shots."
               <pre className="max-h-96 overflow-y-auto rounded-lg bg-black/30 p-4 font-mono text-xs whitespace-pre-wrap text-gray-300">
                 {script}
               </pre>
+              {/* Script Lab: Quick Auto-Breakdown */}
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  onClick={handleAutoBreakdown}
+                  disabled={isBreakingDown}
+                  className={clsx(
+                    'flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all',
+                    breakdownResult
+                      ? 'border-green-500/30 bg-green-500/20 text-green-300'
+                      : 'border-amber-500/30 bg-amber-500/20 text-amber-300 hover:bg-amber-500/30',
+                    isBreakingDown && 'opacity-70'
+                  )}
+                >
+                  {isBreakingDown ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Extracting...
+                    </>
+                  ) : breakdownResult ? (
+                    <>
+                      <Check className="h-3 w-3" />
+                      {breakdownResult.breakdown.characters}C / {breakdownResult.breakdown.locations}L / {breakdownResult.breakdown.props}P
+                    </>
+                  ) : (
+                    <>
+                      <Package className="h-3 w-3" />
+                      Extract Assets
+                    </>
+                  )}
+                </button>
+                {breakdownResult && (
+                  <span className="text-xs text-gray-500">
+                    → Check Asset Bin for {breakdownResult.assetsCreated} new placeholders
+                  </span>
+                )}
+              </div>
             </CollapsibleSection>
           )}
 
@@ -2161,6 +2248,39 @@ The parser will automatically detect scenes and break them down into shots."
                       <ChevronRight className="h-4 w-4" />
                       Go to Storyboard
                     </button>
+                  )}
+                  {/* Script Lab: Auto-Breakdown Button */}
+                  {(script || outline) && (
+                    <Tooltip content="Extract Characters, Locations & Props from script and create placeholder assets">
+                      <button
+                        onClick={handleAutoBreakdown}
+                        disabled={isBreakingDown}
+                        className={clsx(
+                          'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-all',
+                          breakdownResult
+                            ? 'border-green-500/30 bg-green-500/20 text-green-300'
+                            : 'border-amber-500/30 bg-amber-500/20 text-amber-300 hover:bg-amber-500/30',
+                          isBreakingDown && 'opacity-70'
+                        )}
+                      >
+                        {isBreakingDown ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Extracting Assets...
+                          </>
+                        ) : breakdownResult ? (
+                          <>
+                            <Check className="h-4 w-4" />
+                            {breakdownResult.assetsCreated} Assets Created
+                          </>
+                        ) : (
+                          <>
+                            <Package className="h-4 w-4" />
+                            Auto-Breakdown Assets
+                          </>
+                        )}
+                      </button>
+                    </Tooltip>
                   )}
                   {/* Thumbnail Generator Button */}
                   {selectedGenre && (selectedGenre === 'youtuber' || selectedGenre === 'onlyfans') && (

@@ -1,0 +1,69 @@
+node_modules/
+.env
+.env.local
+dist/
+build/
+.DS_Store
+*.log
+*.zip
+vibeboard-improvements/
+temp_analysis/
+
+# Database files
+*.db
+*.db-journal
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# Uploads (user data)
+frontend/public/uploads/
+backend/uploads/
+datasets/
+backend/datasets/
+temp_frames/
+backend/temp_frames/
+
+# Local LoRA files
+loras/
+
+# Native app builds
+*.app/
+VibeBoard-Native/
+
+# Local services (large ML models)
+local-services/
+
+# Scratch/temp files
+AI improvements/
+VibeBoard Storyboard/
+VibeBoard.applescript
+backend/check_*.js
+backend/check_*.ts
+backend/get_*.js
+backend/setup-backend.sh
+backend/test_*.js
+backend/test_*.jpg
+backend/test_*.png
+chat history*.md
+reference-consistency-fix.json
+
+# Next.js build cache
+frontend/.next/
+
+# Temp uploads
+backend/uploads_local_temp/
+
+# ComfyUI (if used locally)
+ComfyUI/
+*.safetensors
+*.ckpt
+
+# Generated media
+*.mp4
+*.webm
+*.gif
+
+# Agent/Claude temp files
+.agent/staging/

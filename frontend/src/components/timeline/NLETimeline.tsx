@@ -18,9 +18,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Play, Pause, SkipBack, SkipForward, Scissors, Link2, Unlink2,
     ZoomIn, ZoomOut, Volume2, VolumeX, ChevronDown, ChevronUp,
-    Trash2, Copy, Maximize2
+    Trash2, Copy, Maximize2, Film, Music
 } from 'lucide-react';
 import { useTimelineShortcuts, TIMELINE_SHORTCUTS } from '@/hooks/useTimelineShortcuts';
+import { Tooltip } from '@/components/ui/Tooltip';
+import { AudioWaveform } from './AudioWaveform';
 
 // =============================================================================
 // TYPES
@@ -45,6 +47,14 @@ export interface TimelineClip {
 export interface TimelineMark {
     type: 'in' | 'out';
     time: number;
+}
+
+// UX-013: Timeline Annotation Markers
+export interface TimelineMarker {
+    id: string;
+    time: number;
+    label: string;
+    color: string;  // Marker color (e.g., '#fbbf24' for amber)
 }
 
 interface NLETimelineProps {
@@ -88,19 +98,52 @@ function formatTimecode(seconds: number, frameRate: number = 24): string {
     return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${frames.toString().padStart(2, '0')}`;
 }
 
-function findSnapPoints(clips: TimelineClip[], excludeId?: string): number[] {
-    const points: number[] = [0];
+// UX-012: Find all snap points (clip edges, playhead, markers)
+function findSnapPoints(
+    clips: TimelineClip[],
+    excludeId?: string,
+    playheadTime?: number,
+    markIn?: number | null,
+    markOut?: number | null
+): number[] {
+    const points: number[] = [0]; // Always snap to timeline start
     let cursor = 0;
 
     for (const clip of clips) {
         if (clip.id === excludeId) continue;
         const clipDuration = clip.trimEnd - clip.trimStart;
-        points.push(cursor);
-        points.push(cursor + clipDuration);
+        points.push(cursor);              // Clip start
+        points.push(cursor + clipDuration); // Clip end
         cursor += clipDuration;
     }
 
-    return [...new Set(points)];
+    // Add playhead as snap point
+    if (playheadTime !== undefined && playheadTime > 0) {
+        points.push(playheadTime);
+    }
+
+    // Add mark in/out as snap points
+    if (markIn !== null && markIn !== undefined) {
+        points.push(markIn);
+    }
+    if (markOut !== null && markOut !== undefined) {
+        points.push(markOut);
+    }
+
+    return [...new Set(points)].sort((a, b) => a - b);
+}
+
+// UX-012: Magnetic snapping - returns snapped value if within threshold
+function snapToPoint(value: number, snapPoints: number[], threshold: number, zoom: number): { value: number; snapped: boolean; snapTarget?: number } {
+    const thresholdInSeconds = threshold / zoom;
+
+    for (const point of snapPoints) {
+        if (Math.abs(value - point) <= thresholdInSeconds) {
+            return { value: point, snapped: true, snapTarget: point };
+        }
+    }
+
+    return { value, snapped: false };
 }
 
 // =============================================================================
@@ -112,9 +155,10 @@ interface VideoClipProps {
     startTime: number;
     zoom: number;
     isSelected: boolean;
+    snapPoints: number[];
     onSelect: () => void;
-    onTrimStart: (delta: number) => void;
-    onTrimEnd: (delta: number) => void;
+    onTrimStart: (delta: number, snapped: boolean, snapTarget?: number) => void;
+    onTrimEnd: (delta: number, snapped: boolean, snapTarget?: number) => void;
     onMove: (delta: number) => void;
 }
 
@@ -123,6 +167,7 @@ function VideoClipComponent({
     startTime,
     zoom,
     isSelected,
+    snapPoints,
     onSelect,
     onTrimStart,
     onTrimEnd,
@@ -135,16 +180,104 @@ function VideoClipComponent({
     const [isDraggingEnd, setIsDraggingEnd] = useState(false);
     const dragStartX = useRef(0);
 
-    // Trim start handle
+    // UX-015: Thumbnail Scrubbing state
+    const [isHovering, setIsHovering] = useState(false);
+    const [hoverX, setHoverX] = useState(0);
+    const [hoverTime, setHoverTime] = useState(0);
+    const clipRef = useRef<HTMLDivElement>(null);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+    const [thumbnailDataUrl, setThumbnailDataUrl] = useState<string | null>(null);
+
+    // UX-015: Handle mouse move to calculate scrub position
+    const handleMouseMove = useCallback((e: React.MouseEvent) => {
+        if (!clipRef.current || isDraggingStart || isDraggingEnd) return;
+
+        const rect = clipRef.current.getBoundingClientRect();
+        const relativeX = e.clientX - rect.left;
+        const scrubProgress = Math.max(0, Math.min(1, relativeX / rect.width));
+        const scrubTime = clip.trimStart + (clipDuration * scrubProgress);
+
+        setHoverX(relativeX);
+        setHoverTime(scrubTime);
+    }, [clip.trimStart, clipDuration, isDraggingStart, isDraggingEnd]);
+
+    // UX-015: Generate thumbnail at scrub position
+    useEffect(() => {
+        if (!isHovering || !clip.videoUrl) return;
+
+        // Create video element for frame extraction
+        if (!videoRef.current) {
+            const video = document.createElement('video');
+            video.crossOrigin = 'anonymous';
+            video.src = clip.videoUrl;
+            video.muted = true;
+            video.preload = 'metadata';
+            videoRef.current = video;
+        }
+
+        const video = videoRef.current;
+
+        const extractFrame = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = 160;
+                canvas.height = 90;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    setThumbnailDataUrl(canvas.toDataURL('image/jpeg', 0.7));
+                }
+            } catch {
+                // Silently fail - CORS or other issues
+            }
+        };
+
+        video.currentTime = hoverTime;
+        video.onseeked = extractFrame;
+
+        return () => {
+            video.onseeked = null;
+        };
+    }, [isHovering, hoverTime, clip.videoUrl]);
+
+    // Cleanup video element on unmount
+    useEffect(() => {
+        return () => {
+            if (videoRef.current) {
+                videoRef.current.src = '';
+                videoRef.current = null;
+            }
+        };
+    }, []);
+
+    // Trim start handle with magnetic snapping
     const handleTrimStartMouseDown = (e: React.MouseEvent) => {
         e.stopPropagation();
         setIsDraggingStart(true);
         dragStartX.current = e.clientX;
+        let accumulatedDelta = 0;
 
         const handleMouseMove = (moveE: MouseEvent) => {
-            const delta = (moveE.clientX - dragStartX.current) / zoom;
-            onTrimStart(delta);
+            const pixelDelta = moveE.clientX - dragStartX.current;
+            accumulatedDelta += pixelDelta / zoom;
+
+            // Calculate the new trim start position in timeline time
+            const newTrimStart = clip.trimStart + accumulatedDelta;
+            const newStartTimeOnTimeline = startTime + accumulatedDelta;
+
+            // UX-012: Apply magnetic snapping
+            const snapResult = snapToPoint(newStartTimeOnTimeline, snapPoints, SNAP_THRESHOLD, zoom);
+
+            if (snapResult.snapped && snapResult.snapTarget !== undefined) {
+                // Snapped - adjust delta to hit snap point exactly
+                const snappedDelta = snapResult.snapTarget - startTime - clip.trimStart + clip.trimStart;
+                onTrimStart(snappedDelta - clip.trimStart + clip.trimStart, true, snapResult.snapTarget);
+            } else {
+                onTrimStart(accumulatedDelta, false);
+            }
+
             dragStartX.current = moveE.clientX;
+            accumulatedDelta = 0;
         };
 
         const handleMouseUp = () => {
@@ -157,16 +290,34 @@ function VideoClipComponent({
         window.addEventListener('mouseup', handleMouseUp);
     };
 
-    // Trim end handle
+    // Trim end handle with magnetic snapping
     const handleTrimEndMouseDown = (e: React.MouseEvent) => {
         e.stopPropagation();
         setIsDraggingEnd(true);
         dragStartX.current = e.clientX;
+        let accumulatedDelta = 0;
 
         const handleMouseMove = (moveE: MouseEvent) => {
-            const delta = (moveE.clientX - dragStartX.current) / zoom;
-            onTrimEnd(delta);
+            const pixelDelta = moveE.clientX - dragStartX.current;
+            accumulatedDelta += pixelDelta / zoom;
+
+            // Calculate the new end position in timeline time
+            const clipDur = clip.trimEnd - clip.trimStart;
+            const newEndTimeOnTimeline = startTime + clipDur + accumulatedDelta;
+
+            // UX-012: Apply magnetic snapping
+            const snapResult = snapToPoint(newEndTimeOnTimeline, snapPoints, SNAP_THRESHOLD, zoom);
+
+            if (snapResult.snapped && snapResult.snapTarget !== undefined) {
+                // Snapped - calculate delta to hit snap point
+                const targetDelta = snapResult.snapTarget - startTime - clipDur;
+                onTrimEnd(targetDelta, true, snapResult.snapTarget);
+            } else {
+                onTrimEnd(accumulatedDelta, false);
+            }
+
             dragStartX.current = moveE.clientX;
+            accumulatedDelta = 0;
         };
 
         const handleMouseUp = () => {
@@ -179,8 +330,17 @@ function VideoClipComponent({
         window.addEventListener('mouseup', handleMouseUp);
     };
 
+    // UX-015: Format timecode for scrub preview
+    const formatScrubTime = (time: number) => {
+        const minutes = Math.floor(time / 60);
+        const seconds = Math.floor(time % 60);
+        const frames = Math.floor((time % 1) * 24);
+        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}:${frames.toString().padStart(2, '0')}`;
+    };
+
     return (
         <div
+            ref={clipRef}
             className={`absolute top-0 h-full rounded-md border-2 transition-colors ${
                 isSelected
                     ? 'border-cyan-400 bg-cyan-500/30'
@@ -188,6 +348,12 @@ function VideoClipComponent({
             }`}
             style={{ left, width: Math.max(width, 20) }}
             onClick={onSelect}
+            onMouseEnter={() => setIsHovering(true)}
+            onMouseLeave={() => {
+                setIsHovering(false);
+                setThumbnailDataUrl(null);
+            }}
+            onMouseMove={handleMouseMove}
         >
             {/* Thumbnail background */}
             {clip.thumbnailUrl && (
@@ -220,6 +386,51 @@ function VideoClipComponent({
                 }`}
                 onMouseDown={handleTrimEndMouseDown}
             />
+
+            {/* UX-015: Floating Thumbnail Scrub Preview */}
+            {isHovering && !isDraggingStart && !isDraggingEnd && (
+                <div
+                    className="pointer-events-none absolute bottom-full z-50 mb-2"
+                    style={{
+                        left: Math.max(0, Math.min(hoverX - 80, width - 160)),
+                    }}
+                >
+                    <div className="overflow-hidden rounded-lg border border-white/20 bg-zinc-900 shadow-2xl">
+                        {/* Thumbnail */}
+                        <div className="relative h-[90px] w-[160px] bg-zinc-800">
+                            {thumbnailDataUrl ? (
+                                <img
+                                    src={thumbnailDataUrl}
+                                    alt="Scrub preview"
+                                    className="h-full w-full object-cover"
+                                />
+                            ) : clip.thumbnailUrl ? (
+                                <img
+                                    src={clip.thumbnailUrl}
+                                    alt="Clip thumbnail"
+                                    className="h-full w-full object-cover opacity-50"
+                                />
+                            ) : (
+                                <div className="flex h-full w-full items-center justify-center">
+                                    <Film className="h-8 w-8 text-white/30" />
+                                </div>
+                            )}
+                            {/* Timecode overlay */}
+                            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 rounded bg-black/70 px-2 py-0.5 font-mono text-xs text-white">
+                                {formatScrubTime(hoverTime)}
+                            </div>
+                        </div>
+                        {/* Clip name */}
+                        <div className="truncate bg-zinc-800/80 px-2 py-1 text-center text-[10px] text-white/70">
+                            {clip.name}
+                        </div>
+                    </div>
+                    {/* Arrow pointer */}
+                    <div className="flex justify-center">
+                        <div className="h-0 w-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-zinc-900" />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -229,9 +440,10 @@ interface AudioClipProps {
     videoStartTime: number;
     zoom: number;
     isSelected: boolean;
+    snapPoints: number[];
     onSelect: () => void;
-    onAudioTrimStart: (delta: number) => void;
-    onAudioTrimEnd: (delta: number) => void;
+    onAudioTrimStart: (delta: number, snapped: boolean, snapTarget?: number) => void;
+    onAudioTrimEnd: (delta: number, snapped: boolean, snapTarget?: number) => void;
     onToggleLink: () => void;
     onGainChange: (gain: number) => void;
 }
@@ -241,6 +453,7 @@ function AudioClipComponent({
     videoStartTime,
     zoom,
     isSelected,
+    snapPoints,
     onSelect,
     onAudioTrimStart,
     onAudioTrimEnd,
@@ -269,15 +482,33 @@ function AudioClipComponent({
     // Check if audio is misaligned with video
     const isMisaligned = !clip.avLinked || Math.abs(audioOffset) > 0.05;
 
+    // Audio trim start with magnetic snapping
     const handleAudioTrimStartMouseDown = (e: React.MouseEvent) => {
         e.stopPropagation();
         setIsDraggingStart(true);
         dragStartX.current = e.clientX;
+        let accumulatedDelta = 0;
 
         const handleMouseMove = (moveE: MouseEvent) => {
-            const delta = (moveE.clientX - dragStartX.current) / zoom;
-            onAudioTrimStart(delta);
+            const pixelDelta = moveE.clientX - dragStartX.current;
+            accumulatedDelta += pixelDelta / zoom;
+
+            // Calculate the new audio start position in timeline time
+            const currentAudioLeft = videoStartTime + audioOffset;
+            const newAudioStartTime = currentAudioLeft + accumulatedDelta;
+
+            // UX-012: Apply magnetic snapping
+            const snapResult = snapToPoint(newAudioStartTime, snapPoints, SNAP_THRESHOLD, zoom);
+
+            if (snapResult.snapped && snapResult.snapTarget !== undefined) {
+                const targetDelta = snapResult.snapTarget - currentAudioLeft;
+                onAudioTrimStart(targetDelta, true, snapResult.snapTarget);
+            } else {
+                onAudioTrimStart(accumulatedDelta, false);
+            }
+
             dragStartX.current = moveE.clientX;
+            accumulatedDelta = 0;
         };
 
         const handleMouseUp = () => {
@@ -290,15 +521,33 @@ function AudioClipComponent({
         window.addEventListener('mouseup', handleMouseUp);
     };
 
+    // Audio trim end with magnetic snapping
     const handleAudioTrimEndMouseDown = (e: React.MouseEvent) => {
         e.stopPropagation();
         setIsDraggingEnd(true);
         dragStartX.current = e.clientX;
+        let accumulatedDelta = 0;
 
         const handleMouseMove = (moveE: MouseEvent) => {
-            const delta = (moveE.clientX - dragStartX.current) / zoom;
-            onAudioTrimEnd(delta);
+            const pixelDelta = moveE.clientX - dragStartX.current;
+            accumulatedDelta += pixelDelta / zoom;
+
+            // Calculate the new audio end position in timeline time
+            const currentAudioLeft = videoStartTime + audioOffset;
+            const newAudioEndTime = currentAudioLeft + audioDuration + accumulatedDelta;
+
+            // UX-012: Apply magnetic snapping
+            const snapResult = snapToPoint(newAudioEndTime, snapPoints, SNAP_THRESHOLD, zoom);
+
+            if (snapResult.snapped && snapResult.snapTarget !== undefined) {
+                const targetDelta = snapResult.snapTarget - (currentAudioLeft + audioDuration);
+                onAudioTrimEnd(targetDelta, true, snapResult.snapTarget);
+            } else {
+                onAudioTrimEnd(accumulatedDelta, false);
+            }
+
             dragStartX.current = moveE.clientX;
+            accumulatedDelta = 0;
         };
 
         const handleMouseUp = () => {
@@ -324,13 +573,15 @@ function AudioClipComponent({
             onClick={onSelect}
             onDoubleClick={() => setShowGainSlider(!showGainSlider)}
         >
-            {/* Waveform background */}
-            {clip.waveformUrl && (
-                <div
-                    className="absolute inset-0 rounded bg-cover bg-center opacity-40"
-                    style={{ backgroundImage: `url(${clip.waveformUrl})` }}
+            {/* UX-014: Audio Waveform visualization */}
+            <div className="absolute inset-0 flex items-center overflow-hidden rounded opacity-60">
+                <AudioWaveform
+                    clipId={clip.id}
+                    width={Math.max(width, 20)}
+                    height={AUDIO_TRACK_HEIGHT - 8}
+                    color="rgba(168, 85, 247, 0.7)"
                 />
-            )}
+            </div>
 
             {/* Link indicator */}
             <button
@@ -423,9 +674,16 @@ export function NLETimeline({
     const [markOut, setMarkOut] = useState<number | null>(null);
     const [shuttleSpeed, setShuttleSpeed] = useState(0);
     const [showShortcuts, setShowShortcuts] = useState(false);
+    // UX-012: Snap indicator state
+    const [snapIndicator, setSnapIndicator] = useState<number | null>(null);
+    // UX-013: Timeline annotation markers
+    const [markers, setMarkers] = useState<TimelineMarker[]>([]);
+    const [editingMarkerId, setEditingMarkerId] = useState<string | null>(null);
+    const [markerInputValue, setMarkerInputValue] = useState('');
 
     const timelineRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const snapIndicatorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Calculate clip positions
     const clipPositions = useMemo(() => {
@@ -454,6 +712,22 @@ export function NLETimeline({
     // Timeline width
     const timelineWidth = Math.max(duration * zoom, 800);
 
+    // UX-012: Calculate snap points (memoized for performance)
+    const snapPoints = useMemo(() => {
+        return findSnapPoints(clips, undefined, currentTime, markIn, markOut);
+    }, [clips, currentTime, markIn, markOut]);
+
+    // UX-012: Show snap indicator briefly when snapping occurs
+    const showSnapIndicator = useCallback((snapTime: number) => {
+        setSnapIndicator(snapTime);
+        if (snapIndicatorTimeoutRef.current) {
+            clearTimeout(snapIndicatorTimeoutRef.current);
+        }
+        snapIndicatorTimeoutRef.current = setTimeout(() => {
+            setSnapIndicator(null);
+        }, 500);
+    }, []);
+
     // Handle playhead scrubbing
     const handleTimelineClick = (e: React.MouseEvent) => {
         if (!timelineRef.current) return;
@@ -463,8 +737,11 @@ export function NLETimeline({
         onTimeChange(newTime);
     };
 
-    // Clip operations
-    const handleTrimStart = useCallback((clipId: string, delta: number) => {
+    // Clip operations - UX-012: Updated to receive snap info
+    const handleTrimStart = useCallback((clipId: string, delta: number, snapped?: boolean, snapTarget?: number) => {
+        if (snapped && snapTarget !== undefined) {
+            showSnapIndicator(snapTarget);
+        }
         onClipsChange(clips.map(clip => {
             if (clip.id !== clipId) return clip;
             const newTrimStart = Math.max(0, Math.min(clip.trimStart + delta, clip.trimEnd - 0.1));
@@ -474,9 +751,12 @@ export function NLETimeline({
                 audioTrimStart: clip.avLinked ? newTrimStart : clip.audioTrimStart,
             };
         }));
-    }, [clips, onClipsChange]);
+    }, [clips, onClipsChange, showSnapIndicator]);
 
-    const handleTrimEnd = useCallback((clipId: string, delta: number) => {
+    const handleTrimEnd = useCallback((clipId: string, delta: number, snapped?: boolean, snapTarget?: number) => {
+        if (snapped && snapTarget !== undefined) {
+            showSnapIndicator(snapTarget);
+        }
         onClipsChange(clips.map(clip => {
             if (clip.id !== clipId) return clip;
             const newTrimEnd = Math.max(clip.trimStart + 0.1, Math.min(clip.trimEnd + delta, clip.duration));
@@ -486,23 +766,29 @@ export function NLETimeline({
                 audioTrimEnd: clip.avLinked ? newTrimEnd : clip.audioTrimEnd,
             };
         }));
-    }, [clips, onClipsChange]);
+    }, [clips, onClipsChange, showSnapIndicator]);
 
-    const handleAudioTrimStart = useCallback((clipId: string, delta: number) => {
+    const handleAudioTrimStart = useCallback((clipId: string, delta: number, snapped?: boolean, snapTarget?: number) => {
+        if (snapped && snapTarget !== undefined) {
+            showSnapIndicator(snapTarget);
+        }
         onClipsChange(clips.map(clip => {
             if (clip.id !== clipId) return clip;
             const newAudioTrimStart = Math.max(0, Math.min(clip.audioTrimStart + delta, clip.audioTrimEnd - 0.1));
             return { ...clip, audioTrimStart: newAudioTrimStart };
         }));
-    }, [clips, onClipsChange]);
+    }, [clips, onClipsChange, showSnapIndicator]);
 
-    const handleAudioTrimEnd = useCallback((clipId: string, delta: number) => {
+    const handleAudioTrimEnd = useCallback((clipId: string, delta: number, snapped?: boolean, snapTarget?: number) => {
+        if (snapped && snapTarget !== undefined) {
+            showSnapIndicator(snapTarget);
+        }
         onClipsChange(clips.map(clip => {
             if (clip.id !== clipId) return clip;
             const newAudioTrimEnd = Math.max(clip.audioTrimStart + 0.1, Math.min(clip.audioTrimEnd + delta, clip.duration));
             return { ...clip, audioTrimEnd: newAudioTrimEnd };
         }));
-    }, [clips, onClipsChange]);
+    }, [clips, onClipsChange, showSnapIndicator]);
 
     const handleToggleLink = useCallback((clipId: string) => {
         onClipsChange(clips.map(clip => {
@@ -517,6 +803,71 @@ export function NLETimeline({
             return { ...clip, audioGain: gain };
         }));
     }, [clips, onClipsChange]);
+
+    // UX-013: Marker functions
+    const addMarker = useCallback((time: number, label: string = '') => {
+        const newMarker: TimelineMarker = {
+            id: `marker-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            time,
+            label,
+            color: '#fbbf24', // Amber by default
+        };
+        setMarkers(prev => [...prev, newMarker].sort((a, b) => a.time - b.time));
+        setEditingMarkerId(newMarker.id);
+        setMarkerInputValue('');
+    }, []);
+
+    const updateMarkerLabel = useCallback((id: string, label: string) => {
+        setMarkers(prev => prev.map(m => m.id === id ? { ...m, label } : m));
+    }, []);
+
+    const deleteMarker = useCallback((id: string) => {
+        setMarkers(prev => prev.filter(m => m.id !== id));
+        if (editingMarkerId === id) {
+            setEditingMarkerId(null);
+        }
+    }, [editingMarkerId]);
+
+    const goToNextMarker = useCallback(() => {
+        const nextMarker = markers.find(m => m.time > currentTime + 0.01);
+        if (nextMarker) {
+            onTimeChange(nextMarker.time);
+        }
+    }, [markers, currentTime, onTimeChange]);
+
+    const goToPrevMarker = useCallback(() => {
+        const prevMarkers = markers.filter(m => m.time < currentTime - 0.01);
+        if (prevMarkers.length > 0) {
+            onTimeChange(prevMarkers[prevMarkers.length - 1].time);
+        }
+    }, [markers, currentTime, onTimeChange]);
+
+    // UX-013: M key to add marker at playhead
+    useEffect(() => {
+        const handleMarkerShortcut = (e: KeyboardEvent) => {
+            // Ignore if typing in input fields
+            const target = e.target as HTMLElement;
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+            if (target.isContentEditable) return;
+
+            if (e.key.toLowerCase() === 'm' && !e.metaKey && !e.ctrlKey) {
+                e.preventDefault();
+                addMarker(currentTime);
+            }
+            // Shift+M or Shift+N for marker navigation
+            if (e.shiftKey && e.key.toLowerCase() === 'm') {
+                e.preventDefault();
+                goToPrevMarker();
+            }
+            if (e.shiftKey && e.key.toLowerCase() === 'n') {
+                e.preventDefault();
+                goToNextMarker();
+            }
+        };
+
+        window.addEventListener('keydown', handleMarkerShortcut);
+        return () => window.removeEventListener('keydown', handleMarkerShortcut);
+    }, [addMarker, currentTime, goToNextMarker, goToPrevMarker]);
 
     // Keyboard shortcuts
     useTimelineShortcuts({
@@ -598,6 +949,12 @@ export function NLETimeline({
             {/* Transport Controls */}
             <div className="flex items-center justify-between border-b border-white/10 bg-zinc-800/50 px-4 py-2">
                 <div className="flex items-center gap-2">
+                    {/* NLE Badge - Modern Non-Linear Editor indicator */}
+                    <div className="mr-2 flex items-center gap-1.5 rounded-md border border-purple-500/30 bg-purple-500/10 px-2 py-1">
+                        <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-purple-400" />
+                        <span className="text-[10px] font-semibold tracking-wider text-purple-300">NLE</span>
+                    </div>
+
                     <button
                         onClick={() => onTimeChange(0)}
                         className="rounded p-1.5 text-white/70 hover:bg-white/10 hover:text-white"
@@ -631,6 +988,14 @@ export function NLETimeline({
                 <div className="font-mono text-sm text-white">
                     {formatTimecode(currentTime, frameRate)}
                 </div>
+
+                {/* UX-013: Marker count badge */}
+                {markers.length > 0 && (
+                    <div className="flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5">
+                        <div className="h-0 w-0 border-l-[4px] border-r-[4px] border-t-[6px] border-l-transparent border-r-transparent border-t-amber-400" />
+                        <span className="text-xs font-medium text-amber-400">{markers.length}</span>
+                    </div>
+                )}
 
                 {/* Tools */}
                 <div className="flex items-center gap-2">
@@ -739,23 +1104,107 @@ export function NLETimeline({
                                 style={{ left: markOut * zoom }}
                             />
                         )}
+
+                        {/* UX-013: Timeline Markers */}
+                        {markers.map((marker) => (
+                            <div
+                                key={marker.id}
+                                className="absolute top-0 z-30 flex flex-col items-center"
+                                style={{ left: marker.time * zoom }}
+                            >
+                                {/* Marker flag */}
+                                <div
+                                    className="group relative cursor-pointer"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingMarkerId(marker.id);
+                                        setMarkerInputValue(marker.label);
+                                    }}
+                                >
+                                    {/* Triangle marker */}
+                                    <div
+                                        className="h-0 w-0 border-l-[6px] border-r-[6px] border-t-[10px] border-l-transparent border-r-transparent transition-transform hover:scale-110"
+                                        style={{ borderTopColor: marker.color }}
+                                    />
+                                    {/* Vertical line */}
+                                    <div
+                                        className="absolute left-1/2 top-[10px] h-[14px] w-0.5 -translate-x-1/2"
+                                        style={{ backgroundColor: marker.color }}
+                                    />
+                                    {/* Label tooltip on hover */}
+                                    {marker.label && (
+                                        <div className="absolute left-1/2 top-7 z-50 hidden -translate-x-1/2 whitespace-nowrap rounded bg-zinc-800 px-2 py-1 text-xs text-white shadow-lg group-hover:block">
+                                            {marker.label}
+                                        </div>
+                                    )}
+                                    {/* Delete button on hover */}
+                                    <button
+                                        className="absolute -right-4 -top-1 hidden h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs text-white group-hover:flex"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            deleteMarker(marker.id);
+                                        }}
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+
+                                {/* Inline label editor */}
+                                {editingMarkerId === marker.id && (
+                                    <div className="absolute top-7 z-50 flex items-center gap-1 rounded-lg border border-white/20 bg-zinc-900 p-1 shadow-xl">
+                                        <input
+                                            type="text"
+                                            value={markerInputValue}
+                                            onChange={(e) => setMarkerInputValue(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    updateMarkerLabel(marker.id, markerInputValue);
+                                                    setEditingMarkerId(null);
+                                                } else if (e.key === 'Escape') {
+                                                    setEditingMarkerId(null);
+                                                }
+                                            }}
+                                            onBlur={() => {
+                                                updateMarkerLabel(marker.id, markerInputValue);
+                                                setEditingMarkerId(null);
+                                            }}
+                                            autoFocus
+                                            placeholder="Marker label..."
+                                            className="w-32 rounded bg-zinc-800 px-2 py-1 text-xs text-white placeholder-white/40 outline-none focus:ring-1 focus:ring-amber-500"
+                                        />
+                                        <button
+                                            onClick={() => deleteMarker(marker.id)}
+                                            className="rounded p-1 text-red-400 hover:bg-red-500/20"
+                                        >
+                                            <Trash2 className="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
                     </div>
 
-                    {/* Track labels */}
+                    {/* Track labels - Modern NLE style with icons and tooltips */}
                     <div className="absolute left-0 top-0 z-30 w-12 bg-zinc-900/90">
-                        <div style={{ height: RULER_HEIGHT }} />
-                        <div
-                            className="flex items-center justify-center border-b border-r border-white/10 text-xs font-medium text-cyan-400"
-                            style={{ height: TRACK_HEIGHT }}
-                        >
-                            V1
-                        </div>
-                        <div
-                            className="flex items-center justify-center border-r border-white/10 text-xs font-medium text-purple-400"
-                            style={{ height: AUDIO_TRACK_HEIGHT }}
-                        >
-                            A1
-                        </div>
+                        <div style={{ height: RULER_HEIGHT }} className="border-b border-r border-white/10" />
+                        <Tooltip content="Video Track - Drag edges to trim, snap to other clips" side="right">
+                            <div
+                                className="flex cursor-help flex-col items-center justify-center gap-0.5 border-b border-r border-white/10 bg-gradient-to-r from-cyan-950/50 to-transparent transition-colors hover:from-cyan-900/50"
+                                style={{ height: TRACK_HEIGHT }}
+                            >
+                                <Film className="h-3 w-3 text-cyan-400" />
+                                <span className="text-[10px] font-semibold tracking-wide text-cyan-400">V1</span>
+                            </div>
+                        </Tooltip>
+                        <Tooltip content="Audio Track - Independent trim for L-Cut/J-Cut editing" side="right">
+                            <div
+                                className="flex cursor-help flex-col items-center justify-center gap-0.5 border-r border-white/10 bg-gradient-to-r from-purple-950/50 to-transparent transition-colors hover:from-purple-900/50"
+                                style={{ height: AUDIO_TRACK_HEIGHT }}
+                            >
+                                <Music className="h-3 w-3 text-purple-400" />
+                                <span className="text-[10px] font-semibold tracking-wide text-purple-400">A1</span>
+                            </div>
+                        </Tooltip>
                     </div>
 
                     {/* Video track (V1) */}
@@ -770,9 +1219,10 @@ export function NLETimeline({
                                 startTime={startTime}
                                 zoom={zoom}
                                 isSelected={selectedClipId === clip.id}
+                                snapPoints={findSnapPoints(clips, clip.id, currentTime, markIn, markOut)}
                                 onSelect={() => setSelectedClipId(clip.id)}
-                                onTrimStart={(delta) => handleTrimStart(clip.id, delta)}
-                                onTrimEnd={(delta) => handleTrimEnd(clip.id, delta)}
+                                onTrimStart={(delta, snapped, snapTarget) => handleTrimStart(clip.id, delta, snapped, snapTarget)}
+                                onTrimEnd={(delta, snapped, snapTarget) => handleTrimEnd(clip.id, delta, snapped, snapTarget)}
                                 onMove={() => {}}
                             />
                         ))}
@@ -790,9 +1240,10 @@ export function NLETimeline({
                                 videoStartTime={startTime}
                                 zoom={zoom}
                                 isSelected={selectedClipId === clip.id}
+                                snapPoints={findSnapPoints(clips, clip.id, currentTime, markIn, markOut)}
                                 onSelect={() => setSelectedClipId(clip.id)}
-                                onAudioTrimStart={(delta) => handleAudioTrimStart(clip.id, delta)}
-                                onAudioTrimEnd={(delta) => handleAudioTrimEnd(clip.id, delta)}
+                                onAudioTrimStart={(delta, snapped, snapTarget) => handleAudioTrimStart(clip.id, delta, snapped, snapTarget)}
+                                onAudioTrimEnd={(delta, snapped, snapTarget) => handleAudioTrimEnd(clip.id, delta, snapped, snapTarget)}
                                 onToggleLink={() => handleToggleLink(clip.id)}
                                 onGainChange={(gain) => handleGainChange(clip.id, gain)}
                             />
@@ -813,6 +1264,31 @@ export function NLETimeline({
                         />
                     ))}
 
+                    {/* UX-012: Snap indicator line */}
+                    <AnimatePresence>
+                        {snapIndicator !== null && (
+                            <motion.div
+                                initial={{ opacity: 0, scaleY: 0 }}
+                                animate={{ opacity: 1, scaleY: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.15 }}
+                                className="absolute top-0 z-35 w-0.5 bg-green-400"
+                                style={{
+                                    left: snapIndicator * zoom + 48,
+                                    height: RULER_HEIGHT + TRACK_HEIGHT + AUDIO_TRACK_HEIGHT,
+                                    transformOrigin: 'top',
+                                }}
+                            >
+                                {/* Snap indicator top dot */}
+                                <div className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-green-400" />
+                                {/* Snap label */}
+                                <div className="absolute -left-6 top-1 rounded bg-green-500/80 px-1 text-[9px] font-medium text-white">
+                                    SNAP
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
                     {/* Playhead */}
                     <div
                         className="absolute top-0 z-40 w-0.5 bg-red-500"
@@ -826,16 +1302,23 @@ export function NLETimeline({
                 </div>
             </div>
 
-            {/* Status bar */}
-            <div className="flex items-center justify-between border-t border-white/10 bg-zinc-800/50 px-4 py-1 text-xs text-white/50">
-                <div>
-                    {clips.length} clips | Duration: {formatTimecode(duration, frameRate)}
+            {/* Status bar - Modern NLE footer */}
+            <div className="flex items-center justify-between border-t border-white/10 bg-zinc-800/50 px-4 py-1.5 text-xs text-white/50">
+                <div className="flex items-center gap-3">
+                    {/* Non-Linear Editor mode indicator */}
+                    <span className="rounded bg-gradient-to-r from-purple-500/20 to-cyan-500/20 px-2 py-0.5 text-[10px] font-medium text-white/70">
+                        Non-Linear Editor
+                    </span>
+                    <span className="text-white/30">|</span>
+                    <span>{clips.length} clips</span>
+                    <span className="text-white/30">•</span>
+                    <span>Duration: {formatTimecode(duration, frameRate)}</span>
                 </div>
                 <div className="flex items-center gap-4">
-                    {markIn !== null && <span>In: {formatTimecode(markIn, frameRate)}</span>}
-                    {markOut !== null && <span>Out: {formatTimecode(markOut, frameRate)}</span>}
+                    {markIn !== null && <span className="text-yellow-400/70">In: {formatTimecode(markIn, frameRate)}</span>}
+                    {markOut !== null && <span className="text-yellow-400/70">Out: {formatTimecode(markOut, frameRate)}</span>}
                     {markIn !== null && markOut !== null && (
-                        <span>Selection: {formatTimecode(markOut - markIn, frameRate)}</span>
+                        <span className="text-yellow-300">Selection: {formatTimecode(markOut - markIn, frameRate)}</span>
                     )}
                 </div>
             </div>

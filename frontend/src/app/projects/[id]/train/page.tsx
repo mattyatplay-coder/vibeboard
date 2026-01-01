@@ -26,10 +26,12 @@ import {
   Trash2,
   Edit3,
   Save,
+  Mic,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { DatasetReviewPanel } from '@/components/training/DatasetReviewPanel';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { PerformanceTab } from '@/components/training/PerformanceTab';
 
 interface TrainingJob {
   id: string;
@@ -97,7 +99,21 @@ export default function TrainingPage() {
 
   // Foundry State
   const [isFoundryMode, setIsFoundryMode] = useState(false);
+  const [isPerformanceMode, setIsPerformanceMode] = useState(false);
   const [foundrySourceFile, setFoundrySourceFile] = useState<File | null>(null);
+
+  // Performance Mode State (characters & audio for talking heads)
+  interface Element {
+    id: string;
+    name: string;
+    type: string;
+    url?: string;
+    fileUrl?: string;
+    thumbnail?: string;
+    metadata?: string;
+  }
+  const [characters, setCharacters] = useState<Element[]>([]);
+  const [audioFiles, setAudioFiles] = useState<Element[]>([]);
   const [foundryPreviewUrl, setFoundryPreviewUrl] = useState<string | null>(null);
   const [foundryPrompt, setFoundryPrompt] = useState('');
   const foundryInputRef = useRef<HTMLInputElement>(null);
@@ -200,9 +216,24 @@ export default function TrainingPage() {
   useEffect(() => {
     loadJobs();
     loadPosePresets();
+    loadPerformanceAssets();
     const interval = setInterval(loadJobs, 10000); // Poll every 10s
     return () => clearInterval(interval);
   }, [projectId]);
+
+  // Load characters and audio files for Performance mode
+  const loadPerformanceAssets = async () => {
+    try {
+      const [charData, audioData] = await Promise.all([
+        fetchAPI(`/projects/${projectId}/foundry/characters`),
+        fetchAPI(`/projects/${projectId}/foundry/audio`),
+      ]);
+      if (charData.characters) setCharacters(charData.characters);
+      if (audioData.audioFiles) setAudioFiles(audioData.audioFiles);
+    } catch (err) {
+      console.error('Failed to load performance assets:', err);
+    }
+  };
 
   const loadPosePresets = async () => {
     try {
@@ -677,36 +708,64 @@ export default function TrainingPage() {
 
             <div className="space-y-6 p-6">
               {/* Mode Selection */}
-              <div className="mb-6 flex gap-4 rounded-lg bg-white/5 p-1">
+              <div className="mb-6 flex gap-2 rounded-lg bg-white/5 p-1">
                 <button
                   onClick={() => {
                     setIsFoundryMode(false);
+                    setIsPerformanceMode(false);
                     setUseSmartCuration(false);
                   }}
                   className={clsx(
                     'flex flex-1 items-center justify-center gap-2 rounded-md py-2 text-sm font-medium transition-all',
-                    !isFoundryMode
+                    !isFoundryMode && !isPerformanceMode
                       ? 'bg-purple-600 text-white shadow-lg'
                       : 'text-gray-400 hover:text-white'
                   )}
                 >
-                  <Upload className="h-4 w-4" /> Standard Training
+                  <Upload className="h-4 w-4" /> Training
                 </button>
                 <button
-                  onClick={() => setIsFoundryMode(true)}
+                  onClick={() => {
+                    setIsFoundryMode(true);
+                    setIsPerformanceMode(false);
+                  }}
                   className={clsx(
                     'flex flex-1 items-center justify-center gap-2 rounded-md py-2 text-sm font-medium transition-all',
-                    isFoundryMode
+                    isFoundryMode && !isPerformanceMode
                       ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg'
                       : 'text-gray-400 hover:text-white'
                   )}
                 >
-                  <Sparkles className="h-4 w-4" /> Character Foundry ✨
+                  <Sparkles className="h-4 w-4" /> Foundry
+                </button>
+                <button
+                  onClick={() => {
+                    setIsFoundryMode(false);
+                    setIsPerformanceMode(true);
+                  }}
+                  className={clsx(
+                    'flex flex-1 items-center justify-center gap-2 rounded-md py-2 text-sm font-medium transition-all',
+                    isPerformanceMode
+                      ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg'
+                      : 'text-gray-400 hover:text-white'
+                  )}
+                >
+                  <Mic className="h-4 w-4" /> Performance
                 </button>
               </div>
 
+              {/* --- PERFORMANCE MODE --- */}
+              {isPerformanceMode && (
+                <PerformanceTab
+                  projectId={projectId}
+                  characters={characters}
+                  audioFiles={audioFiles}
+                  onRefresh={loadPerformanceAssets}
+                />
+              )}
+
               {/* --- FOUNDRY MODE --- */}
-              {isFoundryMode && (
+              {isFoundryMode && !isPerformanceMode && (
                 <div className="animate-in slide-in-from-left-4 space-y-6">
                   <div className="rounded-lg border border-purple-500/20 bg-gradient-to-r from-pink-500/10 to-purple-600/10 p-5">
                     <h3 className="mb-2 flex items-center gap-2 font-medium text-purple-300">
@@ -915,7 +974,7 @@ export default function TrainingPage() {
               )}
 
               {/* --- STANDARD MODE (Original Form) --- */}
-              {!isFoundryMode && (
+              {!isFoundryMode && !isPerformanceMode && (
                 <div className="space-y-6">
                   {/* Provider Selection */}
                   <div>

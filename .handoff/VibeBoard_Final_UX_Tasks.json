@@ -1,0 +1,133 @@
+{
+  "project": "VibeBoard",
+  "version": "Private Beta",
+  "date": "2025-12-31",
+  "tasks": [
+    {
+      "id": "UX-001",
+      "module": "Navigation",
+      "title": "Radix Tooltip for Collapsed Sidebar",
+      "priority": "Medium",
+      "status": "Todo",
+      "description": "Replace native title attribute with Radix Tooltip component for consistent styling"
+    },
+    {
+      "id": "UX-002",
+      "module": "Navigation",
+      "title": "Keyboard Navigation for Studio Spine",
+      "priority": "High",
+      "status": "Todo",
+      "description": "Add tabIndex and onKeyDown for Enter/Space to improve accessibility"
+    },
+    {
+      "id": "UX-003",
+      "module": "Navigation",
+      "title": "Session Delete Confirmation Modal",
+      "priority": "Low",
+      "status": "Todo",
+      "description": "Replace window.confirm with styled modal or toast confirmation"
+    },
+    {
+      "id": "UX-004",
+      "module": "Producer Agent",
+      "title": "Toast Integration Option",
+      "priority": "Medium",
+      "status": "Todo",
+      "description": "Add user setting toggle between fixed card and inline toast for alerts"
+    },
+    {
+      "id": "UX-005",
+      "module": "Producer Agent",
+      "title": "Dismiss-All Button",
+      "priority": "Low",
+      "status": "Todo",
+      "description": "When alerts.length > 3, show bulk dismiss option"
+    },
+    {
+      "id": "UX-006",
+      "module": "Producer Agent",
+      "title": "Cost Breakdown Popover",
+      "priority": "Medium",
+      "status": "Todo",
+      "description": "On hover/click of cost pill, show breakdown: base × duration × variations"
+    },
+    {
+      "id": "UX-007",
+      "module": "Producer Agent",
+      "title": "Persist Acknowledged Alerts",
+      "priority": "Medium",
+      "status": "Todo",
+      "description": "Sync acknowledgedAlerts to session storage or Zustand persist"
+    },
+    {
+      "id": "UX-008",
+      "module": "Studio Control",
+      "title": "Lens Favorites",
+      "priority": "Low",
+      "status": "Todo",
+      "description": "Add star icon to pin frequently-used lenses to top of selector"
+    },
+    {
+      "id": "UX-009",
+      "module": "Studio Control",
+      "title": "Undo/Redo Stack for Optics & Gaffer",
+      "priority": "High",
+      "status": "Todo",
+      "description": "Implement undo/redo via Zustand middleware or custom hook"
+    },
+    {
+      "id": "UX-010",
+      "module": "Studio Control",
+      "title": "Gaffer Quick-Apply Presets",
+      "priority": "Medium",
+      "status": "Todo",
+      "description": "One-click presets: John Wick Neon, Studio Portrait, Golden Hour"
+    },
+    {
+      "id": "UX-011",
+      "module": "Studio Control",
+      "title": "Keyboard Shortcuts for Lighting",
+      "priority": "Medium",
+      "status": "Todo",
+      "description": "L to toggle lights panel, G for gel picker, Esc to deselect"
+    },
+    {
+      "id": "UX-012",
+      "module": "Post-Production",
+      "title": "Timeline Clip Snapping",
+      "priority": "High",
+      "status": "Todo",
+      "description": "Magnetic snap to adjacent clip edges and playhead"
+    },
+    {
+      "id": "UX-013",
+      "module": "Post-Production",
+      "title": "Timeline Marker System",
+      "priority": "Medium",
+      "status": "Todo",
+      "description": "Allow dropping named markers on timeline for notes/cue points"
+    },
+    {
+      "id": "UX-014",
+      "module": "Post-Production",
+      "title": "Audio Waveform Display",
+      "priority": "Low",
+      "status": "Todo",
+      "description": "Show waveform inside A1 clips (requires FFmpeg probe on ingest)"
+    },
+    {
+      "id": "UX-015",
+      "module": "Post-Production",
+      "title": "Thumbnail Scrubbing",
+      "priority": "Medium",
+      "status": "Todo",
+      "description": "On hover over timeline, show frame thumbnail for quick seeking"
+    }
+  ],
+  "summary": {
+    "total": 15,
+    "high_priority": 3,
+    "medium_priority": 8,
+    "low_priority": 4
+  }
+}

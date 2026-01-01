@@ -1,15 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useParams } from 'next/navigation';
-import { LayoutGrid, Wand2, Clapperboard, Settings, FileText, Paintbrush, Film, MessageSquare, Aperture } from 'lucide-react';
+import { usePathname, useParams, useRouter } from 'next/navigation';
+import { LayoutGrid, Wand2, Clapperboard, Settings, FileText, Paintbrush, Film, MessageSquare, Aperture, Box, Users, Layers } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
+import { LucideIcon } from 'lucide-react';
 
 import { useSession } from '@/context/SessionContext';
 import { Plus, Folder, ChevronDown, ChevronRight, Trash2, ChevronLeft } from 'lucide-react';
 import { useState } from 'react';
-import { Tooltip, TooltipProvider } from '@/components/ui/Tooltip';
+import { Tooltip } from '@/components/ui/Tooltip';
+import { DeleteConfirmationModal } from '@/components/ui/DeleteConfirmationModal';
 import { SpendingWidget } from '@/components/sidebar/SpendingWidget';
 import { useSidebarStore } from '@/lib/sidebarStore';
 import { useEngineConfigStore } from '@/lib/engineConfigStore';
@@ -17,15 +19,51 @@ import { useEngineConfigStore } from '@/lib/engineConfigStore';
 export function Sidebar() {
   const pathname = usePathname();
   const params = useParams();
+  const router = useRouter(); // UX-002: For keyboard navigation
   const projectId = params.id as string;
   const { sessions, selectedSessionId, selectSession, createSession, deleteSession } = useSession();
   const [isSessionsExpanded, setIsSessionsExpanded] = useState(true);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [newSessionName, setNewSessionName] = useState('');
+  // UX-003: Delete confirmation modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<{ id: string; name: string } | null>(null);
   const { isCollapsed, toggleSidebar } = useSidebarStore();
   const { currentModelId, currentDuration, isVideo } = useEngineConfigStore();
 
   if (!projectId) return null;
+
+  // Studio Spine - The Canonical Workflow ("The Spine")
+  // Group 1: Development (Story-first)
+  // Group 2: Production (Shot creation)
+  // Group 3: Post-Production (Polish & Delivery)
+  interface StudioSpineItem {
+    id: string;
+    icon: LucideIcon;
+    label: string;
+    href: string;
+    group: 1 | 2 | 3;
+  }
+
+  const STUDIO_SPINE: StudioSpineItem[] = [
+    // Group 1: Development
+    { id: 'script-lab', icon: FileText, label: 'Script Lab', href: `/projects/${projectId}/story-editor`, group: 1 },
+    { id: 'asset-bin', icon: Layers, label: 'Asset Bin', href: `/projects/${projectId}/elements`, group: 1 },
+    { id: 'foundry', icon: Users, label: 'Character Foundry', href: `/projects/${projectId}/train`, group: 1 },
+    // Group 2: Production
+    { id: 'optics', icon: Aperture, label: 'Optics Engine', href: `/projects/${projectId}/optics-engine`, group: 2 },
+    { id: 'shot-studio', icon: Wand2, label: 'Shot Studio', href: `/projects/${projectId}/generate`, group: 2 },
+    // Group 3: Post-Production
+    { id: 'vfx-suite', icon: Paintbrush, label: 'VFX Suite', href: `/projects/${projectId}/process`, group: 3 },
+    { id: 'sequencer', icon: Film, label: 'Sequencer', href: `/projects/${projectId}/timeline`, group: 3 },
+    { id: 'dailies', icon: MessageSquare, label: 'Dailies Review', href: `/projects/${projectId}/dailies`, group: 3 },
+  ];
+
+  const GROUP_LABELS: Record<1 | 2 | 3, string> = {
+    1: 'Development',
+    2: 'Production',
+    3: 'Post',
+  };
 
   const handleCreateSession = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,17 +73,12 @@ export function Sidebar() {
     setIsCreatingSession(false);
   };
 
-  const navItems = [
-    { name: 'Elements', href: `/projects/${projectId}/elements`, icon: LayoutGrid },
-    { name: 'Generate', href: `/projects/${projectId}/generate`, icon: Wand2 },
-    { name: 'Roto & Paint', href: `/projects/${projectId}/process`, icon: Paintbrush },
-    { name: 'Story Editor', href: `/projects/${projectId}/story-editor`, icon: FileText },
-    { name: 'Storyboard', href: `/projects/${projectId}/storyboard`, icon: Clapperboard },
-    { name: 'Timeline', href: `/projects/${projectId}/timeline`, icon: Film },
-    { name: 'Dailies', href: `/projects/${projectId}/dailies`, icon: MessageSquare },
-    { name: 'Viewfinder', href: `/projects/${projectId}/viewfinder`, icon: Aperture },
-    { name: 'Training', href: `/projects/${projectId}/train`, icon: Wand2 },
-  ];
+  // Group the spine items by their group number
+  const groupedSpine = STUDIO_SPINE.reduce((acc, item) => {
+    if (!acc[item.group]) acc[item.group] = [];
+    acc[item.group].push(item);
+    return acc;
+  }, {} as Record<1 | 2 | 3, StudioSpineItem[]>);
 
   return (
     <aside
@@ -149,13 +182,9 @@ export function Sidebar() {
                     <button
                       onClick={e => {
                         e.stopPropagation();
-                        if (
-                          confirm(
-                            'Are you sure you want to delete this session? This will delete all generations, elements, and scenes within it.'
-                          )
-                        ) {
-                          deleteSession(session.id);
-                        }
+                        // UX-003: Open delete confirmation modal
+                        setSessionToDelete({ id: session.id, name: session.name });
+                        setDeleteModalOpen(true);
                       }}
                       className="rounded p-1 opacity-0 transition-all group-hover:opacity-100 hover:bg-red-500/20 hover:text-red-400"
                     >
@@ -169,37 +198,77 @@ export function Sidebar() {
         </div>
       )}
 
-      <nav className="flex-1 space-y-2 px-4">
-        {navItems.map(item => {
-          const isActive = pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              title={isCollapsed ? item.name : undefined}
-              className={clsx(
-                'group relative flex items-center gap-3 rounded-xl py-3 transition-colors',
-                isCollapsed ? 'justify-center px-2' : 'px-4',
-                isActive ? 'text-white' : 'text-gray-400 hover:text-white'
-              )}
-            >
-              {isActive && (
-                <motion.div
-                  layoutId="activeNav"
-                  className="absolute inset-0 rounded-xl bg-white/10"
-                  initial={false}
-                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                />
-              )}
-              <item.icon className="relative z-10 h-5 w-5 flex-shrink-0" />
-              {!isCollapsed && (
-                <span className="relative z-10 overflow-hidden font-medium whitespace-nowrap">
-                  {item.name}
+      <nav className="flex-1 space-y-1 overflow-y-auto px-4">
+        {([1, 2, 3] as const).map((groupNum, groupIdx) => (
+          <div key={groupNum}>
+            {/* Group separator with label */}
+            {!isCollapsed && (
+              <div className={clsx('mb-1 flex items-center gap-2 px-2', groupIdx > 0 && 'mt-4')}>
+                <span className="text-[10px] font-bold tracking-widest text-gray-500 uppercase">
+                  {GROUP_LABELS[groupNum]}
                 </span>
-              )}
-            </Link>
-          );
-        })}
+                <div className="h-px flex-1 bg-white/5" />
+              </div>
+            )}
+            {isCollapsed && groupIdx > 0 && (
+              <div className="my-3 h-px bg-white/10" />
+            )}
+
+            {/* Group items */}
+            <div className="space-y-1" role="menu" aria-label={GROUP_LABELS[groupNum]}>
+              {groupedSpine[groupNum]?.map(item => {
+                const isActive = pathname.startsWith(item.href);
+
+                // UX-001 & UX-002: Navigation link with keyboard support
+                const NavLink = (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    role="menuitem"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      // UX-002: Keyboard activation with Enter or Space
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        router.push(item.href);
+                      }
+                    }}
+                    className={clsx(
+                      'group relative flex items-center gap-3 rounded-xl py-2.5 transition-colors outline-none',
+                      'focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black',
+                      isCollapsed ? 'justify-center px-2' : 'px-4',
+                      isActive ? 'text-white' : 'text-gray-400 hover:text-white'
+                    )}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeNav"
+                        className="absolute inset-0 rounded-xl bg-white/10"
+                        initial={false}
+                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                      />
+                    )}
+                    <item.icon className="relative z-10 h-5 w-5 flex-shrink-0" />
+                    {!isCollapsed && (
+                      <span className="relative z-10 overflow-hidden text-sm font-medium whitespace-nowrap">
+                        {item.label}
+                      </span>
+                    )}
+                  </Link>
+                );
+
+                // UX-001: Wrap in Tooltip when sidebar is collapsed
+                return isCollapsed ? (
+                  <Tooltip key={item.id} content={item.label} side="right">
+                    {NavLink}
+                  </Tooltip>
+                ) : (
+                  <div key={item.id}>{NavLink}</div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* Spending Widget */}
@@ -224,6 +293,24 @@ export function Sidebar() {
           {!isCollapsed && <span className="font-medium">Settings</span>}
         </button>
       </div>
+
+      {/* UX-003: Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={deleteModalOpen}
+        onClose={() => {
+          setDeleteModalOpen(false);
+          setSessionToDelete(null);
+        }}
+        onConfirm={() => {
+          if (sessionToDelete) {
+            deleteSession(sessionToDelete.id);
+          }
+        }}
+        title="Delete Session"
+        itemName={sessionToDelete?.name}
+        description="This will permanently delete all generations, elements, and scenes within this session. This action cannot be undone."
+        confirmLabel="Delete Session"
+      />
     </aside>
   );
 }

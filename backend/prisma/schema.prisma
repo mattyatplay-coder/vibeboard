@@ -61,13 +61,15 @@ model RefreshToken {
 
 model Project {
   id          String   @id @default(uuid())
-  userId      String?  // Owner of this project (optional for backward compat)
+  userId      String?  // Original creator (for cost tracking/history)
+  teamId      String?  // Team ownership (P0: Multi-tenant SaaS)
   name        String
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   user        User?    @relation(fields: [userId], references: [id])
+  team        Team?    @relation(fields: [teamId], references: [id])
   elements    Element[]
   references  Reference[]
   styleGuides StyleGuide[]
@@ -84,6 +86,7 @@ model Project {
   stories     Story[]
 
   @@index([userId])
+  @@index([teamId])
 }
 
 // Story drafts from Story Editor
@@ -139,6 +142,7 @@ model Session {
 model Element {
   id        String   @id @default(uuid())
   projectId String
+  teamId    String?  // Team ownership for shared assets (P7: Collaboration)
   name      String   // Unique per project logic handled in app or composite unique constraint
   type      String   // 'character', 'prop', 'product', 'location', 'other'
   fileUrl   String
@@ -149,11 +153,13 @@ model Element {
   updatedAt DateTime @updatedAt
 
   project Project @relation(fields: [projectId], references: [id])
+  team    Team?   @relation(fields: [teamId], references: [id])
   session Session? @relation(fields: [sessionId], references: [id])
   sessionId String?
 
   @@unique([projectId, name])
   @@index([projectId])
+  @@index([teamId])
   @@index([type])
 }
 
@@ -278,6 +284,7 @@ model SceneShot {
 model LoRA {
   id          String   @id @default(uuid())
   projectId   String
+  teamId      String?  // Team ownership for shared LoRAs (P7: Collaboration)
   name        String
   triggerWord String?
   triggerWords String? // JSON array for multiple trigger words
@@ -297,9 +304,11 @@ model LoRA {
   updatedAt   DateTime @updatedAt
 
   project     Project  @relation(fields: [projectId], references: [id])
+  team        Team?    @relation(fields: [teamId], references: [id])
   globalLoRA  GlobalLoRA? @relation(fields: [globalLoRAId], references: [id])
 
   @@index([projectId])
+  @@index([teamId])
   @@index([baseModel])
 }
 
@@ -726,6 +735,63 @@ model Comment {
 }
 
 // =============================================================================
+// SCRIPT LIBRARY - RAG System for Creative Intelligence
+// =============================================================================
+
+// ScriptLibrary - Indexed scripts for RAG retrieval in story generation
+// Uses pgvector extension for semantic similarity search
+model ScriptLibrary {
+  id              String   @id @default(uuid())
+
+  // Basic metadata
+  title           String   @unique
+  genre           String   // Primary genre: 'action', 'comedy', 'drama', 'horror', etc.
+  subGenres       String   @default("[]") // JSON array of secondary genres
+  writer          String?  // Screenwriter(s)
+  year            Int?     // Release/written year
+
+  // Analyzed content
+  synopsis        String?  // Brief description of plot and themes
+  logline         String?  // One-sentence pitch
+
+  // Narrative analysis (JSON for complex objects)
+  narrativeVoice  String?  // JSON: { perspective, tone[], pacing, dialogueStyle }
+  characterPatterns String? // JSON: { archetypes[], relationshipDynamics[], growthPatterns[], dialogueQuirks[] }
+  storyStructure  String?  // JSON: { actBreakdown[], emotionalBeats[], conflictTypes[], resolutionStyle }
+  visualStyle     String?  // JSON: { colorPalette[], lightingMoods[], cameraStyles[], environmentTypes[] }
+
+  // Signature elements for style matching
+  signatureElements String? // JSON: { recurringThemes[], symbolism[], catchphrases[], visualMotifs[] }
+
+  // Sample excerpts for context injection
+  sampleExcerpts  String?  // JSON array of representative dialogue/action excerpts
+
+  // Prompt templates derived from this script's style
+  promptTemplates String?  // JSON: { characterIntro, actionSequence, emotionalMoment, comedyBeat, climax }
+
+  // Vector embedding for semantic search (768-dim for MiniMax embo-01)
+  // Note: This requires pgvector extension in PostgreSQL
+  // PostgreSQL: embedding vector(768)
+  // The actual vector column is created via raw SQL migration
+  // This placeholder field is not used directly but documents intent
+
+  // Source tracking
+  sourceFilePath  String?  // Path to original script file
+  contentHash     String?  // Hash for detecting changes
+
+  // Indexing status
+  indexed         Boolean  @default(false)
+  indexedAt       DateTime?
+  indexError      String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([genre])
+  @@index([indexed])
+}
+
+// =============================================================================
 // GLOBAL SETTINGS - App-wide configuration & OAuth tokens
 // =============================================================================
 
@@ -738,4 +804,105 @@ model Setting {
   updatedAt DateTime @updatedAt
 
   @@index([key])
+}
+
+// =============================================================================
+// PHASE 7: TEAM COLLABORATION (P0 Go-to-Market)
+// Multi-Tenant Platform for "Studio OS"
+// =============================================================================
+
+// Team - The core tenant unit for multi-user collaboration
+model Team {
+  id          String   @id @default(uuid())
+  name        String
+  ownerId     String   // The user who created the team (for billing/admin)
+  slug        String   @unique  // URL-friendly identifier
+
+  // Subscription/limits (shared GPU quota)
+  tier        String   @default("free")  // 'free', 'pro', 'enterprise'
+  maxMembers  Int      @default(5)
+  maxProjects Int      @default(10)
+  monthlyGenerations Int @default(0)  // Shared quota usage
+  monthlyGenerationsLimit Int @default(500) // Team-wide limit
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Core Relations - Team OWNS these
+  members     TeamMember[]
+  projects    Project[]
+  elements    Element[]      // Team-shared assets
+  loras       LoRA[]         // Team-shared LoRAs
+
+  @@index([slug])
+  @@index([ownerId])
+}
+
+// TeamMember - User membership in a team with role-based access
+model TeamMember {
+  id        String   @id @default(uuid())
+  teamId    String
+  userId    String   // Links to User.id
+
+  // Role-based access control
+  role      String   @default("member")  // 'owner', 'admin', 'member', 'viewer'
+
+  // Activity tracking
+  lastActiveAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+}
+
+// =============================================================================
+// VERSION CONTROL - Sequencer Snapshot (Most Valuable Component)
+// =============================================================================
+
+// SequencerSnapshot - Save/restore entire Sequencer state
+model SequencerSnapshot {
+  id           String   @id @default(uuid())
+  projectId    String
+  sceneChainId String
+
+  // Version metadata
+  versionName  String   // e.g. "Director's Cut V2", "Pre-export backup"
+  description  String?  // Optional notes about this version
+
+  // Full state snapshot (JSON)
+  clipData     String   // JSON: All timeline clip data, trims, audio, etc.
+
+  // Change tracking
+  createdBy    String   // User ID who saved this version
+  createdAt    DateTime @default(now())
+
+  @@index([projectId])
+  @@index([sceneChainId])
+  @@index([createdAt])
+}
+
+// StoryboardSnapshot - Save/restore storyboard state
+model StoryboardSnapshot {
+  id          String   @id @default(uuid())
+  projectId   String
+  storyId     String?  // Optional link to Story
+
+  // Version metadata
+  versionName String   // e.g. "Before client review"
+  description String?
+
+  // Full state snapshot (JSON)
+  snapshotData String  // JSON: Scenes, shots, prompts, references
+
+  // Change tracking
+  createdBy   String   // User ID
+  createdAt   DateTime @default(now())
+
+  @@index([projectId])
+  @@index([storyId])
+  @@index([createdAt])
 }

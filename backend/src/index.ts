@@ -8,6 +8,47 @@ dotenv.config({ override: true });
 import logger, { requestLogger, loggers } from './utils/logger';
 const log = loggers.api;
 
+// =============================================================================
+// P0 SECURITY: CORS CONFIGURATION
+// =============================================================================
+const CORS_ALLOWLIST = [
+    'https://vibeboard.studio',
+    'https://www.vibeboard.studio',
+    'https://api.vibeboard.studio',
+];
+
+// Add localhost for development
+if (process.env.NODE_ENV !== 'production') {
+    CORS_ALLOWLIST.push(
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://localhost:3005', // Experimental frontend
+        'http://127.0.0.1:3000',
+    );
+}
+
+const corsOptions: cors.CorsOptions = {
+    origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, Postman)
+        if (!origin) {
+            callback(null, true);
+            return;
+        }
+
+        if (CORS_ALLOWLIST.includes(origin)) {
+            callback(null, true);
+        } else {
+            log.warn({ origin }, 'CORS request blocked from non-allowlisted origin');
+            callback(new Error('CORS policy violation'));
+        }
+    },
+    credentials: true, // Allow cookies for session-based auth
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+};
+
+import authRoutes from './routes/authRoutes';
+import teamRoutes from './routes/teamRoutes';
 import projectRoutes from './routes/projectRoutes';
 import elementRoutes from './routes/elementRoutes';
 import generationRoutes from './routes/generationRoutes';
@@ -42,6 +83,14 @@ import overlayRoutes from './routes/overlayRoutes';
 import youtubeRoutes from './routes/youtubeRoutes';
 import qwenRoutes from './routes/qwenRoutes';
 import gpuRoutes from './routes/gpuRoutes';
+import foundryRoutes from './routes/foundryRoutes';
+import assetRoutes from './routes/assetRoutes';
+import opticsRoutes from './routes/opticsRoutes';
+import cameraRoutes from './routes/cameraRoutes';
+import shotRoutes from './routes/shotRoutes';
+import vfxRoutes from './routes/vfxRoutes';
+import sequencerRoutes from './routes/sequencerRoutes';
+import { handleFalWebhook, handleReplicateWebhook } from './controllers/webhookController';
 import path from 'path';
 import { validateStorage, getStorageStatus } from './utils/storageValidation';
 
@@ -62,7 +111,8 @@ try {
 const app = express();
 const port = process.env.PORT || 3001;
 
-app.use(cors());
+// P0 SECURITY: Use configured CORS allowlist
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -94,6 +144,19 @@ Allow: /
 `);
 });
 
+// =============================================================================
+// P0 SECURITY: AUTH ROUTES (PUBLIC - no auth required)
+// =============================================================================
+app.use('/api/auth', authRoutes);
+
+// =============================================================================
+// PHASE 7: TEAM COLLABORATION (Multi-Tenant Routes)
+// =============================================================================
+app.use('/api/teams', teamRoutes);
+
+// =============================================================================
+// PROTECTED ROUTES (require auth in production)
+// =============================================================================
 app.use('/api/projects', projectRoutes);
 app.use('/api/training', trainingRoutes);
 app.use('/api/process', processingRoutes);
@@ -164,6 +227,23 @@ app.use('/api/youtube', youtubeRoutes);
 app.use('/api/qwen', qwenRoutes);
 // GPU Microservice - Learn2Refocus, GenFocus, DiffCamera, Director Edit
 app.use('/api/gpu', gpuRoutes);
+// Character Foundry - AI-driven performance generation (FlashPortrait)
+app.use('/api', foundryRoutes);
+// Phase 3: Asset Bin - 3D Scene Deconstruction & PBR Material Extraction
+app.use('/api', assetRoutes);
+// Phase 4A: Optics Engine - Rack Focus & Lens Character
+app.use('/api/optics', opticsRoutes);
+// Camera & Lens Database - Professional camera/lens presets for Optics Engine
+app.use('/api/cameras', cameraRoutes);
+// Phase 4B: Shot Studio - Spatia (3D Sets) & ReCo (Compositional Control)
+app.use('/api/projects/:projectId/shot-studio', shotRoutes);
+// Phase 5: VFX Suite - Virtual Reshoot (InfCam), Focus Rescue (DiffCamera)
+app.use('/api/projects/:projectId/vfx', vfxRoutes);
+// Phase 5: Sequencer - Final Assembly, Captions (MiniMax M2.1), Export
+app.use('/api/projects/:projectId/sequencer', sequencerRoutes);
+// Webhooks for AI provider callbacks (Fal.ai, Replicate training completion)
+app.post('/api/webhooks/fal', handleFalWebhook);
+app.post('/api/webhooks/replicate', handleReplicateWebhook);
 app.get('/api/elements', require('./controllers/elementController').getAllElements);
 
 // Public info endpoint for AI services (Google AI Studio, ChatGPT, etc.)
