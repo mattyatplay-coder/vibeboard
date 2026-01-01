@@ -2,7 +2,7 @@
   "meta": {
     "version": "1.0",
     "description": "Detailed log of coding sessions, bug fixes, and architectural decisions for AI agent consumption.",
-    "last_updated": "2025-12-13T18:00:00Z"
+    "last_updated": "2026-01-01T12:00:00Z"
   },
   "sessions": [
     {
@@ -892,6 +892,97 @@
         "Phase 5: VFX Suite (advanced features)",
         "Phase 6: Optics Engine (camera simulation)"
       ]
+    },
+    {
+      "id": "INFRA-001",
+      "timestamp": "2026-01-01T12:00:00Z",
+      "topic": "Cloudflare Tunnel Setup for api.vibeboard.studio",
+      "context": {
+        "symptom": "CORS errors and 502 errors when frontend at vibeboard.studio called api.vibeboard.studio",
+        "user_intent": "Set up Cloudflare tunnel to route api.vibeboard.studio traffic to Render backend",
+        "constraints": [
+          "api.vibeboard.studio subdomain already existed in Cloudflare DNS",
+          "Render backend at vibeboard-backend-edse.onrender.com",
+          "Frontend tunnel already running on Mac Mini for vibeboard.studio"
+        ]
+      },
+      "execution_log": [
+        {
+          "step": 1,
+          "action": "Investigation",
+          "description": "Searched for existing tunnel configuration in ~/.cloudflared",
+          "finding": "No cert.pem or config.yml found - needed fresh authentication"
+        },
+        {
+          "step": 2,
+          "action": "Authentication",
+          "command": "cloudflared tunnel login",
+          "details": "Opened browser for Cloudflare auth, created cert.pem credential file"
+        },
+        {
+          "step": 3,
+          "action": "Tunnel Creation",
+          "command": "cloudflared tunnel create vibeboard-api",
+          "details": "Created tunnel with ID fecbcaa1-fdc4-4c12-8784-5554b3b41761"
+        },
+        {
+          "step": 4,
+          "action": "DNS Routing",
+          "command": "cloudflared tunnel route dns --overwrite-dns vibeboard-api api.vibeboard.studio",
+          "details": "Initial attempt failed due to existing A/AAAA/CNAME record, used --overwrite-dns flag to replace"
+        },
+        {
+          "step": 5,
+          "action": "Configuration",
+          "file": "~/.cloudflared/config.yml",
+          "details": "Created ingress rule routing api.vibeboard.studio to https://vibeboard-backend-edse.onrender.com"
+        },
+        {
+          "step": 6,
+          "action": "Service Start",
+          "command": "cloudflared tunnel --config ~/.cloudflared/config.yml run",
+          "details": "Confirmed 4 connections to Cloudflare IAD edge"
+        },
+        {
+          "step": 7,
+          "action": "API Testing",
+          "command": "curl -sI https://api.vibeboard.studio/api/health",
+          "finding": "Received 500 error from Render backend - database connection failed"
+        },
+        {
+          "step": 8,
+          "action": "Root Cause Discovery",
+          "description": "Tested direct Render URL, same 500 error",
+          "finding": "Render PostgreSQL database SUSPENDED - free tier expired after 30 days"
+        },
+        {
+          "step": 9,
+          "action": "LaunchAgent Installation",
+          "file": "~/Library/LaunchAgents/com.cloudflare.tunnel.vibeboard-api.plist",
+          "details": "Created plist for auto-start on boot with KeepAlive=true"
+        }
+      ],
+      "outcome": {
+        "status": "PARTIALLY_COMPLETED",
+        "summary": "Cloudflare tunnel successfully created and running. Traffic routes correctly through tunnel. Blocking issue: Render database suspended - requires billing action to resume."
+      },
+      "blocking_issue": {
+        "problem": "Render PostgreSQL database suspended (free tier 30-day limit)",
+        "error": "Can't reach database server at dpg-d4n6di4hg0os73ceitu0-a:5432",
+        "dashboard": "https://dashboard.render.com/d/dpg-d4n6di4hg0os73ceitu0-a",
+        "solution": "Upgrade to paid PostgreSQL tier ($7/month minimum)"
+      },
+      "files_created": [
+        "~/.cloudflared/config.yml",
+        "~/.cloudflared/fecbcaa1-fdc4-4c12-8784-5554b3b41761.json",
+        "~/Library/LaunchAgents/com.cloudflare.tunnel.vibeboard-api.plist"
+      ],
+      "tunnel_info": {
+        "name": "vibeboard-api",
+        "id": "fecbcaa1-fdc4-4c12-8784-5554b3b41761",
+        "hostname": "api.vibeboard.studio",
+        "origin": "https://vibeboard-backend-edse.onrender.com"
+      }
     }
   ]
 }

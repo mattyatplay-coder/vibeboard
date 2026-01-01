@@ -39,6 +39,7 @@ import { GenreSelector, GenrePills } from '@/components/storyboard/GenreSelector
 import { Tooltip } from '@/components/ui/Tooltip';
 import { Genre, GENRE_TEMPLATES, getGenreTemplate } from '@/data/GenreTemplates';
 import ThumbnailGeneratorPanel from '@/components/content/ThumbnailGeneratorPanel';
+import { useStoryGenerationStore, PipelineStage, StageStatus, StoryCharacter as GlobalStoryCharacter, ContinueFromData } from '@/lib/storyGenerationStore';
 
 // Story character for prompt injection
 interface StoryCharacter {
@@ -67,10 +68,10 @@ interface ProjectElement {
   };
 }
 
-// Pipeline stages
-type PipelineStage = 'concept' | 'outline' | 'script' | 'breakdown' | 'prompts' | 'complete';
+// Pipeline stages (use imported types from store)
+type LocalPipelineStage = PipelineStage;
 
-interface StageStatus {
+interface LocalStageStatus {
   status: 'pending' | 'in_progress' | 'complete' | 'error';
   data?: any;
   error?: string;
@@ -192,6 +193,73 @@ export default function StoryEditorPage() {
   useEffect(() => {
     setHasMounted(true);
   }, []);
+
+  // Global store for persistent generation across navigation
+  const globalStore = useStoryGenerationStore();
+
+  // Sync with global store when component mounts (to resume ongoing generation)
+  useEffect(() => {
+    if (!projectId || !hasMounted) return;
+
+    // Check if there's an active generation for this project
+    if (globalStore.activeProjectId === projectId && globalStore.isRunning) {
+      // Resume display of ongoing generation
+      console.log('[StoryEditor] Resuming ongoing generation from global store');
+      setIsRunning(true);
+      setCurrentStage(globalStore.currentStage);
+      setStages(globalStore.stages as Record<LocalPipelineStage, LocalStageStatus>);
+      if (globalStore.outline) setOutline(globalStore.outline);
+      if (globalStore.script) setScript(globalStore.script as string);
+      if (globalStore.scenes.length > 0) setScenes(globalStore.scenes);
+      if (globalStore.prompts.length > 0) setPrompts(globalStore.prompts);
+      if (globalStore.progressInfo) setProgressInfo(globalStore.progressInfo as typeof progressInfo);
+    } else if (globalStore.activeProjectId === projectId && !globalStore.isRunning) {
+      // Generation completed while navigated away - sync final results
+      console.log('[StoryEditor] Syncing completed generation from global store');
+      setCurrentStage(globalStore.currentStage);
+      setStages(globalStore.stages as Record<LocalPipelineStage, LocalStageStatus>);
+      if (globalStore.outline) setOutline(globalStore.outline);
+      if (globalStore.script) setScript(globalStore.script as string);
+      if (globalStore.scenes.length > 0) setScenes(globalStore.scenes);
+      if (globalStore.prompts.length > 0) setPrompts(globalStore.prompts);
+    }
+  }, [projectId, hasMounted, globalStore.activeProjectId]);
+
+  // Subscribe to global store updates while generation is running
+  useEffect(() => {
+    if (!projectId || globalStore.activeProjectId !== projectId) return;
+
+    // Create a subscription to the store
+    const unsubscribe = useStoryGenerationStore.subscribe((state) => {
+      if (state.activeProjectId !== projectId) return;
+
+      // Update local state from global store
+      setIsRunning(state.isRunning);
+      setCurrentStage(state.currentStage);
+      setStages(state.stages as Record<LocalPipelineStage, LocalStageStatus>);
+      if (state.outline) setOutline(state.outline);
+      if (state.script) setScript(state.script as string);
+      if (state.scenes.length > 0) setScenes(state.scenes);
+      if (state.prompts.length > 0) setPrompts(state.prompts);
+      setProgressInfo(state.progressInfo as typeof progressInfo);
+    });
+
+    return () => unsubscribe();
+  }, [projectId, globalStore.activeProjectId]);
+
+  // Warn user before leaving page during active generation
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isRunning) {
+        e.preventDefault();
+        e.returnValue = 'Story generation is in progress. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isRunning]);
 
   // Check for recoverable session on mount
   useEffect(() => {
@@ -545,17 +613,59 @@ export default function StoryEditorPage() {
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   };
 
-  // Run the full pipeline
+  // Run the full pipeline using global store (persists across navigation)
   const runPipeline = async () => {
     if (!concept || !selectedGenre) {
       alert('Please enter a concept and select a genre');
       return;
     }
 
+    // Convert local characters to global format
+    const globalCharacters: GlobalStoryCharacter[] = selectedCharacters.map(c => ({
+      name: c.name,
+      elementId: c.elementId,
+      loraId: c.loraId,
+      triggerWord: c.triggerWord,
+      visualDescription: c.visualDescription,
+      referenceImageUrl: c.referenceImageUrl,
+      role: c.role,
+    }));
+
+    // Start generation in the global store (continues even if we navigate away)
+    globalStore.startGeneration({
+      projectId,
+      concept,
+      genre: selectedGenre,
+      style: style || `cinematic ${selectedGenre}`,
+      pace,
+      targetDurationSeconds,
+      shotDuration,
+      allowNSFW,
+      characters: globalCharacters,
+    });
+
+    // Expand the first section while generating
+    setExpandedSections(['outline']);
+  };
+
+  // Legacy local pipeline (keeping for reference, but now using global store above)
+  const runPipelineLocal = async () => {
+    if (!concept || !selectedGenre) {
+      alert('Please enter a concept and select a genre');
+      return;
+    }
+
     setIsRunning(true);
+
+    // Mark concept as in_progress while validating
+    updateStageStatus('concept', { status: 'in_progress' });
     setCurrentStage('outline');
 
     try {
+      // Brief delay to show concept in_progress, then mark complete
+      await new Promise(resolve => setTimeout(resolve, 300));
+      updateStageStatus('concept', { status: 'complete' });
+
       // Stage 1: Generate Outline
       updateStageStatus('outline', { status: 'in_progress' });
       setExpandedSections(['outline']);
@@ -773,21 +883,128 @@ export default function StoryEditorPage() {
     }
   };
 
-  // Run pipeline from an uploaded/pasted screenplay (skips outline and script generation)
+  // Run pipeline from an uploaded/pasted screenplay using global store (persists across navigation)
   const runFromScript = async () => {
     if (!uploadedScript || !selectedGenre) {
       alert('Please paste a screenplay and select a genre');
       return;
     }
 
+    // Convert local characters to global format
+    const globalCharacters: GlobalStoryCharacter[] = selectedCharacters.map(c => ({
+      name: c.name,
+      elementId: c.elementId,
+      loraId: c.loraId,
+      triggerWord: c.triggerWord,
+      visualDescription: c.visualDescription,
+      referenceImageUrl: c.referenceImageUrl,
+      role: c.role,
+    }));
+
+    // Start generation from script in the global store (continues even if we navigate away)
+    globalStore.startFromScript({
+      projectId,
+      concept: concept || 'Uploaded screenplay',
+      uploadedScript,
+      genre: selectedGenre,
+      style: style || `cinematic ${selectedGenre}`,
+      pace,
+      targetDurationSeconds,
+      shotDuration,
+      allowNSFW,
+      characters: globalCharacters,
+    });
+
+    // Expand the breakdown section while generating
+    setExpandedSections(['breakdown']);
+  };
+
+  // Continue generation from where it left off (for loaded stories with partial data)
+  const continueGeneration = async () => {
+    if (!selectedGenre) {
+      alert('Please select a genre before continuing');
+      return;
+    }
+
+    // Convert local characters to global format
+    const globalCharacters: GlobalStoryCharacter[] = selectedCharacters.map(c => ({
+      name: c.name,
+      elementId: c.elementId,
+      loraId: c.loraId,
+      triggerWord: c.triggerWord,
+      visualDescription: c.visualDescription,
+      referenceImageUrl: c.referenceImageUrl,
+      role: c.role,
+    }));
+
+    // Gather existing data
+    const fromData: ContinueFromData = {
+      outline: outline || undefined,
+      script: script || undefined,
+      scenes: scenes.length > 0 ? scenes : undefined,
+      prompts: prompts.length > 0 ? prompts : undefined,
+    };
+
+    // Continue generation from the global store
+    globalStore.continueGeneration(
+      {
+        projectId,
+        concept: concept || 'Loaded story',
+        genre: selectedGenre,
+        style: style || `cinematic ${selectedGenre}`,
+        pace,
+        targetDurationSeconds,
+        shotDuration,
+        allowNSFW,
+        characters: globalCharacters,
+      },
+      fromData
+    );
+
+    // Expand the appropriate section
+    if (scenes.length > 0 && prompts.length === 0) {
+      setExpandedSections(['prompts']);
+    } else if (script && scenes.length === 0) {
+      setExpandedSections(['breakdown']);
+    } else if (outline && !script) {
+      setExpandedSections(['script']);
+    }
+  };
+
+  // Check if we can continue generation (has partial data)
+  const canContinueGeneration = (): { canContinue: boolean; nextStage: string } => {
+    if (isRunning) return { canContinue: false, nextStage: '' };
+    if (prompts.length > 0) return { canContinue: false, nextStage: '' }; // Already complete
+
+    if (scenes.length > 0) return { canContinue: true, nextStage: 'Shot Prompts' };
+    if (script) return { canContinue: true, nextStage: 'Scene Breakdown' };
+    if (outline) return { canContinue: true, nextStage: 'Script' };
+
+    return { canContinue: false, nextStage: '' };
+  };
+
+  const { canContinue, nextStage } = canContinueGeneration();
+
+  // Legacy local runFromScript (keeping for reference, but now using global store above)
+  const runFromScriptLocal = async () => {
+    if (!uploadedScript || !selectedGenre) {
+      alert('Please paste a screenplay and select a genre');
+      return;
+    }
+
     setIsRunning(true);
-    // Mark outline and script as skipped/complete
-    updateStageStatus('outline', { status: 'complete', data: { skipped: true } });
-    updateStageStatus('script', { status: 'complete', data: { script: uploadedScript } });
-    setScript(uploadedScript);
+    // Mark concept as in_progress briefly, then complete along with outline/script
+    updateStageStatus('concept', { status: 'in_progress' });
     setCurrentStage('breakdown');
 
     try {
+      // Brief delay to show concept in_progress, then mark complete
+      await new Promise(resolve => setTimeout(resolve, 300));
+      updateStageStatus('concept', { status: 'complete' });
+      updateStageStatus('outline', { status: 'complete', data: { skipped: true } });
+      updateStageStatus('script', { status: 'complete', data: { script: uploadedScript } });
+      setScript(uploadedScript);
+
       // Stage 1: Parse the uploaded script
       updateStageStatus('breakdown', { status: 'in_progress' });
       setExpandedSections(['breakdown']);
@@ -957,8 +1174,14 @@ export default function StoryEditorPage() {
   const generateOutline = async () => {
     if (!concept || !selectedGenre) return;
 
-    updateStageStatus('outline', { status: 'in_progress' });
+    // Mark concept as in_progress while validating
+    updateStageStatus('concept', { status: 'in_progress' });
+
     try {
+      // Brief delay to show concept in_progress, then mark complete
+      await new Promise(resolve => setTimeout(resolve, 300));
+      updateStageStatus('concept', { status: 'complete' });
+      updateStageStatus('outline', { status: 'in_progress' });
       const response = await fetchAPI('/story-editor/outline', {
         method: 'POST',
         body: JSON.stringify({
@@ -1708,6 +1931,27 @@ The parser will automatically detect scenes and break them down into shots."
             <div className="mt-6 space-y-2">
               {inputMode === 'concept' ? (
                 <>
+                  {/* Continue Generation button - shown when story has partial data */}
+                  {canContinue && (
+                    <button
+                      onClick={continueGeneration}
+                      disabled={!selectedGenre || isRunning}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-3 font-bold text-white transition-colors hover:from-green-500 hover:to-emerald-500 disabled:from-gray-700 disabled:to-gray-700"
+                    >
+                      {isRunning ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          Continuing...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-5 w-5" />
+                          Continue: Generate {nextStage}
+                        </>
+                      )}
+                    </button>
+                  )}
+
                   <button
                     onClick={runPipeline}
                     disabled={!concept || !selectedGenre || isRunning}
@@ -1721,7 +1965,7 @@ The parser will automatically detect scenes and break them down into shots."
                     ) : (
                       <>
                         <Wand2 className="h-5 w-5" />
-                        Generate Full Storyboard
+                        {canContinue ? 'Regenerate from Scratch' : 'Generate Full Storyboard'}
                       </>
                     )}
                   </button>

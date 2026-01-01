@@ -15,9 +15,11 @@ import {
   fullPipeline,
   fullPipelineStream,
   autoBreakdownAssets,
+  getStoryStatus,
+  getStoryJob,
 } from '../controllers/storyEditorController';
 
-const router = Router();
+const router = Router({ mergeParams: true }); // Enable access to parent route params
 
 // Individual pipeline steps
 router.post('/outline', generateOutline);
@@ -33,5 +35,10 @@ router.post('/full-pipeline/stream', fullPipelineStream);
 
 // Script Lab: Auto-breakdown assets from script
 router.post('/auto-breakdown', autoBreakdownAssets);
+
+// P-02: Story job status for progress persistence
+// These routes are also mounted at /api/projects/:projectId/story in index.ts
+router.get('/status', getStoryStatus);
+router.get('/jobs/:jobId', getStoryJob);
 
 export default router;

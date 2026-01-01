@@ -14,13 +14,21 @@ export default function SceneChainsPage() {
 
   const [selectedChainId, setSelectedChainId] = useState<string | null>(null);
 
+  const handleBack = () => {
+    if (typeof window !== 'undefined' && window.history.length > 2) {
+      router.back();
+    } else {
+      router.push(`/projects/${projectId}/story-editor`);
+    }
+  };
+
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       {!selectedChainId ? (
         <>
           <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Button startIcon={<ArrowBack />} onClick={() => router.push(`/projects/${projectId}`)}>
-              Back to Project
+            <Button startIcon={<ArrowBack />} onClick={handleBack}>
+              Back
             </Button>
             <Typography variant="h4" component="h1" fontWeight="bold">
               Scene Chains

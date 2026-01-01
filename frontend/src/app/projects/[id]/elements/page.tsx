@@ -17,10 +17,15 @@ import {
   Box,
   Layers,
   Loader2,
+  User,
+  MapPin,
+  Package,
+  FileQuestion,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
-import { fetchAPI, uploadFile } from '@/lib/api';
+import { fetchAPI, uploadFile, BACKEND_URL } from '@/lib/api';
+import { toast } from 'sonner';
 import { useSearchParams } from 'next/navigation';
 import { EditElementModal } from '@/components/elements/EditElementModal';
 import { PropFabricatorModal } from '@/components/elements/PropFabricatorModal';
@@ -179,7 +184,7 @@ export default function ElementsPage() {
           formData.append('sessionId', String(updates.sessionId));
         }
 
-        const res = await fetch(`http://localhost:3001/api/projects/${projectId}/elements/${id}`, {
+        const res = await fetch(`${BACKEND_URL}/api/projects/${projectId}/elements/${id}`, {
           method: 'PATCH',
           body: formData,
         });
@@ -715,7 +720,7 @@ function ElementCard({
 }: {
   element: StoreElement;
   onEdit: () => void;
-  onUpdate: (id: string, updates: Partial<StoreElement>) => void;
+  onUpdate: (id: string, updates: Partial<StoreElement> & { file?: File }) => void;
   onDelete: (id: string) => void;
   onFabricate?: () => void;
   onDeconstruct?: () => void;
@@ -726,7 +731,42 @@ function ElementCard({
   onToggleSelection?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Reset image error state when element URL changes
+  useEffect(() => {
+    setImageError(false);
+  }, [element.url]);
+
+  // Handle file selection for replacing broken images
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      await onUpdate(element.id, { file });
+      setImageError(false); // Reset error state after successful upload
+      toast.success('Image uploaded successfully');
+    } catch (err) {
+      console.error('Failed to upload replacement image:', err);
+      toast.error('Failed to upload image. Please try again.');
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleUploadClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    fileInputRef.current?.click();
+  };
 
   // Determine aspect ratio class
   // Logic:
@@ -888,7 +928,50 @@ function ElementCard({
           />
         </button>
       </div>
-      {element.type === 'video' ? (
+      {/* Hidden file input for image replacement */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,video/*"
+        className="hidden"
+        onChange={handleFileSelect}
+      />
+      {/* Show placeholder for elements without URLs or with failed image loads */}
+      {!element.url || imageError ? (
+        <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-900 p-4">
+          {isUploading ? (
+            <>
+              <Loader2 className="mb-2 h-12 w-12 animate-spin text-blue-400/60" />
+              <span className="text-center text-xs text-gray-500">Uploading...</span>
+            </>
+          ) : (
+            <>
+              {element.type === 'character' ? (
+                <User className="mb-2 h-12 w-12 text-blue-400/60" />
+              ) : element.type === 'place' ? (
+                <MapPin className="mb-2 h-12 w-12 text-green-400/60" />
+              ) : element.type === 'prop' ? (
+                <Package className="mb-2 h-12 w-12 text-amber-400/60" />
+              ) : element.type === 'video' ? (
+                <Film className="mb-2 h-12 w-12 text-purple-400/60" />
+              ) : (
+                <ImageIcon className="mb-2 h-12 w-12 text-gray-400/60" />
+              )}
+              <span className="text-center text-xs text-gray-500">
+                {imageError ? 'Load failed' : (element.metadata as { status?: string })?.status === 'pending' ? 'Pending' : 'No image'}
+              </span>
+              {/* Upload button for broken/missing images */}
+              <button
+                onClick={handleUploadClick}
+                className="mt-3 flex items-center gap-1.5 rounded-lg bg-blue-500/20 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-500/30"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                Upload Image
+              </button>
+            </>
+          )}
+        </div>
+      ) : element.type === 'video' ? (
         <video
           ref={videoRef}
           src={element.url}
@@ -898,7 +981,12 @@ function ElementCard({
           onTimeUpdate={handleTimeUpdate}
         />
       ) : (
-        <img src={element.url} alt={element.name} className="h-full w-full object-cover" />
+        <img
+          src={element.url}
+          alt={element.name}
+          className="h-full w-full object-cover"
+          onError={() => setImageError(true)}
+        />
       )}
 
       <div className="absolute inset-0 flex flex-col justify-between bg-black/50 p-3 opacity-0 transition-opacity group-hover:opacity-100">

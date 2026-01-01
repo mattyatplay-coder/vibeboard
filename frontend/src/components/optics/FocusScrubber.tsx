@@ -5,6 +5,9 @@ import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import { Play, Pause, RotateCcw, Focus, Loader2 } from 'lucide-react';
 
+// Frame stepping threshold: 1/60th of a second (one frame at 60fps)
+const SEEK_THRESHOLD = 1 / 60;
+
 interface FocusScrubberProps {
   videoUrl: string;
   onFocusChange?: (focusPercent: number) => void;
@@ -26,6 +29,7 @@ export function FocusScrubber({ videoUrl, onFocusChange, className }: FocusScrub
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isSeeking, setIsSeeking] = useState(false);
   const [duration, setDuration] = useState(0);
 
   // Handle video metadata loaded
@@ -37,13 +41,27 @@ export function FocusScrubber({ videoUrl, onFocusChange, className }: FocusScrub
   }, []);
 
   // Scrub to specific percentage
+  // Uses Frame Stepping Protocol for smooth, non-clunky playback
   const scrubTo = useCallback((percent: number) => {
     const clampedPercent = Math.max(0, Math.min(100, percent));
     setFocusPercent(clampedPercent);
 
-    if (videoRef.current && duration > 0) {
-      const time = (clampedPercent / 100) * duration;
-      videoRef.current.currentTime = time;
+    const video = videoRef.current;
+    if (video && duration > 0) {
+      // CRITICAL FIX 1: Pause while scrubbing to stop browser playback engine
+      // from fighting the manual seek commands
+      if (!video.paused) {
+        video.pause();
+        setIsPlaying(false);
+      }
+
+      const targetTime = (clampedPercent / 100) * duration;
+
+      // CRITICAL FIX 2: Only seek if the difference exceeds threshold
+      // This reduces I/O overhead and prevents staggering from micro-seeks
+      if (Math.abs(video.currentTime - targetTime) > SEEK_THRESHOLD) {
+        video.currentTime = targetTime;
+      }
     }
 
     onFocusChange?.(clampedPercent);
@@ -125,13 +143,31 @@ export function FocusScrubber({ videoUrl, onFocusChange, className }: FocusScrub
     setIsPlaying(false);
   }, []);
 
+  // Handle seeking state for visual feedback
+  const handleSeeking = useCallback(() => {
+    setIsSeeking(true);
+  }, []);
+
+  const handleSeeked = useCallback(() => {
+    setIsSeeking(false);
+  }, []);
+
   return (
     <div className={clsx('relative w-full', className)}>
       {/* Video Container */}
       <div className="relative aspect-video overflow-hidden rounded-xl bg-black">
+        {/* Loading indicator */}
         {!isLoaded && (
           <div className="absolute inset-0 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
+          </div>
+        )}
+
+        {/* Seeking indicator - shows system is processing scrub command */}
+        {isSeeking && isLoaded && (
+          <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-black/60 px-2 py-1 backdrop-blur-sm">
+            <Loader2 className="h-3 w-3 animate-spin text-cyan-400" />
+            <span className="text-xs text-cyan-400">Seeking...</span>
           </div>
         )}
 
@@ -145,6 +181,8 @@ export function FocusScrubber({ videoUrl, onFocusChange, className }: FocusScrub
           onLoadedMetadata={handleLoadedMetadata}
           onTimeUpdate={handleTimeUpdate}
           onEnded={handleEnded}
+          onSeeking={handleSeeking}
+          onSeeked={handleSeeked}
         />
 
         {/* Focus Ring Overlay */}

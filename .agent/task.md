@@ -1,9 +1,55 @@
 # 🔴 ACTIVE SESSION TASKS - CHECK FIRST!
 
-> **Last Updated**: Dec 31, 2025 (Evening)
+> **Last Updated**: Jan 1, 2026
 > **Purpose**: Prevents Claude from forgetting mid-session items
 
-## Current Session (Dec 30, 2025) - GPU Worker Deployment
+## Current Session (Jan 1, 2026) - Cloudflare Tunnel Setup & API Connectivity
+
+### Cloudflare Tunnel Status ✅ COMPLETE
+
+- [x] **Authenticate cloudflared** - `cloudflared tunnel login` completed
+- [x] **Create new tunnel** - `vibeboard-api` (ID: `fecbcaa1-fdc4-4c12-8784-5554b3b41761`)
+- [x] **Route DNS** - `api.vibeboard.studio` → tunnel (with --overwrite-dns)
+- [x] **Create config.yml** - Routes to `https://vibeboard-backend-edse.onrender.com`
+- [x] **Start tunnel** - 4 connections to IAD edge confirmed
+- [x] **Install LaunchAgent** - Auto-starts on boot
+
+### ⚠️ BLOCKING ISSUE: Render Database Suspended
+
+**Problem**: Render PostgreSQL database is SUSPENDED due to billing (free tier expired after 30 days).
+
+**Error**: `Can't reach database server at dpg-d4n6di4hg0os73ceitu0-a:5432`
+
+**Required Action** (User Must Complete):
+1. Go to: https://dashboard.render.com/d/dpg-d4n6di4hg0os73ceitu0-a
+2. Upgrade to paid PostgreSQL tier ($7/month minimum)
+3. Once active, api.vibeboard.studio will work properly
+
+### Tunnel Configuration Reference
+
+```yaml
+# ~/.cloudflared/config.yml
+tunnel: fecbcaa1-fdc4-4c12-8784-5554b3b41761
+credentials-file: /Users/matthenrichmacbook/.cloudflared/fecbcaa1-fdc4-4c12-8784-5554b3b41761.json
+
+ingress:
+  - hostname: api.vibeboard.studio
+    service: https://vibeboard-backend-edse.onrender.com
+    originRequest:
+      noTLSVerify: false
+  - service: http_status:404
+```
+
+### Related Tunnels
+
+| Tunnel | ID | Purpose | Location |
+|--------|-----|---------|----------|
+| vibeboard-api | fecbcaa1-fdc4... | API routing | MacBook (this machine) |
+| vibeboard | 15aeb0b6-8847... | Frontend | Mac Mini (76.104.115.87) |
+
+---
+
+## Previous Session (Dec 30, 2025) - GPU Worker Deployment
 
 ### GPU Worker Status
 

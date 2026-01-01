@@ -14,16 +14,26 @@ export default function ExtendVideoPage() {
 
   const [mode, setMode] = useState<'select' | 'quick' | 'advanced'>('select');
 
+  const handleBack = () => {
+    if (mode !== 'select') {
+      setMode('select');
+      return;
+    }
+    if (typeof window !== 'undefined' && window.history.length > 2) {
+      router.back();
+    } else {
+      router.push(`/projects/${projectId}/story-editor`);
+    }
+  };
+
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
         <Button
           startIcon={<ArrowBack />}
-          onClick={() =>
-            mode === 'select' ? router.push(`/projects/${projectId}`) : setMode('select')
-          }
+          onClick={handleBack}
         >
-          {mode === 'select' ? 'Back to Project' : 'Change Mode'}
+          {mode === 'select' ? 'Back' : 'Change Mode'}
         </Button>
         <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }}>
           Extend Video

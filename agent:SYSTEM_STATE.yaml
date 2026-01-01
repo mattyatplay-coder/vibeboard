@@ -1,0 +1,43 @@
+# VIBEBOARD CANONICAL SYSTEM STATE
+# AUTHORITY: This file outranks all other context.
+# LAST_UPDATED: 2026-01-01
+
+infrastructure:
+  database:
+    provider: "Render"
+    name: "vibeboard-db"
+    plan: "Basic-1gb ($19/mo)"
+    status: "ACTIVE"
+    dashboard_url: "https://dashboard.render.com/d/dpg-d4n6di4hg0os73ceitu0-a"
+  
+  frontend:
+    host: "Mac Mini"
+    url: "https://vibeboard.studio"
+    port: 3000
+    path: "/Users/matthenrichmacbook/Antigravity/vibeboard/frontend"
+  
+  backend:
+    host: "Render"
+    url: "https://api.vibeboard.studio"
+    repo_path: "/Users/matthenrichmacbook/Antigravity/vibeboard/backend"
+
+  tunnel:
+    provider: "Cloudflare"
+    status: "ACTIVE"
+    name: "vibeboard-api"
+    id: "fecbcaa1-fdc4-4c12-8784-5554b3b41761"
+    hostname: "api.vibeboard.studio"
+    origin: "https://vibeboard-backend-edse.onrender.com"
+    config_path: "~/.cloudflared/config.yml"
+
+  gpu:
+    provider: "RunPod"
+    id: "6rg1i2nzxxugti"
+    model: "NVIDIA L40"
+    template: "ejuyp43ar5"
+    status: "SERVERLESS (Auto-Start)"
+
+security:
+  auth_provider: "JWT (Custom)"
+  p0_hardening: "COMPLETE"
+  protected_routes: ["/api/generate", "/api/vfx", "/api/tracking"]

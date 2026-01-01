@@ -120,6 +120,45 @@ model Story {
   @@index([projectId])
 }
 
+// Active story generation jobs (P-02: Progress Persistence)
+// Tracks in-progress pipeline jobs so users can resume after navigation
+model StoryJob {
+  id              String   @id @default(uuid())
+  projectId       String
+  storyId         String?  // Reference to Story being generated (optional)
+
+  // Job configuration
+  concept         String   // The original concept
+  genre           String   // Genre being used
+  config          String?  // JSON: AIDirectorConfig settings
+
+  // Progress tracking
+  status          String   @default("queued") // 'queued', 'generating_outline', 'generating_script', 'parsing', 'breakdown', 'prompts', 'complete', 'failed'
+  currentStep     String?  // Current pipeline step name
+  progress        Int      @default(0) // 0-100 percentage
+  totalScenes     Int?     // Total number of scenes (known after parse)
+  currentScene    Int?     // Current scene being processed
+
+  // Partial results (JSON strings for PostgreSQL)
+  outline         String?  // JSON: Generated outline
+  script          String?  // Generated script text
+  scenes          String?  // JSON: Parsed scenes
+  breakdowns      String?  // JSON: Scene breakdowns so far
+  prompts         String?  // JSON: Generated prompts so far
+
+  // Error handling
+  errorMessage    String?
+  errorStep       String?
+
+  // Timestamps
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  updatedAt       DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+}
+
 model Session {
   id          String   @id @default(uuid())
   projectId   String

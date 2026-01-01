@@ -183,6 +183,10 @@ app.use('/api/story-editor', storyEditorRoutes);
 app.use('/api/story-style', storyStyleRoutes);
 // Nested route for stories: /api/projects/:projectId/stories
 app.use('/api/projects/:projectId/stories', storyRoutes);
+// P-02: Story job status for progress persistence
+// GET /api/projects/:projectId/story/status - Check active generation jobs
+// GET /api/projects/:projectId/story/jobs/:jobId - Get specific job details
+app.use('/api/projects/:projectId/story', storyEditorRoutes);
 // Video extension workflow routes
 app.use('/api/extend-video', extendVideoRoutes);
 // Continuity checking routes

@@ -6,6 +6,7 @@
 
 import { Request, Response } from 'express';
 import { StoryEditorService, Genre, AIDirectorConfig, StoryOutline } from '../services/StoryEditorService';
+import { prisma } from '../prisma';
 
 /**
  * Get service instance with appropriate content mode
@@ -562,6 +563,146 @@ RULES:
         console.error('[Script Lab] Auto-breakdown failed:', error);
         res.status(500).json({
             error: 'Auto-breakdown failed',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+}
+
+/**
+ * P-02: Get active story generation job status for a project
+ * GET /api/projects/:projectId/story/status
+ *
+ * Returns any active (non-complete, non-failed) story jobs so the frontend
+ * can resume progress display after navigation.
+ */
+export async function getStoryStatus(req: Request, res: Response) {
+    try {
+        const { projectId } = req.params;
+
+        if (!projectId) {
+            return res.status(400).json({ error: 'projectId is required' });
+        }
+
+        // Find any active jobs for this project
+        const activeJobs = await prisma.storyJob.findMany({
+            where: {
+                projectId,
+                status: {
+                    notIn: ['complete', 'failed']
+                }
+            },
+            orderBy: {
+                startedAt: 'desc'
+            }
+        });
+
+        // Also get the most recent completed job for context
+        const lastCompletedJob = await prisma.storyJob.findFirst({
+            where: {
+                projectId,
+                status: 'complete'
+            },
+            orderBy: {
+                completedAt: 'desc'
+            }
+        });
+
+        // Get all saved stories for this project
+        const stories = await prisma.story.findMany({
+            where: { projectId },
+            orderBy: { updatedAt: 'desc' },
+            take: 5
+        });
+
+        res.json({
+            hasActiveJob: activeJobs.length > 0,
+            activeJobs: activeJobs.map(job => ({
+                id: job.id,
+                status: job.status,
+                currentStep: job.currentStep,
+                progress: job.progress,
+                concept: job.concept,
+                genre: job.genre,
+                totalScenes: job.totalScenes,
+                currentScene: job.currentScene,
+                startedAt: job.startedAt,
+                // Include partial results for resumption
+                hasOutline: !!job.outline,
+                hasScript: !!job.script,
+                hasScenes: !!job.scenes,
+                hasBreakdowns: !!job.breakdowns,
+                hasPrompts: !!job.prompts,
+                errorMessage: job.errorMessage
+            })),
+            lastCompleted: lastCompletedJob ? {
+                id: lastCompletedJob.id,
+                completedAt: lastCompletedJob.completedAt,
+                concept: lastCompletedJob.concept
+            } : null,
+            savedStories: stories.map(s => ({
+                id: s.id,
+                name: s.name,
+                status: s.status,
+                updatedAt: s.updatedAt
+            }))
+        });
+
+    } catch (error) {
+        console.error('[Story Status] Failed to get status:', error);
+        res.status(500).json({
+            error: 'Failed to get story status',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+}
+
+/**
+ * P-02: Get full details of a specific story job (for resumption)
+ * GET /api/projects/:projectId/story/jobs/:jobId
+ */
+export async function getStoryJob(req: Request, res: Response) {
+    try {
+        const { projectId, jobId } = req.params;
+
+        const job = await prisma.storyJob.findFirst({
+            where: {
+                id: jobId,
+                projectId
+            }
+        });
+
+        if (!job) {
+            return res.status(404).json({ error: 'Job not found' });
+        }
+
+        // Parse JSON fields for full response
+        res.json({
+            id: job.id,
+            projectId: job.projectId,
+            storyId: job.storyId,
+            concept: job.concept,
+            genre: job.genre,
+            config: job.config ? JSON.parse(job.config) : null,
+            status: job.status,
+            currentStep: job.currentStep,
+            progress: job.progress,
+            totalScenes: job.totalScenes,
+            currentScene: job.currentScene,
+            outline: job.outline ? JSON.parse(job.outline) : null,
+            script: job.script,
+            scenes: job.scenes ? JSON.parse(job.scenes) : null,
+            breakdowns: job.breakdowns ? JSON.parse(job.breakdowns) : null,
+            prompts: job.prompts ? JSON.parse(job.prompts) : null,
+            errorMessage: job.errorMessage,
+            errorStep: job.errorStep,
+            startedAt: job.startedAt,
+            completedAt: job.completedAt
+        });
+
+    } catch (error) {
+        console.error('[Story Job] Failed to get job:', error);
+        res.status(500).json({
+            error: 'Failed to get story job',
             message: error instanceof Error ? error.message : 'Unknown error'
         });
     }

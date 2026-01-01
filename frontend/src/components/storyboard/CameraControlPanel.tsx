@@ -11,24 +11,43 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { useViewfinderStore, type CameraMovement } from '@/lib/viewfinderStore';
 
-export interface CameraMovement {
-  type: 'pan' | 'tilt' | 'zoom' | 'roll' | 'static';
-  direction?: 'left' | 'right' | 'up' | 'down' | 'in' | 'out' | 'cw' | 'ccw';
-  intensity?: number; // 1-10
-}
+// Re-export CameraMovement type for backwards compatibility
+export type { CameraMovement };
 
 interface CameraControlPanelProps {
-  value: CameraMovement;
-  onChange: (value: CameraMovement) => void;
+  /** Optional: Direct value control (legacy mode) */
+  value?: CameraMovement;
+  /** Optional: Direct onChange callback (legacy mode) */
+  onChange?: (value: CameraMovement) => void;
+  /**
+   * If true, use global viewfinderStore instead of props.
+   * This enables the "Remote Control" pattern where changes
+   * are automatically reflected in DirectorViewfinder.
+   * @default false
+   */
+  useGlobalStore?: boolean;
 }
 
-export function CameraControlPanel({ value, onChange }: CameraControlPanelProps) {
+export function CameraControlPanel({
+  value: propValue,
+  onChange: propOnChange,
+  useGlobalStore = false,
+}: CameraControlPanelProps) {
+  // Global store access
+  const storeMovement = useViewfinderStore((state) => state.cameraMovement);
+  const setStoreMovement = useViewfinderStore((state) => state.setCameraMovement);
+
+  // Determine which value/onChange to use
+  const value = useGlobalStore ? storeMovement : (propValue ?? { type: 'static' as const });
+  const onChange = useGlobalStore ? setStoreMovement : propOnChange;
+
   const handleDirection = (
     type: CameraMovement['type'],
     direction: CameraMovement['direction']
   ) => {
-    onChange({ type, direction, intensity: 5 });
+    onChange?.({ type, direction, intensity: 5 });
   };
 
   const isActive = (type: string, dir?: string) => {
@@ -50,7 +69,7 @@ export function CameraControlPanel({ value, onChange }: CameraControlPanelProps)
         <label className="text-sm font-medium text-zinc-300">Camera Movement</label>
         {value.type !== 'static' && (
           <button
-            onClick={() => onChange({ type: 'static' })}
+            onClick={() => onChange?.({ type: 'static' })}
             className="text-xs text-zinc-500 hover:text-zinc-300"
           >
             Reset
@@ -163,7 +182,7 @@ export function CameraControlPanel({ value, onChange }: CameraControlPanelProps)
             min="1"
             max="10"
             value={value.intensity || 5}
-            onChange={e => onChange({ ...value, intensity: parseInt(e.target.value) })}
+            onChange={e => onChange?.({ ...value, intensity: parseInt(e.target.value) })}
             className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-zinc-700 accent-blue-500"
           />
         </div>

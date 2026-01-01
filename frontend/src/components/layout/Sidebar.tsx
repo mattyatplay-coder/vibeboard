@@ -2,19 +2,20 @@
 
 import Link from 'next/link';
 import { usePathname, useParams, useRouter } from 'next/navigation';
-import { LayoutGrid, Wand2, Clapperboard, Settings, FileText, Paintbrush, Film, MessageSquare, Aperture, Box, Users, Layers } from 'lucide-react';
+import { LayoutGrid, Wand2, Clapperboard, Settings, FileText, Paintbrush, Film, MessageSquare, Aperture, Box, Users, Layers, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import { LucideIcon } from 'lucide-react';
 
 import { useSession } from '@/context/SessionContext';
 import { Plus, Folder, ChevronDown, ChevronRight, Trash2, ChevronLeft } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { DeleteConfirmationModal } from '@/components/ui/DeleteConfirmationModal';
 import { SpendingWidget } from '@/components/sidebar/SpendingWidget';
 import { useSidebarStore } from '@/lib/sidebarStore';
 import { useEngineConfigStore } from '@/lib/engineConfigStore';
+import { useStoryGenerationStore } from '@/lib/storyGenerationStore';
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -30,6 +31,10 @@ export function Sidebar() {
   const [sessionToDelete, setSessionToDelete] = useState<{ id: string; name: string } | null>(null);
   const { isCollapsed, toggleSidebar } = useSidebarStore();
   const { currentModelId, currentDuration, isVideo } = useEngineConfigStore();
+
+  // Track if story generation is running in the background
+  const storyGeneration = useStoryGenerationStore();
+  const isStoryGenerating = storyGeneration.isRunning && storyGeneration.activeProjectId === projectId;
 
   if (!projectId) return null;
 
@@ -218,6 +223,8 @@ export function Sidebar() {
             <div className="space-y-1" role="menu" aria-label={GROUP_LABELS[groupNum]}>
               {groupedSpine[groupNum]?.map(item => {
                 const isActive = pathname.startsWith(item.href);
+                // Show generation indicator for Script Lab when running
+                const showGeneratingIndicator = item.id === 'script-lab' && isStoryGenerating;
 
                 // UX-001 & UX-002: Navigation link with keyboard support
                 const NavLink = (
@@ -237,7 +244,8 @@ export function Sidebar() {
                       'group relative flex items-center gap-3 rounded-xl py-2.5 transition-colors outline-none',
                       'focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black',
                       isCollapsed ? 'justify-center px-2' : 'px-4',
-                      isActive ? 'text-white' : 'text-gray-400 hover:text-white'
+                      isActive ? 'text-white' : 'text-gray-400 hover:text-white',
+                      showGeneratingIndicator && !isActive && 'text-blue-400'
                     )}
                   >
                     {isActive && (
@@ -248,10 +256,18 @@ export function Sidebar() {
                         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                       />
                     )}
-                    <item.icon className="relative z-10 h-5 w-5 flex-shrink-0" />
+                    {/* Show spinner for Script Lab when generating */}
+                    {showGeneratingIndicator ? (
+                      <Loader2 className="relative z-10 h-5 w-5 flex-shrink-0 animate-spin text-blue-400" />
+                    ) : (
+                      <item.icon className="relative z-10 h-5 w-5 flex-shrink-0" />
+                    )}
                     {!isCollapsed && (
                       <span className="relative z-10 overflow-hidden text-sm font-medium whitespace-nowrap">
                         {item.label}
+                        {showGeneratingIndicator && (
+                          <span className="ml-2 text-xs text-blue-400">(generating...)</span>
+                        )}
                       </span>
                     )}
                   </Link>
@@ -259,7 +275,7 @@ export function Sidebar() {
 
                 // UX-001: Wrap in Tooltip when sidebar is collapsed
                 return isCollapsed ? (
-                  <Tooltip key={item.id} content={item.label} side="right">
+                  <Tooltip key={item.id} content={showGeneratingIndicator ? `${item.label} (generating...)` : item.label} side="right">
                     {NavLink}
                   </Tooltip>
                 ) : (

@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { Plus, Play, Film, Clock, Loader2, ChevronLeft, Settings, X } from 'lucide-react';
+import { Plus, Play, Film, Clock, Loader2, Settings, X } from 'lucide-react';
+import { ContextualBackButton } from '@/components/layout/ContextualBackButton';
 import { BACKEND_URL } from '@/lib/api';
 import StoryboardShot, { ShotData, calculateImageCost, calculateVideoCost, calculateTotalShotCost } from '@/components/storyboard/StoryboardShot';
 import { formatCost } from '@/lib/ModelPricing';
@@ -779,12 +780,7 @@ export default function StoryboardPage() {
         <div className="mx-auto max-w-7xl px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.push(`/projects/${projectId}`)}
-                className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
+              <ContextualBackButton />
               <div>
                 <h1 className="flex items-center gap-2 text-xl font-bold">
                   <Film className="h-5 w-5 text-purple-400" />

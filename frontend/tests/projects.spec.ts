@@ -75,7 +75,7 @@ test.describe('Project Management', () => {
         // Click on the project card
         await projectCard.click();
 
-        // Verify navigation
-        await expect(page).toHaveURL(/\/projects\/.*\/elements/, { timeout: 10000 });
+        // Verify navigation (default project page is now story-editor)
+        await expect(page).toHaveURL(/\/projects\/.*\/(story-editor|elements|generate)/, { timeout: 10000 });
     });
 });

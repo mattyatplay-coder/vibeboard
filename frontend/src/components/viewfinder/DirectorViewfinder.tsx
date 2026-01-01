@@ -69,6 +69,10 @@ import {
 import { LayerCompositor, type ExtractedLayer } from './LayerCompositor';
 import { DollyZoomSimulator } from './DollyZoomSimulator';
 import { SceneDepthControls, type LayerConfig } from './SceneDepthControls';
+import { CameraControlPanel } from '@/components/storyboard/CameraControlPanel';
+
+// Global Viewfinder Store - enables "Remote Control" pattern for camera movements
+import { useViewerTransformStyle, useViewfinderStore } from '@/lib/viewfinderStore';
 
 // Backend API URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
@@ -881,7 +885,7 @@ function DOFLayeredScene({
         <div className="absolute inset-0 overflow-hidden">
             {/* Background Layer - furthest, most blur when shallow DOF */}
             <div
-                className="absolute inset-0 transition-all duration-300"
+                className="absolute inset-0"
                 style={{
                     filter: `blur(${actualBgBlur}px)`,
                     opacity: bgLayer?.opacity ?? 1,
@@ -940,7 +944,7 @@ function DOFLayeredScene({
 
             {/* Subject Layer - at focus distance, sharp (or blurred if not at focus) */}
             <div
-                className="absolute inset-0 transition-all duration-300"
+                className="absolute inset-0"
                 style={{
                     filter: `blur(${actualSubjectBlur}px)`,
                     opacity: subjectLayer?.opacity ?? 1,
@@ -976,7 +980,7 @@ function DOFLayeredScene({
             {/* Foreground Layer - closest, blur when shallow DOF */}
             {(fgLayer?.imageUrl || settings.aperture <= 4) && (
                 <div
-                    className="pointer-events-none absolute inset-0 transition-all duration-300"
+                    className="pointer-events-none absolute inset-0"
                     style={{
                         filter: `blur(${actualFgBlur}px)`,
                         opacity: fgLayer?.opacity ?? 1,
@@ -1267,6 +1271,12 @@ export function DirectorViewfinder({
     const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null);
     const [showFocusPeaking, setShowFocusPeaking] = useState(true);
     const [clickToFocusEnabled, setClickToFocusEnabled] = useState(true);
+
+    // Global Viewfinder Store subscription - enables "Remote Control" pattern
+    // CameraControlPanel writes to this store, DirectorViewfinder subscribes and applies transforms
+    const globalViewerTransformStyle = useViewerTransformStyle();
+    const globalCameraMovement = useViewfinderStore((state) => state.cameraMovement);
+    const globalStoreEnabled = useViewfinderStore((state) => state.isEnabled);
 
     const toggleSection = useCallback((section: string) => {
         setExpandedSections(prev => {
@@ -1713,18 +1723,92 @@ export function DirectorViewfinder({
     // =========================================================================
 
     /**
+     * Snap-to-Grid for Composition Guides
+     * When focus point is near a grid intersection (Rule of Thirds, Golden Ratio),
+     * snap to that intersection for precise composition.
+     */
+    const snapToGrid = useCallback((x: number, y: number): { x: number; y: number; snapped: boolean } => {
+        const SNAP_THRESHOLD = 0.05; // 5% of frame = snap zone
+
+        // Get enabled guides
+        const enabledGuides = framingGuides.filter(g => g.enabled);
+        if (enabledGuides.length === 0 || !showGuides) {
+            return { x, y, snapped: false };
+        }
+
+        // Collect all grid intersection points from enabled guides
+        const gridPoints: Array<{ x: number; y: number }> = [];
+
+        enabledGuides.forEach(guide => {
+            switch (guide.type) {
+                case 'rule-of-thirds':
+                    // 4 intersection points at 1/3 and 2/3
+                    gridPoints.push({ x: 1/3, y: 1/3 });
+                    gridPoints.push({ x: 2/3, y: 1/3 });
+                    gridPoints.push({ x: 1/3, y: 2/3 });
+                    gridPoints.push({ x: 2/3, y: 2/3 });
+                    break;
+                case 'golden-ratio':
+                    // Golden ratio ≈ 0.382 and 0.618
+                    const phi = 1.618;
+                    const gx1 = 1 / phi;      // ≈ 0.618
+                    const gx2 = 1 - 1 / phi;  // ≈ 0.382
+                    gridPoints.push({ x: gx1, y: gx2 });
+                    gridPoints.push({ x: gx2, y: gx2 });
+                    gridPoints.push({ x: gx1, y: gx1 });
+                    gridPoints.push({ x: gx2, y: gx1 });
+                    break;
+                case 'center':
+                    // Center point
+                    gridPoints.push({ x: 0.5, y: 0.5 });
+                    break;
+                case 'diagonal':
+                    // Diagonal crossings at center and quarters
+                    gridPoints.push({ x: 0.5, y: 0.5 });
+                    gridPoints.push({ x: 0.25, y: 0.25 });
+                    gridPoints.push({ x: 0.75, y: 0.75 });
+                    gridPoints.push({ x: 0.25, y: 0.75 });
+                    gridPoints.push({ x: 0.75, y: 0.25 });
+                    break;
+            }
+        });
+
+        // Find closest grid point within threshold
+        let closestPoint = { x, y };
+        let closestDistance = Infinity;
+        let snapped = false;
+
+        gridPoints.forEach(point => {
+            const distance = Math.sqrt((x - point.x) ** 2 + (y - point.y) ** 2);
+            if (distance < SNAP_THRESHOLD && distance < closestDistance) {
+                closestDistance = distance;
+                closestPoint = point;
+                snapped = true;
+            }
+        });
+
+        return { ...closestPoint, snapped };
+    }, [framingGuides, showGuides]);
+
+    /**
      * Handle click on viewport to set focus point
      * Uses a simple depth estimation based on click position:
      * - Top of frame = far (background)
      * - Bottom of frame = near (foreground)
      * - This is a rough heuristic; with depth maps, we'd use actual depth values
+     * - Snaps to composition grid when near an intersection
      */
     const handleViewportClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
         if (!clickToFocusEnabled || activeTab !== 'dof') return;
 
         const rect = e.currentTarget.getBoundingClientRect();
-        const x = (e.clientX - rect.left) / rect.width;  // 0-1 normalized
-        const y = (e.clientY - rect.top) / rect.height;  // 0-1 normalized
+        let x = (e.clientX - rect.left) / rect.width;  // 0-1 normalized
+        let y = (e.clientY - rect.top) / rect.height;  // 0-1 normalized
+
+        // Snap to composition grid intersections if near them
+        const snapResult = snapToGrid(x, y);
+        x = snapResult.x;
+        y = snapResult.y;
 
         // Set focus point for visual indicator
         setFocusPoint({ x, y });
@@ -1739,8 +1823,8 @@ export function DirectorViewfinder({
 
         setDofSettings(prev => ({ ...prev, focusDistance: normalizedFocus }));
 
-        console.log(`[Viewfinder] Click-to-focus: (${x.toFixed(2)}, ${y.toFixed(2)}) → ${estimatedDistanceM.toFixed(1)}m`);
-    }, [clickToFocusEnabled, activeTab]);
+        console.log(`[Viewfinder] Click-to-focus: (${x.toFixed(2)}, ${y.toFixed(2)}) → ${estimatedDistanceM.toFixed(1)}m${snapResult.snapped ? ' [SNAPPED]' : ''}`);
+    }, [clickToFocusEnabled, activeTab, snapToGrid]);
 
     /**
      * Generate Camera Recipe from current settings
@@ -1833,7 +1917,7 @@ export function DirectorViewfinder({
         setArActive(false);
     };
 
-    // Capture current view
+    // Capture current view with Technical Strip (professional metadata burn-in)
     const captureView = () => {
         if (!canvasRef.current || !containerRef.current) return;
 
@@ -1841,38 +1925,132 @@ export function DirectorViewfinder({
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Set canvas size
+        // Set canvas size (add space for technical strip at bottom)
         const rect = containerRef.current.getBoundingClientRect();
+        const stripHeight = 32; // Height of the technical metadata strip
         canvas.width = rect.width;
-        canvas.height = rect.height;
+        canvas.height = rect.height + stripHeight;
+
+        /**
+         * Draw Technical Strip - Professional metadata burn-in
+         * Shows: Focal Length | Aperture | Focus Distance | DOF | Date
+         */
+        const drawTechnicalStrip = () => {
+            const y = rect.height; // Top of the strip
+
+            // Black background strip
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, y, canvas.width, stripHeight);
+
+            // Top border line
+            ctx.strokeStyle = 'rgba(34, 211, 238, 0.3)'; // cyan-400/30
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(canvas.width, y);
+            ctx.stroke();
+
+            // Technical data
+            const recipe = generateCameraRecipe();
+            const date = new Date().toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+            });
+
+            const technicalData = [
+                { label: 'LENS', value: `${dofSettings.focalLength}mm`, color: '#fbbf24' }, // amber
+                { label: 'f/', value: `${dofSettings.aperture}`, color: '#22d3ee' }, // cyan
+                { label: 'FOCUS', value: `${recipe.focusDistanceM.toFixed(1)}m`, color: '#4ade80' }, // green
+                { label: 'DOF', value: recipe.depthOfField.totalM === Infinity ? '∞' : `${recipe.depthOfField.totalM.toFixed(1)}m`, color: '#ffffff' },
+                { label: 'SENSOR', value: dofSettings.sensorSize === 'full-frame' ? 'FF' : dofSettings.sensorSize === 'aps-c' ? 'APS-C' : 'M4/3', color: '#a78bfa' }, // purple
+                { label: '', value: date, color: '#6b7280' }, // gray
+            ];
+
+            // Calculate spacing
+            const padding = 16;
+            const itemWidth = (canvas.width - padding * 2) / technicalData.length;
+
+            ctx.font = '10px "JetBrains Mono", monospace';
+            ctx.textBaseline = 'middle';
+
+            technicalData.forEach((item, i) => {
+                const x = padding + i * itemWidth;
+                const centerY = y + stripHeight / 2;
+
+                if (item.label) {
+                    // Label in gray
+                    ctx.fillStyle = '#6b7280';
+                    ctx.fillText(item.label, x, centerY - 6);
+                }
+
+                // Value in color
+                ctx.fillStyle = item.color;
+                ctx.font = 'bold 11px "JetBrains Mono", monospace';
+                ctx.fillText(item.value, x + (item.label ? 0 : 0), centerY + (item.label ? 6 : 0));
+                ctx.font = '10px "JetBrains Mono", monospace';
+            });
+
+            // VibeBoard watermark (right side)
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.font = '9px Inter, sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText('VibeBoard Director\'s Viewfinder', canvas.width - padding, y + stripHeight / 2);
+            ctx.textAlign = 'left';
+        };
 
         // Draw reference image or video
         if (arActive && videoRef.current) {
-            ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+            ctx.drawImage(videoRef.current, 0, 0, rect.width, rect.height);
+            drawTechnicalStrip();
+            const dataUrl = canvas.toDataURL('image/png');
+            onCapture?.(dataUrl);
         } else if (referenceImageUrl) {
             const img = new window.Image();
             img.crossOrigin = 'anonymous';
             img.onload = () => {
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, rect.width, rect.height);
+
                 // Draw elements on top
+                let elementsLoaded = 0;
+                const totalElements = localElements.length;
+
+                const finalizeCapture = () => {
+                    drawTechnicalStrip();
+                    const dataUrl = canvas.toDataURL('image/png');
+                    onCapture?.(dataUrl);
+                };
+
+                if (totalElements === 0) {
+                    finalizeCapture();
+                    return;
+                }
+
                 localElements.forEach(el => {
                     const elImg = new window.Image();
                     elImg.crossOrigin = 'anonymous';
                     elImg.onload = () => {
                         ctx.save();
                         ctx.globalAlpha = el.opacity;
-                        ctx.translate(el.x * canvas.width, el.y * canvas.height);
+                        ctx.translate(el.x * rect.width, el.y * rect.height);
                         ctx.rotate((el.rotation * Math.PI) / 180);
                         ctx.scale(el.scale, el.scale);
                         ctx.drawImage(elImg, -elImg.width / 2, -elImg.height / 2);
                         ctx.restore();
+
+                        elementsLoaded++;
+                        if (elementsLoaded === totalElements) {
+                            finalizeCapture();
+                        }
+                    };
+                    elImg.onerror = () => {
+                        elementsLoaded++;
+                        if (elementsLoaded === totalElements) {
+                            finalizeCapture();
+                        }
                     };
                     elImg.src = el.imageUrl;
                 });
-
-                // Export
-                const dataUrl = canvas.toDataURL('image/png');
-                onCapture?.(dataUrl);
             };
             img.src = referenceImageUrl;
         }
@@ -1981,261 +2159,292 @@ export function DirectorViewfinder({
                     </div>
                 </div>
 
-            {/* Main Viewport */}
-            <div className="relative flex-1 overflow-hidden bg-black">
-                <div
-                    ref={containerRef}
-                    className="relative h-full w-full cursor-crosshair"
-                    onClick={handleViewportClick}
-                >
-                    {/* DOF Tab - Use 3-Layer Scene or fallback */}
-                    {activeTab === 'dof' && showLayeredScene ? (
-                        <DOFLayeredScene
-                            settings={dofSettings}
-                            foregroundDistance={foregroundDistance}
-                            backgroundDistance={backgroundDistance}
-                            viewportWidth={dimensions.width}
-                            viewportHeight={dimensions.height}
-                            referenceImageUrl={referenceImageUrl}
-                            bokehSettings={bokehSettings}
-                            compositorLayers={compositorLayers}
-                        />
-                    ) : (
-                        <>
-                            {/* Legacy single-blur mode or non-DOF tabs */}
-                            <div
-                                className="absolute inset-0"
-                                style={{
-                                    filter: activeTab === 'dof' ? `blur(${dofResult.blurAmount * 10}px)` : 'none',
-                                }}
-                            >
-                                {/* Background Image/Video */}
-                                {arActive && activeTab === 'ar' ? (
-                                    <video
-                                        ref={videoRef}
-                                        autoPlay
-                                        playsInline
-                                        muted
-                                        className="h-full w-full object-cover"
-                                    />
-                                ) : referenceImageUrl ? (
-                                    <img
-                                        src={referenceImageUrl}
-                                        alt="Reference"
-                                        className="h-full w-full object-contain"
-                                    />
-                                ) : (
-                                    <div className="flex h-full w-full items-center justify-center text-gray-600">
-                                        <div className="text-center">
-                                            <Image className="mx-auto h-16 w-16 opacity-50" />
-                                            <p className="mt-4 text-sm">No reference image</p>
-                                            <p className="text-xs text-gray-700">Drop an image or enable AR mode</p>
-                                        </div>
+                {/* Main Viewport */}
+                <div className="relative flex-1 overflow-hidden bg-black">
+                    <div
+                        ref={containerRef}
+                        className="relative h-full w-full cursor-crosshair"
+                        onClick={handleViewportClick}
+                    >
+                        {/* Global Camera Movement Transform Layer
+                        This div applies transforms from the global viewfinderStore.
+                        When CameraControlPanel (useGlobalStore=true) updates camera movement,
+                        these CSS transforms are applied here - enabling the "Remote Control" pattern.
+                        NOTE: This is a 2D FLAT COMPOSITE simulation, not true 3D perspective. */}
+                        <div
+                            className="absolute inset-0"
+                            style={globalStoreEnabled ? globalViewerTransformStyle : undefined}
+                        >
+                            {/* DOF Tab - Use 3-Layer Scene or fallback */}
+                            {activeTab === 'dof' && showLayeredScene ? (
+                                <DOFLayeredScene
+                                    settings={dofSettings}
+                                    foregroundDistance={foregroundDistance}
+                                    backgroundDistance={backgroundDistance}
+                                    viewportWidth={dimensions.width}
+                                    viewportHeight={dimensions.height}
+                                    referenceImageUrl={referenceImageUrl}
+                                    bokehSettings={bokehSettings}
+                                    compositorLayers={compositorLayers}
+                                />
+                            ) : (
+                                <>
+                                    {/* Legacy single-blur mode or non-DOF tabs */}
+                                    <div
+                                        className="absolute inset-0"
+                                        style={{
+                                            filter: activeTab === 'dof' ? `blur(${dofResult.blurAmount * 10}px)` : 'none',
+                                        }}
+                                    >
+                                        {/* Background Image/Video */}
+                                        {arActive && activeTab === 'ar' ? (
+                                            <video
+                                                ref={videoRef}
+                                                autoPlay
+                                                playsInline
+                                                muted
+                                                className="h-full w-full object-cover"
+                                            />
+                                        ) : referenceImageUrl ? (
+                                            <img
+                                                src={referenceImageUrl}
+                                                alt="Reference"
+                                                className="h-full w-full object-contain"
+                                            />
+                                        ) : (
+                                            <div className="flex h-full w-full items-center justify-center text-gray-600">
+                                                <div className="text-center">
+                                                    <Image className="mx-auto h-16 w-16 opacity-50" />
+                                                    <p className="mt-4 text-sm">No reference image</p>
+                                                    <p className="text-xs text-gray-700">Drop an image or enable AR mode</p>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
-                        </>
-                    )}
-
-                    {/* Composite Elements */}
-                    {activeTab === 'composite' &&
-                        localElements.map(el => (
-                            <DraggableElement
-                                key={el.id}
-                                element={el}
-                                onUpdate={updates => handleElementUpdate(el.id, updates)}
-                                isSelected={selectedElementId === el.id}
-                                onSelect={() => setSelectedElementId(el.id)}
-                                containerRef={containerRef as React.RefObject<HTMLDivElement>}
-                            />
-                        ))}
-
-                    {/* Framing Guides */}
-                    {showGuides &&
-                        framingGuides.map(guide => (
-                            <FramingGuideOverlay
-                                key={guide.id}
-                                guide={guide}
-                                width={dimensions.width}
-                                height={dimensions.height}
-                            />
-                        ))}
-
-                    {/* CLICK-TO-FOCUS: Focus Point Indicator with DOF Zones */}
-                    {activeTab === 'dof' && clickToFocusEnabled && (
-                        <>
-                            {/* DOF Zone Visualization - shows in-focus, acceptable, and blurred zones */}
-                            {showFocusPeaking && focusPoint && (
-                                <div className="pointer-events-none absolute inset-0">
-                                    {/* Blurred zones (top and bottom) - shown with semi-transparent overlay */}
-                                    <div
-                                        className="absolute inset-x-0 top-0 bg-gradient-to-b from-red-500/20 to-transparent"
-                                        style={{
-                                            height: `${Math.max(0, (focusPoint.y - 0.15) * 100)}%`,
-                                        }}
-                                    />
-                                    <div
-                                        className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-red-500/20 to-transparent"
-                                        style={{
-                                            height: `${Math.max(0, (1 - focusPoint.y - 0.15) * 100)}%`,
-                                        }}
-                                    />
-                                    {/* In-focus zone - highlighted with green tint */}
-                                    <div
-                                        className="absolute inset-x-0 border-y border-green-400/30 bg-green-400/5"
-                                        style={{
-                                            top: `${Math.max(0, (focusPoint.y - 0.15) * 100)}%`,
-                                            height: `${Math.min(30, 30)}%`,
-                                        }}
-                                    />
-                                </div>
+                                </>
                             )}
 
-                            {/* Focus Point Reticle - appears where user clicked */}
-                            {focusPoint && (
+                            {/* Composite Elements */}
+                            {activeTab === 'composite' &&
+                                localElements.map(el => (
+                                    <DraggableElement
+                                        key={el.id}
+                                        element={el}
+                                        onUpdate={updates => handleElementUpdate(el.id, updates)}
+                                        isSelected={selectedElementId === el.id}
+                                        onSelect={() => setSelectedElementId(el.id)}
+                                        containerRef={containerRef as React.RefObject<HTMLDivElement>}
+                                    />
+                                ))}
+
+                            {/* Framing Guides */}
+                            {showGuides &&
+                                framingGuides.map(guide => (
+                                    <FramingGuideOverlay
+                                        key={guide.id}
+                                        guide={guide}
+                                        width={dimensions.width}
+                                        height={dimensions.height}
+                                    />
+                                ))}
+
+                            {/* CLICK-TO-FOCUS: Focus Point Indicator with DOF Zones */}
+                            {activeTab === 'dof' && clickToFocusEnabled && (
+                                <>
+                                    {/* DOF Zone Visualization - shows in-focus, acceptable, and blurred zones */}
+                                    {showFocusPeaking && focusPoint && (
+                                        <div className="pointer-events-none absolute inset-0">
+                                            {/* Blurred zones (top and bottom) - shown with semi-transparent overlay */}
+                                            <div
+                                                className="absolute inset-x-0 top-0 bg-gradient-to-b from-red-500/20 to-transparent"
+                                                style={{
+                                                    height: `${Math.max(0, (focusPoint.y - 0.15) * 100)}%`,
+                                                }}
+                                            />
+                                            <div
+                                                className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-red-500/20 to-transparent"
+                                                style={{
+                                                    height: `${Math.max(0, (1 - focusPoint.y - 0.15) * 100)}%`,
+                                                }}
+                                            />
+                                            {/* In-focus zone - highlighted with green tint */}
+                                            <div
+                                                className="absolute inset-x-0 border-y border-green-400/30 bg-green-400/5"
+                                                style={{
+                                                    top: `${Math.max(0, (focusPoint.y - 0.15) * 100)}%`,
+                                                    height: `${Math.min(30, 30)}%`,
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Focus Point Reticle - appears where user clicked */}
+                                    {focusPoint && (
+                                        <div
+                                            className="pointer-events-none absolute"
+                                            style={{
+                                                left: `${focusPoint.x * 100}%`,
+                                                top: `${focusPoint.y * 100}%`,
+                                                transform: 'translate(-50%, -50%)',
+                                            }}
+                                        >
+                                            {/* Outer ring - pulsing */}
+                                            <div className="absolute -inset-6 animate-ping rounded-full border border-green-400/50" />
+                                            {/* Middle ring - static */}
+                                            <div className="absolute -inset-4 rounded-full border-2 border-green-400/80" />
+                                            {/* Inner crosshair */}
+                                            <div className="absolute -inset-2 flex items-center justify-center">
+                                                <div className="h-0.5 w-4 bg-green-400" />
+                                            </div>
+                                            <div className="absolute -inset-2 flex items-center justify-center">
+                                                <div className="h-4 w-0.5 bg-green-400" />
+                                            </div>
+                                            {/* Focus distance label */}
+                                            <div className="absolute left-6 top-0 whitespace-nowrap rounded bg-black/80 px-2 py-0.5 text-[10px] font-medium text-green-400">
+                                                {dofResult.focusDistanceM.toFixed(1)}m
+                                            </div>
+                                            {/* DOF range label */}
+                                            <div className="absolute left-6 top-5 whitespace-nowrap rounded bg-black/60 px-2 py-0.5 text-[9px] text-gray-400">
+                                                {dofResult.nearFocus.toFixed(1)}m - {dofResult.farFocus === Infinity ? '∞' : `${dofResult.farFocus.toFixed(1)}m`}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Hint text when no focus point set */}
+                                    {!focusPoint && (
+                                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                                            <div className="flex items-center gap-2 rounded-lg bg-black/60 px-4 py-2 text-sm text-gray-400">
+                                                <Target className="h-4 w-4 text-green-400" />
+                                                Click anywhere to focus
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+
+                            {/* Legacy DOF Focus Point Indicator - only in legacy mode without click-to-focus */}
+                            {activeTab === 'dof' && !showLayeredScene && !clickToFocusEnabled && (
                                 <div
-                                    className="pointer-events-none absolute"
+                                    className="absolute h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-green-400 shadow-lg shadow-green-500/30"
                                     style={{
-                                        left: `${focusPoint.x * 100}%`,
-                                        top: `${focusPoint.y * 100}%`,
-                                        transform: 'translate(-50%, -50%)',
+                                        left: '50%',
+                                        top: `${(1 - dofSettings.focusDistance) * 100}%`,
                                     }}
                                 >
-                                    {/* Outer ring - pulsing */}
-                                    <div className="absolute -inset-6 animate-ping rounded-full border border-green-400/50" />
-                                    {/* Middle ring - static */}
-                                    <div className="absolute -inset-4 rounded-full border-2 border-green-400/80" />
-                                    {/* Inner crosshair */}
-                                    <div className="absolute -inset-2 flex items-center justify-center">
-                                        <div className="h-0.5 w-4 bg-green-400" />
-                                    </div>
-                                    <div className="absolute -inset-2 flex items-center justify-center">
-                                        <div className="h-4 w-0.5 bg-green-400" />
-                                    </div>
-                                    {/* Focus distance label */}
-                                    <div className="absolute left-6 top-0 whitespace-nowrap rounded bg-black/80 px-2 py-0.5 text-[10px] font-medium text-green-400">
-                                        {dofResult.focusDistanceM.toFixed(1)}m
-                                    </div>
-                                    {/* DOF range label */}
-                                    <div className="absolute left-6 top-5 whitespace-nowrap rounded bg-black/60 px-2 py-0.5 text-[9px] text-gray-400">
-                                        {dofResult.nearFocus.toFixed(1)}m - {dofResult.farFocus === Infinity ? '∞' : `${dofResult.farFocus.toFixed(1)}m`}
-                                    </div>
+                                    <div className="absolute inset-0 animate-ping rounded-full border border-green-400 opacity-50" />
                                 </div>
                             )}
 
-                            {/* Hint text when no focus point set */}
-                            {!focusPoint && (
-                                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                                    <div className="flex items-center gap-2 rounded-lg bg-black/60 px-4 py-2 text-sm text-gray-400">
-                                        <Target className="h-4 w-4 text-green-400" />
-                                        Click anywhere to focus
-                                    </div>
-                                </div>
-                            )}
-                        </>
-                    )}
-
-                    {/* Legacy DOF Focus Point Indicator - only in legacy mode without click-to-focus */}
-                    {activeTab === 'dof' && !showLayeredScene && !clickToFocusEnabled && (
-                        <div
-                            className="absolute h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-green-400 shadow-lg shadow-green-500/30"
-                            style={{
-                                left: '50%',
-                                top: `${(1 - dofSettings.focusDistance) * 100}%`,
-                            }}
-                        >
-                            <div className="absolute inset-0 animate-ping rounded-full border border-green-400 opacity-50" />
-                        </div>
-                    )}
-                </div>
-
-                {/* Hidden canvas for capture */}
-                <canvas ref={canvasRef} className="hidden" />
-
-                {/* Bottom Action Bar - compact */}
-                <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/80 to-transparent px-3 py-2">
-                    {/* Framing Guide Buttons */}
-                    <div className="flex items-center gap-1">
-                        {showGuides &&
-                            framingGuides.map(guide => (
-                                <Tooltip key={guide.id} content={guide.name} side="top">
-                                    <button
-                                        onClick={() => toggleGuide(guide.id)}
-                                        className={clsx(
-                                            'h-5 w-5 rounded border transition-all',
-                                            guide.enabled
-                                                ? 'border-white/30 bg-white/20'
-                                                : 'border-white/10 bg-transparent hover:border-white/20'
-                                        )}
-                                        style={{
-                                            backgroundColor: guide.enabled ? guide.color.replace('40', '60') : undefined,
-                                        }}
-                                    />
-                                </Tooltip>
-                            ))}
-                    </div>
-
-                    {/* DOF Stats Overlay - always visible */}
-                    {activeTab === 'dof' && (
-                        <div className="flex items-center gap-3 rounded-lg bg-black/60 px-3 py-1">
-                            <div className="text-center">
-                                <div className="text-[8px] text-gray-500">Aperture</div>
-                                <div className="font-mono text-xs font-bold text-cyan-400">f/{dofSettings.aperture}</div>
-                            </div>
-                            <div className="h-4 w-px bg-white/10" />
-                            <div className="text-center">
-                                <div className="text-[8px] text-gray-500">Focus</div>
-                                <div className="font-mono text-xs text-green-400">{dofResult.focusDistanceM.toFixed(1)}m</div>
-                            </div>
-                            <div className="h-4 w-px bg-white/10" />
-                            <div className="text-center">
-                                <div className="text-[8px] text-gray-500">DOF</div>
-                                <div className="font-mono text-xs text-white">
-                                    {dofResult.totalDOF === Infinity ? '∞' : `${dofResult.totalDOF.toFixed(1)}m`}
-                                </div>
-                            </div>
-                            <div className="h-4 w-px bg-white/10" />
-                            <div className="text-center">
-                                <div className="text-[8px] text-gray-500">Lens</div>
-                                <div className="font-mono text-xs text-amber-400">{dofSettings.focalLength}mm</div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-1.5">
-                        {activeTab === 'dof' && (
-                            <Tooltip content={copied ? 'Copied!' : 'Copy DOF prompt'} side="top">
-                                <button
-                                    onClick={copyDOFPrompt}
-                                    className={clsx(
-                                        'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all',
-                                        copied
-                                            ? 'bg-green-500 text-white'
-                                            : 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30'
+                            {/* Camera Movement Indicator - shows when global store has active movement */}
+                            {globalStoreEnabled && globalCameraMovement.type !== 'static' && (
+                                <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 rounded-lg bg-black/70 px-3 py-1.5 text-xs text-cyan-400">
+                                    <Move className="h-3.5 w-3.5" />
+                                    <span className="uppercase tracking-wide">
+                                        {globalCameraMovement.type} {globalCameraMovement.direction}
+                                    </span>
+                                    {globalCameraMovement.intensity && (
+                                        <span className="text-gray-400">({globalCameraMovement.intensity})</span>
                                     )}
-                                >
-                                    {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                                    {copied ? 'Copied!' : 'Copy'}
-                                </button>
-                            </Tooltip>
-                        )}
-                        <button
-                            onClick={captureView}
-                            disabled={!referenceImageUrl && !arActive}
-                            className={clsx(
-                                'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all',
-                                referenceImageUrl || arActive
-                                    ? 'bg-green-500 text-white hover:bg-green-400'
-                                    : 'cursor-not-allowed bg-gray-700 text-gray-500'
+                                </div>
                             )}
-                        >
-                            <Camera className="h-3.5 w-3.5" />
-                            Capture
-                        </button>
+                        </div>{/* End of Global Camera Movement Transform Layer */}
+                    </div>
+
+                    {/* Hidden canvas for capture */}
+                    <canvas ref={canvasRef} className="hidden" />
+
+                    {/* Bottom Action Bar - compact */}
+                    <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/80 to-transparent px-3 py-2">
+                        {/* Framing Guide Buttons */}
+                        <div className="flex items-center gap-1">
+                            {showGuides &&
+                                framingGuides.map(guide => (
+                                    <Tooltip key={guide.id} content={guide.name} side="top">
+                                        <button
+                                            onClick={() => toggleGuide(guide.id)}
+                                            className={clsx(
+                                                'h-5 w-5 rounded border transition-all',
+                                                guide.enabled
+                                                    ? 'border-white/30 bg-white/20'
+                                                    : 'border-white/10 bg-transparent hover:border-white/20'
+                                            )}
+                                            style={{
+                                                backgroundColor: guide.enabled ? guide.color.replace('40', '60') : undefined,
+                                            }}
+                                        />
+                                    </Tooltip>
+                                ))}
+                        </div>
+
+                        {/* DOF Stats Overlay - always visible */}
+                        {activeTab === 'dof' && (
+                            <div className="flex items-center gap-3 rounded-lg bg-black/60 px-3 py-1">
+                                <div className="text-center">
+                                    <div className="text-[8px] text-gray-500">Aperture</div>
+                                    <div className="font-mono text-xs font-bold text-cyan-400">f/{dofSettings.aperture}</div>
+                                </div>
+                                <div className="h-4 w-px bg-white/10" />
+                                <div className="text-center">
+                                    <div className="text-[8px] text-gray-500">Focus</div>
+                                    <div className="font-mono text-xs text-green-400">{dofResult.focusDistanceM.toFixed(1)}m</div>
+                                </div>
+                                <div className="h-4 w-px bg-white/10" />
+                                <div className="text-center">
+                                    <div className="text-[8px] text-gray-500">DOF</div>
+                                    <div className="font-mono text-xs text-white">
+                                        {dofResult.totalDOF === Infinity ? '∞' : `${dofResult.totalDOF.toFixed(1)}m`}
+                                    </div>
+                                </div>
+                                <div className="h-4 w-px bg-white/10" />
+                                <div className="text-center">
+                                    <div className="text-[8px] text-gray-500">Lens</div>
+                                    <div className="font-mono text-xs text-amber-400">{dofSettings.focalLength}mm</div>
+                                </div>
+                                {/* 2D Flat Composite note - manages user expectations */}
+                                <div className="h-4 w-px bg-white/10" />
+                                <Tooltip content="This is a 2D CSS simulation. Real 3D perspective transforms would require WebGL or Three.js." side="top">
+                                    <div className="flex items-center gap-1 text-gray-500">
+                                        <Info className="h-3 w-3" />
+                                        <span className="text-[8px] uppercase tracking-wider">2D Sim</span>
+                                    </div>
+                                </Tooltip>
+                            </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-1.5">
+                            {activeTab === 'dof' && (
+                                <Tooltip content={copied ? 'Copied!' : 'Copy DOF prompt'} side="top">
+                                    <button
+                                        onClick={copyDOFPrompt}
+                                        className={clsx(
+                                            'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all',
+                                            copied
+                                                ? 'bg-green-500 text-white'
+                                                : 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30'
+                                        )}
+                                    >
+                                        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                        {copied ? 'Copied!' : 'Copy'}
+                                    </button>
+                                </Tooltip>
+                            )}
+                            <button
+                                onClick={captureView}
+                                disabled={!referenceImageUrl && !arActive}
+                                className={clsx(
+                                    'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all',
+                                    referenceImageUrl || arActive
+                                        ? 'bg-green-500 text-white hover:bg-green-400'
+                                        : 'cursor-not-allowed bg-gray-700 text-gray-500'
+                                )}
+                            >
+                                <Camera className="h-3.5 w-3.5" />
+                                Capture
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
             </div>
             {/* END LEFT SIDE */}
 
@@ -2284,6 +2493,10 @@ export function DirectorViewfinder({
                                                     onChange={e => setDofSettings(prev => ({ ...prev, aperture: APERTURE_STOPS[Number(e.target.value)] }))}
                                                     className="w-full accent-cyan-400"
                                                 />
+                                                {/* Digital blur simulation note - manages user expectations */}
+                                                <p className="mt-1 text-[8px] leading-relaxed text-gray-600">
+                                                    CSS blur simulation. Final generation uses <span className="text-cyan-400">Learn2Refocus</span> for photorealistic bokeh.
+                                                </p>
                                             </div>
                                             {/* Focus Distance */}
                                             <div>
@@ -2403,6 +2616,16 @@ export function DirectorViewfinder({
                                                     {generateCameraRecipe().promptSuffix || 'No specific DOF settings'}
                                                 </div>
                                             </div>
+                                        </div>
+                                    </AccordionSection>
+
+                                    {/* Camera Motion - Global Store Remote Control */}
+                                    <AccordionSection id="motion" title="Camera Motion" icon={Move} color="cyan" isExpanded={expandedSections.has('motion')} onToggle={toggleSection}>
+                                        <div className="space-y-3">
+                                            <div className="text-[9px] text-gray-500">
+                                                Simulates camera movement with 2D CSS transforms.
+                                            </div>
+                                            <CameraControlPanel useGlobalStore={true} />
                                         </div>
                                     </AccordionSection>
 
@@ -2877,6 +3100,9 @@ export function DirectorViewfinder({
                                                 if (matching) {
                                                     setSelectedFraming(matching);
                                                 }
+                                                // Update Focus Distance to track subject (Fix for "Broken Remote")
+                                                const normalized = Math.max(0, Math.min(1, (distM - 0.5) / 99.5));
+                                                setDofSettings(prev => ({ ...prev, focusDistance: normalized }));
                                             }}
                                             referenceImageUrl={referenceImageUrl}
                                             isExpanded={expandedSections.has('dolly-zoom')}

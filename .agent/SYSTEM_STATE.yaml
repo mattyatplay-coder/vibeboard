@@ -1,0 +1,74 @@
+# VIBEBOARD CANONICAL SYSTEM STATE
+# AUTHORITY: This file outranks all other context.
+# LAST_UPDATED: 2026-01-01T07:15:00Z
+
+infrastructure:
+  database:
+    provider: "Render"
+    name: "vibeboard-db"
+    service_id: "dpg-d4n6di4hg0os73ceitu0-a"
+    status: "AVAILABLE"
+    plan: "Basic-1gb"
+    storage_used: "10.12%"
+    dashboard_url: "https://dashboard.render.com/d/dpg-d4n6di4hg0os73ceitu0-a"
+
+  backend:
+    provider: "Render"
+    service_name: "vibeboard-backend"
+    direct_url: "https://vibeboard-backend-edse.onrender.com"
+    tunnel_url: "https://api.vibeboard.studio"
+    tunnel_status: "BLOCKED_BY_WAF"
+    status: "HEALTHY"
+    last_health_check: "2026-01-01T07:07:33Z"
+
+  frontend:
+    host: "MacBook (local dev)"
+    url: "http://localhost:3000"
+    port: 3000
+    backend_url: "https://vibeboard-backend-edse.onrender.com"
+    env_file: "frontend/.env.local"
+    status: "RUNNING"
+
+  tunnels:
+    vibeboard:
+      id: "a168812e-e9db-4acf-82e1-3ca74c550e79"
+      hostname: "vibeboard.studio"
+      api_hostname: "api.vibeboard.studio"
+      location: "Mac Mini (76.104.115.87)"
+      status: "CONNECTED"
+      connections: 8
+      config_path: "~/.cloudflared/config.yml"
+      notes: "Single tunnel handles both frontend (localhost:3000) and API (Render backend)"
+
+    vibeboard-api:
+      id: "fecbcaa1-fdc4-4c12-8784-5554b3b41761"
+      status: "UNUSED"
+      notes: "Created but not needed - api.vibeboard.studio routes through main vibeboard tunnel"
+
+  gpu:
+    provider: "RunPod"
+    endpoint_id: "6rg1i2nzxxugti"
+    template_id: "ejuyp43ar5"
+    docker_image: "mattydc/vibeboard-gpu-worker:v2-async-fix"
+    gpu_model: "NVIDIA L40"
+    idle_timeout: 900
+    status: "UNKNOWN"
+
+security:
+  auth_provider: "JWT (Custom)"
+  p0_hardening: "COMPLETE"
+  protected_routes:
+    - "/api/generate"
+    - "/api/vfx"
+    - "/api/tracking"
+    - "/api/prompts/enhance"
+    - "/api/search/index"
+    - "/api/lighting/analyze"
+    - "/api/foundry"
+
+api_routing:
+  description: "API routes through Cloudflare tunnel to Render backend"
+  frontend_env: "NEXT_PUBLIC_BACKEND_URL=https://api.vibeboard.studio"
+  tunnel_config: "api.vibeboard.studio → https://vibeboard-backend-edse.onrender.com"
+  render_custom_domain: "api.vibeboard.studio added to vibeboard-backend service"
+  status: "WORKING"

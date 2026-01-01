@@ -1,0 +1,35 @@
+You are absolutely right. The best way to automate the **System Acceptance Test (SAT)** we designed is by using **Playwright**. It simulates real user interactions end-to-end, catching errors across the Frontend, Backend, and GPU Worker calls.
+
+We will create a **Single, Comprehensive Playwright Script** that validates the entire VibeBoard pipeline.
+
+Here is the list of high-level actions and the specific assertions the Playwright script should make.
+
+---
+
+### 📝 Playwright Acceptance Test Script (SAT)
+
+This script should be run in **serial mode** as each test depends on the successful output of the previous one (e.g., you can't run **SAT-03** without the output URL from **SAT-02**).
+
+| Test Step ID | VibeBoard Module | Playwright Action & Data Injection | Expected Assertion (Final State) |
+| :--- | :--- | :--- | :--- |
+| **SAT-01** | **Setup & Auth** | Navigate to `/login`. Sign in using test credentials (Team ID is now set). | Page lands on `/script-lab`. No console errors. |
+| **SAT-02** | **Script Lab (RAG)** | Type Concept: `"Noir detective is cornered by a femme fatale in a rainy alley."` Click **"Write Screenplay."** | Screenplay text is generated. **"Breakdown Script"** button becomes active. |
+| **SAT-03** | **Asset Bin** | Click **"Auto-Breakdown"**. Navigate to `/asset-bin`. | At least **5 new Element Cards** (`Detective`, `Femme Fatale`, `Rainy Alley`) are visible in the bin. |
+| **SAT-04** | **Foundry** | Select **Femme Fatale** image. Select a 10s **Audio File**. Click **"Generate Performance."** | A new **Generation Record** appears on the **Generate** page with status `queued`. |
+| **SAT-05** | **Optics & Control** | Navigate to **Shot Studio**. Set **Duration** to **30s**. | **Producer Widget** appears immediately with **"Budget Override"** alert visible. |
+| **SAT-06** | **Shot Studio (ReCo/Spatia)** | Click **"Add Bounding Box"**. Draw a box in the center. Click **"Generate Shot"**. | New `Generation` record is created (status `queued`). The record contains `blockingRegions` in its metadata. |
+| **SAT-07** | **Async Polling** | Open the **VFX Suite** jobs list. Poll the status of the two `queued` jobs from SAT-04 and SAT-06. | Jobs eventually transition from `queued` $\to$ `running` $\to$ `succeeded`. |
+| **SAT-08** | **VFX Suite (Fix)** | Select the successful **Shot Studio** video output. Click **"Rescue Focus."** | New `VFX Job` (DiffCamera) is created with status `queued`. |
+| **SAT-09** | **Sequencer** | Click **"Generate Captions"** on the latest Scene Chain. | **API Response** contains a valid `SRT file` with timestamps. |
+| **SAT-10** | **Final Export** | Click **"Export Final"** (ProRes/EDL). | **API Response** returns a `JobID`. The final `exports` directory (or R2 bucket) contains an `.mp4` and an `.edl` file. |
+
+---
+
+### 🛠️ Technical Note for the Coder
+
+The critical steps for the Playwright script will be:
+
+1.  **Waiting (The Async Problem):** For tests SAT-04, SAT-06, and SAT-07, the script cannot proceed until the API returns a `status: 'completed'`. You must build a **waitForCondition** loop that polls the status endpoint every 5 seconds.
+2.  **File Management:** The script needs to bypass the file upload UI and directly submit the necessary file URLs (e.g., audio, character reference images) to the corresponding backend endpoints.
+
+Once this script passes, you have total confidence in the end-to-end functionality of VibeBoard 2.0.

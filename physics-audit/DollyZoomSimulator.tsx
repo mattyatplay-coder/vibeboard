@@ -350,20 +350,26 @@ export function DollyZoomSimulator({
                 </div>
             </div>
 
-            {/* Calculated Distance Display (read-only) */}
-            {/* NOTE: Manual distance slider REMOVED to fix physics conflict.
-                The Dolly Zoom effect requires the system to calculate distance
-                based on focal length ratio, not manual user input. */}
-            <div className="rounded border border-cyan-500/20 bg-cyan-500/5 px-2 py-1.5">
+            {/* Distance Slider (Added per user request) */}
+            <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                    <span className="text-[9px] text-cyan-400">Calculated Distance</span>
-                    <span className="text-[11px] font-medium text-cyan-300">{distanceM.toFixed(2)}m</span>
+                    <span className="text-[9px] text-gray-400">Camera Distance</span>
+                    <span className="text-[10px] font-medium text-white">{distanceM.toFixed(2)}m</span>
                 </div>
-                <p className="mt-0.5 text-[8px] text-gray-500">
-                    {mode === 'constant-framing'
-                        ? 'Auto-calculated from focal length ratio'
-                        : 'Fixed in constant-distance mode'}
-                </p>
+                <input
+                    type="range"
+                    min={0.5}
+                    max={10}
+                    step={0.1}
+                    value={distanceM}
+                    onChange={(e) => onDistanceChange(Number(e.target.value))}
+                    disabled={isAnimating}
+                    className="w-full accent-cyan-500"
+                />
+                <div className="flex justify-between text-[8px] text-gray-500">
+                    <span>0.5m (Close)</span>
+                    <span>10m (Wide)</span>
+                </div>
             </div>
 
             {/* Focal length slider */}
