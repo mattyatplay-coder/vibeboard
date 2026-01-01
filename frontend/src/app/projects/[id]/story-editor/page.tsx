@@ -714,7 +714,8 @@ export default function StoryEditorPage() {
 
     // Auto-save story config before starting generation
     // This creates a backup with the current settings and a working title
-    await autoSaveStoryConfig();
+    // Returns the storyId so we can update it as each stage completes
+    const savedStoryId = await autoSaveStoryConfig();
 
     // Convert local characters to global format
     const globalCharacters: GlobalStoryCharacter[] = selectedCharacters.map(c => ({
@@ -728,8 +729,10 @@ export default function StoryEditorPage() {
     }));
 
     // Start generation in the global store (continues even if we navigate away)
+    // Pass storyId so generated content is auto-saved after each stage
     globalStore.startGeneration({
       projectId,
+      storyId: savedStoryId || undefined,
       concept,
       genre: selectedGenre,
       style: style || `cinematic ${selectedGenre}`,

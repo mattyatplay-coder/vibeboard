@@ -8,6 +8,57 @@
 import { create } from 'zustand';
 import { fetchAPI } from '@/lib/api';
 
+/**
+ * Helper function to save story progress to the backend.
+ * Called after each pipeline stage completes to persist generated content.
+ */
+async function saveStoryProgress(
+  projectId: string,
+  storyId: string | undefined,
+  data: {
+    outline?: unknown;
+    script?: string;
+    scenes?: unknown[];
+    prompts?: unknown[];
+    status?: string;
+  }
+): Promise<void> {
+  if (!storyId) {
+    console.log('[StoryGeneration] No storyId, skipping auto-save');
+    return;
+  }
+
+  try {
+    const updatePayload: Record<string, unknown> = {};
+
+    if (data.outline !== undefined) {
+      updatePayload.outline = data.outline;
+    }
+    if (data.script !== undefined) {
+      updatePayload.script = data.script;
+    }
+    if (data.scenes !== undefined) {
+      updatePayload.scenes = data.scenes;
+    }
+    if (data.prompts !== undefined) {
+      updatePayload.prompts = data.prompts;
+    }
+    if (data.status !== undefined) {
+      updatePayload.status = data.status;
+    }
+
+    await fetchAPI(`/projects/${projectId}/stories/${storyId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updatePayload),
+    });
+
+    console.log('[StoryGeneration] Auto-saved story progress:', Object.keys(updatePayload).join(', '));
+  } catch (error) {
+    // Log but don't throw - we don't want to interrupt generation for save failures
+    console.error('[StoryGeneration] Failed to auto-save story progress:', error);
+  }
+}
+
 // Pipeline stages
 export type PipelineStage = 'concept' | 'outline' | 'script' | 'breakdown' | 'prompts' | 'complete';
 
@@ -37,6 +88,7 @@ export interface StoryCharacter {
 
 export interface GenerationConfig {
   projectId: string;
+  storyId?: string; // ID of the saved story to update with generated content
   concept: string;
   uploadedScript?: string; // For "script" input mode
   genre: string;
@@ -204,6 +256,9 @@ export const useStoryGenerationStore = create<StoryGenerationState>((set, get) =
       set({ outline: outlineResponse });
       updateStageStatus('outline', { status: 'complete', data: outlineResponse });
 
+      // Auto-save outline
+      await saveStoryProgress(config.projectId, config.storyId, { outline: outlineResponse });
+
       // Stage 2: Generate Script
       set({ currentStage: 'script' });
       updateStageStatus('script', { status: 'in_progress' });
@@ -222,6 +277,9 @@ export const useStoryGenerationStore = create<StoryGenerationState>((set, get) =
 
       set({ script: scriptResponse.script });
       updateStageStatus('script', { status: 'complete', data: scriptResponse });
+
+      // Auto-save script
+      await saveStoryProgress(config.projectId, config.storyId, { script: scriptResponse.script });
 
       // Continue with breakdown and prompts
       await runBreakdownAndPrompts(config, scriptResponse.script);
@@ -362,6 +420,9 @@ export const useStoryGenerationStore = create<StoryGenerationState>((set, get) =
         set({ script: scriptResponse.script });
         updateStageStatus('script', { status: 'complete', data: scriptResponse });
 
+        // Auto-save script
+        await saveStoryProgress(config.projectId, config.storyId, { script: scriptResponse.script });
+
         await runBreakdownAndPrompts(config, scriptResponse.script);
       } else {
         // Start from beginning
@@ -464,6 +525,12 @@ async function runPromptsOnly(config: GenerationConfig, scenes: unknown[]) {
   useStoryGenerationStore.setState({ progressInfo: null, prompts: allPrompts });
   updateStageStatus('prompts', { status: 'complete', data: allPrompts });
 
+  // Auto-save prompts and mark story as complete
+  await saveStoryProgress(config.projectId, config.storyId, {
+    prompts: allPrompts,
+    status: 'complete'
+  });
+
   // Complete!
   useStoryGenerationStore.setState({ currentStage: 'complete' });
   updateStageStatus('complete', { status: 'complete' });
@@ -531,6 +598,9 @@ async function runBreakdownAndPrompts(config: GenerationConfig, scriptText: stri
 
   useStoryGenerationStore.setState({ progressInfo: null, scenes: breakdowns });
   updateStageStatus('breakdown', { status: 'complete', data: breakdowns });
+
+  // Auto-save scenes (breakdowns)
+  await saveStoryProgress(config.projectId, config.storyId, { scenes: breakdowns });
 
   // Stage 4: Generate Prompts
   useStoryGenerationStore.setState({ currentStage: 'prompts' });
@@ -611,6 +681,12 @@ async function runBreakdownAndPrompts(config: GenerationConfig, scriptText: stri
 
   useStoryGenerationStore.setState({ progressInfo: null, prompts: allPrompts });
   updateStageStatus('prompts', { status: 'complete', data: allPrompts });
+
+  // Auto-save prompts and mark story as complete
+  await saveStoryProgress(config.projectId, config.storyId, {
+    prompts: allPrompts,
+    status: 'complete'
+  });
 
   // Complete!
   useStoryGenerationStore.setState({ currentStage: 'complete' });
