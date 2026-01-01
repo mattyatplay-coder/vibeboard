@@ -613,12 +613,108 @@ export default function StoryEditorPage() {
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   };
 
+  // Generate a working title from the concept
+  const generateWorkingTitle = (conceptText: string, genre: string): string => {
+    // Clean up the concept text
+    const cleaned = conceptText.trim();
+    if (!cleaned) return `Untitled ${genre} Story`;
+
+    // Try to extract a meaningful title from the first sentence or phrase
+    // Look for natural break points: period, comma, dash, "about", "where", "when"
+    const breakPatterns = [
+      /^(.{10,50}?)[.!?]/,           // First sentence up to 50 chars
+      /^(.{10,40}?),\s/,             // First clause up to 40 chars
+      /^(.{10,35}?)\s[-–—]\s/,       // Before a dash
+      /^(.{10,30}?)\s(?:about|where|when|who)\s/i, // Before common conjunctions
+    ];
+
+    for (const pattern of breakPatterns) {
+      const match = cleaned.match(pattern);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+    }
+
+    // If no natural break, truncate intelligently at word boundary
+    if (cleaned.length <= 40) return cleaned;
+
+    const truncated = cleaned.slice(0, 40);
+    const lastSpace = truncated.lastIndexOf(' ');
+    if (lastSpace > 20) {
+      return truncated.slice(0, lastSpace) + '...';
+    }
+
+    return truncated + '...';
+  };
+
+  // Auto-save story config before generation
+  const autoSaveStoryConfig = async (): Promise<string | null> => {
+    // Generate a working title if we don't have one
+    const workingTitle = storyName.trim() || generateWorkingTitle(concept, selectedGenre || 'Draft');
+
+    const storyData = {
+      name: workingTitle,
+      genre: selectedGenre,
+      concept,
+      outline: null,
+      script: '',
+      scenes: [],
+      prompts: [],
+      allowNSFW,
+      targetDuration: targetDurationSeconds,
+      shotDuration,
+      style: style || `cinematic ${selectedGenre}`,
+      pace,
+      characters: selectedCharacters.map(c => ({
+        name: c.name,
+        elementId: c.elementId,
+        loraId: c.loraId,
+        triggerWord: c.triggerWord,
+        visualDescription: c.visualDescription,
+        referenceImageUrl: c.referenceImageUrl,
+        role: c.role,
+      })),
+      status: 'generating',
+    };
+
+    try {
+      let savedStory;
+      if (currentStoryId) {
+        // Update existing story
+        savedStory = await fetchAPI(`/projects/${projectId}/stories/${currentStoryId}`, {
+          method: 'PATCH',
+          body: JSON.stringify(storyData),
+        });
+      } else {
+        // Create new story
+        savedStory = await fetchAPI(`/projects/${projectId}/stories`, {
+          method: 'POST',
+          body: JSON.stringify(storyData),
+        });
+        setCurrentStoryId(savedStory.id);
+      }
+
+      // Update the displayed story name
+      setStoryName(savedStory.name);
+      console.log('[StoryEditor] Auto-saved story config:', savedStory.name);
+      return savedStory.id;
+    } catch (error) {
+      console.error('[StoryEditor] Failed to auto-save story config:', error);
+      // Don't block generation on save failure
+      return null;
+    }
+  };
+
   // Run the full pipeline using global store (persists across navigation)
   const runPipeline = async () => {
     if (!concept || !selectedGenre) {
       alert('Please enter a concept and select a genre');
       return;
     }
+
+    // Auto-save story config before starting generation
+    // This creates a backup with the current settings and a working title
+    await autoSaveStoryConfig();
 
     // Convert local characters to global format
     const globalCharacters: GlobalStoryCharacter[] = selectedCharacters.map(c => ({

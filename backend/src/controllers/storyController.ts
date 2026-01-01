@@ -66,7 +66,8 @@ export async function getStory(req: Request, res: Response) {
             ...story,
             outline: story.outline ? JSON.parse(story.outline) : null,
             scenes: story.scenes ? JSON.parse(story.scenes) : [],
-            prompts: story.prompts ? JSON.parse(story.prompts) : []
+            prompts: story.prompts ? JSON.parse(story.prompts) : [],
+            characters: story.characters ? JSON.parse(story.characters) : []
         };
 
         res.json(parsed);
@@ -96,7 +97,11 @@ export async function createStory(req: Request, res: Response) {
             prompts,
             allowNSFW,
             targetDuration,
+            shotDuration,
             directorStyle,
+            style,
+            pace,
+            characters,
             status
         } = req.body;
 
@@ -118,7 +123,11 @@ export async function createStory(req: Request, res: Response) {
                 prompts: prompts ? JSON.stringify(prompts) : null,
                 allowNSFW: allowNSFW || false,
                 targetDuration: targetDuration || null,
+                shotDuration: shotDuration || null,
                 directorStyle: directorStyle || null,
+                style: style || null,
+                pace: pace || null,
+                characters: characters ? JSON.stringify(characters) : null,
                 status: status || 'draft'
             }
         });
@@ -150,7 +159,11 @@ export async function updateStory(req: Request, res: Response) {
             prompts,
             allowNSFW,
             targetDuration,
+            shotDuration,
             directorStyle,
+            style,
+            pace,
+            characters,
             status,
             exportedAt
         } = req.body;
@@ -175,7 +188,11 @@ export async function updateStory(req: Request, res: Response) {
         if (prompts !== undefined) updateData.prompts = JSON.stringify(prompts);
         if (allowNSFW !== undefined) updateData.allowNSFW = allowNSFW;
         if (targetDuration !== undefined) updateData.targetDuration = targetDuration;
+        if (shotDuration !== undefined) updateData.shotDuration = shotDuration;
         if (directorStyle !== undefined) updateData.directorStyle = directorStyle;
+        if (style !== undefined) updateData.style = style;
+        if (pace !== undefined) updateData.pace = pace;
+        if (characters !== undefined) updateData.characters = JSON.stringify(characters);
         if (status !== undefined) updateData.status = status;
         if (exportedAt !== undefined) updateData.exportedAt = exportedAt ? new Date(exportedAt) : null;
 

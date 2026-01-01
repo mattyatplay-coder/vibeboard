@@ -106,10 +106,14 @@ model Story {
   // Settings
   allowNSFW       Boolean  @default(false)
   targetDuration  Int?     // Target duration in seconds
-  directorStyle   String?  // Selected director style
+  shotDuration    Int?     // Duration per video shot in seconds
+  directorStyle   String?  // Selected director style (legacy)
+  style           String?  // Visual style string
+  pace            String?  // 'slow', 'medium', 'fast'
+  characters      String?  // JSON: Array of character configs with elementId, loraId, triggerWord, visualDescription
 
   // State
-  status          String   @default("draft") // 'draft', 'outline', 'script', 'breakdown', 'complete', 'exported'
+  status          String   @default("draft") // 'draft', 'outline', 'script', 'breakdown', 'complete', 'generating', 'exported'
   exportedAt      DateTime? // When exported to storyboard
 
   createdAt       DateTime @default(now())
