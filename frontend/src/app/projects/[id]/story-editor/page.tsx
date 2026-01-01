@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
@@ -31,6 +31,7 @@ import {
   Trash2,
   Image,
   Package,
+  Pencil,
 } from 'lucide-react';
 import { fetchAPI, BACKEND_URL } from '@/lib/api';
 import { usePageAutoSave, StoryEditorSession, hasRecoverableContent } from '@/lib/pageSessionStore';
@@ -704,6 +705,49 @@ export default function StoryEditorPage() {
       return null;
     }
   };
+
+  // Debounced auto-save for story title changes
+  const titleSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isSavingTitle, setIsSavingTitle] = useState(false);
+
+  const handleTitleChange = useCallback((newTitle: string) => {
+    setStoryName(newTitle);
+
+    // Clear any pending save
+    if (titleSaveTimeoutRef.current) {
+      clearTimeout(titleSaveTimeoutRef.current);
+    }
+
+    // Only auto-save if we have a story ID
+    if (!currentStoryId) return;
+
+    // Debounce the save by 800ms
+    titleSaveTimeoutRef.current = setTimeout(async () => {
+      if (!newTitle.trim()) return;
+
+      setIsSavingTitle(true);
+      try {
+        await fetchAPI(`/projects/${projectId}/stories/${currentStoryId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ name: newTitle.trim() }),
+        });
+        console.log('[StoryEditor] Auto-saved title:', newTitle.trim());
+      } catch (error) {
+        console.error('[StoryEditor] Failed to auto-save title:', error);
+      } finally {
+        setIsSavingTitle(false);
+      }
+    }, 800);
+  }, [currentStoryId, projectId]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (titleSaveTimeoutRef.current) {
+        clearTimeout(titleSaveTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Run the full pipeline using global store (persists across navigation)
   const runPipeline = async () => {
@@ -2256,6 +2300,29 @@ The parser will automatically detect scenes and break them down into shots."
               status={stages.outline.status}
             >
               <div className="space-y-4">
+                {/* Editable Working Title */}
+                <div className="rounded-lg bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Pencil className="h-3.5 w-3.5 text-violet-400" />
+                    <span className="text-xs font-medium text-violet-400 uppercase tracking-wider">
+                      Working Title
+                    </span>
+                    {isSavingTitle && (
+                      <Loader2 className="h-3 w-3 text-violet-400 animate-spin ml-auto" />
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={storyName}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    placeholder="Enter a title for your story..."
+                    className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white text-lg font-semibold placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all"
+                  />
+                  <p className="text-xs text-gray-500 mt-1.5">
+                    This title will be used when exporting your story
+                  </p>
+                </div>
+
                 {/* Characters */}
                 {outline.characters?.length > 0 && (
                   <div>
