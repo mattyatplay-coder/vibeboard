@@ -12,39 +12,49 @@ const log = loggers.api;
 // P0 SECURITY: CORS CONFIGURATION
 // =============================================================================
 const CORS_ALLOWLIST = [
-    'https://vibeboard.studio',
-    'https://www.vibeboard.studio',
-    'https://api.vibeboard.studio',
+  'https://vibeboard.studio',
+  'https://www.vibeboard.studio',
+  'https://api.vibeboard.studio',
 ];
+
+// Add origins from CORS_ORIGIN env var (comma-separated)
+if (process.env.CORS_ORIGIN) {
+  const envOrigins = process.env.CORS_ORIGIN.split(',').map(o => o.trim());
+  envOrigins.forEach(origin => {
+    if (origin && !CORS_ALLOWLIST.includes(origin)) {
+      CORS_ALLOWLIST.push(origin);
+    }
+  });
+}
 
 // Add localhost for development
 if (process.env.NODE_ENV !== 'production') {
-    CORS_ALLOWLIST.push(
-        'http://localhost:3000',
-        'http://localhost:3001',
-        'http://localhost:3005', // Experimental frontend
-        'http://127.0.0.1:3000',
-    );
+  CORS_ALLOWLIST.push(
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3005', // Experimental frontend
+    'http://127.0.0.1:3000'
+  );
 }
 
 const corsOptions: cors.CorsOptions = {
-    origin: (origin, callback) => {
-        // Allow requests with no origin (mobile apps, curl, Postman)
-        if (!origin) {
-            callback(null, true);
-            return;
-        }
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, Postman)
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
 
-        if (CORS_ALLOWLIST.includes(origin)) {
-            callback(null, true);
-        } else {
-            log.warn({ origin }, 'CORS request blocked from non-allowlisted origin');
-            callback(new Error('CORS policy violation'));
-        }
-    },
-    credentials: true, // Allow cookies for session-based auth
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    if (CORS_ALLOWLIST.includes(origin)) {
+      callback(null, true);
+    } else {
+      log.warn({ origin }, 'CORS request blocked from non-allowlisted origin');
+      callback(new Error('CORS policy violation'));
+    }
+  },
+  credentials: true, // Allow cookies for session-based auth
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 };
 
 import authRoutes from './routes/authRoutes';
@@ -254,7 +264,8 @@ app.get('/api/elements', require('./controllers/elementController').getAllElemen
 app.get('/api/info', (_req, res) => {
   res.json({
     name: 'VibeBoard Studio',
-    description: 'AI-Powered Cinematic Production Suite for video generation, character consistency, and storyboard creation.',
+    description:
+      'AI-Powered Cinematic Production Suite for video generation, character consistency, and storyboard creation.',
     url: 'https://vibeboard.studio',
     apiUrl: 'https://api.vibeboard.studio',
     version: '2.0',
@@ -268,10 +279,10 @@ app.get('/api/info', (_req, res) => {
       'Character Foundry synthetic dataset generation',
       'NLE Timeline with L-Cut/J-Cut audio editing',
       'YouTube delivery integration',
-      'Pro Trajectory Engine point tracking'
+      'Pro Trajectory Engine point tracking',
     ],
     aiProviders: ['Fal.ai', 'Replicate', 'Together AI', 'OpenAI', 'Google', 'Grok', 'RunPod'],
-    contact: 'https://vibeboard.studio'
+    contact: 'https://vibeboard.studio',
   });
 });
 
@@ -335,14 +346,20 @@ const server = app.listen(port, async () => {
     await queueService.initialize();
     log.info('BullMQ queue service initialized');
   } catch (error) {
-    log.warn({ error }, 'BullMQ queue service not available (Redis may not be running). Jobs will run synchronously.');
+    log.warn(
+      { error },
+      'BullMQ queue service not available (Redis may not be running). Jobs will run synchronously.'
+    );
   }
 
   // Hydrate render queue from database (recover interrupted jobs)
   try {
     const { recoveredJobs, requeuedPasses } = await renderQueueService.hydrateQueue();
     if (recoveredJobs > 0) {
-      log.info({ recoveredJobs, requeuedPasses }, `Recovered ${recoveredJobs} render jobs with ${requeuedPasses} pending passes`);
+      log.info(
+        { recoveredJobs, requeuedPasses },
+        `Recovered ${recoveredJobs} render jobs with ${requeuedPasses} pending passes`
+      );
     }
   } catch (error) {
     log.error({ error }, 'Failed to hydrate render queue');
@@ -365,7 +382,7 @@ async function gracefulShutdown(signal: string) {
   log.info({ signal }, `Received ${signal}, starting graceful shutdown...`);
 
   // Stop accepting new connections
-  server.close(async (err) => {
+  server.close(async err => {
     if (err) {
       log.error({ error: err }, 'Error closing server');
       process.exit(1);
@@ -405,7 +422,7 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Handle uncaught errors (log but don't crash in production)
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', err => {
   log.fatal({ error: err, stack: err.stack }, 'Uncaught Exception');
   if (process.env.NODE_ENV !== 'production') {
     gracefulShutdown('uncaughtException');
