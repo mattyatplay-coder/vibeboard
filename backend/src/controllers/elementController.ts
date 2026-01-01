@@ -199,7 +199,9 @@ export const updateElement = async (req: Request, res: Response) => {
     const { name, type, isFavorite, tags, sessionId } = req.body;
     const file = req.file;
 
-    const data: any = { name, type };
+    const data: any = {};
+    if (name !== undefined) data.name = name;
+    if (type !== undefined) data.type = type;
     if (sessionId !== undefined) data.sessionId = sessionId === 'null' ? null : sessionId;
     if (isFavorite !== undefined) data.isFavorite = isFavorite === 'true'; // Multipart sends strings
 
@@ -252,9 +254,12 @@ export const updateElement = async (req: Request, res: Response) => {
     });
 
     res.json(parseElementJsonFields(element));
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to update element' });
+  } catch (error: any) {
+    console.error('Element update error:', error);
+    res.status(500).json({
+      error: 'Failed to update element',
+      details: error?.message || 'Unknown error'
+    });
   }
 };
 
