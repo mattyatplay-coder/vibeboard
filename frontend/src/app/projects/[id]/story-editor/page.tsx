@@ -139,6 +139,10 @@ export default function StoryEditorPage() {
   // Thumbnail generator state
   const [showThumbnailGenerator, setShowThumbnailGenerator] = useState(false);
 
+  // Editable sections state
+  const [isEditingScript, setIsEditingScript] = useState(false);
+  const [editedScript, setEditedScript] = useState('');
+
   // Script Lab: Auto-breakdown state
   const [isBreakingDown, setIsBreakingDown] = useState(false);
   const [breakdownResult, setBreakdownResult] = useState<{
@@ -426,6 +430,15 @@ export default function StoryEditorPage() {
         prompts,
         allowNSFW,
         targetDuration: targetDurationSeconds,
+        characters: selectedCharacters.map(c => ({
+          name: c.name,
+          elementId: c.elementId,
+          loraId: c.loraId,
+          triggerWord: c.triggerWord,
+          visualDescription: c.visualDescription,
+          referenceImageUrl: c.referenceImageUrl,
+          role: c.role,
+        })),
         status:
           prompts.length > 0
             ? 'complete'
@@ -485,6 +498,27 @@ export default function StoryEditorPage() {
       if (story.script) setScript(story.script);
       if (story.scenes) setScenes(story.scenes);
       if (story.prompts) setPrompts(story.prompts);
+
+      // Restore selected characters
+      if (story.characters && Array.isArray(story.characters)) {
+        setSelectedCharacters(story.characters.map((c: {
+          name: string;
+          elementId?: string;
+          loraId?: string;
+          triggerWord?: string;
+          visualDescription?: string;
+          referenceImageUrl?: string;
+          role?: string;
+        }) => ({
+          name: c.name,
+          elementId: c.elementId,
+          loraId: c.loraId,
+          triggerWord: c.triggerWord,
+          visualDescription: c.visualDescription,
+          referenceImageUrl: c.referenceImageUrl,
+          role: c.role,
+        })));
+      }
 
       // Update stage based on what's loaded
       if (story.prompts?.length > 0) {
@@ -1146,6 +1180,92 @@ export default function StoryEditorPage() {
   };
 
   const { canContinue, nextStage } = canContinueGeneration();
+
+  // Regenerate downstream content when a section is edited
+  const regenerateFromStage = async (startStage: 'script' | 'breakdown' | 'prompts') => {
+    if (!selectedGenre) {
+      alert('Please select a genre before regenerating');
+      return;
+    }
+
+    // Convert local characters to global format
+    const globalCharacters: GlobalStoryCharacter[] = selectedCharacters.map(c => ({
+      name: c.name,
+      elementId: c.elementId,
+      loraId: c.loraId,
+      triggerWord: c.triggerWord,
+      visualDescription: c.visualDescription,
+      referenceImageUrl: c.referenceImageUrl,
+      role: c.role,
+    }));
+
+    // Clear downstream data based on where we're starting from
+    if (startStage === 'script') {
+      // Editing outline - regenerate script → breakdown → prompts
+      setScript('');
+      setScenes([]);
+      setPrompts([]);
+      updateStageStatus('script', { status: 'pending' });
+      updateStageStatus('breakdown', { status: 'pending' });
+      updateStageStatus('prompts', { status: 'pending' });
+      setCurrentStage('script');
+    } else if (startStage === 'breakdown') {
+      // Editing script - regenerate breakdown → prompts
+      setScenes([]);
+      setPrompts([]);
+      updateStageStatus('breakdown', { status: 'pending' });
+      updateStageStatus('prompts', { status: 'pending' });
+      setCurrentStage('breakdown');
+    } else if (startStage === 'prompts') {
+      // Editing scene breakdown - regenerate prompts only
+      setPrompts([]);
+      updateStageStatus('prompts', { status: 'pending' });
+      setCurrentStage('prompts');
+    }
+
+    // Gather the edited data
+    const fromData: ContinueFromData = {
+      outline: outline || undefined,
+      script: startStage === 'breakdown' || startStage === 'prompts' ? script : undefined,
+      scenes: startStage === 'prompts' ? scenes : undefined,
+    };
+
+    // Continue generation from the global store
+    globalStore.continueGeneration(
+      {
+        projectId,
+        concept: concept || 'Edited story',
+        genre: selectedGenre,
+        style: style || `cinematic ${selectedGenre}`,
+        pace,
+        targetDurationSeconds,
+        shotDuration,
+        allowNSFW,
+        characters: globalCharacters,
+      },
+      fromData
+    );
+
+    // Expand the appropriate section
+    if (startStage === 'script') {
+      setExpandedSections(['script']);
+    } else if (startStage === 'breakdown') {
+      setExpandedSections(['breakdown']);
+    } else {
+      setExpandedSections(['prompts']);
+    }
+  };
+
+  // Save edited script and optionally regenerate downstream
+  const saveScriptEdit = (regenerate: boolean = false) => {
+    setScript(editedScript);
+    setIsEditingScript(false);
+
+    if (regenerate) {
+      // Clear downstream and regenerate
+      regenerateFromStage('breakdown');
+    }
+  };
 
   // Legacy local runFromScript (keeping for reference, but now using global store above)
   const runFromScriptLocal = async () => {
@@ -2436,6 +2556,25 @@ The parser will automatically detect scenes and break them down into shots."
                     </div>
                   </div>
                 )}
+
+                {/* Regenerate from Outline button */}
+                <div className="pt-3 border-t border-white/5 mt-4">
+                  <button
+                    onClick={() => regenerateFromStage('script')}
+                    disabled={isRunning}
+                    className={clsx(
+                      'flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all',
+                      'border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20',
+                      isRunning && 'opacity-50 cursor-not-allowed'
+                    )}
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Regenerate Script, Breakdown & Prompts
+                  </button>
+                  <p className="text-[10px] text-gray-500 mt-1.5">
+                    Keeps outline, regenerates everything downstream
+                  </p>
+                </div>
               </div>
             </CollapsibleSection>
           )}
@@ -2449,45 +2588,110 @@ The parser will automatically detect scenes and break them down into shots."
               onToggle={() => toggleSection('script')}
               status={stages.script.status}
             >
-              <pre className="max-h-96 overflow-y-auto rounded-lg bg-black/30 p-4 font-mono text-xs whitespace-pre-wrap text-gray-300">
-                {script}
-              </pre>
-              {/* Script Lab: Quick Auto-Breakdown */}
-              <div className="mt-3 flex items-center gap-2">
-                <button
-                  onClick={handleAutoBreakdown}
-                  disabled={isBreakingDown}
-                  className={clsx(
-                    'flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all',
-                    breakdownResult
-                      ? 'border-green-500/30 bg-green-500/20 text-green-300'
-                      : 'border-amber-500/30 bg-amber-500/20 text-amber-300 hover:bg-amber-500/30',
-                    isBreakingDown && 'opacity-70'
-                  )}
-                >
-                  {isBreakingDown ? (
-                    <>
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Extracting...
-                    </>
-                  ) : breakdownResult ? (
-                    <>
+              {isEditingScript ? (
+                <div className="space-y-3">
+                  <textarea
+                    value={editedScript}
+                    onChange={(e) => setEditedScript(e.target.value)}
+                    className="w-full h-96 rounded-lg bg-black/50 border border-violet-500/30 p-4 font-mono text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-y"
+                    placeholder="Edit your screenplay..."
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => saveScriptEdit(true)}
+                      disabled={isRunning}
+                      className="flex items-center gap-2 rounded-lg border border-violet-500/30 bg-violet-500/20 px-3 py-1.5 text-xs font-medium text-violet-300 hover:bg-violet-500/30 transition-all"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Save & Regenerate Downstream
+                    </button>
+                    <button
+                      onClick={() => saveScriptEdit(false)}
+                      className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-gray-300 hover:bg-white/10 transition-all"
+                    >
                       <Check className="h-3 w-3" />
-                      {breakdownResult.breakdown.characters}C / {breakdownResult.breakdown.locations}L / {breakdownResult.breakdown.props}P
-                    </>
-                  ) : (
-                    <>
-                      <Package className="h-3 w-3" />
-                      Extract Assets
-                    </>
+                      Save Only
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsEditingScript(false);
+                        setEditedScript('');
+                      }}
+                      className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-300 hover:bg-white/10 transition-all"
+                    >
+                      <X className="h-3 w-3" />
+                      Cancel
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-gray-500">
+                    "Save & Regenerate" will update scene breakdown and shot prompts based on your changes
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <pre className="max-h-96 overflow-y-auto rounded-lg bg-black/30 p-4 font-mono text-xs whitespace-pre-wrap text-gray-300">
+                    {script}
+                  </pre>
+                  {/* Edit & Regenerate Controls */}
+                  <div className="mt-3 flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => {
+                        setEditedScript(script);
+                        setIsEditingScript(true);
+                      }}
+                      className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-gray-300 hover:bg-white/10 transition-all"
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Edit Script
+                    </button>
+                    <button
+                      onClick={() => regenerateFromStage('breakdown')}
+                      disabled={isRunning}
+                      className={clsx(
+                        'flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all',
+                        'border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20',
+                        isRunning && 'opacity-50 cursor-not-allowed'
+                      )}
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Regenerate Breakdown & Prompts
+                    </button>
+                    <button
+                      onClick={handleAutoBreakdown}
+                      disabled={isBreakingDown}
+                      className={clsx(
+                        'flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all',
+                        breakdownResult
+                          ? 'border-green-500/30 bg-green-500/20 text-green-300'
+                          : 'border-amber-500/30 bg-amber-500/20 text-amber-300 hover:bg-amber-500/30',
+                        isBreakingDown && 'opacity-70'
+                      )}
+                    >
+                      {isBreakingDown ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Extracting...
+                        </>
+                      ) : breakdownResult ? (
+                        <>
+                          <Check className="h-3 w-3" />
+                          {breakdownResult.breakdown.characters}C / {breakdownResult.breakdown.locations}L / {breakdownResult.breakdown.props}P
+                        </>
+                      ) : (
+                        <>
+                          <Package className="h-3 w-3" />
+                          Extract Assets
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  {breakdownResult && (
+                    <span className="block mt-2 text-xs text-gray-500">
+                      → Check Asset Bin for {breakdownResult.assetsCreated} new placeholders
+                    </span>
                   )}
-                </button>
-                {breakdownResult && (
-                  <span className="text-xs text-gray-500">
-                    → Check Asset Bin for {breakdownResult.assetsCreated} new placeholders
-                  </span>
-                )}
-              </div>
+                </>
+              )}
             </CollapsibleSection>
           )}
 
@@ -2502,6 +2706,19 @@ The parser will automatically detect scenes and break them down into shots."
                 <span className="px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400 font-mono text-[10px]">
                   {scenes.length} scenes
                 </span>
+                <div className="flex-1" />
+                <button
+                  onClick={() => regenerateFromStage('prompts')}
+                  disabled={isRunning}
+                  className={clsx(
+                    'flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-medium transition-all',
+                    'border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20',
+                    isRunning && 'opacity-50 cursor-not-allowed'
+                  )}
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Regenerate Prompts
+                </button>
               </div>
               {scenes.map((scene, i) => {
                 const shotCount = scene.suggestedShots?.length || 0;
