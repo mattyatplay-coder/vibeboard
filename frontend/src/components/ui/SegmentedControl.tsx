@@ -78,8 +78,8 @@ export function SegmentedControl<T extends string>({
             key={option.value}
             onClick={() => onChange(option.value)}
             className={clsx(
-              'relative z-10 flex items-center justify-center gap-1.5 rounded-md transition-colors',
-              size === 'sm' ? 'px-3 py-1.5 text-[10px]' : 'px-4 py-2 text-xs',
+              'relative z-10 flex items-center justify-center gap-1.5 rounded-md transition-colors whitespace-nowrap',
+              size === 'sm' ? 'px-4 py-1.5 text-[10px] min-w-[60px]' : 'px-5 py-2 text-xs min-w-[72px]',
               fullWidth && 'flex-1',
               value === option.value
                 ? 'text-white font-medium'

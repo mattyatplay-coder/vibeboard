@@ -19,8 +19,10 @@ interface ScrubbableInputProps {
   step?: number;
   /** Unit suffix displayed after value (e.g., "px", "%", "°") */
   unit?: string;
-  /** Pixels of drag movement per step */
+  /** Pixels of drag movement per step (lower = more sensitive) */
   sensitivity?: number;
+  /** Enable smooth/fluid dragging (interpolates between steps) */
+  smooth?: boolean;
   /** Format function for display value */
   formatValue?: (val: number) => string;
   /** Additional className for the container */
@@ -53,7 +55,8 @@ export const ScrubbableInput = ({
   max = 100,
   step = 1,
   unit = '',
-  sensitivity = 5,
+  sensitivity = 3,
+  smooth = true,
   formatValue,
   className,
 }: ScrubbableInputProps) => {
@@ -84,11 +87,28 @@ export const ScrubbableInput = ({
     document.body.style.cursor = 'ew-resize';
     document.body.style.userSelect = 'none';
 
+    // Calculate the value range for smooth interpolation
+    const range = max - min;
+    // Pixels to drag across the full range (makes larger ranges feel proportional)
+    const fullRangePixels = Math.max(200, range * sensitivity * 10);
+
     const handleMouseMove = (ev: MouseEvent) => {
       const deltaX = ev.clientX - startX.current;
-      const steps = Math.floor(deltaX / sensitivity);
-      const newValue = clampValue(startVal.current + (steps * step));
-      onChange(newValue);
+
+      if (smooth) {
+        // Smooth mode: fluid interpolation based on pixel movement
+        const deltaValue = (deltaX / fullRangePixels) * range;
+        // Round to step for clean values, but allow fluid motion
+        const rawValue = startVal.current + deltaValue;
+        const steppedValue = Math.round(rawValue / step) * step;
+        const newValue = clampValue(steppedValue);
+        onChange(newValue);
+      } else {
+        // Step mode: discrete steps based on pixel threshold
+        const steps = Math.floor(deltaX / sensitivity);
+        const newValue = clampValue(startVal.current + (steps * step));
+        onChange(newValue);
+      }
     };
 
     const handleMouseUp = () => {
@@ -101,7 +121,7 @@ export const ScrubbableInput = ({
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [isEditing, value, sensitivity, step, clampValue, onChange]);
+  }, [isEditing, value, sensitivity, step, smooth, min, max, clampValue, onChange]);
 
   // Handle manual text entry
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
