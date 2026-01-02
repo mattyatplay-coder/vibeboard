@@ -95,6 +95,8 @@ export default function StoryEditorPage() {
   const [targetDurationSeconds, setTargetDurationSeconds] = useState<number | null>(null); // Parsed value
   const [shotDuration, setShotDuration] = useState<number>(5); // Default duration per video shot in seconds
   const [allowNSFW, setAllowNSFW] = useState(false); // Allow NSFW content in prompts
+  const [useRAG, setUseRAG] = useState(true); // Use RAG-enhanced generation with script library
+  const [ragStats, setRagStats] = useState<{ totalScripts: number; indexedScripts: number; genreBreakdown: Record<string, number> } | null>(null);
 
   // Pipeline state
   const [currentStage, setCurrentStage] = useState<PipelineStage>('concept');
@@ -193,6 +195,21 @@ export default function StoryEditorPage() {
   // Mount detection for hydration
   useEffect(() => {
     setHasMounted(true);
+  }, []);
+
+  // Load RAG stats on mount to show script library availability
+  useEffect(() => {
+    const loadRagStats = async () => {
+      try {
+        const stats = await fetchAPI('/story-style/rag/stats');
+        setRagStats(stats);
+        console.log('[StoryEditor] RAG stats loaded:', stats);
+      } catch (error) {
+        console.log('[StoryEditor] RAG stats not available:', error);
+        setRagStats(null);
+      }
+    };
+    loadRagStats();
   }, []);
 
   // Global store for persistent generation across navigation
@@ -2068,6 +2085,31 @@ The parser will automatically detect scenes and break them down into shots."
                   </div>
                 </label>
               </div>
+
+              {/* RAG Script Library Toggle */}
+              {ragStats && ragStats.indexedScripts > 0 && (
+                <div className="border-t border-white/5 pt-2">
+                  <label className="group flex cursor-pointer items-center gap-3">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={useRAG}
+                        onChange={e => setUseRAG(e.target.checked)}
+                        className="peer sr-only"
+                      />
+                      <div className="peer h-5 w-9 rounded-full bg-white/10 peer-checked:bg-purple-500/50 peer-focus:outline-none after:absolute after:top-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-gray-400 after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white peer-checked:after:bg-purple-400"></div>
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold tracking-wider text-gray-400 uppercase group-hover:text-gray-300">
+                        Script Library AI
+                      </span>
+                      <p className="text-[10px] text-gray-600">
+                        Use {ragStats.indexedScripts} indexed scripts for style-aware generation
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              )}
             </div>
 
             {/* Action Buttons */}

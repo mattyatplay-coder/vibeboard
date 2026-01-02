@@ -1,18 +1,32 @@
 /**
  * VectorEmbeddingService - Script Library RAG System
  *
- * Converts text to vector embeddings for semantic search using MiniMax E3 model.
+ * Converts text to vector embeddings for semantic search.
  * Used by Script Library to find stylistically similar scripts for RAG retrieval.
+ *
+ * Supports multiple providers:
+ * - OpenAI text-embedding-3-small (1536 dims) - default, most reliable
+ * - MiniMax embo-01 (768 dims) - alternative if configured
  */
 
 import axios from 'axios';
 
-// MiniMax embedding dimensions
-const VECTOR_DIM = 768;
+// Provider configuration
+const EMBEDDING_PROVIDER = process.env.EMBEDDING_PROVIDER || 'openai';
 
-// API configuration - can use MiniMax directly or local embedding server
-const EMBEDDING_API_URL = process.env.EMBEDDING_API_URL || 'https://api.minimax.chat/v1/embeddings';
-const EMBEDDING_API_KEY = process.env.MINIMAX_API_KEY;
+// OpenAI configuration (default)
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_EMBEDDING_MODEL = 'text-embedding-3-small';
+const OPENAI_VECTOR_DIM = 1536;
+
+// MiniMax configuration (alternative)
+const MINIMAX_API_URL = 'https://api.minimax.io/v1/embeddings';
+const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY;
+const MINIMAX_GROUP_ID = process.env.MINIMAX_GROUP_ID || '2006868071284740135';
+const MINIMAX_VECTOR_DIM = 768;
+
+// Use the appropriate dimension based on provider
+const VECTOR_DIM = EMBEDDING_PROVIDER === 'minimax' ? MINIMAX_VECTOR_DIM : OPENAI_VECTOR_DIM;
 
 export interface EmbeddingResult {
     embedding: number[];
@@ -38,33 +52,11 @@ export class VectorEmbeddingService {
             // Truncate very long text to avoid token limits (approx 8000 chars for safety)
             const truncatedText = text.length > 8000 ? text.substring(0, 8000) : text;
 
-            const response = await axios.post(
-                EMBEDDING_API_URL,
-                {
-                    model: 'embo-01', // MiniMax embedding model
-                    texts: [truncatedText],
-                    type: 'db', // 'db' for storage, 'query' for search
-                },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${EMBEDDING_API_KEY}`,
-                        'Content-Type': 'application/json',
-                    },
-                    timeout: 30000,
-                }
-            );
-
-            if (response.data?.vectors?.[0]) {
-                return response.data.vectors[0];
+            if (EMBEDDING_PROVIDER === 'minimax') {
+                return await this.getMiniMaxEmbedding(truncatedText, 'db');
+            } else {
+                return await this.getOpenAIEmbedding(truncatedText);
             }
-
-            // Fallback: OpenAI-compatible format
-            if (response.data?.data?.[0]?.embedding) {
-                return response.data.data[0].embedding;
-            }
-
-            console.warn('[EmbeddingService] Unexpected response format, using zero vector');
-            return this.getZeroVector();
         } catch (error: any) {
             console.error('[EmbeddingService] Failed to get embedding:', error.message);
             // Return zero vector as fallback to prevent cascading failures
@@ -73,35 +65,78 @@ export class VectorEmbeddingService {
     }
 
     /**
+     * Get embedding from OpenAI
+     */
+    private async getOpenAIEmbedding(text: string): Promise<number[]> {
+        const response = await axios.post(
+            'https://api.openai.com/v1/embeddings',
+            {
+                model: OPENAI_EMBEDDING_MODEL,
+                input: text,
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                    'Content-Type': 'application/json',
+                },
+                timeout: 30000,
+            }
+        );
+
+        if (response.data?.data?.[0]?.embedding) {
+            return response.data.data[0].embedding;
+        }
+
+        console.warn('[EmbeddingService] Unexpected OpenAI response format, using zero vector');
+        return this.getZeroVector();
+    }
+
+    /**
+     * Get embedding from MiniMax
+     */
+    private async getMiniMaxEmbedding(text: string, type: 'db' | 'query'): Promise<number[]> {
+        const url = `${MINIMAX_API_URL}?GroupId=${MINIMAX_GROUP_ID}`;
+
+        const response = await axios.post(
+            url,
+            {
+                model: 'embo-01',
+                texts: [text],
+                type: type,
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${MINIMAX_API_KEY}`,
+                    'Content-Type': 'application/json',
+                },
+                timeout: 30000,
+            }
+        );
+
+        if (response.data?.vectors?.[0]) {
+            return response.data.vectors[0];
+        }
+
+        // Fallback: OpenAI-compatible format
+        if (response.data?.data?.[0]?.embedding) {
+            return response.data.data[0].embedding;
+        }
+
+        console.warn('[EmbeddingService] Unexpected MiniMax response format, using zero vector');
+        return this.getZeroVector();
+    }
+
+    /**
      * Get embedding optimized for search queries (slightly different processing)
      */
     async getQueryEmbedding(query: string): Promise<number[]> {
         try {
-            const response = await axios.post(
-                EMBEDDING_API_URL,
-                {
-                    model: 'embo-01',
-                    texts: [query],
-                    type: 'query', // Query type for search
-                },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${EMBEDDING_API_KEY}`,
-                        'Content-Type': 'application/json',
-                    },
-                    timeout: 30000,
-                }
-            );
-
-            if (response.data?.vectors?.[0]) {
-                return response.data.vectors[0];
+            if (EMBEDDING_PROVIDER === 'minimax') {
+                return await this.getMiniMaxEmbedding(query, 'query');
+            } else {
+                // OpenAI doesn't distinguish between db/query embeddings
+                return await this.getOpenAIEmbedding(query);
             }
-
-            if (response.data?.data?.[0]?.embedding) {
-                return response.data.data[0].embedding;
-            }
-
-            return this.getZeroVector();
         } catch (error: any) {
             console.error('[EmbeddingService] Failed to get query embedding:', error.message);
             return this.getZeroVector();
@@ -118,35 +153,77 @@ export class VectorEmbeddingService {
                 t.length > 8000 ? t.substring(0, 8000) : t
             );
 
-            const response = await axios.post(
-                EMBEDDING_API_URL,
-                {
-                    model: 'embo-01',
-                    texts: truncatedTexts,
-                    type: 'db',
-                },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${EMBEDDING_API_KEY}`,
-                        'Content-Type': 'application/json',
-                    },
-                    timeout: 60000,
-                }
-            );
-
-            if (response.data?.vectors) {
-                return response.data.vectors;
+            if (EMBEDDING_PROVIDER === 'minimax') {
+                return await this.getMiniMaxBatchEmbedding(truncatedTexts);
+            } else {
+                return await this.getOpenAIBatchEmbedding(truncatedTexts);
             }
-
-            if (response.data?.data) {
-                return response.data.data.map((d: any) => d.embedding);
-            }
-
-            return texts.map(() => this.getZeroVector());
         } catch (error: any) {
             console.error('[EmbeddingService] Batch embedding failed:', error.message);
             return texts.map(() => this.getZeroVector());
         }
+    }
+
+    /**
+     * Batch embed with OpenAI
+     */
+    private async getOpenAIBatchEmbedding(texts: string[]): Promise<number[][]> {
+        const response = await axios.post(
+            'https://api.openai.com/v1/embeddings',
+            {
+                model: OPENAI_EMBEDDING_MODEL,
+                input: texts,
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                    'Content-Type': 'application/json',
+                },
+                timeout: 60000,
+            }
+        );
+
+        if (response.data?.data) {
+            // OpenAI returns embeddings in order, but let's sort by index to be safe
+            return response.data.data
+                .sort((a: any, b: any) => a.index - b.index)
+                .map((d: any) => d.embedding);
+        }
+
+        return texts.map(() => this.getZeroVector());
+    }
+
+    /**
+     * Batch embed with MiniMax
+     */
+    private async getMiniMaxBatchEmbedding(texts: string[]): Promise<number[][]> {
+        const url = `${MINIMAX_API_URL}?GroupId=${MINIMAX_GROUP_ID}`;
+
+        const response = await axios.post(
+            url,
+            {
+                model: 'embo-01',
+                texts: texts,
+                type: 'db',
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${MINIMAX_API_KEY}`,
+                    'Content-Type': 'application/json',
+                },
+                timeout: 60000,
+            }
+        );
+
+        if (response.data?.vectors) {
+            return response.data.vectors;
+        }
+
+        if (response.data?.data) {
+            return response.data.data.map((d: any) => d.embedding);
+        }
+
+        return texts.map(() => this.getZeroVector());
     }
 
     /**
