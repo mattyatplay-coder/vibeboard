@@ -23,6 +23,10 @@ interface SpendingWidgetProps {
   currentModelId?: string;
   currentDuration?: string;
   isVideo?: boolean;
+  /** Controlled expansion state from parent (for accordion behavior) */
+  isExpanded?: boolean;
+  /** Callback when toggle is clicked (for accordion behavior) */
+  onToggle?: () => void;
 }
 
 export function SpendingWidget({
@@ -30,9 +34,13 @@ export function SpendingWidget({
   currentModelId,
   currentDuration,
   isVideo,
+  isExpanded: controlledExpanded,
+  onToggle,
 }: SpendingWidgetProps) {
   const [summary, setSummary] = useState<CostSummary | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  // Use controlled state if provided, otherwise use internal state
+  const [internalExpanded, setInternalExpanded] = useState(false);
+  const expanded = controlledExpanded !== undefined ? controlledExpanded : internalExpanded;
   const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
@@ -90,11 +98,23 @@ export function SpendingWidget({
     );
   }
 
+  // Handle toggle - prefer controlled behavior if onToggle provided
+  const handleToggle = () => {
+    if (onToggle) {
+      onToggle();
+    } else {
+      setInternalExpanded(!internalExpanded);
+    }
+  };
+
   return (
-    <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+    <div className={clsx(
+      "overflow-hidden rounded-xl border bg-white/5 transition-colors",
+      expanded ? "border-cyan-500/30" : "border-white/10"
+    )}>
       {/* Header */}
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={handleToggle}
         className="flex w-full items-center justify-between p-3 transition-colors hover:bg-white/5"
       >
         <div className="flex items-center gap-2">

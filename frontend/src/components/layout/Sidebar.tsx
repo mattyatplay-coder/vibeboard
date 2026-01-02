@@ -29,6 +29,8 @@ export function Sidebar() {
   // UX-003: Delete confirmation modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<{ id: string; name: string } | null>(null);
+  // Accordion state for producer widgets - only one can be expanded at a time
+  const [expandedWidget, setExpandedWidget] = useState<'cost' | 'spending' | null>(null);
   const { isCollapsed, toggleSidebar, setCollapsed } = useSidebarStore();
 
   // Elastic Studio: Auto-collapse on tablet-sized screens
@@ -315,12 +317,20 @@ export function Sidebar() {
 
       {/* Producer Widget - Est. Job Cost */}
       <div className={clsx('px-4 pb-2', isCollapsed && 'px-2')}>
-        <ProducerWidget collapsed={isCollapsed} />
+        <ProducerWidget
+          collapsed={isCollapsed}
+          isExpanded={expandedWidget === 'cost'}
+          onToggle={() => setExpandedWidget(expandedWidget === 'cost' ? null : 'cost')}
+        />
       </div>
 
       {/* Spending Widget - Total Spending */}
       <div className={clsx('px-4 pb-2', isCollapsed && 'px-2')}>
-        <SpendingWidget collapsed={isCollapsed} />
+        <SpendingWidget
+          collapsed={isCollapsed}
+          isExpanded={expandedWidget === 'spending'}
+          onToggle={() => setExpandedWidget(expandedWidget === 'spending' ? null : 'spending')}
+        />
       </div>
 
       <div className="border-t border-white/10 p-4">
