@@ -976,35 +976,37 @@ export default function TrainingPage() {
               {/* --- STANDARD MODE (Original Form) --- */}
               {!isFoundryMode && !isPerformanceMode && (
                 <div className="space-y-6">
-                  {/* Provider Selection */}
+                  {/* Provider Selection - Glowing Edge */}
                   <div>
-                    <label className="mb-3 block text-sm font-medium text-gray-300">
+                    <label className="mb-3 block text-sm font-medium text-zinc-400">
                       Training Provider
                     </label>
                     <div className="mb-4 grid grid-cols-2 gap-3">
                       <button
                         onClick={() => setProvider('fal')}
                         className={clsx(
-                          'flex items-center justify-between rounded-lg border p-3 text-left transition-all',
+                          'flex items-center justify-between rounded-lg p-3 text-left transition-all duration-200',
+                          'border bg-zinc-900/40',
                           provider === 'fal'
-                            ? 'border-purple-500 bg-purple-500/10'
-                            : 'border-white/10 hover:border-white/30'
+                            ? 'border-violet-500/50 ring-1 ring-violet-500/20 shadow-[0_0_15px_-5px_rgba(139,92,246,0.3)] bg-violet-500/5'
+                            : 'border-white/5 hover:border-white/10'
                         )}
                       >
-                        <span className="font-medium">Fal.ai</span>
-                        {provider === 'fal' && <Check className="h-4 w-4 text-purple-400" />}
+                        <span className={clsx('font-medium', provider === 'fal' ? 'text-white' : 'text-zinc-300')}>Fal.ai</span>
+                        {provider === 'fal' && <Check className="h-4 w-4 text-violet-400" />}
                       </button>
                       <button
                         onClick={() => setProvider('replicate')}
                         className={clsx(
-                          'flex items-center justify-between rounded-lg border p-3 text-left transition-all',
+                          'flex items-center justify-between rounded-lg p-3 text-left transition-all duration-200',
+                          'border bg-zinc-900/40',
                           provider === 'replicate'
-                            ? 'border-purple-500 bg-purple-500/10'
-                            : 'border-white/10 hover:border-white/30'
+                            ? 'border-violet-500/50 ring-1 ring-violet-500/20 shadow-[0_0_15px_-5px_rgba(139,92,246,0.3)] bg-violet-500/5'
+                            : 'border-white/5 hover:border-white/10'
                         )}
                       >
-                        <span className="font-medium">Replicate</span>
-                        {provider === 'replicate' && <Check className="h-4 w-4 text-purple-400" />}
+                        <span className={clsx('font-medium', provider === 'replicate' ? 'text-white' : 'text-zinc-300')}>Replicate</span>
+                        {provider === 'replicate' && <Check className="h-4 w-4 text-violet-400" />}
                       </button>
                     </div>
                   </div>
@@ -1071,49 +1073,75 @@ export default function TrainingPage() {
                     </p>
                   )}
 
-                  {/* Training Type Selection */}
+                  {/* Training Type Selection - Glowing Edge Cards */}
                   <div>
                     <label className="mb-3 block text-sm font-medium text-gray-300">
                       Training Type
                     </label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-4">
                       <button
                         onClick={() => setTrainingType('style')}
                         className={clsx(
-                          'rounded-xl border-2 p-4 text-left transition-all',
+                          'relative rounded-xl p-4 text-left transition-all duration-300',
+                          'border bg-zinc-900/40',
                           trainingType === 'style'
-                            ? 'border-purple-500 bg-purple-500/10'
-                            : 'border-white/10 hover:border-white/30'
+                            ? 'border-violet-500/50 ring-1 ring-violet-500/30 shadow-[0_0_25px_-5px_rgba(139,92,246,0.4)] bg-violet-500/5'
+                            : 'border-white/5 hover:border-white/10 hover:bg-zinc-900/60'
                         )}
                       >
-                        <Palette
-                          className={clsx(
-                            'mb-2 h-6 w-6',
-                            trainingType === 'style' ? 'text-purple-400' : 'text-gray-400'
-                          )}
-                        />
-                        <div className="font-medium">Style LoRA</div>
-                        <p className="mt-1 text-xs text-gray-500">
+                        {trainingType === 'style' && (
+                          <div className="absolute top-3 right-3">
+                            <div className="w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center shadow-[0_0_10px_rgba(139,92,246,0.5)]">
+                              <Check size={12} className="text-white" strokeWidth={3} />
+                            </div>
+                          </div>
+                        )}
+                        <div className={clsx(
+                          'w-10 h-10 rounded-lg flex items-center justify-center mb-3 transition-colors',
+                          trainingType === 'style'
+                            ? 'bg-violet-500/20 text-violet-400'
+                            : 'bg-zinc-800/50 text-zinc-500'
+                        )}>
+                          <Palette className="h-5 w-5" />
+                        </div>
+                        <div className={clsx(
+                          'font-medium transition-colors',
+                          trainingType === 'style' ? 'text-white' : 'text-zinc-300'
+                        )}>Style LoRA</div>
+                        <p className="mt-1 text-xs text-zinc-500">
                           Train artistic styles, aesthetics, color grading
                         </p>
                       </button>
                       <button
                         onClick={() => setTrainingType('character')}
                         className={clsx(
-                          'rounded-xl border-2 p-4 text-left transition-all',
+                          'relative rounded-xl p-4 text-left transition-all duration-300',
+                          'border bg-zinc-900/40',
                           trainingType === 'character'
-                            ? 'border-purple-500 bg-purple-500/10'
-                            : 'border-white/10 hover:border-white/30'
+                            ? 'border-violet-500/50 ring-1 ring-violet-500/30 shadow-[0_0_25px_-5px_rgba(139,92,246,0.4)] bg-violet-500/5'
+                            : 'border-white/5 hover:border-white/10 hover:bg-zinc-900/60'
                         )}
                       >
-                        <User
-                          className={clsx(
-                            'mb-2 h-6 w-6',
-                            trainingType === 'character' ? 'text-purple-400' : 'text-gray-400'
-                          )}
-                        />
-                        <div className="font-medium">Character LoRA</div>
-                        <p className="mt-1 text-xs text-gray-500">
+                        {trainingType === 'character' && (
+                          <div className="absolute top-3 right-3">
+                            <div className="w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center shadow-[0_0_10px_rgba(139,92,246,0.5)]">
+                              <Check size={12} className="text-white" strokeWidth={3} />
+                            </div>
+                          </div>
+                        )}
+                        <div className={clsx(
+                          'w-10 h-10 rounded-lg flex items-center justify-center mb-3 transition-colors',
+                          trainingType === 'character'
+                            ? 'bg-violet-500/20 text-violet-400'
+                            : 'bg-zinc-800/50 text-zinc-500'
+                        )}>
+                          <User className="h-5 w-5" />
+                        </div>
+                        <div className={clsx(
+                          'font-medium transition-colors',
+                          trainingType === 'character' ? 'text-white' : 'text-zinc-300'
+                        )}>Character LoRA</div>
+                        <p className="mt-1 text-xs text-zinc-500">
                           Train consistent faces, characters, objects
                         </p>
                       </button>

@@ -1,18 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { fetchAPI, Project } from '@/lib/api';
-import Link from 'next/link';
-import { Plus, ArrowRight, Loader2, Trash2 } from 'lucide-react';
+import { Loader2, Grid, List, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
-import { Tooltip } from '@/components/ui/Tooltip';
+import { AnimatePresence, motion } from 'framer-motion';
+import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
+import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
+import { DashboardCard } from '@/components/dashboard/DashboardCard';
+import { GhostCard } from '@/components/dashboard/GhostCard';
+import { CreateProjectModal } from '@/components/dashboard/CreateProjectModal';
 
-export default function ProjectSelector() {
+type ViewMode = 'grid' | 'list';
+type SortMode = 'recent' | 'name' | 'created';
+
+export default function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newDesc, setNewDesc] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [sortMode, setSortMode] = useState<SortMode>('recent');
 
   useEffect(() => {
     loadProjects();
@@ -32,48 +40,8 @@ export default function ProjectSelector() {
     }
   };
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newName.trim()) {
-      toast.error('Project name is required');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      await fetchAPI('/projects', {
-        method: 'POST',
-        body: JSON.stringify({ name: newName, description: newDesc }),
-      });
-      toast.success('Project created!', {
-        description: `"${newName}" is ready to use.`,
-      });
-      setNewName('');
-      setNewDesc('');
-      setIsCreating(false);
-      loadProjects();
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to create project', {
-        description: 'Please try again.',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-zinc-950 text-white">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-      </div>
-    );
-  }
-
   const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.preventDefault(); // Prevent Link navigation
+    e.preventDefault();
     e.stopPropagation();
 
     if (!confirm('Are you sure you want to delete this project? This cannot be undone.')) return;
@@ -88,124 +56,223 @@ export default function ProjectSelector() {
     }
   };
 
+  // Filter and sort projects
+  const filteredProjects = useMemo(() => {
+    let result = [...projects];
+
+    // Filter by search
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(
+        (p) =>
+          p.name.toLowerCase().includes(query) ||
+          p.description?.toLowerCase().includes(query)
+      );
+    }
+
+    // Sort
+    switch (sortMode) {
+      case 'name':
+        result.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case 'created':
+        result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        break;
+      case 'recent':
+      default:
+        result.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        break;
+    }
+
+    return result;
+  }, [projects, searchQuery, sortMode]);
+
+  // Format relative date
+  const formatDate = (dateStr: string | Date) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex h-screen items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="relative">
+              <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+              <div className="absolute inset-0 h-8 w-8 animate-ping rounded-full bg-violet-500/20" />
+            </div>
+            <span className="text-xs text-zinc-600 font-mono uppercase tracking-wider">
+              Loading projects...
+            </span>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-zinc-950 p-8 text-white">
-      <div className="mx-auto max-w-5xl">
-        <header className="mb-12 flex items-center justify-between">
-          <div>
-            <h1 className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-4xl font-bold text-transparent">
-              VibeBoard
-            </h1>
-            <p className="mt-2 text-gray-400">Select a project to start creating.</p>
-          </div>
-          <button
-            onClick={() => setIsCreating(true)}
-            className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 font-medium text-black transition-colors hover:bg-gray-200"
-          >
-            <Plus className="h-4 w-4" />
-            New Project
-          </button>
-        </header>
+    <DashboardLayout>
+      <DashboardHeader
+        onNewProject={() => setIsCreating(true)}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
 
-        {isCreating && (
-          <div className="animate-in fade-in slide-in-from-top-4 mb-8 rounded-xl border border-white/10 bg-white/5 p-6">
-            <form onSubmit={handleCreate} className="space-y-4" aria-label="Create new project">
-              <div>
-                <label
-                  htmlFor="project-name"
-                  className="mb-1 block text-sm font-medium text-gray-400"
-                >
-                  Project Name{' '}
-                  <span className="text-red-400" aria-label="required">
-                    *
-                  </span>
-                </label>
-                <input
-                  id="project-name"
-                  value={newName}
-                  onChange={e => setNewName(e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-black/50 px-4 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="My Awesome Movie"
-                  autoFocus
-                  required
-                  aria-required="true"
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="project-desc"
-                  className="mb-1 block text-sm font-medium text-gray-400"
-                >
-                  Description
-                </label>
-                <input
-                  id="project-desc"
-                  value={newDesc}
-                  onChange={e => setNewDesc(e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-black/50 px-4 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="A sci-fi thriller about..."
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsCreating(false)}
-                  className="rounded px-4 py-2 text-sm text-gray-400 hover:text-white focus:ring-2 focus:ring-white/50 focus:outline-none"
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={!newName.trim() || isSubmitting}
-                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2 font-medium text-white hover:bg-blue-500 focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-black focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {isSubmitting ? 'Creating...' : 'Create Project'}
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
+      <main className="px-8 py-10 max-w-[1400px] mx-auto">
+        {/* Section Header */}
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-sm font-medium text-zinc-400">
+            {searchQuery ? 'Search Results' : 'Recent Projects'}
+          </h2>
 
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {projects.map(project => (
-            <Link
-              key={project.id}
-              href={`/projects/${project.id}/story-editor`}
-              className="group relative block rounded-xl border border-white/10 bg-white/5 p-6 transition-all hover:border-white/20 hover:bg-white/10"
+          {/* View Controls */}
+          <div className="flex items-center gap-2">
+            {/* Sort Dropdown */}
+            <button
+              onClick={() => setSortMode((prev) => (prev === 'recent' ? 'name' : prev === 'name' ? 'created' : 'recent'))}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium text-zinc-500 hover:text-zinc-300 bg-zinc-900/50 border border-white/5 rounded-lg transition-colors"
             >
-              <Tooltip content="Delete Project" side="top">
-                <button
-                  onClick={e => handleDelete(e, project.id)}
-                  className="absolute top-4 right-4 rounded-full p-2 text-gray-500 opacity-0 transition-all group-hover:opacity-100 hover:bg-white/10 hover:text-red-500"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </Tooltip>
+              <SlidersHorizontal size={12} />
+              <span className="capitalize">{sortMode}</span>
+            </button>
 
-              <h3 className="mb-2 pr-8 text-xl font-bold transition-colors group-hover:text-blue-400">
-                {project.name}
-              </h3>
-              <p className="mb-4 line-clamp-2 text-sm text-gray-400">
-                {project.description || 'No description'}
-              </p>
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>Updated {new Date(project.updatedAt).toLocaleDateString()}</span>
-                <ArrowRight className="h-4 w-4 -translate-x-2 opacity-0 transition-opacity group-hover:translate-x-0 group-hover:opacity-100" />
-              </div>
-            </Link>
-          ))}
+            {/* View Toggle */}
+            <div className="flex items-center bg-zinc-900/50 border border-white/5 rounded-lg p-0.5">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-1.5 rounded transition-colors ${
+                  viewMode === 'grid'
+                    ? 'text-violet-400 bg-violet-500/10'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                <Grid size={14} />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-1.5 rounded transition-colors ${
+                  viewMode === 'list'
+                    ? 'text-violet-400 bg-violet-500/10'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                <List size={14} />
+              </button>
+            </div>
+          </div>
         </div>
 
-        {projects.length === 0 && !isCreating && (
-          <div className="py-20 text-center text-gray-500">
-            <p>No projects yet. Create one to get started!</p>
-          </div>
+        {/* Project Grid - Wider spacing for glow effects */}
+        <motion.div
+          layout
+          className={
+            viewMode === 'grid'
+              ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
+              : 'flex flex-col gap-3'
+          }
+        >
+          <AnimatePresence mode="popLayout">
+            {filteredProjects.map((project, index) => (
+              <motion.div
+                key={project.id}
+                layout
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <DashboardCard
+                  id={project.id}
+                  title={project.name}
+                  description={project.description}
+                  date={formatDate(project.updatedAt)}
+                />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+
+          {/* Ghost Card (always show if there's room) */}
+          {filteredProjects.length < 8 && (
+            <motion.div
+              layout
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: filteredProjects.length * 0.05 }}
+            >
+              <GhostCard onClick={() => setIsCreating(true)} />
+            </motion.div>
+          )}
+        </motion.div>
+
+        {/* Empty State */}
+        {filteredProjects.length === 0 && !searchQuery && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center justify-center py-20"
+          >
+            <div className="w-20 h-20 rounded-2xl bg-zinc-900/50 border border-white/5 flex items-center justify-center mb-6">
+              <div className="w-12 h-12 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
+                <span className="text-2xl">🎬</span>
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-white mb-2">No projects yet</h3>
+            <p className="text-sm text-zinc-500 mb-6 text-center max-w-xs">
+              Create your first project to start building AI-generated productions.
+            </p>
+            <motion.button
+              onClick={() => setIsCreating(true)}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="px-6 py-2.5 bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold rounded-lg shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all"
+            >
+              Create First Project
+            </motion.button>
+          </motion.div>
         )}
-      </div>
-    </div>
+
+        {/* No search results */}
+        {filteredProjects.length === 0 && searchQuery && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex flex-col items-center justify-center py-20"
+          >
+            <p className="text-sm text-zinc-500">
+              No projects matching "{searchQuery}"
+            </p>
+            <button
+              onClick={() => setSearchQuery('')}
+              className="mt-3 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+            >
+              Clear search
+            </button>
+          </motion.div>
+        )}
+      </main>
+
+      {/* Create Project Modal */}
+      <AnimatePresence>
+        {isCreating && (
+          <CreateProjectModal
+            onClose={() => setIsCreating(false)}
+            onSuccess={() => {
+              setIsCreating(false);
+              loadProjects();
+            }}
+          />
+        )}
+      </AnimatePresence>
+    </DashboardLayout>
   );
 }

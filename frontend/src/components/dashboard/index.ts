@@ -1,2 +1,9 @@
 export { StyleDriftGraph } from './StyleDriftGraph';
 export { AssetUsagePanel } from './AssetUsagePanel';
+export { NewProjectButton } from './NewProjectButton';
+export { ProjectCard } from './ProjectCard';
+export { CreateProjectModal } from './CreateProjectModal';
+export { DashboardLayout } from './DashboardLayout';
+export { DashboardHeader } from './DashboardHeader';
+export { DashboardCard } from './DashboardCard';
+export { GhostCard } from './GhostCard';

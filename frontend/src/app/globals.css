@@ -2,20 +2,27 @@
 
 :root {
   /* Core Palette - Midnight & Neon */
-  --background: #09090b; /* Zinc-950 - slightly warmer than pure black */
+  --background: #050507; /* Near-black with hint of blue */
   --foreground: #ffffff;
 
-  --accent-primary: #6366f1; /* Indigo 500 */
-  --accent-secondary: #a855f7; /* Purple 500 */
-  --accent-glow: rgba(99, 102, 241, 0.3);
+  /* Neon Accent Colors */
+  --neon-violet: #a855f7;
+  --neon-fuchsia: #d946ef;
+  --neon-cyan: #22d3ee;
+  --neon-blue: #3b82f6;
 
-  /* Glassmorphism System */
-  --glass-bg: rgba(20, 20, 25, 0.6);
-  --glass-bg-hover: rgba(40, 40, 45, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-border-hover: rgba(255, 255, 255, 0.15);
-  --glass-shine: rgba(255, 255, 255, 0.03);
-  --backdrop-blur: 16px;
+  /* Glow Colors */
+  --glow-violet: rgba(168, 85, 247, 0.6);
+  --glow-fuchsia: rgba(217, 70, 239, 0.5);
+  --glow-cyan: rgba(34, 211, 238, 0.5);
+
+  /* Glassmorphism System - More visible */
+  --glass-bg: rgba(10, 10, 15, 0.7);
+  --glass-bg-hover: rgba(30, 30, 40, 0.8);
+  --glass-border: rgba(139, 92, 246, 0.15);
+  --glass-border-hover: rgba(139, 92, 246, 0.3);
+  --glass-shine: rgba(255, 255, 255, 0.05);
+  --backdrop-blur: 20px;
 
   /* Semantic Colors */
   --status-success: #22c55e;
@@ -26,92 +33,413 @@
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: var(--font-inter), sans-serif; /* Utilizing Next.js font var */
+  font-family: var(--font-inter), system-ui, sans-serif;
   overflow-x: hidden;
-  /* Cinematic Grain (Optional - subtle texture) */
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01";
+
+  /* Dramatic background with visible gradients */
   background-image:
-    radial-gradient(circle at 15% 50%, rgba(76, 29, 149, 0.08), transparent 25%),
-    radial-gradient(circle at 85% 30%, rgba(59, 130, 246, 0.08), transparent 25%);
+    radial-gradient(ellipse 80% 50% at 20% 40%, rgba(120, 50, 200, 0.15), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 60%, rgba(50, 100, 200, 0.12), transparent),
+    radial-gradient(ellipse 40% 30% at 50% 90%, rgba(168, 85, 247, 0.08), transparent);
   background-attachment: fixed;
+  min-height: 100vh;
 }
 
-/* Glass Utilities */
+/* Neon selection highlight */
+::selection {
+  background: rgba(168, 85, 247, 0.4);
+  color: #fff;
+  text-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+}
+
+/* Dramatic scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--neon-violet), var(--neon-fuchsia));
+  border-radius: 4px;
+  box-shadow: 0 0 10px var(--glow-violet);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--neon-fuchsia), var(--neon-violet));
+  box-shadow: 0 0 15px var(--glow-fuchsia);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--neon-violet) rgba(0, 0, 0, 0.3);
+}
+
+/* ========================================
+   GLASS PANELS - Dramatic Glassmorphism
+   ======================================== */
+
+.vibe-panel {
+  background: linear-gradient(135deg, rgba(20, 10, 30, 0.8), rgba(10, 10, 20, 0.9));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 16px;
+  box-shadow:
+    0 0 30px rgba(139, 92, 246, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 20px 40px rgba(0, 0, 0, 0.4);
+}
+
+.vibe-panel:hover {
+  border-color: rgba(139, 92, 246, 0.35);
+  box-shadow:
+    0 0 40px rgba(139, 92, 246, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 20px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* Glass Panel - Legacy compatibility */
 .glass-panel {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--backdrop-blur));
   -webkit-backdrop-filter: blur(var(--backdrop-blur));
   border: 1px solid var(--glass-border);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+  box-shadow:
+    0 4px 30px rgba(0, 0, 0, 0.4),
+    0 0 20px rgba(139, 92, 246, 0.1);
 }
 
+/* ========================================
+   NEON BUTTONS - Dramatic CTAs
+   ======================================== */
+
+.btn-creative {
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  color: white;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  border: 1px solid rgba(168, 85, 247, 0.5);
+  box-shadow:
+    0 0 20px rgba(139, 92, 246, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.btn-creative:hover {
+  background: linear-gradient(135deg, #8b5cf6, #c084fc);
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 40px rgba(139, 92, 246, 0.6),
+    0 10px 30px rgba(139, 92, 246, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.btn-creative:active {
+  transform: translateY(0);
+}
+
+.btn-technical {
+  background: linear-gradient(135deg, #0891b2, #22d3ee);
+  color: white;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  border: 1px solid rgba(34, 211, 238, 0.5);
+  box-shadow:
+    0 0 20px rgba(34, 211, 238, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-technical:hover {
+  background: linear-gradient(135deg, #06b6d4, #67e8f9);
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 40px rgba(34, 211, 238, 0.5),
+    0 10px 30px rgba(34, 211, 238, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* Glass Button with neon glow */
 .glass-button {
   background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(8px);
-  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(139, 92, 246, 0.2);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .glass-button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: var(--glass-border-hover);
-  box-shadow: 0 0 15px var(--accent-glow);
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.4);
+  box-shadow: 0 0 25px rgba(139, 92, 246, 0.3);
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+/* Label text with subtle glow */
+.text-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: rgba(168, 85, 247, 0.7);
+  text-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
+/* Data text - Monospace for values */
+.text-data {
+  font-family: var(--font-jetbrains-mono), 'SF Mono', monospace;
+  font-size: 0.75rem;
+  color: #d4d4d8;
 }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
+/* Neon text effect */
+.text-neon {
+  color: var(--neon-violet);
+  text-shadow:
+    0 0 5px var(--glow-violet),
+    0 0 10px var(--glow-violet),
+    0 0 20px var(--glow-violet);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+.text-neon-cyan {
+  color: var(--neon-cyan);
+  text-shadow:
+    0 0 5px var(--glow-cyan),
+    0 0 10px var(--glow-cyan),
+    0 0 20px var(--glow-cyan);
 }
 
-/* Selection */
-::selection {
-  background: var(--accent-primary);
-  color: white;
+/* Spine line - Vertical connector with glow */
+.spine-line {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--neon-violet), transparent);
+  transform: translateX(-50%);
+  z-index: 0;
+  box-shadow: 0 0 10px var(--glow-violet);
 }
 
-/* Hide scrollbars completely - used by scrollbar-none and scrollbar-hide utilities */
+/* Neon border glow effect */
+.neon-border {
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  box-shadow:
+    0 0 15px rgba(139, 92, 246, 0.2),
+    inset 0 0 15px rgba(139, 92, 246, 0.05);
+}
+
+.neon-border:hover {
+  border-color: rgba(139, 92, 246, 0.5);
+  box-shadow:
+    0 0 25px rgba(139, 92, 246, 0.4),
+    inset 0 0 20px rgba(139, 92, 246, 0.1);
+}
+
+/* Hide scrollbars completely */
 .scrollbar-none,
-.scrollbar-hide {
-  -ms-overflow-style: none !important; /* IE and Edge */
-  scrollbar-width: none !important; /* Firefox */
-}
-.scrollbar-none::-webkit-scrollbar,
-.scrollbar-hide::-webkit-scrollbar {
-  display: none !important; /* Chrome, Safari, Opera */
-  width: 0 !important;
-  height: 0 !important;
-}
-
-/* Alias for scrollbar-hide (same as scrollbar-none) */
 .scrollbar-hide {
   -ms-overflow-style: none !important;
   scrollbar-width: none !important;
 }
+.scrollbar-none::-webkit-scrollbar,
 .scrollbar-hide::-webkit-scrollbar {
   display: none !important;
   width: 0 !important;
   height: 0 !important;
 }
 
-/* Proxy Placeholder Shimmer Animation */
+/* ========================================
+   INPUT FIELDS - Neon Focus States
+   ======================================== */
+
+input, textarea, select {
+  transition: all 0.3s ease;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--neon-violet) !important;
+  box-shadow:
+    0 0 0 3px rgba(139, 92, 246, 0.2),
+    0 0 20px rgba(139, 92, 246, 0.3) !important;
+}
+
+/* ========================================
+   ANIMATIONS
+   ======================================== */
+
+/* Shimmer Animation */
 @keyframes shimmer {
-  0% {
-    transform: translateX(0);
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Pulse glow animation */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px var(--glow-violet); }
+  50% { box-shadow: 0 0 40px var(--glow-violet), 0 0 60px var(--glow-fuchsia); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Neon flicker */
+@keyframes neon-flicker {
+  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+    text-shadow:
+      0 0 5px var(--glow-violet),
+      0 0 10px var(--glow-violet),
+      0 0 20px var(--glow-violet);
   }
-  100% {
-    transform: translateX(400%);
+  20%, 24%, 55% {
+    text-shadow: none;
+  }
+}
+
+.animate-neon-flicker {
+  animation: neon-flicker 3s infinite;
+}
+
+/* ========================================
+   TACTILE MICRO-INTERACTIONS
+   ======================================== */
+
+/* Add 'btn-press' to any button for game-feel tactile response */
+.btn-press {
+  transition: transform 75ms ease-out;
+}
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+/* Subtle press for smaller elements */
+.btn-press-subtle {
+  transition: transform 50ms ease-out;
+}
+.btn-press-subtle:active {
+  transform: scale(0.98);
+}
+
+/* Spring bounce effect on hover */
+.btn-spring {
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.btn-spring:hover {
+  transform: scale(1.02);
+}
+.btn-spring:active {
+  transform: scale(0.97);
+}
+
+/* ========================================
+   SKELETON LOADERS - Perceived Performance
+   ======================================== */
+
+/* Base skeleton with shimmer */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Skeleton variants */
+.skeleton-text {
+  height: 1em;
+  border-radius: 4px;
+}
+
+.skeleton-title {
+  height: 1.5em;
+  width: 60%;
+  border-radius: 4px;
+}
+
+.skeleton-image {
+  aspect-ratio: 16/9;
+  border-radius: 12px;
+}
+
+.skeleton-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.skeleton-button {
+  height: 40px;
+  width: 120px;
+  border-radius: 8px;
+}
+
+/* Skeleton with neon glow pulse */
+.skeleton-glow {
+  background: linear-gradient(
+    90deg,
+    rgba(139, 92, 246, 0.05) 0%,
+    rgba(139, 92, 246, 0.15) 50%,
+    rgba(139, 92, 246, 0.05) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border: 1px solid rgba(139, 92, 246, 0.1);
+}
+
+/* ========================================
+   GLOBAL DROP ZONE - File Drag Overlay
+   ======================================== */
+
+/* When user drags a file from OS desktop onto browser */
+body.dragging-file::after {
+  content: "DROP TO INGEST";
+  position: fixed;
+  inset: 16px;
+  border: 2px dashed var(--neon-violet);
+  background: rgba(9, 9, 11, 0.9);
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--neon-violet);
+  letter-spacing: 0.2em;
+  pointer-events: none;
+  animation: drop-zone-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes drop-zone-pulse {
+  0%, 100% {
+    box-shadow: 0 0 30px rgba(139, 92, 246, 0.2), inset 0 0 30px rgba(139, 92, 246, 0.05);
+  }
+  50% {
+    box-shadow: 0 0 50px rgba(139, 92, 246, 0.4), inset 0 0 50px rgba(139, 92, 246, 0.1);
   }
 }

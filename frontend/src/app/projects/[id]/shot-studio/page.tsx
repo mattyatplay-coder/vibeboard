@@ -18,10 +18,13 @@ import {
   ChevronDown,
   PenTool,
   MousePointer2,
+  Send,
 } from 'lucide-react';
 import { fetchAPI } from '@/lib/api';
 import { ShotStudioControls, BlockingRegion } from '@/components/shot-studio';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { ScrubbableInput } from '@/components/ui/ScrubbableInput';
 
 interface GenerationResult {
   id: string;
@@ -290,146 +293,159 @@ export default function ShotStudioPage() {
   return (
     <div className="flex h-full">
       {/* Left Panel - Controls */}
-      <div className="w-[400px] shrink-0 overflow-y-auto border-r border-white/10 bg-zinc-950 p-6">
-        <h1 className="mb-6 text-2xl font-bold tracking-tight">Shot Studio</h1>
+      <div className="w-[380px] shrink-0 overflow-y-auto border-r border-white/5 bg-zinc-950/80 backdrop-blur-sm">
+        {/* Header */}
+        <div className="sticky top-0 z-10 border-b border-white/5 bg-zinc-950/90 px-5 py-4 backdrop-blur-sm">
+          <h1 className="text-lg font-semibold tracking-tight text-white">Shot Studio</h1>
+          <p className="mt-0.5 text-[10px] text-zinc-600">Spatia 3D + ReCo Composition</p>
+        </div>
 
-        {/* Shot Studio Controls */}
-        <ShotStudioControls
-          projectId={projectId}
-          onLocationSelect={setSelectedLocationId}
-          onBlockingUpdate={setBlockingRegions}
-          selectedLocationId={selectedLocationId}
-          className="mb-6"
-        />
+        <div className="p-5 space-y-5">
+          {/* Shot Studio Controls */}
+          <ShotStudioControls
+            projectId={projectId}
+            onLocationSelect={setSelectedLocationId}
+            onBlockingUpdate={setBlockingRegions}
+            selectedLocationId={selectedLocationId}
+          />
 
-        {/* Prompt Input */}
-        <div className="space-y-4">
-          <div>
-            <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400">
-              Prompt
-            </label>
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Describe your shot..."
-              rows={4}
-              className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 p-3 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
+          {/* === Unified Command Bar === */}
+          <div className="rounded-xl border border-white/5 bg-zinc-900/40 p-4 backdrop-blur-sm">
+            {/* Prompt - Main Input */}
+            <div className="relative">
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Describe your shot..."
+                rows={3}
+                className={clsx(
+                  'w-full resize-none rounded-lg border bg-black/40 p-3 pr-12 text-sm text-white placeholder-zinc-600',
+                  'border-white/5 focus:border-violet-500/30 focus:outline-none focus:ring-1 focus:ring-violet-500/20'
+                )}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.metaKey && prompt.trim()) {
+                    handleGenerate();
+                  }
+                }}
+              />
+              {/* Compact Generate Button - Inline */}
+              <Tooltip content="Generate (⌘+Enter)">
+                <button
+                  onClick={handleGenerate}
+                  disabled={isGenerating || !prompt.trim()}
+                  className={clsx(
+                    'absolute bottom-3 right-3 rounded-lg p-2 transition-all',
+                    isGenerating || !prompt.trim()
+                      ? 'cursor-not-allowed bg-zinc-800 text-zinc-600'
+                      : 'bg-violet-600 text-white hover:bg-violet-500 shadow-lg shadow-violet-500/20'
+                  )}
+                >
+                  {isGenerating ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                </button>
+              </Tooltip>
+            </div>
 
-          <div>
-            <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400">
-              Negative Prompt
-            </label>
-            <textarea
-              value={negativePrompt}
-              onChange={(e) => setNegativePrompt(e.target.value)}
-              placeholder="What to avoid..."
-              rows={2}
-              className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 p-3 text-sm text-white placeholder-gray-500 focus:border-white/20 focus:outline-none"
-            />
-          </div>
+            {/* Negative Prompt - Collapsible */}
+            <details className="mt-3 group">
+              <summary className="cursor-pointer text-[10px] font-medium uppercase tracking-wider text-zinc-600 hover:text-zinc-400">
+                Negative prompt
+              </summary>
+              <textarea
+                value={negativePrompt}
+                onChange={(e) => setNegativePrompt(e.target.value)}
+                placeholder="What to avoid..."
+                rows={2}
+                className={clsx(
+                  'mt-2 w-full resize-none rounded-lg border bg-black/30 p-2.5 text-xs text-white placeholder-zinc-700',
+                  'border-white/5 focus:border-white/10 focus:outline-none'
+                )}
+              />
+            </details>
 
-          {/* Mode Toggle */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setMode('text_to_image')}
-              className={clsx(
-                'flex flex-1 items-center justify-center gap-2 rounded-lg border py-2 text-sm font-medium transition-colors',
-                mode === 'text_to_image'
-                  ? 'border-blue-500 bg-blue-500/20 text-blue-300'
-                  : 'border-white/10 text-gray-400 hover:bg-white/5'
-              )}
-            >
-              <ImageIcon className="h-4 w-4" />
-              Image
-            </button>
-            <button
-              onClick={() => setMode('text_to_video')}
-              className={clsx(
-                'flex flex-1 items-center justify-center gap-2 rounded-lg border py-2 text-sm font-medium transition-colors',
-                mode === 'text_to_video'
-                  ? 'border-purple-500 bg-purple-500/20 text-purple-300'
-                  : 'border-white/10 text-gray-400 hover:bg-white/5'
-              )}
-            >
-              <Film className="h-4 w-4" />
-              Video
-            </button>
-          </div>
+            {/* Divider */}
+            <div className="my-3 h-px bg-white/5" />
 
-          {/* Options Row */}
-          <div className="flex gap-2">
-            <select
-              value={aspectRatio}
-              onChange={(e) => setAspectRatio(e.target.value)}
-              className="flex-1 rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none"
-            >
-              <option value="16:9">16:9 (Widescreen)</option>
-              <option value="9:16">9:16 (Portrait)</option>
-              <option value="1:1">1:1 (Square)</option>
-              <option value="4:3">4:3 (Classic)</option>
-              <option value="21:9">21:9 (Anamorphic)</option>
-            </select>
+            {/* Toolbar Row - Unified */}
+            <div className="flex items-center gap-3">
+              {/* Mode Toggle - Segmented */}
+              <div className="flex-1">
+                <SegmentedControl
+                  options={[
+                    { value: 'text_to_image', label: 'Image', icon: <ImageIcon className="h-3 w-3" /> },
+                    { value: 'text_to_video', label: 'Video', icon: <Film className="h-3 w-3" /> },
+                  ]}
+                  value={mode}
+                  onChange={(val) => setMode(val as 'text_to_image' | 'text_to_video')}
+                />
+              </div>
 
-            {mode === 'text_to_video' && (
+              {/* Aspect Ratio - Minimal Select */}
               <select
-                value={duration}
-                onChange={(e) => setDuration(Number(e.target.value))}
-                className="w-24 rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none"
+                value={aspectRatio}
+                onChange={(e) => setAspectRatio(e.target.value)}
+                className="rounded-lg border border-white/5 bg-black/30 px-2.5 py-1.5 text-[11px] text-zinc-400 focus:outline-none focus:border-white/10"
               >
-                <option value={3}>3 sec</option>
-                <option value={5}>5 sec</option>
-                <option value={8}>8 sec</option>
-                <option value={10}>10 sec</option>
+                <option value="16:9">16:9</option>
+                <option value="9:16">9:16</option>
+                <option value="1:1">1:1</option>
+                <option value="4:3">4:3</option>
+                <option value="21:9">21:9</option>
               </select>
+
+              {/* Duration - Only for Video */}
+              {mode === 'text_to_video' && (
+                <ScrubbableInput
+                  value={duration}
+                  onChange={setDuration}
+                  min={3}
+                  max={10}
+                  step={1}
+                  unit="s"
+                  label=""
+                />
+              )}
+            </div>
+
+            {/* Engine Mode Badge */}
+            {(selectedLocationId || blockingRegions.length > 0) && (
+              <div className="mt-3 flex items-center gap-2">
+                <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-400">
+                  {getEngineModeLabel()}
+                </span>
+                {selectedLocationId && (
+                  <span className="text-[10px] text-zinc-600">3D geometry locked</span>
+                )}
+              </div>
             )}
           </div>
 
           {/* Error Display */}
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400"
-            >
-              {error}
-            </motion.div>
-          )}
-
-          {/* Generate Button */}
-          <button
-            onClick={handleGenerate}
-            disabled={isGenerating || !prompt.trim()}
-            className={clsx(
-              'flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold transition-all',
-              isGenerating || !prompt.trim()
-                ? 'cursor-not-allowed bg-gray-700 text-gray-400'
-                : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-500 hover:to-purple-500'
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-xs text-red-400"
+              >
+                {error}
+              </motion.div>
             )}
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-4 w-4" />
-                Generate ({getEngineModeLabel()})
-              </>
-            )}
-          </button>
+          </AnimatePresence>
         </div>
       </div>
 
       {/* Right Panel - Preview & Results */}
-      <div className="flex flex-1 flex-col overflow-hidden bg-zinc-900">
+      <div className="flex flex-1 flex-col overflow-hidden bg-zinc-900/50">
         {/* Preview Area */}
         <div className="relative flex-1 p-6">
           <div
             ref={previewRef}
-            className="relative mx-auto aspect-video max-h-full w-full max-w-4xl overflow-hidden rounded-2xl border border-white/10 bg-black"
+            className="relative mx-auto aspect-video max-h-full w-full max-w-4xl overflow-hidden rounded-2xl border border-white/5 bg-black/80 shadow-2xl"
           >
             {/* Latest Result or Placeholder */}
             {results.length > 0 ? (
@@ -530,12 +546,12 @@ export default function ShotStudioPage() {
 
         {/* Results Gallery */}
         {results.length > 0 && (
-          <div className="border-t border-white/10 bg-zinc-950 p-4">
+          <div className="border-t border-white/5 bg-zinc-950/80 backdrop-blur-sm p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-gray-400">Recent Generations</h3>
+              <h3 className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">Recent Generations</h3>
               <button
                 onClick={() => setResults([])}
-                className="text-xs text-gray-500 hover:text-white"
+                className="text-[10px] text-zinc-600 hover:text-zinc-300 transition-colors"
               >
                 Clear All
               </button>
@@ -549,8 +565,8 @@ export default function ShotStudioPage() {
                   className={clsx(
                     'group relative h-20 w-32 shrink-0 cursor-pointer overflow-hidden rounded-lg border transition-all',
                     index === 0
-                      ? 'border-blue-500 ring-2 ring-blue-500/50'
-                      : 'border-white/10 hover:border-white/20'
+                      ? 'border-violet-500/50 ring-1 ring-violet-500/30 shadow-lg shadow-violet-500/10'
+                      : 'border-white/5 hover:border-white/10'
                   )}
                   onClick={() => {
                     // Move to top

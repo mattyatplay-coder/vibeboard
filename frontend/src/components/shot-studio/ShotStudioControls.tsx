@@ -181,12 +181,12 @@ export function ShotStudioControls({
   );
 
   return (
-    <div className={clsx('space-y-6', className)}>
+    <div className={clsx('space-y-4', className)}>
       {/* === Spatia: Virtual Set Selection === */}
-      <div className="rounded-xl border border-white/10 bg-zinc-900/50 p-4">
-        <label className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-400">
-          <MapPin className="h-4 w-4 text-cyan-400" />
-          1. Select Virtual Set (Spatia)
+      <div className="rounded-xl border border-white/5 bg-zinc-900/40 p-4 backdrop-blur-sm">
+        <label className="mb-3 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+          <MapPin className="h-3.5 w-3.5 text-cyan-400" />
+          Virtual Set (Spatia)
         </label>
 
         {loadingLocations ? (
@@ -282,23 +282,23 @@ export function ShotStudioControls({
           </div>
         )}
 
-        <p className="mt-2 text-[10px] text-gray-500">
-          Locks scene geometry for seamless pans and continuity across shots.
+        <p className="mt-2 text-[10px] text-zinc-600">
+          Locks geometry for pans and continuity.
         </p>
       </div>
 
       {/* === ReCo: Region Blocking === */}
-      <div className="rounded-xl border border-white/10 bg-zinc-900/50 p-4">
-        <label className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-400">
-          <BoxSelect className="h-4 w-4 text-purple-400" />
-          2. Region Blocking (ReCo)
+      <div className="rounded-xl border border-white/5 bg-zinc-900/40 p-4 backdrop-blur-sm">
+        <label className="mb-3 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+          <BoxSelect className="h-3.5 w-3.5 text-violet-400" />
+          Region Blocking (ReCo)
         </label>
 
         <button
           onClick={handleAddRegion}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-purple-500/30 bg-purple-500/10 py-2 text-sm font-medium text-purple-300 transition-colors hover:bg-purple-500/20"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-violet-500/20 bg-violet-500/5 py-2 text-xs font-medium text-violet-400 transition-colors hover:bg-violet-500/10 hover:border-violet-500/30"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-3.5 w-3.5" />
           Add Bounding Box
         </button>
 
@@ -378,23 +378,7 @@ export function ShotStudioControls({
         )}
       </div>
 
-      {/* Mode Summary */}
-      {(selectedLocationId || regions.length > 0) && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3"
-        >
-          <p className="text-xs font-medium text-cyan-400">Generation Mode:</p>
-          <p className="mt-1 text-sm text-white">
-            {selectedLocationId && regions.length > 0
-              ? 'Spatia + ReCo (3D set with compositional control)'
-              : selectedLocationId
-                ? 'Spatia (3D-aware generation)'
-                : 'ReCo (2D compositional control)'}
-          </p>
-        </motion.div>
-      )}
+      {/* Mode Summary - Moved to parent component for unified look */}
     </div>
   );
 }

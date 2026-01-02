@@ -86,6 +86,9 @@ export const useProducerAgent = (variations: number = 1) => {
     const [alerts, setAlerts] = useState<ProducerAlert[]>([]);
     const [isEstimating, setIsEstimating] = useState(false);
 
+    // Spend velocity tracking - stores last 12 cost estimates for sparkline
+    const [spendHistory, setSpendHistory] = useState<number[]>([]);
+
     // UX-007: Persist acknowledged alerts to sessionStorage
     const [acknowledgedAlerts, setAcknowledgedAlerts] = useState<Set<string>>(() => {
         if (typeof window !== 'undefined') {
@@ -186,6 +189,17 @@ export const useProducerAgent = (variations: number = 1) => {
 
     // Legacy: totalCostEstimate for backwards compatibility
     const totalCostEstimate = costBreakdown.total;
+
+    // Track spend velocity - update history when cost changes
+    useEffect(() => {
+        if (totalCostEstimate > 0) {
+            setSpendHistory((prev) => {
+                const newHistory = [...prev, totalCostEstimate];
+                // Keep only last 12 data points for sparkline
+                return newHistory.slice(-12);
+            });
+        }
+    }, [totalCostEstimate]);
 
     // Handle action execution
     const handleAction = useCallback((alertId: string, actionType?: string, actionValue?: string) => {
@@ -360,6 +374,7 @@ export const useProducerAgent = (variations: number = 1) => {
         handleAction,
         totalCostEstimate,
         costBreakdown,
+        spendHistory,
         isEstimating,
         displayMode,
         setDisplayMode,

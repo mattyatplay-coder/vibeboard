@@ -2,20 +2,20 @@
 
 import Link from 'next/link';
 import { usePathname, useParams, useRouter } from 'next/navigation';
-import { LayoutGrid, Wand2, Clapperboard, Settings, FileText, Paintbrush, Film, MessageSquare, Aperture, Box, Users, Layers, Loader2 } from 'lucide-react';
+import { Wand2, Clapperboard, Settings, FileText, Paintbrush, Film, MessageSquare, Aperture, Users, Layers, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import { LucideIcon } from 'lucide-react';
 
 import { useSession } from '@/context/SessionContext';
 import { Plus, Folder, ChevronDown, ChevronRight, Trash2, ChevronLeft } from 'lucide-react';
-import { useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { DeleteConfirmationModal } from '@/components/ui/DeleteConfirmationModal';
-import { SpendingWidget } from '@/components/sidebar/SpendingWidget';
 import { useSidebarStore } from '@/lib/sidebarStore';
-import { useEngineConfigStore } from '@/lib/engineConfigStore';
 import { useStoryGenerationStore } from '@/lib/storyGenerationStore';
+import { SpendingWidget } from '@/components/sidebar/SpendingWidget';
+import { ProducerWidget } from '@/components/ui/ProducerWidget';
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -29,8 +29,25 @@ export function Sidebar() {
   // UX-003: Delete confirmation modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<{ id: string; name: string } | null>(null);
-  const { isCollapsed, toggleSidebar } = useSidebarStore();
-  const { currentModelId, currentDuration, isVideo } = useEngineConfigStore();
+  const { isCollapsed, toggleSidebar, setCollapsed } = useSidebarStore();
+
+  // Elastic Studio: Auto-collapse on tablet-sized screens
+  // Force collapsed state on screens < 1280px (xl breakpoint)
+  useEffect(() => {
+    const handleResize = () => {
+      const isTablet = window.innerWidth < 1280;
+      if (isTablet && !isCollapsed) {
+        setCollapsed(true);
+      }
+    };
+
+    // Check on mount
+    handleResize();
+
+    // Listen for resize events
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isCollapsed, setCollapsed]);
 
   // Track if story generation is running in the background
   const storyGeneration = useStoryGenerationStore();
@@ -53,6 +70,7 @@ export function Sidebar() {
   const STUDIO_SPINE: StudioSpineItem[] = [
     // Group 1: Development
     { id: 'script-lab', icon: FileText, label: 'Script Lab', href: `/projects/${projectId}/story-editor`, group: 1 },
+    { id: 'storyboard', icon: Clapperboard, label: 'Storyboard', href: `/projects/${projectId}/storyboard`, group: 1 },
     { id: 'asset-bin', icon: Layers, label: 'Asset Bin', href: `/projects/${projectId}/elements`, group: 1 },
     { id: 'foundry', icon: Users, label: 'Character Foundry', href: `/projects/${projectId}/train`, group: 1 },
     // Group 2: Production
@@ -88,7 +106,12 @@ export function Sidebar() {
   return (
     <aside
       className={clsx(
-        'fixed top-0 left-0 z-50 flex h-screen flex-col border-r border-white/10 bg-black/90 text-white backdrop-blur-xl transition-all duration-300 ease-in-out',
+        'fixed top-0 left-0 z-50 flex h-screen flex-col text-white transition-all duration-300 ease-in-out',
+        // Dramatic glass effect with visible border glow
+        'bg-black/80 backdrop-blur-2xl',
+        'border-r border-violet-500/20',
+        // Subtle inner glow
+        'shadow-[inset_-1px_0_20px_rgba(139,92,246,0.1)]',
         isCollapsed ? 'w-20' : 'w-64'
       )}
     >
@@ -99,8 +122,8 @@ export function Sidebar() {
         )}
       >
         {!isCollapsed && (
-          <Link href="/" className="block overflow-hidden whitespace-nowrap">
-            <h1 className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-2xl font-bold tracking-tighter text-transparent">
+          <Link href="/" className="block overflow-hidden whitespace-nowrap group">
+            <h1 className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-cyan-400 bg-clip-text text-2xl font-bold tracking-tighter text-transparent drop-shadow-[0_0_10px_rgba(139,92,246,0.5)] group-hover:drop-shadow-[0_0_20px_rgba(139,92,246,0.8)] transition-all">
               VibeBoard
             </h1>
           </Link>
@@ -209,10 +232,10 @@ export function Sidebar() {
             {/* Group separator with label */}
             {!isCollapsed && (
               <div className={clsx('mb-1 flex items-center gap-2 px-2', groupIdx > 0 && 'mt-4')}>
-                <span className="text-[10px] font-bold tracking-widest text-gray-500 uppercase">
+                <span className="text-label">
                   {GROUP_LABELS[groupNum]}
                 </span>
-                <div className="h-px flex-1 bg-white/5" />
+                <div className="h-px flex-1 bg-zinc-800" />
               </div>
             )}
             {isCollapsed && groupIdx > 0 && (
@@ -251,10 +274,13 @@ export function Sidebar() {
                     {isActive && (
                       <motion.div
                         layoutId="activeNav"
-                        className="absolute inset-0 rounded-xl bg-white/10"
+                        className="absolute inset-0 rounded-xl bg-gradient-to-r from-violet-600/20 to-fuchsia-600/10 border border-violet-500/30 shadow-[0_0_20px_rgba(139,92,246,0.3),inset_0_1px_0_rgba(255,255,255,0.1)]"
                         initial={false}
                         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                      />
+                      >
+                        {/* Neon violet glow bar */}
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gradient-to-b from-violet-400 to-fuchsia-500 rounded-r shadow-[0_0_15px_rgba(139,92,246,0.8),0_0_30px_rgba(139,92,246,0.4)]" />
+                      </motion.div>
                     )}
                     {/* Show spinner for Script Lab when generating */}
                     {showGeneratingIndicator ? (
@@ -287,14 +313,14 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* Spending Widget */}
+      {/* Producer Widget - Est. Job Cost */}
       <div className={clsx('px-4 pb-2', isCollapsed && 'px-2')}>
-        <SpendingWidget
-          collapsed={isCollapsed}
-          currentModelId={currentModelId ?? undefined}
-          currentDuration={currentDuration ?? undefined}
-          isVideo={isVideo}
-        />
+        <ProducerWidget collapsed={isCollapsed} />
+      </div>
+
+      {/* Spending Widget - Total Spending */}
+      <div className={clsx('px-4 pb-2', isCollapsed && 'px-2')}>
+        <SpendingWidget collapsed={isCollapsed} />
       </div>
 
       <div className="border-t border-white/10 p-4">

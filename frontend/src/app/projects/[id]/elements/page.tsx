@@ -21,6 +21,8 @@ import {
   MapPin,
   Package,
   FileQuestion,
+  Filter,
+  SortAsc,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
@@ -38,6 +40,8 @@ import { SaveElementModal } from '@/components/generations/SaveElementModal';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { Wand2 } from 'lucide-react';
 import { MaterialViewModal } from '@/components/elements/MaterialViewModal';
+import { PageLayout } from '@/components/layout/PageLayout';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 export default function ElementsPage() {
   const params = useParams();
@@ -468,71 +472,82 @@ export default function ElementsPage() {
   const availableTags = Array.from(new Set(elements.flatMap(e => e.tags || [])));
 
   return (
-    <div className="space-y-8 p-8 pb-20">
-      <header className="flex items-center gap-4">
-        {/* Title section */}
-        <div className="shrink-0">
-          <h1 className="text-3xl font-bold tracking-tight">Elements</h1>
-          <p className="mt-1 text-sm text-gray-400">Manage your characters, props, and locations.</p>
-        </div>
-
-        {/* Spacer to push buttons to the right */}
-        <div className="flex-1" />
-
-        {/* Sort, Filter, Select All buttons - matching Generate page styling */}
-        <SortFilterHeader
-          state={sortFilter}
-          onChange={setSortFilter}
-          availableTags={availableTags}
-          availableSessions={sessions}
-          onSelectAll={elements.length > 0 ? (
-            selectedElementIds.length === sortedElements.length
-              ? deselectAllElements
-              : selectAllElements
-          ) : undefined}
-          selectAllLabel={
-            selectedElementIds.length === sortedElements.length ? 'Deselect All' : 'Select All'
-          }
-        />
-      </header>
-
-      {/* Upload Zone */}
-      <div
-        {...getRootProps()}
-        onClick={open}
-        className={clsx(
-          'flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-12 text-center transition-colors',
-          isDragActive
-            ? 'border-blue-500 bg-blue-500/10'
-            : 'border-white/10 hover:border-white/20 hover:bg-white/5'
-        )}
-      >
+    <PageLayout maxWidth="" spotlight={true}>
+      <div className="flex flex-col h-full" {...getRootProps()}>
         <input {...getInputProps()} />
-        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/10">
-          {uploading ? (
-            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-white"></div>
-          ) : (
-            <Upload className="h-8 w-8 text-gray-400" />
-          )}
-        </div>
-        <h3 className="mb-2 text-xl font-medium">Upload Images or Videos</h3>
-        <p className="mb-6 max-w-md text-gray-400">
-          Drag & drop up to 14 files here, or click to select files.
-        </p>
-        <button
-          type="button"
-          onClick={e => {
-            e.stopPropagation();
-            open();
-          }}
-          className="rounded-lg bg-white px-6 py-2 font-medium text-black transition-colors hover:bg-gray-200"
-        >
-          Select Files
-        </button>
-      </div>
 
-      {/* Elements Grid */}
-      <div className="space-y-8">
+        {/* Global Drop Overlay */}
+        <AnimatePresence>
+          {isDragActive && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-4 z-50 rounded-2xl border-2 border-dashed border-violet-500 bg-zinc-950/90 backdrop-blur-sm flex items-center justify-center pointer-events-none"
+            >
+              <div className="text-center">
+                <div className="w-16 h-16 rounded-2xl bg-violet-500/20 flex items-center justify-center mx-auto mb-4">
+                  <Upload size={32} className="text-violet-400" />
+                </div>
+                <p className="text-lg font-semibold text-white">Drop to Ingest</p>
+                <p className="text-sm text-zinc-500 mt-1">Release to upload files</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 1. DAM-Style Header with Compact Actions */}
+        <header className="h-16 border-b border-white/5 bg-zinc-950/80 backdrop-blur-md px-6 flex items-center justify-between z-20 sticky top-0">
+          <div>
+            <h1 className="text-lg font-bold text-white">Elements</h1>
+            <p className="text-xs text-zinc-500">Manage characters, props, and locations.</p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {/* Compact Upload Button */}
+            <motion.button
+              onClick={open}
+              disabled={uploading}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className={clsx(
+                'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all',
+                'bg-white/5 border border-white/10 text-zinc-300',
+                'hover:bg-white/10 hover:border-white/20 hover:text-white',
+                'disabled:opacity-50 disabled:cursor-not-allowed'
+              )}
+            >
+              {uploading ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Upload size={14} />
+              )}
+              <span>{uploading ? 'Uploading...' : 'Upload'}</span>
+            </motion.button>
+
+            <div className="h-6 w-px bg-white/10 mx-2" />
+
+            {/* Sort, Filter, Select All */}
+            <SortFilterHeader
+              state={sortFilter}
+              onChange={setSortFilter}
+              availableTags={availableTags}
+              availableSessions={sessions}
+              onSelectAll={elements.length > 0 ? (
+                selectedElementIds.length === sortedElements.length
+                  ? deselectAllElements
+                  : selectAllElements
+              ) : undefined}
+              selectAllLabel={
+                selectedElementIds.length === sortedElements.length ? 'Deselect All' : 'Select All'
+              }
+            />
+          </div>
+        </header>
+
+        {/* 2. The Grid (No more huge dashed box) */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="space-y-8">
         {sortedElements.length === 0 ? (
           <div className="w-full py-12 text-center text-gray-500">
             {elements.length === 0
@@ -552,10 +567,11 @@ export default function ElementsPage() {
             )
           ).map(([sessionName, sessionElements]) => (
             <div key={sessionName}>
-              <h2 className="mb-4 border-b border-white/10 pb-2 text-xl font-bold text-gray-400">
+              <h2 className="mb-4 border-b border-white/5 pb-2 text-sm font-semibold uppercase tracking-wider text-zinc-500">
                 {sessionName}
               </h2>
-              <div className="flex flex-wrap gap-4">
+              {/* Responsive Smart Grid - DAM style */}
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 <AnimatePresence>
                   {sessionElements.map(element => (
                     <ElementCard
@@ -578,130 +594,132 @@ export default function ElementsPage() {
             </div>
           ))
         )}
-      </div>
-
-      {/* Batch Action Toolbar */}
-      {selectedElementIds.length > 0 && (
-        <div className="animate-in slide-in-from-bottom-4 fade-in fixed bottom-8 left-1/2 z-50 flex -translate-x-1/2 items-center gap-6 rounded-xl border border-white/10 bg-[#1a1a1a] px-6 py-3 shadow-2xl duration-200">
-          <span className="text-sm font-medium text-white">
-            {selectedElementIds.length} selected
-          </span>
-          <div className="h-4 w-px bg-white/10" />
-          <div className="flex items-center gap-2">
-            <select
-              onChange={e => {
-                if (e.target.value) handleBatchMove(e.target.value);
-              }}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
-              defaultValue=""
-            >
-              <option value="" disabled>
-                Move to Session...
-              </option>
-              {sessions.map(s => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={() => setIsBatchTypeModalOpen(true)}
-              className="flex items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-1.5 text-sm font-medium text-yellow-500 transition-colors hover:bg-yellow-500/20"
-            >
-              <Tag className="h-4 w-4" />
-              Set Type
-            </button>
-            <Tooltip content="Copy Links for JDownloader" side="top">
-              <button
-                onClick={handleBatchCopyLinks}
-                className="flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/20"
-              >
-                <Copy className="h-4 w-4" />
-                Copy Links
-              </button>
-            </Tooltip>
-            <button
-              onClick={handleBatchDelete}
-              className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/20"
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete
-            </button>
-            <div className="mx-1 h-4 w-px bg-white/10" />
-            <button
-              onClick={
-                selectedElementIds.length === sortedElements.length
-                  ? deselectAllElements
-                  : selectAllElements
-              }
-              className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-white/10"
-            >
-              <CheckSquare className="h-4 w-4" />
-              {selectedElementIds.length === sortedElements.length ? 'Deselect All' : 'Select All'}
-            </button>
-            <button
-              onClick={deselectAllElements}
-              className="ml-1 p-1.5 text-gray-400 transition-colors hover:text-white"
-            >
-              <X className="h-4 w-4" />
-            </button>
           </div>
         </div>
-      )}
 
-      <EditElementModal
-        element={selectedElement}
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onSave={handleUpdateElement}
-        sessions={sessions}
-      />
+        {/* Batch Action Toolbar */}
+        {selectedElementIds.length > 0 && (
+          <div className="animate-in slide-in-from-bottom-4 fade-in fixed bottom-8 left-1/2 z-50 flex -translate-x-1/2 items-center gap-6 rounded-xl border border-white/10 bg-[#1a1a1a] px-6 py-3 shadow-2xl duration-200">
+            <span className="text-sm font-medium text-white">
+              {selectedElementIds.length} selected
+            </span>
+            <div className="h-4 w-px bg-white/10" />
+            <div className="flex items-center gap-2">
+              <select
+                onChange={e => {
+                  if (e.target.value) handleBatchMove(e.target.value);
+                }}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  Move to Session...
+                </option>
+                {sessions.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => setIsBatchTypeModalOpen(true)}
+                className="flex items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-1.5 text-sm font-medium text-yellow-500 transition-colors hover:bg-yellow-500/20"
+              >
+                <Tag className="h-4 w-4" />
+                Set Type
+              </button>
+              <Tooltip content="Copy Links for JDownloader" side="top">
+                <button
+                  onClick={handleBatchCopyLinks}
+                  className="flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/20"
+                >
+                  <Copy className="h-4 w-4" />
+                  Copy Links
+                </button>
+              </Tooltip>
+              <button
+                onClick={handleBatchDelete}
+                className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/20"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </button>
+              <div className="mx-1 h-4 w-px bg-white/10" />
+              <button
+                onClick={
+                  selectedElementIds.length === sortedElements.length
+                    ? deselectAllElements
+                    : selectAllElements
+                }
+                className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-white/10"
+              >
+                <CheckSquare className="h-4 w-4" />
+                {selectedElementIds.length === sortedElements.length ? 'Deselect All' : 'Select All'}
+              </button>
+              <button
+                onClick={deselectAllElements}
+                className="ml-1 p-1.5 text-gray-400 transition-colors hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
-      <SaveElementModal
-        isOpen={isBatchTypeModalOpen}
-        onClose={() => setIsBatchTypeModalOpen(false)}
-        onSave={handleBatchSetType}
-        isBatch={true}
-        title={`Set Type for ${selectedElementIds.length} Elements`}
-        initialName=""
-      />
-
-      {propFabricatorElement && (
-        <PropFabricatorModal
-          isOpen={!!propFabricatorElement}
-          onClose={() => setPropFabricatorElement(null)}
-          propImageUrl={propFabricatorElement.url}
-          propName={propFabricatorElement.name}
-          onSaveResult={async (imageUrl, name) => {
-            // Save the fabricated result as a new element
-            try {
-              await fetchAPI(`/projects/${projectId}/elements`, {
-                method: 'POST',
-                body: JSON.stringify({
-                  name,
-                  url: imageUrl,
-                  type: 'prop',
-                  metadata: { source: 'prop-fabricator', originalId: propFabricatorElement.id },
-                }),
-              });
-              loadElements();
-            } catch (err) {
-              console.error('Failed to save fabricated prop:', err);
-            }
-          }}
+        <EditElementModal
+          element={selectedElement}
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          onSave={handleUpdateElement}
+          sessions={sessions}
         />
-      )}
 
-      {/* Phase 3: Material View Modal for PBR maps */}
-      {materialViewElement && (
-        <MaterialViewModal
-          isOpen={!!materialViewElement}
-          onClose={() => setMaterialViewElement(null)}
-          elementName={materialViewElement.name}
-          pbrMaps={(materialViewElement.metadata as any)?.pbrMaps || {}}
+        <SaveElementModal
+          isOpen={isBatchTypeModalOpen}
+          onClose={() => setIsBatchTypeModalOpen(false)}
+          onSave={handleBatchSetType}
+          isBatch={true}
+          title={`Set Type for ${selectedElementIds.length} Elements`}
+          initialName=""
         />
-      )}
-    </div>
+
+        {propFabricatorElement && (
+          <PropFabricatorModal
+            isOpen={!!propFabricatorElement}
+            onClose={() => setPropFabricatorElement(null)}
+            propImageUrl={propFabricatorElement.url}
+            propName={propFabricatorElement.name}
+            onSaveResult={async (imageUrl, name) => {
+              // Save the fabricated result as a new element
+              try {
+                await fetchAPI(`/projects/${projectId}/elements`, {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    name,
+                    url: imageUrl,
+                    type: 'prop',
+                    metadata: { source: 'prop-fabricator', originalId: propFabricatorElement.id },
+                  }),
+                });
+                loadElements();
+              } catch (err) {
+                console.error('Failed to save fabricated prop:', err);
+              }
+            }}
+          />
+        )}
+
+        {/* Phase 3: Material View Modal for PBR maps */}
+        {materialViewElement && (
+          <MaterialViewModal
+            isOpen={!!materialViewElement}
+            onClose={() => setMaterialViewElement(null)}
+            elementName={materialViewElement.name}
+            pbrMaps={(materialViewElement.metadata as any)?.pbrMaps || {}}
+          />
+        )}
+      </div>
+    </PageLayout>
   );
 }
 
@@ -869,10 +887,12 @@ function ElementCard({
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
+      initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       className={clsx(
-        'group relative z-10 h-48 cursor-pointer overflow-hidden rounded-xl border border-white/10 bg-white/5 transition-all hover:z-20 hover:ring-2 hover:ring-blue-500',
+        'group relative cursor-pointer overflow-hidden rounded-xl transition-all duration-300',
+        'border border-white/5 bg-zinc-900 hover:border-violet-500/50',
+        isSelected && 'ring-2 ring-violet-500/50 border-violet-500/30',
         aspectRatioClass
       )}
       onMouseEnter={handleMouseEnter}
@@ -938,32 +958,44 @@ function ElementCard({
       />
       {/* Show placeholder for elements without URLs or with failed image loads */}
       {!element.url || imageError ? (
-        <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-900 p-4">
-          {isUploading ? (
-            <>
-              <Loader2 className="mb-2 h-12 w-12 animate-spin text-blue-400/60" />
-              <span className="text-center text-xs text-gray-500">Uploading...</span>
-            </>
+        <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900/80 to-zinc-950 p-4">
+          {isUploading || (element.metadata as { status?: string })?.status === 'pending' ? (
+            // Professional shimmer skeleton for pending/uploading states
+            <div className="relative h-full w-full overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer"
+                   style={{
+                     backgroundSize: '200% 100%',
+                     animation: 'shimmer 1.5s ease-in-out infinite'
+                   }}
+              />
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <div className="w-12 h-12 rounded-lg bg-white/5 mb-2" />
+                <div className="h-2 w-16 rounded bg-white/5" />
+              </div>
+            </div>
           ) : (
             <>
-              {element.type === 'character' ? (
-                <User className="mb-2 h-12 w-12 text-blue-400/60" />
-              ) : element.type === 'place' ? (
-                <MapPin className="mb-2 h-12 w-12 text-green-400/60" />
-              ) : element.type === 'prop' ? (
-                <Package className="mb-2 h-12 w-12 text-amber-400/60" />
-              ) : element.type === 'video' ? (
-                <Film className="mb-2 h-12 w-12 text-purple-400/60" />
-              ) : (
-                <ImageIcon className="mb-2 h-12 w-12 text-gray-400/60" />
-              )}
-              <span className="text-center text-xs text-gray-500">
-                {imageError ? 'Load failed' : (element.metadata as { status?: string })?.status === 'pending' ? 'Pending' : 'No image'}
+              {/* Type-specific icons with subtle styling */}
+              <div className="w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center mb-2">
+                {element.type === 'character' ? (
+                  <User className="h-6 w-6 text-zinc-600" />
+                ) : element.type === 'place' ? (
+                  <MapPin className="h-6 w-6 text-zinc-600" />
+                ) : element.type === 'prop' ? (
+                  <Package className="h-6 w-6 text-zinc-600" />
+                ) : element.type === 'video' ? (
+                  <Film className="h-6 w-6 text-zinc-600" />
+                ) : (
+                  <ImageIcon className="h-6 w-6 text-zinc-600" />
+                )}
+              </div>
+              <span className="text-center text-xs text-zinc-600">
+                {imageError ? 'Load failed' : 'No image'}
               </span>
               {/* Upload button for broken/missing images */}
               <button
                 onClick={handleUploadClick}
-                className="mt-3 flex items-center gap-1.5 rounded-lg bg-blue-500/20 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-500/30"
+                className="mt-3 flex items-center gap-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20 px-3 py-1.5 text-xs font-medium text-violet-400 transition-colors hover:bg-violet-500/20"
               >
                 <Upload className="h-3.5 w-3.5" />
                 Upload Image
@@ -975,7 +1007,7 @@ function ElementCard({
         <video
           ref={videoRef}
           src={element.url}
-          className="h-full w-full object-cover"
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           muted
           playsInline
           onTimeUpdate={handleTimeUpdate}
@@ -984,115 +1016,120 @@ function ElementCard({
         <img
           src={element.url}
           alt={element.name}
-          className="h-full w-full object-cover"
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           onError={() => setImageError(true)}
         />
       )}
 
-      <div className="absolute inset-0 flex flex-col justify-between bg-black/50 p-3 opacity-0 transition-opacity group-hover:opacity-100">
-        <div className="flex items-start justify-end">
-          <div className="flex gap-1">
+      {/* Top action bar - visible on hover */}
+      <div className="absolute inset-x-0 top-0 p-2 flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+        <button
+          onClick={handleDownload}
+          className="rounded-lg bg-black/50 p-1.5 text-white transition-colors hover:bg-white/20 backdrop-blur-sm"
+        >
+          <Download className="h-4 w-4" />
+        </button>
+        {element.type !== 'video' && onFabricate && (
+          <Tooltip content="Prop Fabricator">
             <button
-              onClick={handleDownload}
-              className="rounded-lg bg-black/50 p-1.5 text-white transition-colors hover:bg-white/20"
+              onClick={e => {
+                e.stopPropagation();
+                onFabricate();
+              }}
+              className="rounded-lg bg-black/50 p-1.5 text-white transition-colors hover:bg-amber-500/20 hover:text-amber-400 backdrop-blur-sm"
             >
-              <Download className="h-4 w-4" />
+              <Wand2 className="h-4 w-4" />
             </button>
-            {element.type !== 'video' && onFabricate && (
-              <Tooltip content="Prop Fabricator">
-                <button
-                  onClick={e => {
-                    e.stopPropagation();
-                    onFabricate();
-                  }}
-                  className="rounded-lg bg-black/50 p-1.5 text-white transition-colors hover:bg-amber-500/20 hover:text-amber-400"
-                >
-                  <Wand2 className="h-4 w-4" />
-                </button>
-              </Tooltip>
-            )}
-            {element.type !== 'video' && onDeconstruct && (
-              <Tooltip content="Deconstruct to 3D">
-                <button
-                  onClick={e => {
-                    e.stopPropagation();
-                    if (!isProcessing) onDeconstruct();
-                  }}
-                  disabled={isProcessing}
-                  className={clsx(
-                    'rounded-lg bg-black/50 p-1.5 transition-colors',
-                    isProcessing
-                      ? 'cursor-not-allowed text-gray-500'
-                      : 'text-white hover:bg-cyan-500/20 hover:text-cyan-400'
-                  )}
-                >
-                  {isProcessing ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Box className="h-4 w-4" />
-                  )}
-                </button>
-              </Tooltip>
-            )}
-            {element.type !== 'video' && onExtractMaterials && (
-              <Tooltip content="Extract PBR Materials">
-                <button
-                  onClick={e => {
-                    e.stopPropagation();
-                    if (!isProcessing) onExtractMaterials();
-                  }}
-                  disabled={isProcessing}
-                  className={clsx(
-                    'rounded-lg bg-black/50 p-1.5 transition-colors',
-                    isProcessing
-                      ? 'cursor-not-allowed text-gray-500'
-                      : 'text-white hover:bg-purple-500/20 hover:text-purple-400'
-                  )}
-                >
-                  {isProcessing ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Layers className="h-4 w-4" />
-                  )}
-                </button>
-              </Tooltip>
-            )}
-            {/* View existing PBR maps if available */}
-            {element.type !== 'video' && onViewMaterials && (element.metadata as any)?.pbrMaps && (
-              <Tooltip content="View PBR Materials">
-                <button
-                  onClick={e => {
-                    e.stopPropagation();
-                    onViewMaterials();
-                  }}
-                  className="rounded-lg bg-purple-500/30 p-1.5 text-purple-400 transition-colors hover:bg-purple-500/40"
-                >
-                  <Layers className="h-4 w-4" />
-                </button>
-              </Tooltip>
-            )}
+          </Tooltip>
+        )}
+        {element.type !== 'video' && onDeconstruct && (
+          <Tooltip content="Deconstruct to 3D">
             <button
-              onClick={handleTrash}
-              className="rounded-lg bg-black/50 p-1.5 text-white transition-colors hover:bg-red-500/20 hover:text-red-400"
+              onClick={e => {
+                e.stopPropagation();
+                if (!isProcessing) onDeconstruct();
+              }}
+              disabled={isProcessing}
+              className={clsx(
+                'rounded-lg bg-black/50 p-1.5 transition-colors backdrop-blur-sm',
+                isProcessing
+                  ? 'cursor-not-allowed text-gray-500'
+                  : 'text-white hover:bg-cyan-500/20 hover:text-cyan-400'
+              )}
             >
-              <Trash2 className="h-4 w-4" />
+              {isProcessing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Box className="h-4 w-4" />
+              )}
             </button>
-          </div>
-        </div>
+          </Tooltip>
+        )}
+        {element.type !== 'video' && onExtractMaterials && (
+          <Tooltip content="Extract PBR Materials">
+            <button
+              onClick={e => {
+                e.stopPropagation();
+                if (!isProcessing) onExtractMaterials();
+              }}
+              disabled={isProcessing}
+              className={clsx(
+                'rounded-lg bg-black/50 p-1.5 transition-colors backdrop-blur-sm',
+                isProcessing
+                  ? 'cursor-not-allowed text-gray-500'
+                  : 'text-white hover:bg-purple-500/20 hover:text-purple-400'
+              )}
+            >
+              {isProcessing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Layers className="h-4 w-4" />
+              )}
+            </button>
+          </Tooltip>
+        )}
+        {/* View existing PBR maps if available */}
+        {element.type !== 'video' && onViewMaterials && (element.metadata as any)?.pbrMaps && (
+          <Tooltip content="View PBR Materials">
+            <button
+              onClick={e => {
+                e.stopPropagation();
+                onViewMaterials();
+              }}
+              className="rounded-lg bg-purple-500/30 p-1.5 text-purple-400 transition-colors hover:bg-purple-500/40 backdrop-blur-sm"
+            >
+              <Layers className="h-4 w-4" />
+            </button>
+          </Tooltip>
+        )}
+        <button
+          onClick={handleTrash}
+          className="rounded-lg bg-black/50 p-1.5 text-white transition-colors hover:bg-red-500/20 hover:text-red-400 backdrop-blur-sm"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+        <button
+          onClick={e => {
+            e.stopPropagation();
+            onEdit();
+          }}
+          className="rounded-lg bg-black/50 p-1.5 text-white transition-colors hover:bg-white/20 backdrop-blur-sm"
+        >
+          <Edit2 className="h-4 w-4" />
+        </button>
+      </div>
 
-        <div className="mt-auto flex items-center gap-2">
-          {element.type === 'video' && <Film className="h-3 w-3 text-blue-400" />}
-          <p className="flex-1 truncate text-xs font-medium text-white">{element.name}</p>
-          <button
-            onClick={e => {
-              e.stopPropagation();
-              onEdit();
-            }}
-            className="rounded-lg bg-black/50 p-1.5 text-white transition-colors hover:bg-white/20"
-          >
-            <Edit2 className="h-4 w-4" />
-          </button>
+      {/* DAM-style Metadata Overlay (Slide up on hover) */}
+      <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/90 to-transparent translate-y-full group-hover:translate-y-0 transition-transform duration-200">
+        <div className="flex items-center gap-2">
+          {element.type === 'video' && <Film className="h-3 w-3 text-cyan-400 shrink-0" />}
+          <p className="text-xs font-medium text-white truncate">{element.name}</p>
         </div>
+        <p className="text-[10px] text-zinc-400 font-mono mt-0.5">
+          {element.type.toUpperCase()} • {element.metadata?.width && element.metadata?.height
+            ? `${element.metadata.width}×${element.metadata.height}`
+            : 'Unknown size'}
+        </p>
       </div>
     </motion.div>
   );

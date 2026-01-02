@@ -10,6 +10,7 @@ import StoryboardShot, { ShotData, calculateImageCost, calculateVideoCost, calcu
 import { formatCost } from '@/lib/ModelPricing';
 import { clsx } from 'clsx';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { SelectMenu } from '@/components/ui/SelectMenu';
 import { usePageAutoSave, StoryboardSession, hasRecoverableContent } from '@/lib/pageSessionStore';
 import { RecoveryToast } from '@/components/ui/RecoveryToast';
 
@@ -832,47 +833,48 @@ export default function StoryboardPage() {
 
               {/* Model selector for frame generation */}
               <Tooltip content="Image model for First/Last Frame generation" side="bottom">
-                <select
-                  value={frameModel}
-                  onChange={e => setFrameModel(e.target.value)}
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-purple-500 focus:outline-none"
-                >
-                  {frameModels.map(model => (
-                    <option key={model.id} value={model.id}>
-                      {model.name}
-                    </option>
-                  ))}
-                </select>
+                <div>
+                  <SelectMenu
+                    options={frameModels.map(model => ({
+                      value: model.id,
+                      label: model.name,
+                    }))}
+                    value={frameModel}
+                    onChange={setFrameModel}
+                    variant="minimal"
+                  />
+                </div>
               </Tooltip>
 
               {/* Video resolution selector */}
               <Tooltip content="Video output resolution" side="bottom">
-                <select
-                  value={videoResolution}
-                  onChange={e => setVideoResolution(e.target.value)}
-                  className="w-24 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-sm text-white focus:ring-1 focus:ring-cyan-500 focus:outline-none"
-                >
-                  {availableResolutions.map(res => (
-                    <option key={res.id} value={res.id}>
-                      {res.label}
-                    </option>
-                  ))}
-                </select>
+                <div>
+                  <SelectMenu
+                    options={availableResolutions.map(res => ({
+                      value: res.id,
+                      label: res.label,
+                    }))}
+                    value={videoResolution}
+                    onChange={setVideoResolution}
+                    variant="minimal"
+                  />
+                </div>
               </Tooltip>
 
               {/* Aspect ratio selector */}
-              <select
+              <SelectMenu
+                options={[
+                  { value: '16:9', label: '16:9' },
+                  { value: '9:16', label: '9:16' },
+                  { value: '1:1', label: '1:1' },
+                  { value: '4:3', label: '4:3' },
+                ]}
                 value={aspectRatio}
-                onChange={e => setAspectRatio(e.target.value)}
-                className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-purple-500 focus:outline-none"
-              >
-                <option value="16:9">16:9</option>
-                <option value="9:16">9:16 (Vertical)</option>
-                <option value="1:1">1:1 (Square)</option>
-                <option value="4:3">4:3</option>
-              </select>
+                onChange={setAspectRatio}
+                variant="minimal"
+              />
 
-              {/* Generate All button */}
+              {/* Generate All button - Neon Glow CTA */}
               {selectedChain?.segments && selectedChain.segments.length > 0 && (
                 <button
                   onClick={handleGenerateAll}
@@ -881,7 +883,7 @@ export default function StoryboardPage() {
                     'flex items-center gap-2 rounded-lg px-4 py-2 font-medium transition-all',
                     generatingShots.size > 0
                       ? 'cursor-wait bg-amber-500/20 text-amber-400'
-                      : 'bg-purple-600 text-white hover:bg-purple-500'
+                      : 'bg-violet-600 text-white hover:bg-violet-500 shadow-[0_0_20px_rgba(139,92,246,0.35)] hover:shadow-[0_0_30px_rgba(139,92,246,0.5)]'
                   )}
                 >
                   {generatingShots.size > 0 ? (

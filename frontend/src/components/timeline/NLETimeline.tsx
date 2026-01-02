@@ -162,6 +162,12 @@ interface VideoClipProps {
     onMove: (delta: number) => void;
 }
 
+// Glass Strip styling for video clips - gradient with specular highlight
+const VIDEO_CLIP_STYLES = {
+    base: "bg-gradient-to-b from-cyan-500/90 to-cyan-600/80 border-t border-white/30 border-b border-black/20 shadow-[0_4px_10px_rgba(0,0,0,0.3)]",
+    selected: "bg-gradient-to-b from-cyan-400/95 to-cyan-500/90 ring-2 ring-white shadow-[0_0_15px_rgba(255,255,255,0.3)]",
+};
+
 function VideoClipComponent({
     clip,
     startTime,
@@ -341,10 +347,10 @@ function VideoClipComponent({
     return (
         <div
             ref={clipRef}
-            className={`absolute top-0 h-full rounded-md border-2 transition-colors ${
+            className={`absolute top-0 h-full overflow-hidden rounded-md cursor-pointer transition-all duration-200 group ${
                 isSelected
-                    ? 'border-cyan-400 bg-cyan-500/30'
-                    : 'border-cyan-600/50 bg-cyan-900/40 hover:border-cyan-500'
+                    ? VIDEO_CLIP_STYLES.selected + ' z-10'
+                    : VIDEO_CLIP_STYLES.base + ' opacity-90 hover:opacity-100'
             }`}
             style={{ left, width: Math.max(width, 20) }}
             onClick={onSelect}
@@ -355,34 +361,49 @@ function VideoClipComponent({
             }}
             onMouseMove={handleMouseMove}
         >
-            {/* Thumbnail background */}
+            {/* 1. Specular Highlight (The "Glass" sheen top edge) */}
+            <div className="absolute inset-x-0 top-0 h-px bg-white/40" />
+
+            {/* Thumbnail background with gradient overlay */}
             {clip.thumbnailUrl && (
-                <div
-                    className="absolute inset-0 rounded bg-cover bg-center opacity-30"
-                    style={{ backgroundImage: `url(${clip.thumbnailUrl})` }}
-                />
+                <>
+                    <div
+                        className="absolute inset-0 bg-cover bg-center opacity-30"
+                        style={{ backgroundImage: `url(${clip.thumbnailUrl})` }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                </>
             )}
 
-            {/* Clip name */}
-            <div className="absolute inset-x-0 top-0 truncate px-2 py-1 text-xs font-medium text-white">
-                {clip.name}
+            {/* 2. Content Container */}
+            <div className="p-2 h-full flex flex-col justify-between relative z-10">
+                <span className="text-[10px] font-bold text-white/90 truncate drop-shadow-md">
+                    {clip.name}
+                </span>
+
+                {/* Waveform / Thumbnails placeholder */}
+                <div className="w-full flex-1 bg-black/10 rounded-sm min-h-[12px]" />
             </div>
 
-            {/* Duration badge */}
-            <div className="absolute bottom-1 right-1 rounded bg-black/50 px-1 text-[10px] text-white/70">
+            {/* Duration badge - glassmorphic */}
+            <div className="absolute bottom-1 right-1.5 rounded-md bg-black/40 px-1.5 py-0.5 text-[9px] font-mono text-white/70 backdrop-blur-sm">
                 {clipDuration.toFixed(2)}s
             </div>
 
-            {/* Trim handles */}
+            {/* 3. Drag Handles (Visible on Hover) - Glass style */}
             <div
-                className={`absolute left-0 top-0 h-full w-2 cursor-ew-resize rounded-l ${
-                    isDraggingStart ? 'bg-cyan-400' : 'bg-cyan-500/50 hover:bg-cyan-400'
+                className={`absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize transition-opacity ${
+                    isDraggingStart
+                        ? 'bg-white/30 opacity-100'
+                        : 'bg-white/10 opacity-0 group-hover:opacity-100'
                 }`}
                 onMouseDown={handleTrimStartMouseDown}
             />
             <div
-                className={`absolute right-0 top-0 h-full w-2 cursor-ew-resize rounded-r ${
-                    isDraggingEnd ? 'bg-cyan-400' : 'bg-cyan-500/50 hover:bg-cyan-400'
+                className={`absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize transition-opacity ${
+                    isDraggingEnd
+                        ? 'bg-white/30 opacity-100'
+                        : 'bg-white/10 opacity-0 group-hover:opacity-100'
                 }`}
                 onMouseDown={handleTrimEndMouseDown}
             />
@@ -434,6 +455,12 @@ function VideoClipComponent({
         </div>
     );
 }
+
+// Glass Strip styling for audio clips - violet gradient with specular highlight
+const AUDIO_CLIP_STYLES = {
+    base: "bg-gradient-to-b from-violet-500/90 to-violet-600/80 border-t border-white/30 border-b border-black/20 shadow-[0_4px_10px_rgba(0,0,0,0.3)]",
+    selected: "bg-gradient-to-b from-violet-400/95 to-violet-500/90 ring-2 ring-white shadow-[0_0_15px_rgba(255,255,255,0.3)]",
+};
 
 interface AudioClipProps {
     clip: TimelineClip;
@@ -562,52 +589,53 @@ function AudioClipComponent({
 
     return (
         <div
-            className={`absolute top-0 h-full rounded-md border-2 transition-colors ${
+            className={`absolute top-0 h-full overflow-hidden rounded-md cursor-pointer transition-all duration-200 group ${
                 isSelected
-                    ? 'border-purple-400 bg-purple-500/30'
-                    : isMisaligned
-                        ? 'border-dashed border-purple-500/50 bg-purple-900/30'
-                        : 'border-purple-600/50 bg-purple-900/40 hover:border-purple-500'
-            }`}
+                    ? AUDIO_CLIP_STYLES.selected + ' z-10'
+                    : AUDIO_CLIP_STYLES.base + ' opacity-90 hover:opacity-100'
+            } ${isMisaligned && !isSelected ? 'border-dashed !border-violet-500/40' : ''}`}
             style={{ left: audioLeft, width: Math.max(width, 20) }}
             onClick={onSelect}
             onDoubleClick={() => setShowGainSlider(!showGainSlider)}
         >
+            {/* 1. Specular Highlight (The "Glass" sheen top edge) */}
+            <div className="absolute inset-x-0 top-0 h-px bg-white/40" />
+
             {/* UX-014: Audio Waveform visualization */}
-            <div className="absolute inset-0 flex items-center overflow-hidden rounded opacity-60">
+            <div className="absolute inset-0 flex items-center overflow-hidden opacity-70">
                 <AudioWaveform
                     clipId={clip.id}
                     width={Math.max(width, 20)}
                     height={AUDIO_TRACK_HEIGHT - 8}
-                    color="rgba(168, 85, 247, 0.7)"
+                    color="rgba(168, 85, 247, 0.6)"
                 />
             </div>
 
             {/* Link indicator */}
             <button
                 onClick={(e) => { e.stopPropagation(); onToggleLink(); }}
-                className={`absolute left-1 top-1 rounded p-0.5 ${
-                    clip.avLinked ? 'text-green-400' : 'text-red-400'
+                className={`absolute left-1.5 top-1 z-10 rounded-full p-0.5 ${
+                    clip.avLinked ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
                 }`}
             >
-                {clip.avLinked ? <Link2 className="h-3 w-3" /> : <Unlink2 className="h-3 w-3" />}
+                {clip.avLinked ? <Link2 className="h-2.5 w-2.5" /> : <Unlink2 className="h-2.5 w-2.5" />}
             </button>
 
-            {/* L-Cut/J-Cut badge */}
+            {/* L-Cut/J-Cut badge - glassmorphic */}
             {offsetBadge && (
-                <div className={`absolute right-1 top-1 rounded px-1 text-[10px] font-medium text-white ${offsetBadge.color}`}>
+                <div className={`absolute right-1.5 top-1 z-10 rounded-md px-1.5 py-0.5 text-[9px] font-medium text-white backdrop-blur-sm ${offsetBadge.color}/80`}>
                     {offsetBadge.text}
                 </div>
             )}
 
             {/* Volume indicator */}
-            <div className="absolute bottom-1 left-1 flex items-center gap-1">
+            <div className="absolute bottom-1 left-1.5 z-10 flex items-center gap-1">
                 {clip.audioGain === 0 ? (
-                    <VolumeX className="h-3 w-3 text-red-400" />
+                    <VolumeX className="h-2.5 w-2.5 text-red-400" />
                 ) : (
-                    <Volume2 className="h-3 w-3 text-white/70" />
+                    <Volume2 className="h-2.5 w-2.5 text-white/60" />
                 )}
-                <span className="text-[10px] text-white/50">{Math.round(clip.audioGain * 100)}%</span>
+                <span className="text-[9px] text-white/40">{Math.round(clip.audioGain * 100)}%</span>
             </div>
 
             {/* Gain slider (shown on double-click) */}
@@ -617,7 +645,7 @@ function AudioClipComponent({
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
-                        className="absolute -top-10 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded bg-zinc-800 px-2 py-1 shadow-lg"
+                        className="absolute -top-10 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-white/10 bg-zinc-900/90 px-2 py-1.5 shadow-lg backdrop-blur-sm"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <input
@@ -626,23 +654,27 @@ function AudioClipComponent({
                             max="200"
                             value={clip.audioGain * 100}
                             onChange={(e) => onGainChange(parseInt(e.target.value) / 100)}
-                            className="h-1 w-20 cursor-pointer"
+                            className="h-1 w-20 cursor-pointer accent-violet-500"
                         />
-                        <span className="text-xs text-white">{Math.round(clip.audioGain * 100)}%</span>
+                        <span className="text-[10px] text-white/70">{Math.round(clip.audioGain * 100)}%</span>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* Trim handles (purple themed) */}
+            {/* 3. Drag Handles (Visible on Hover) - Glass style */}
             <div
-                className={`absolute left-0 top-0 h-full w-2 cursor-ew-resize rounded-l ${
-                    isDraggingStart ? 'bg-purple-400' : 'bg-purple-500/50 hover:bg-purple-400'
+                className={`absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize transition-opacity ${
+                    isDraggingStart
+                        ? 'bg-white/30 opacity-100'
+                        : 'bg-white/10 opacity-0 group-hover:opacity-100'
                 }`}
                 onMouseDown={handleAudioTrimStartMouseDown}
             />
             <div
-                className={`absolute right-0 top-0 h-full w-2 cursor-ew-resize rounded-r ${
-                    isDraggingEnd ? 'bg-purple-400' : 'bg-purple-500/50 hover:bg-purple-400'
+                className={`absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize transition-opacity ${
+                    isDraggingEnd
+                        ? 'bg-white/30 opacity-100'
+                        : 'bg-white/10 opacity-0 group-hover:opacity-100'
                 }`}
                 onMouseDown={handleAudioTrimEndMouseDown}
             />
@@ -945,9 +977,9 @@ export function NLETimeline({
     }, [duration, zoom, frameRate]);
 
     return (
-        <div className="flex h-full flex-col overflow-hidden rounded-xl border border-white/10 bg-zinc-900/90">
+        <div className="flex h-full flex-col overflow-hidden rounded-xl border border-white/5 bg-zinc-900/80 backdrop-blur-sm">
             {/* Transport Controls */}
-            <div className="flex items-center justify-between border-b border-white/10 bg-zinc-800/50 px-4 py-2">
+            <div className="flex items-center justify-between border-b border-white/5 bg-zinc-800/40 px-4 py-2 backdrop-blur-sm">
                 <div className="flex items-center gap-2">
                     {/* NLE Badge - Modern Non-Linear Editor indicator */}
                     <div className="mr-2 flex items-center gap-1.5 rounded-md border border-purple-500/30 bg-purple-500/10 px-2 py-1">
@@ -1070,23 +1102,32 @@ export function NLETimeline({
                     style={{ width: timelineWidth, minHeight: RULER_HEIGHT + TRACK_HEIGHT + AUDIO_TRACK_HEIGHT + 40 }}
                     onClick={handleTimelineClick}
                 >
-                    {/* Ruler */}
+                    {/* Cinematic Ruler - with tick marks and visual density */}
                     <div
-                        className="sticky top-0 z-20 border-b border-white/10 bg-zinc-800"
+                        className="sticky top-0 z-20 border-b border-white/5 bg-zinc-950/50 flex items-end"
                         style={{ height: RULER_HEIGHT }}
                     >
-                        {rulerMarks.map((mark) => (
+                        {rulerMarks.map((mark, i) => (
                             <div
                                 key={mark.time}
-                                className="absolute top-0 flex flex-col items-center"
+                                className="absolute bottom-0 h-full flex flex-col justify-end"
                                 style={{ left: mark.time * zoom }}
                             >
-                                <div
-                                    className={`${mark.isMajor ? 'h-3 bg-white/40' : 'h-2 bg-white/20'}`}
-                                    style={{ width: 1 }}
-                                />
+                                {/* Major Tick (Second) */}
+                                <div className={`${mark.isMajor ? 'h-3 w-px bg-zinc-500' : 'h-2 w-px bg-zinc-700'}`} />
                                 {mark.isMajor && (
-                                    <span className="mt-0.5 text-[10px] text-white/40">{mark.label}</span>
+                                    <span className="absolute bottom-4 left-1 text-[9px] font-mono text-zinc-500 font-medium select-none">
+                                        {mark.label}
+                                    </span>
+                                )}
+
+                                {/* Minor Ticks (Frames) - Visual noise/density for NLE feel */}
+                                {mark.isMajor && zoom > 30 && (
+                                    <>
+                                        <div className="absolute left-[25%] bottom-0 h-1.5 w-px bg-zinc-800" style={{ left: zoom * 0.25 }} />
+                                        <div className="absolute left-[50%] bottom-0 h-1.5 w-px bg-zinc-800" style={{ left: zoom * 0.5 }} />
+                                        <div className="absolute left-[75%] bottom-0 h-1.5 w-px bg-zinc-800" style={{ left: zoom * 0.75 }} />
+                                    </>
                                 )}
                             </div>
                         ))}
@@ -1303,7 +1344,7 @@ export function NLETimeline({
             </div>
 
             {/* Status bar - Modern NLE footer */}
-            <div className="flex items-center justify-between border-t border-white/10 bg-zinc-800/50 px-4 py-1.5 text-xs text-white/50">
+            <div className="flex items-center justify-between border-t border-white/5 bg-zinc-800/40 px-4 py-1.5 text-xs text-white/50 backdrop-blur-sm">
                 <div className="flex items-center gap-3">
                     {/* Non-Linear Editor mode indicator */}
                     <span className="rounded bg-gradient-to-r from-purple-500/20 to-cyan-500/20 px-2 py-0.5 text-[10px] font-medium text-white/70">

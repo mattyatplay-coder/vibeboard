@@ -41,6 +41,8 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { Genre, GENRE_TEMPLATES, getGenreTemplate } from '@/data/GenreTemplates';
 import ThumbnailGeneratorPanel from '@/components/content/ThumbnailGeneratorPanel';
 import { useStoryGenerationStore, PipelineStage, StageStatus, StoryCharacter as GlobalStoryCharacter, ContinueFromData } from '@/lib/storyGenerationStore';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { ScrubbableInput } from '@/components/ui/ScrubbableInput';
 
 // Story character for prompt injection
 interface StoryCharacter {
@@ -1885,44 +1887,31 @@ The parser will automatically detect scenes and break them down into shots."
                 <label className="mb-2 block text-xs font-bold tracking-wider text-gray-400 uppercase">
                   Video Shot Duration
                 </label>
-                <select
+                <ScrubbableInput
                   value={shotDuration}
-                  onChange={e => setShotDuration(Number(e.target.value))}
-                  className="w-full rounded-lg border border-white/10 bg-black/50 px-3 py-2 text-sm text-white focus:border-blue-500/50 focus:outline-none"
-                >
-                  <option value={3}>3 seconds</option>
-                  <option value={4}>4 seconds</option>
-                  <option value={5}>5 seconds</option>
-                  <option value={6}>6 seconds</option>
-                  <option value={7}>7 seconds</option>
-                  <option value={8}>8 seconds (VEO 3.1)</option>
-                  <option value={10}>10 seconds</option>
-                </select>
+                  onChange={setShotDuration}
+                  min={3}
+                  max={10}
+                  step={1}
+                  unit="s"
+                  label="Shot Duration"
+                />
                 <p className="mt-1 text-[10px] text-gray-600">
                   Default duration for each video shot (most models max 10s, VEO 3.1 up to 8s)
                 </p>
               </div>
 
               <div>
-                <label className="mb-2 block text-xs font-bold tracking-wider text-gray-400 uppercase">
-                  Pacing
-                </label>
-                <div className="flex gap-2">
-                  {(['slow', 'medium', 'fast'] as const).map(p => (
-                    <button
-                      key={p}
-                      onClick={() => setPace(p)}
-                      className={clsx(
-                        'flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors',
-                        pace === p
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-white/5 text-gray-400 hover:bg-white/10'
-                      )}
-                    >
-                      {p.charAt(0).toUpperCase() + p.slice(1)}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedControl
+                  options={[
+                    { value: 'slow', label: 'Slow' },
+                    { value: 'medium', label: 'Medium' },
+                    { value: 'fast', label: 'Fast' },
+                  ]}
+                  value={pace}
+                  onChange={(val) => setPace(val as 'slow' | 'medium' | 'fast')}
+                  label="Pacing"
+                />
               </div>
 
               {/* Character Selector */}
@@ -2301,10 +2290,11 @@ The parser will automatically detect scenes and break them down into shots."
                   </div>
                 </div>
 
-                {/* Per-scene breakdown */}
+                {/* Per-scene breakdown with shot badges */}
                 {scenes.length > 0 && (
-                  <div className="mt-3 space-y-1">
+                  <div className="mt-3 space-y-1.5">
                     {scenes.map((scene: any, i: number) => {
+                      const shotCount = scene.suggestedShots?.length || 0;
                       const sceneDuration =
                         scene.suggestedShots?.reduce(
                           (acc: number, shot: any) => acc + (shot.duration || shotDuration),
@@ -2313,11 +2303,19 @@ The parser will automatically detect scenes and break them down into shots."
                       const sceneMins = Math.floor(sceneDuration / 60);
                       const sceneSecs = sceneDuration % 60;
                       return (
-                        <div key={i} className="flex items-center justify-between text-xs">
-                          <span className="max-w-[140px] truncate text-gray-500">
-                            Scene {scene.sceneNumber}
-                          </span>
-                          <span className="font-mono text-gray-400">
+                        <div key={i} className="flex items-center justify-between text-xs group">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="max-w-[100px] truncate text-zinc-500 group-hover:text-zinc-400 transition-colors">
+                              Scene {scene.sceneNumber}
+                            </span>
+                            {/* Shot count badge */}
+                            {shotCount > 0 && (
+                              <span className="px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400 font-mono text-[10px]">
+                                {shotCount} shot{shotCount !== 1 ? 's' : ''}
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-mono text-cyan-400/70">
                             {sceneMins}:{sceneSecs.toString().padStart(2, '0')}
                           </span>
                         </div>
@@ -2497,12 +2495,17 @@ The parser will automatically detect scenes and break them down into shots."
           {scenes.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center gap-2 px-2 py-1">
-                <Film className="h-4 w-4 text-blue-400" />
-                <span className="text-xs font-bold tracking-wider text-gray-400 uppercase">
-                  Scene Breakdown ({scenes.length} scenes)
+                <Film className="h-4 w-4 text-violet-400" />
+                <span className="text-xs font-bold tracking-wider text-zinc-400 uppercase">
+                  Scene Breakdown
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400 font-mono text-[10px]">
+                  {scenes.length} scenes
                 </span>
               </div>
-              {scenes.map((scene, i) => (
+              {scenes.map((scene, i) => {
+                const shotCount = scene.suggestedShots?.length || 0;
+                return (
                 <CollapsibleSection
                   key={i}
                   title={`Scene ${scene.sceneNumber}: ${scene.heading?.intExt || 'INT'}. ${scene.heading?.location || 'LOCATION'}`}
@@ -2510,6 +2513,7 @@ The parser will automatically detect scenes and break them down into shots."
                   isExpanded={expandedSections.includes(`scene-${i}`)}
                   onToggle={() => toggleSection(`scene-${i}`)}
                   status={stages.breakdown.status}
+                  badge={shotCount > 0 ? `${shotCount} shot${shotCount !== 1 ? 's' : ''}` : undefined}
                 >
                   <div className="space-y-3">
                     {/* Scene metadata */}
@@ -2519,13 +2523,13 @@ The parser will automatically detect scenes and break them down into shots."
                           'rounded px-2 py-0.5 text-[10px] font-bold uppercase',
                           scene.emotionalBeat === 'tension' && 'bg-red-500/20 text-red-300',
                           scene.emotionalBeat === 'release' && 'bg-green-500/20 text-green-300',
-                          'bg-gray-500/20 text-gray-300'
+                          'bg-zinc-800/50 text-zinc-400'
                         )}
                       >
                         {scene.emotionalBeat || 'neutral'}
                       </span>
-                      <span className="text-xs text-gray-500">
-                        {scene.suggestedShots?.length || 0} shots
+                      <span className="text-xs text-zinc-500 font-mono">
+                        {shotCount} shots
                       </span>
                     </div>
 
@@ -2562,7 +2566,8 @@ The parser will automatically detect scenes and break them down into shots."
                     </div>
                   </div>
                 </CollapsibleSection>
-              ))}
+              );
+              })}
             </div>
           )}
 
@@ -2801,6 +2806,7 @@ interface CollapsibleSectionProps {
   onToggle: () => void;
   status: StageStatus['status'];
   children: React.ReactNode;
+  badge?: string; // Optional shot count or metadata badge
 }
 
 function CollapsibleSection({
@@ -2810,9 +2816,10 @@ function CollapsibleSection({
   onToggle,
   status,
   children,
+  badge,
 }: CollapsibleSectionProps) {
   return (
-    <div className="overflow-hidden rounded-xl border border-white/10 bg-[#1a1a1a]">
+    <div className="overflow-hidden rounded-xl border border-white/5 bg-zinc-900/40 backdrop-blur-sm">
       <button
         onClick={onToggle}
         className="flex w-full items-center justify-between px-6 py-4 transition-colors hover:bg-white/5"
@@ -2822,19 +2829,25 @@ function CollapsibleSection({
             className={clsx(
               'h-5 w-5',
               status === 'complete' && 'text-green-400',
-              status === 'in_progress' && 'text-blue-400',
+              status === 'in_progress' && 'text-violet-400',
               status === 'error' && 'text-red-400',
-              status === 'pending' && 'text-gray-400'
+              status === 'pending' && 'text-zinc-500'
             )}
           />
           <span className="font-bold text-white">{title}</span>
-          {status === 'in_progress' && <Loader2 className="h-4 w-4 animate-spin text-blue-400" />}
+          {/* Badge for shot counts or metadata */}
+          {badge && (
+            <span className="px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400 font-mono text-[10px]">
+              {badge}
+            </span>
+          )}
+          {status === 'in_progress' && <Loader2 className="h-4 w-4 animate-spin text-violet-400" />}
           {status === 'complete' && <Check className="h-4 w-4 text-green-400" />}
         </div>
         {isExpanded ? (
-          <ChevronDown className="h-5 w-5 text-gray-400" />
+          <ChevronDown className="h-5 w-5 text-zinc-500" />
         ) : (
-          <ChevronRight className="h-5 w-5 text-gray-400" />
+          <ChevronRight className="h-5 w-5 text-zinc-500" />
         )}
       </button>
 
@@ -2844,7 +2857,7 @@ function CollapsibleSection({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-t border-white/10"
+            className="border-t border-white/5"
           >
             <div className="p-6">{children}</div>
           </motion.div>

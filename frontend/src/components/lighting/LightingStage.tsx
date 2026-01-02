@@ -37,6 +37,8 @@ import {
 import { clsx } from 'clsx';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useLightingStore, LightSource, LightType, LIGHTING_PRESETS } from '@/lib/lightingStore';
+import { ScrubbableInput } from '@/components/ui/ScrubbableInput';
+import { RotaryKnob } from '@/components/ui/RotaryKnob';
 import dynamic from 'next/dynamic';
 
 // Dynamically import 3D preview to avoid SSR issues with Three.js
@@ -1162,83 +1164,66 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
                   </div>
                 </div>
 
-                {/* Intensity Slider */}
-                <div>
-                  <div className="mb-1 flex items-center justify-between">
-                    <span className="text-xs text-gray-500">Intensity</span>
-                    <span className="text-xs text-gray-400">{selectedLight.intensity}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
+                {/* Phase 6: Tangible Controls Grid */}
+                <div className="grid grid-cols-3 gap-3">
+                  {/* Intensity - ScrubbableInput */}
+                  <ScrubbableInput
+                    label="Intensity"
                     value={selectedLight.intensity}
-                    onChange={e =>
-                      updateLight(selectedLight.id, { intensity: parseInt(e.target.value) })
-                    }
-                    className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-amber-400"
+                    onChange={val => updateLight(selectedLight.id, { intensity: val })}
+                    min={0}
+                    max={100}
+                    step={1}
+                    unit="%"
                   />
-                </div>
 
-                {/* Color Temperature Slider */}
-                <div>
-                  <div className="mb-1 flex items-center justify-between">
-                    <span className="flex items-center gap-1 text-xs text-gray-500">
-                      <Thermometer className="h-3 w-3" />
-                      Color Temp
-                    </span>
-                    <span className="text-xs text-gray-400">{selectedLight.colorTemp}K</span>
-                  </div>
-                  <div
-                    className="relative h-1.5 overflow-hidden rounded-full"
-                    style={{
-                      background: 'linear-gradient(to right, #ff8a00, #fff5e6, #cce5ff, #80b3ff)',
-                    }}
-                  >
-                    <input
-                      type="range"
-                      min="2700"
-                      max="10000"
-                      value={selectedLight.colorTemp}
-                      onChange={e =>
-                        updateLight(selectedLight.id, { colorTemp: parseInt(e.target.value) })
-                      }
-                      className="absolute inset-0 w-full cursor-pointer opacity-0"
-                    />
-                    <div
-                      className="pointer-events-none absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border-2 border-white shadow-md"
-                      style={{
-                        left: `${((selectedLight.colorTemp - 2700) / 7300) * 100}%`,
-                        backgroundColor: kelvinToRgb(selectedLight.colorTemp),
-                      }}
-                    />
-                  </div>
-                  <div className="mt-1 flex justify-between">
-                    <span className="text-[10px] text-gray-600">Warm</span>
-                    <span className="text-[10px] text-gray-600">Cool</span>
-                  </div>
-                </div>
+                  {/* Color Temperature - ScrubbableInput */}
+                  <ScrubbableInput
+                    label="Color Temp"
+                    value={selectedLight.colorTemp}
+                    onChange={val => updateLight(selectedLight.id, { colorTemp: val })}
+                    min={2700}
+                    max={10000}
+                    step={100}
+                    unit="K"
+                    sensitivity={2}
+                  />
 
-                {/* Softness Slider */}
-                <div>
-                  <div className="mb-1 flex items-center justify-between">
-                    <span className="text-xs text-gray-500">Softness</span>
-                    <span className="text-xs text-gray-400">{selectedLight.softness}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
+                  {/* Softness - ScrubbableInput */}
+                  <ScrubbableInput
+                    label="Softness"
                     value={selectedLight.softness}
-                    onChange={e =>
-                      updateLight(selectedLight.id, { softness: parseInt(e.target.value) })
-                    }
-                    className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-blue-400"
+                    onChange={val => updateLight(selectedLight.id, { softness: val })}
+                    min={0}
+                    max={100}
+                    step={1}
+                    unit="%"
                   />
-                  <div className="mt-1 flex justify-between">
-                    <span className="text-[10px] text-gray-600">Hard</span>
-                    <span className="text-[10px] text-gray-600">Diffused</span>
-                  </div>
+                </div>
+
+                {/* Light Angle - RotaryKnob (for directional control) */}
+                <div className="mt-3 flex items-center justify-center gap-6 border-t border-white/5 pt-3">
+                  <RotaryKnob
+                    label="Azimuth"
+                    value={Math.round(selectedLight.x * 360)}
+                    onChange={val => updateLight(selectedLight.id, { x: val / 360 })}
+                    min={0}
+                    max={360}
+                    wrap={true}
+                    color="cyan"
+                    size={44}
+                  />
+                  <RotaryKnob
+                    label="Elevation"
+                    value={Math.round((1 - selectedLight.y) * 90)}
+                    onChange={val => updateLight(selectedLight.id, { y: 1 - (val / 90) })}
+                    min={0}
+                    max={90}
+                    wrap={false}
+                    color="amber"
+                    size={44}
+                    unit="°"
+                  />
                 </div>
 
                 {/* Gel Color Toggle & Picker */}
@@ -1298,28 +1283,18 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
                   )}
                 </div>
 
-                {/* Distance Slider (affects falloff) */}
-                <div>
-                  <div className="mb-1 flex items-center justify-between">
-                    <span className="text-xs text-gray-500">Distance</span>
-                    <span className="text-xs text-gray-400">
-                      {((selectedLight.distance ?? 0.5) * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="10"
-                    max="100"
-                    value={(selectedLight.distance ?? 0.5) * 100}
-                    onChange={e =>
-                      updateLight(selectedLight.id, { distance: parseInt(e.target.value) / 100 })
-                    }
-                    className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-green-400"
+                {/* Distance - ScrubbableInput (affects falloff) */}
+                <div className="mt-3 border-t border-white/5 pt-3">
+                  <ScrubbableInput
+                    label="Distance (Falloff)"
+                    value={Math.round((selectedLight.distance ?? 0.5) * 100)}
+                    onChange={val => updateLight(selectedLight.id, { distance: val / 100 })}
+                    min={10}
+                    max={100}
+                    step={5}
+                    unit="%"
+                    sensitivity={3}
                   />
-                  <div className="mt-1 flex justify-between">
-                    <span className="text-[10px] text-gray-600">Close (Bright)</span>
-                    <span className="text-[10px] text-gray-600">Far (Dim)</span>
-                  </div>
                 </div>
               </div>
             </motion.div>

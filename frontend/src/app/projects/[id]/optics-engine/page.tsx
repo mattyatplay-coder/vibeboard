@@ -205,27 +205,28 @@ export default function ViewfinderPage() {
     };
 
     return (
-        <div className="flex h-screen bg-[#0a0a0a]">
+        <div className="flex h-screen bg-zinc-950">
             {/* Left Sidebar - Reference/Elements/Captures */}
             <AnimatePresence>
                 {!sidebarCollapsed && (
                     <motion.div
                         initial={{ width: 0, opacity: 0 }}
-                        animate={{ width: 288, opacity: 1 }}
+                        animate={{ width: 280, opacity: 1 }}
                         exit={{ width: 0, opacity: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="flex w-72 shrink-0 flex-col overflow-hidden border-r border-white/10 bg-[#111]"
+                        className="flex w-70 shrink-0 flex-col overflow-hidden border-r border-white/5 bg-zinc-900/60 backdrop-blur-sm"
                     >
-                        {/* Header */}
-                        <div className="flex items-center gap-3 border-b border-white/10 p-4">
+                        {/* Header - Compact */}
+                        <div className="flex items-center gap-3 border-b border-white/5 px-4 py-3">
+                            <Camera className="h-4 w-4 text-cyan-400" />
                             <div className="flex-1">
-                                <h1 className="text-lg font-bold text-white">Viewfinder</h1>
-                                <p className="text-xs text-gray-500">DOF Simulator & Composite</p>
+                                <h1 className="text-sm font-semibold text-white">Viewfinder</h1>
+                                <p className="text-[10px] text-zinc-600">Optics Engine</p>
                             </div>
                         </div>
 
                 {/* Panel Tabs */}
-                <div className="flex border-b border-white/10">
+                <div className="flex border-b border-white/5">
                     {[
                         { id: 'reference', icon: Image, label: 'Reference' },
                         { id: 'elements', icon: Layers, label: 'Elements' },
@@ -235,13 +236,13 @@ export default function ViewfinderPage() {
                             key={tab.id}
                             onClick={() => setActivePanel(tab.id as typeof activePanel)}
                             className={clsx(
-                                'flex flex-1 flex-col items-center gap-1 py-3 text-[10px] transition-colors',
+                                'flex flex-1 flex-col items-center gap-1 py-2.5 text-[9px] font-medium uppercase tracking-wider transition-colors',
                                 activePanel === tab.id
-                                    ? 'bg-cyan-500/10 text-cyan-400'
-                                    : 'text-gray-500 hover:bg-white/5 hover:text-white'
+                                    ? 'bg-cyan-500/10 text-cyan-400 border-b border-cyan-400/50'
+                                    : 'text-zinc-600 hover:bg-white/5 hover:text-zinc-300'
                             )}
                         >
-                            <tab.icon className="h-4 w-4" />
+                            <tab.icon className="h-3.5 w-3.5" />
                             {tab.label}
                         </button>
                     ))}
@@ -252,10 +253,10 @@ export default function ViewfinderPage() {
                     {/* Reference Panel */}
                     {activePanel === 'reference' && (
                         <div className="space-y-3">
-                            {/* Upload Button */}
+                            {/* Upload Button - Compact */}
                             <label
                                 className={clsx(
-                                    'flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-cyan-500/30 bg-cyan-500/5 p-4 transition-all hover:border-cyan-500/50 hover:bg-cyan-500/10',
+                                    'flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-cyan-500/20 bg-cyan-500/5 p-3 transition-all hover:border-cyan-500/40 hover:bg-cyan-500/10',
                                     isUploading && 'pointer-events-none opacity-50'
                                 )}
                             >
@@ -268,13 +269,13 @@ export default function ViewfinderPage() {
                                 />
                                 {isUploading ? (
                                     <>
-                                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
-                                        <span className="text-sm font-medium text-cyan-400">Uploading...</span>
+                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+                                        <span className="text-xs font-medium text-cyan-400">Uploading...</span>
                                     </>
                                 ) : (
                                     <>
-                                        <Upload className="h-5 w-5 text-cyan-400" />
-                                        <span className="text-sm font-medium text-cyan-400">Upload Reference Image</span>
+                                        <Upload className="h-4 w-4 text-cyan-400" />
+                                        <span className="text-xs font-medium text-cyan-400">Upload Reference</span>
                                     </>
                                 )}
                             </label>
