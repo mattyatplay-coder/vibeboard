@@ -24,7 +24,7 @@
  * - Escape: Deselect all
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 
 export interface TimelineShortcutHandlers {
     onPlayPause: () => void;
@@ -55,12 +55,14 @@ export function useTimelineShortcuts(
     options: UseTimelineShortcutsOptions = {}
 ) {
     const { enabled = true, maxShuttleSpeed = 8 } = options;
-    const shuttleSpeed = useRef(0);
+    const [shuttleSpeedState, setShuttleSpeedState] = useState(0);
+    const shuttleSpeedRef = useRef(0);
     const isPlaying = useRef(false);
 
     // Reset shuttle speed
     const resetShuttle = useCallback(() => {
-        shuttleSpeed.current = 0;
+        shuttleSpeedRef.current = 0;
+        setShuttleSpeedState(0);
         isPlaying.current = false;
     }, []);
 
@@ -82,8 +84,9 @@ export function useTimelineShortcuts(
                 case ' ':
                     e.preventDefault();
                     handlers.onPlayPause();
-                    if (shuttleSpeed.current !== 0) {
-                        shuttleSpeed.current = 0;
+                    if (shuttleSpeedRef.current !== 0) {
+                        shuttleSpeedRef.current = 0;
+                        setShuttleSpeedState(0);
                     }
                     isPlaying.current = !isPlaying.current;
                     break;
@@ -100,30 +103,32 @@ export function useTimelineShortcuts(
                 case 'j':
                     e.preventDefault();
                     // If moving forward, stop first
-                    if (shuttleSpeed.current > 0) {
-                        shuttleSpeed.current = 0;
+                    if (shuttleSpeedRef.current > 0) {
+                        shuttleSpeedRef.current = 0;
                     } else {
                         // Double speed each press, max at -maxShuttleSpeed
-                        shuttleSpeed.current = shuttleSpeed.current <= -1
-                            ? Math.max(shuttleSpeed.current * 2, -maxShuttleSpeed)
+                        shuttleSpeedRef.current = shuttleSpeedRef.current <= -1
+                            ? Math.max(shuttleSpeedRef.current * 2, -maxShuttleSpeed)
                             : -1;
                     }
-                    handlers.onShuttle(shuttleSpeed.current);
+                    setShuttleSpeedState(shuttleSpeedRef.current);
+                    handlers.onShuttle(shuttleSpeedRef.current);
                     break;
 
                 // Forward Shuttle (L)
                 case 'l':
                     e.preventDefault();
                     // If moving backward, stop first
-                    if (shuttleSpeed.current < 0) {
-                        shuttleSpeed.current = 0;
+                    if (shuttleSpeedRef.current < 0) {
+                        shuttleSpeedRef.current = 0;
                     } else {
                         // Double speed each press, max at maxShuttleSpeed
-                        shuttleSpeed.current = shuttleSpeed.current >= 1
-                            ? Math.min(shuttleSpeed.current * 2, maxShuttleSpeed)
+                        shuttleSpeedRef.current = shuttleSpeedRef.current >= 1
+                            ? Math.min(shuttleSpeedRef.current * 2, maxShuttleSpeed)
                             : 1;
                     }
-                    handlers.onShuttle(shuttleSpeed.current);
+                    setShuttleSpeedState(shuttleSpeedRef.current);
+                    handlers.onShuttle(shuttleSpeedRef.current);
                     break;
 
                 // Blade/Split (Cmd+B)
@@ -250,7 +255,7 @@ export function useTimelineShortcuts(
     }, [enabled, handlers, maxShuttleSpeed, resetShuttle]);
 
     return {
-        shuttleSpeed: shuttleSpeed.current,
+        shuttleSpeed: shuttleSpeedState,
         resetShuttle,
     };
 }
