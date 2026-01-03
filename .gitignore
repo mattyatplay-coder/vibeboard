@@ -67,3 +67,5 @@ ComfyUI/
 
 # Agent/Claude temp files
 .agent/staging/
+.vercel
+.env*.local
