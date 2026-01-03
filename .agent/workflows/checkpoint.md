@@ -12,8 +12,9 @@ Run the export script to save current session details to the backup drive.
 node scripts/export-gemini-session.js
 
 ## 2. Update Documentation
-- Check `GEMINI.md` and ensure the "Session History" section is up to date (Agent to perform manual edit).
-- Check `CLAUDE.md` and add any new high-level architecture notes (Agent to perform manual edit).
+- Check `.agent/SYSTEM_STATE.yaml` - canonical system state (AUTHORITY - outranks all other context)
+- Update infrastructure status, security config, API routing as needed
+- Update `LAST_UPDATED` timestamp
 
 ## 3. Update Task Status
 - Mark completed items in `task.md`.

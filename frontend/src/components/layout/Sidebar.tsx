@@ -33,23 +33,16 @@ export function Sidebar() {
   const [expandedWidget, setExpandedWidget] = useState<'cost' | 'spending' | null>(null);
   const { isCollapsed, toggleSidebar, setCollapsed } = useSidebarStore();
 
-  // Elastic Studio: Auto-collapse on tablet-sized screens
-  // Force collapsed state on screens < 1280px (xl breakpoint)
+  // Elastic Studio: Auto-collapse on smaller screens
+  // Auto-collapse when viewport < 1600px, but only on mount or when crossing threshold
+  // User can still manually expand/collapse at any time
   useEffect(() => {
-    const handleResize = () => {
-      const isTablet = window.innerWidth < 1280;
-      if (isTablet && !isCollapsed) {
-        setCollapsed(true);
-      }
-    };
-
-    // Check on mount
-    handleResize();
-
-    // Listen for resize events
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [isCollapsed, setCollapsed]);
+    // Only auto-collapse on initial mount if below threshold
+    if (window.innerWidth < 1600) {
+      setCollapsed(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount
 
   // Track if story generation is running in the background
   const storyGeneration = useStoryGenerationStore();

@@ -270,9 +270,13 @@ export default function GeneratePage() {
   // Shot Navigator ref for calling methods from drag handler
   const shotNavigatorRef = useRef<ShotNavigatorRef>(null);
 
-  // Autocomplete state
+  // Autocomplete state - @ for elements, # for props, $ for variables
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestionQuery, setSuggestionQuery] = useState('');
+  const [showPropSuggestions, setShowPropSuggestions] = useState(false);
+  const [propSuggestionQuery, setPropSuggestionQuery] = useState('');
+  const [showVariableSuggestions, setShowVariableSuggestions] = useState(false);
+  const [variableSuggestionQuery, setVariableSuggestionQuery] = useState('');
   const [cursorPosition, setCursorPosition] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [styleConfig, setStyleConfig] = useState<StyleConfig | null>(null);
@@ -298,7 +302,24 @@ export default function GeneratePage() {
   useEffect(() => {
     setHasMounted(true);
   }, []);
+
+  // Responsive toolbar: switch to stacked layout when viewport < 1900px
+  const [isCompactToolbar, setIsCompactToolbar] = useState(false);
+  // Hide aspect ratio text when viewport < 2200px
+  const [hideAspectRatioText, setHideAspectRatioText] = useState(false);
+  useEffect(() => {
+    const checkViewport = () => {
+      setIsCompactToolbar(window.innerWidth < 1900);
+      setHideAspectRatioText(window.innerWidth < 2200);
+    };
+    checkViewport();
+    window.addEventListener('resize', checkViewport);
+    return () => window.removeEventListener('resize', checkViewport);
+  }, []);
   const [isPromptTreeOpen, setIsPromptTreeOpen] = useState(false);
+
+  // Inline Producer Widget state (for toolbar cost display)
+  const [isInlineProducerExpanded, setIsInlineProducerExpanded] = useState(false);
 
   // Virtual Gaffer: 3-point lighting designer
   const {
@@ -313,10 +334,14 @@ export default function GeneratePage() {
   const [isAcousticStudioOpen, setIsAcousticStudioOpen] = useState(false);
 
   // Prompt Weighting: Ctrl/Cmd + Arrow Up/Down to adjust weights (word:1.1)
-  const { handleKeyDown: handleWeightingKeyDown, isModifierHeld } = usePromptWeighting({
+  const { handleKeyDown: handleWeightingKeyDown, hasTextSelection, selectionText } = usePromptWeighting({
     value: prompt,
     onChange: setPrompt,
+    textareaRef,
   });
+
+  // Ref for the prompt container (for positioning the weight tooltip)
+  const promptContainerRef = useRef<HTMLDivElement>(null);
 
   // Edit Modal State
   const [selectedGeneration, setSelectedGeneration] = useState<Generation | null>(null);
@@ -1391,27 +1416,57 @@ export default function GeneratePage() {
     setPrompt(value);
     setCursorPosition(position);
 
-    // Check for @ trigger
     const textBeforeCursor = value.slice(0, position);
-    const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
 
-    if (lastAtSymbol !== -1) {
-      const query = textBeforeCursor.slice(lastAtSymbol + 1);
-      // Only show suggestions if there's no space after @ (unless it's the start of a name)
+    // Check for @ trigger (element references)
+    const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
+    // Check for # trigger (prop references)
+    const lastHashSymbol = textBeforeCursor.lastIndexOf('#');
+    // Check for $ trigger (variable references)
+    const lastDollarSymbol = textBeforeCursor.lastIndexOf('$');
+
+    // Find which trigger is closest to cursor (most recent)
+    const triggers = [
+      { symbol: '@', pos: lastAtSymbol, type: 'element' },
+      { symbol: '#', pos: lastHashSymbol, type: 'prop' },
+      { symbol: '$', pos: lastDollarSymbol, type: 'variable' },
+    ].filter(t => t.pos !== -1);
+
+    // Sort by position descending to find the most recent trigger
+    triggers.sort((a, b) => b.pos - a.pos);
+
+    // Reset all suggestions first
+    setShowSuggestions(false);
+    setShowPropSuggestions(false);
+    setShowVariableSuggestions(false);
+
+    if (triggers.length > 0) {
+      const mostRecent = triggers[0];
+      const query = textBeforeCursor.slice(mostRecent.pos + 1);
+
+      // Only show suggestions if there's no space after the trigger
       if (!query.includes(' ')) {
-        setSuggestionQuery(query);
-        setShowSuggestions(true);
-        return;
+        if (mostRecent.type === 'element') {
+          setSuggestionQuery(query);
+          setShowSuggestions(true);
+        } else if (mostRecent.type === 'prop') {
+          setPropSuggestionQuery(query);
+          setShowPropSuggestions(true);
+        } else if (mostRecent.type === 'variable') {
+          setVariableSuggestionQuery(query);
+          setShowVariableSuggestions(true);
+        }
       }
     }
-    setShowSuggestions(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Handle prompt weighting (Ctrl/Cmd + Arrow Up/Down)
     handleWeightingKeyDown(e);
 
-    if (e.key === 'Enter' && !e.shiftKey && !showSuggestions) {
+    // Don't submit on Enter if any suggestion panel is open
+    const anySuggestionsOpen = showSuggestions || showPropSuggestions || showVariableSuggestions;
+    if (e.key === 'Enter' && !e.shiftKey && !anySuggestionsOpen) {
       e.preventDefault();
       handleGenerate();
     }
@@ -1458,6 +1513,58 @@ export default function GeneratePage() {
     el =>
       el.projectId === projectId && el.name.toLowerCase().includes(suggestionQuery.toLowerCase())
   );
+
+  // Filtered props for # suggestions
+  const filteredProps = propBinItems.filter(prop =>
+    prop.name.toLowerCase().includes(propSuggestionQuery.toLowerCase())
+  );
+
+  // Filtered variables for $ suggestions
+  const filteredVariables = promptVariables.filter(variable =>
+    variable.name.toLowerCase().includes(variableSuggestionQuery.toLowerCase())
+  );
+
+  // Select a prop from # suggestions
+  const selectPropSuggestion = (prop: typeof propBinItems[0]) => {
+    const textBeforeCursor = prompt.slice(0, cursorPosition);
+    const textAfterCursor = prompt.slice(cursorPosition);
+    const lastHashSymbol = textBeforeCursor.lastIndexOf('#');
+
+    const newPrompt =
+      textBeforeCursor.slice(0, lastHashSymbol) + `#${prop.name} ` + textAfterCursor;
+    setPrompt(newPrompt);
+    setShowPropSuggestions(false);
+
+    // Reset focus
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus({ preventScroll: true });
+        const newCursorPos = lastHashSymbol + prop.name.length + 2; // +2 for # and space
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 0);
+  };
+
+  // Select a variable from $ suggestions
+  const selectVariableSuggestion = (variable: typeof promptVariables[0]) => {
+    const textBeforeCursor = prompt.slice(0, cursorPosition);
+    const textAfterCursor = prompt.slice(cursorPosition);
+    const lastDollarSymbol = textBeforeCursor.lastIndexOf('$');
+
+    const newPrompt =
+      textBeforeCursor.slice(0, lastDollarSymbol) + `$${variable.name} ` + textAfterCursor;
+    setPrompt(newPrompt);
+    setShowVariableSuggestions(false);
+
+    // Reset focus
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus({ preventScroll: true });
+        const newCursorPos = lastDollarSymbol + variable.name.length + 2; // +2 for $ and space
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 0);
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1931,7 +2038,7 @@ export default function GeneratePage() {
             {/* Fixed Bottom Bar */}
             <div className="pointer-events-none absolute right-0 bottom-0 left-0 z-50 bg-gradient-to-t from-black via-black/95 to-transparent px-8 pt-12 pb-8">
               <div className="pointer-events-auto mx-auto w-full">
-                <div className="relative flex flex-col gap-2 rounded-xl border border-white/10 bg-[#1a1a1a] p-2 shadow-2xl">
+                <div ref={promptContainerRef} className="relative flex flex-col gap-2 rounded-xl border border-white/10 bg-[#1a1a1a] p-2 shadow-2xl">
                   {/* @ Reference Suggestions Dropdown (Horizontal) - Moved here to span full width */}
                   {showSuggestions && filteredElements.length > 0 && (
                     <div className="animate-in slide-in-from-bottom-2 fade-in absolute right-0 bottom-full left-0 z-50 mb-2 rounded-xl border border-white/20 bg-[#1a1a1a] shadow-2xl duration-200">
@@ -1982,6 +2089,99 @@ export default function GeneratePage() {
                       </div>
                     </div>
                   )}
+
+                  {/* # Prop Suggestions Dropdown - Horizontal Pills */}
+                  {showPropSuggestions && filteredProps.length > 0 && (
+                    <div className="animate-in slide-in-from-bottom-2 fade-in absolute right-0 bottom-full left-0 z-50 mb-2 rounded-xl border border-amber-500/30 bg-[#1a1a1a] shadow-2xl duration-200">
+                      <div className="flex items-center justify-between border-b border-amber-500/20 bg-amber-500/5 px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-3 w-3 text-amber-400" />
+                          <span className="text-xs font-medium tracking-wider text-gray-300 uppercase">
+                            Props: "{propSuggestionQuery}"
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-gray-500">
+                          {filteredProps.length} match{filteredProps.length !== 1 ? 'es' : ''}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2 p-3 max-h-32 overflow-y-auto">
+                        {filteredProps.map((prop, idx) => (
+                          <Tooltip
+                            key={prop.id || `prop-${idx}`}
+                            content={prop.description || 'No description'}
+                            side="top"
+                          >
+                            <button
+                              onMouseDown={e => {
+                                e.preventDefault();
+                                selectPropSuggestion(prop);
+                              }}
+                              className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-left transition-all hover:border-amber-500/30 hover:bg-amber-500/10"
+                            >
+                              {prop.referenceImageUrl ? (
+                                <img
+                                  src={prop.referenceImageUrl}
+                                  alt={prop.name}
+                                  className="h-6 w-6 rounded object-cover"
+                                />
+                              ) : (
+                                <Package className="h-4 w-4 text-amber-400" />
+                              )}
+                              <span className="font-medium text-amber-300">#{prop.name}</span>
+                              {prop.category && (
+                                <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-gray-500">
+                                  {prop.category}
+                                </span>
+                              )}
+                            </button>
+                          </Tooltip>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* $ Variable Suggestions Dropdown - Horizontal Pills */}
+                  {showVariableSuggestions && filteredVariables.length > 0 && (
+                    <div className="animate-in slide-in-from-bottom-2 fade-in absolute right-0 bottom-full left-0 z-50 mb-2 rounded-xl border border-cyan-500/30 bg-[#1a1a1a] shadow-2xl duration-200">
+                      <div className="flex items-center justify-between border-b border-cyan-500/20 bg-cyan-500/5 px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <Code2 className="h-3 w-3 text-cyan-400" />
+                          <span className="text-xs font-medium tracking-wider text-gray-300 uppercase">
+                            Variables: "{variableSuggestionQuery}"
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-gray-500">
+                          {filteredVariables.length} match{filteredVariables.length !== 1 ? 'es' : ''}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2 p-3 max-h-32 overflow-y-auto">
+                        {filteredVariables.map((variable, idx) => (
+                          <Tooltip
+                            key={variable.id || `var-${idx}`}
+                            content={variable.value || 'No value set'}
+                            side="top"
+                          >
+                            <button
+                              onMouseDown={e => {
+                                e.preventDefault();
+                                selectVariableSuggestion(variable);
+                              }}
+                              className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-left transition-all hover:border-cyan-500/30 hover:bg-cyan-500/10"
+                            >
+                              <Code2 className="h-4 w-4 text-cyan-400" />
+                              <span className="font-medium text-cyan-300">${variable.name}</span>
+                              {variable.category && (
+                                <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-gray-500">
+                                  {variable.category}
+                                </span>
+                              )}
+                            </button>
+                          </Tooltip>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Elements Drawer */}
                   {isElementPickerOpen && (
                     <div className="animate-in slide-in-from-bottom-2 border-b border-white/5 px-2 pt-2 pb-1 duration-200">
@@ -2018,8 +2218,15 @@ export default function GeneratePage() {
                   )}
 
                   {/* Unified Prompt Bar - Director's Viewfinder */}
-                  <div className="flex items-end gap-2">
-                    <div className="group relative min-w-0 flex-1 rounded-xl bg-white/5 transition-all">
+                  {/* Responsive: stacked layout at < 1600px viewport for more prompt space */}
+                  <div className={clsx(
+                    'flex gap-2 transition-all',
+                    isCompactToolbar ? 'flex-col' : 'items-end'
+                  )}>
+                    <div className={clsx(
+                      'group relative rounded-xl bg-white/5 transition-all',
+                      isCompactToolbar ? 'w-full' : 'w-[400px] shrink-0'
+                    )}>
                       {/* Focus Brackets - Director's Viewfinder Corners */}
                       <div
                         className={clsx(
@@ -2122,28 +2329,31 @@ export default function GeneratePage() {
                       )}
                     </div>
 
-                    <div className="relative flex h-10 shrink-0 items-center gap-2">
-                      {/* Scrollable Tools Container - takes remaining space after pinned right section */}
-                      <div className="scrollbar-hide flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pr-2">
-                        {/* 1. Smart Prompt (Wand) */}
-                        <Tooltip content="Smart Prompt Builder" side="top">
-                          <button
-                            onClick={() => setIsPromptBuilderOpen(true)}
-                            className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-purple-500/20 bg-purple-500/10 px-2.5 text-purple-400 transition-all hover:scale-105 hover:bg-purple-500/20"
-                          >
-                            <Wand2 className="h-4 w-4" />
-                            <span className="whitespace-nowrap text-xs font-medium">Wand</span>
-                          </button>
-                        </Tooltip>
+                    <div className={clsx(
+                      'relative flex items-center gap-1.5',
+                      isCompactToolbar ? 'w-full' : 'min-w-0 flex-1'
+                    )}>
+                      {/* 1. Smart Prompt (Wand) - PINNED LEFT */}
+                      <Tooltip content="Smart Prompt Builder" side="top">
+                        <button
+                          onClick={() => setIsPromptBuilderOpen(true)}
+                          className="group flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-white/5 bg-black/20 px-2.5 text-purple-400 transition-all hover:bg-purple-500/20 hover:text-purple-300"
+                        >
+                          <Wand2 className="h-4 w-4 shrink-0" />
+                          <span className="text-xs font-medium">{hideAspectRatioText ? 'Smart' : 'Smart Prompt'}</span>
+                        </button>
+                      </Tooltip>
 
+                      {/* Middle Tools Container - buttons expand to fill all available space */}
+                      <div className="flex min-w-0 flex-1 items-center gap-1">
                         {/* 2. Tag Selector */}
                         <Tooltip content="Add Tags to Prompt" side="top">
                           <button
                             onClick={() => setIsTagSelectorOpen(true)}
-                            className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-2.5 text-amber-400 transition-all hover:scale-105 hover:bg-amber-500/20"
+                            className="group flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/5 bg-black/20 px-2 text-amber-400 transition-all hover:bg-amber-500/20 hover:text-amber-300"
                           >
-                            <TagIcon className="h-4 w-4" />
-                            <span className="whitespace-nowrap text-xs font-medium">Tags</span>
+                            <TagIcon className="h-4 w-4 shrink-0" />
+                            <span className="hidden text-xs font-medium sm:inline">Tags</span>
                           </button>
                         </Tooltip>
 
@@ -2173,14 +2383,14 @@ export default function GeneratePage() {
                           <button
                             onClick={() => setIsVariablesPanelOpen(true)}
                             className={clsx(
-                              'flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 transition-all hover:scale-105',
+                              'group flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 transition-all',
                               hasMounted && promptVariables.length > 0
-                                ? 'border-cyan-500/20 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'
-                                : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                                ? 'border-white/5 bg-black/20 text-cyan-400 hover:bg-cyan-500/20 hover:text-cyan-300'
+                                : 'border-white/5 bg-black/20 text-gray-400 hover:bg-white/5 hover:text-white'
                             )}
                           >
-                            <Code2 className="h-4 w-4" />
-                            <span className="whitespace-nowrap text-xs font-medium">${hasMounted ? promptVariables.length : 0}</span>
+                            <Code2 className="h-4 w-4 shrink-0" />
+                            <span className="text-xs font-medium">${hasMounted ? promptVariables.length : 0}</span>
                           </button>
                         </Tooltip>
 
@@ -2206,14 +2416,14 @@ export default function GeneratePage() {
                           <button
                             onClick={() => setIsPropBinOpen(true)}
                             className={clsx(
-                              'flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 transition-all hover:scale-105',
+                              'group flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 transition-all',
                               hasMounted && propBinItems.length > 0
-                                ? 'border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
-                                : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                                ? 'border-white/5 bg-black/20 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300'
+                                : 'border-white/5 bg-black/20 text-gray-400 hover:bg-white/5 hover:text-white'
                             )}
                           >
-                            <Package className="h-4 w-4" />
-                            <span className="whitespace-nowrap text-xs font-medium">#{hasMounted ? propBinItems.length : 0}</span>
+                            <Package className="h-4 w-4 shrink-0" />
+                            <span className="text-xs font-medium">#{hasMounted ? propBinItems.length : 0}</span>
                           </button>
                         </Tooltip>
 
@@ -2222,33 +2432,52 @@ export default function GeneratePage() {
                           <button
                             onClick={() => setIsPromptTreeOpen(true)}
                             className={clsx(
-                              'flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 transition-all hover:scale-105',
+                              'group flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 transition-all',
                               hasMounted && promptTreeNodes.length > 0
-                                ? 'border-purple-500/20 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20'
-                                : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                                ? 'border-white/5 bg-black/20 text-purple-400 hover:bg-purple-500/20 hover:text-purple-300'
+                                : 'border-white/5 bg-black/20 text-gray-400 hover:bg-white/5 hover:text-white'
                             )}
                           >
-                            <GitBranch className="h-4 w-4" />
-                            <span className="whitespace-nowrap text-xs font-medium">{hasMounted ? promptTreeNodes.length : 0}</span>
+                            <GitBranch className="h-4 w-4 shrink-0" />
+                            <span className="text-xs font-medium">{hasMounted ? promptTreeNodes.length : 0}</span>
                           </button>
                         </Tooltip>
 
                         {/* 3. Style & Aspect Ratio - with Dynamic Icon */}
-                        <button
-                          onClick={() => setIsStyleModalOpen(true)}
-                          className="group flex h-10 shrink-0 items-center gap-2 rounded-xl border border-white/5 bg-black/20 px-3 text-gray-400 transition-all hover:bg-white/5 hover:text-white"
-                        >
-                          <SlidersHorizontal className="h-4 w-4" />
-                          <span className="whitespace-nowrap text-xs font-medium">Style</span>
-                          <div className="mx-1 h-4 w-px bg-white/10" />
-                          {/* Dynamic Ratio Icon - morphs to show actual aspect ratio */}
-                          <DynamicRatioIcon
-                            ratio={aspectRatio}
-                            size="sm"
-                            className="text-gray-400 transition-colors group-hover:text-white"
-                          />
-                          <span className="whitespace-nowrap font-mono text-[10px] text-gray-500">{aspectRatio}</span>
-                        </button>
+                        <div className="flex h-9 min-w-0 flex-1 items-center justify-center overflow-hidden rounded-xl border border-white/5 bg-black/20">
+                          {/* Style button - opens modal */}
+                          <Tooltip content="Style & Parameters - CFG, Steps, Seed" side="top">
+                            <button
+                              onClick={() => setIsStyleModalOpen(true)}
+                              className="group flex h-full shrink-0 items-center gap-1.5 px-2 text-gray-400 transition-all hover:bg-white/5 hover:text-white"
+                            >
+                              <SlidersHorizontal className="h-4 w-4 shrink-0" />
+                              <span className="text-xs font-medium">Style</span>
+                            </button>
+                          </Tooltip>
+                          <div className="h-5 w-px shrink-0 bg-white/10" />
+                          {/* Aspect Ratio button - cycles through ratios */}
+                          <Tooltip content="Click to cycle aspect ratio" side="top">
+                            <button
+                              onClick={() => {
+                                const ratios = ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9', '2.35:1'];
+                                const currentIndex = ratios.indexOf(aspectRatio);
+                                const nextIndex = (currentIndex + 1) % ratios.length;
+                                setAspectRatio(ratios[nextIndex]);
+                              }}
+                              className="group flex h-full min-w-0 items-center gap-1 px-2 text-gray-400 transition-all hover:bg-white/5 hover:text-white"
+                            >
+                              <DynamicRatioIcon
+                                ratio={aspectRatio}
+                                size="sm"
+                                className="shrink-0 text-gray-400 transition-colors group-hover:text-white"
+                              />
+                              {!hideAspectRatioText && (
+                                <span className="font-mono text-[10px] text-gray-500 group-hover:text-gray-300">{aspectRatio}</span>
+                              )}
+                            </button>
+                          </Tooltip>
+                        </div>
 
                         {/* Virtual Gaffer: 3-Point Lighting Designer */}
                         <Tooltip
@@ -2262,16 +2491,16 @@ export default function GeneratePage() {
                           <button
                             onClick={() => setIsLightingStageOpen(true)}
                             className={clsx(
-                              'flex h-10 shrink-0 items-center gap-2 rounded-xl border px-3 transition-all',
+                              'group flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 transition-all',
                               lightingEnabled && lights.length > 0
-                                ? 'border-amber-500/30 bg-amber-500/20 text-amber-300'
+                                ? 'border-white/5 bg-black/20 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300'
                                 : 'border-white/5 bg-black/20 text-gray-400 hover:bg-white/5 hover:text-white'
                             )}
                           >
-                            <Lightbulb className="h-4 w-4" />
-                            <span className="whitespace-nowrap text-xs font-medium">Light</span>
+                            <Lightbulb className="h-4 w-4 shrink-0" />
+                            <span className="hidden text-xs font-medium sm:inline">Light</span>
                             {lightingEnabled && lights.length > 0 && (
-                              <span className="ml-1 whitespace-nowrap text-[10px] text-amber-400">{lights.length}</span>
+                              <span className="text-[10px] text-amber-400">{lights.length}</span>
                             )}
                           </button>
                         </Tooltip>
@@ -2281,39 +2510,41 @@ export default function GeneratePage() {
                           <button
                             onClick={() => setIsAcousticStudioOpen(true)}
                             className={clsx(
-                              'flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 transition-all hover:scale-105',
+                              'group flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 transition-all',
                               isAcousticStudioOpen
                                 ? 'border-cyan-500/30 bg-cyan-500/20 text-cyan-300'
-                                : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                                : 'border-white/5 bg-black/20 text-gray-400 hover:bg-white/5 hover:text-white'
                             )}
                           >
-                            <Music className="h-4 w-4" />
-                            <span className="whitespace-nowrap text-xs font-medium">Sound</span>
+                            <Music className="h-4 w-4 shrink-0" />
+                            <span className="hidden text-xs font-medium sm:inline">Sound</span>
                           </button>
                         </Tooltip>
 
-                        {/* 3. Reference Elements (Users) */}
-                        <button
-                          onClick={() => setIsElementPickerOpen(!isElementPickerOpen)}
-                          className={clsx(
-                            'relative flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 transition-all',
-                            isElementPickerOpen
-                              ? 'border-blue-500/50 bg-blue-500/20 text-blue-300'
-                              : 'border-white/5 bg-black/20 text-gray-400 hover:bg-white/5 hover:text-white'
-                          )}
-                        >
-                          <Users className="h-4 w-4" />
-                          <span className="whitespace-nowrap text-xs font-medium">Refs</span>
-                          {selectedElementIds.length > 0 && (
-                            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white">
-                              {selectedElementIds.length}
-                            </span>
-                          )}
-                        </button>
+                        {/* Reference Elements - part of middle section */}
+                        <Tooltip content="Reference Elements - Characters, Styles, Props" side="top">
+                          <button
+                            onClick={() => setIsElementPickerOpen(!isElementPickerOpen)}
+                            className={clsx(
+                              'group relative flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 transition-all',
+                              isElementPickerOpen
+                                ? 'border-blue-500/50 bg-blue-500/20 text-blue-300'
+                                : 'border-white/5 bg-black/20 text-gray-400 hover:bg-white/5 hover:text-white'
+                            )}
+                          >
+                            <Users className="h-4 w-4 shrink-0" />
+                            <span className="text-xs font-medium">{hideAspectRatioText ? 'Ref' : 'Reference'}</span>
+                            {selectedElementIds.length > 0 && (
+                              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white">
+                                {selectedElementIds.length}
+                              </span>
+                            )}
+                          </button>
+                        </Tooltip>
 
                       </div>
 
-                      {/* Pinned Right Section - Model Selector & Generate Button */}
+                      {/* Pinned Right Section - Model Selector & Generate Button ONLY */}
                       <div className="flex shrink-0 items-center gap-2 border-l border-white/10 pl-2">
                         {/* 6. Model Selector Pill */}
                         <div className="min-w-[120px] max-w-[180px]">
@@ -2509,8 +2740,19 @@ export default function GeneratePage() {
                             </>
                           )}
                         </button>
+
                       </div>
                     </div>
+                  </div>
+
+                  {/* Producer Cost Bar - Inline widget underneath toolbar, aligned with Generate button */}
+                  <div className="flex items-center justify-end border-t border-white/5 bg-black/20 py-1 pr-2">
+                    <ProducerWidget
+                      inline
+                      isExpanded={isInlineProducerExpanded}
+                      onToggle={() => setIsInlineProducerExpanded(!isInlineProducerExpanded)}
+                      isCompactToolbar={isCompactToolbar}
+                    />
                   </div>
 
                   {/* Prompt Builder Modal */}
@@ -2871,8 +3113,12 @@ export default function GeneratePage() {
         }}
       />
 
-      {/* Weight Hint Tooltip - Shows when Cmd/Ctrl is held */}
-      <WeightHintTooltip isVisible={isModifierHeld && isFocused} />
+      {/* Weight Hint Tooltip - Shows when text is selected in the prompt */}
+      <WeightHintTooltip
+        isVisible={hasTextSelection && isFocused}
+        selectedText={selectionText}
+        promptContainerRef={promptContainerRef}
+      />
 
       {/* Session Recovery Toast */}
       {showRecoveryToast && recoverableSession && (
@@ -2906,9 +3152,6 @@ export default function GeneratePage() {
           </div>
         </div>
       )}
-
-      {/* Producer Widget - Cost Guardian */}
-      <ProducerWidget />
     </DndContext>
   );
 }

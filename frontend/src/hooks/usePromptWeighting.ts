@@ -1,13 +1,16 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 
 interface UsePromptWeightingProps {
   value: string;
   onChange: (value: string) => void;
   onPropChange?: (value: string) => void;
+  textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
-export function usePromptWeighting({ value, onChange, onPropChange }: UsePromptWeightingProps) {
+export function usePromptWeighting({ value, onChange, onPropChange, textareaRef }: UsePromptWeightingProps) {
   const [isModifierHeld, setIsModifierHeld] = useState(false);
+  const [hasTextSelection, setHasTextSelection] = useState(false);
+  const [selectionText, setSelectionText] = useState('');
 
   // Track global modifier key state
   useEffect(() => {
@@ -39,6 +42,43 @@ export function usePromptWeighting({ value, onChange, onPropChange }: UsePromptW
       window.removeEventListener('blur', handleBlur);
     };
   }, []);
+
+  // Track text selection in textarea
+  useEffect(() => {
+    const checkSelection = () => {
+      if (textareaRef?.current) {
+        const start = textareaRef.current.selectionStart;
+        const end = textareaRef.current.selectionEnd;
+        const selected = start !== end;
+        setHasTextSelection(selected);
+        if (selected) {
+          setSelectionText(value.slice(start, end));
+        } else {
+          setSelectionText('');
+        }
+      }
+    };
+
+    // Check on selection change events
+    const textarea = textareaRef?.current;
+    if (textarea) {
+      textarea.addEventListener('select', checkSelection);
+      textarea.addEventListener('mouseup', checkSelection);
+      textarea.addEventListener('keyup', checkSelection);
+    }
+
+    // Also check periodically for selection changes
+    const interval = setInterval(checkSelection, 100);
+
+    return () => {
+      if (textarea) {
+        textarea.removeEventListener('select', checkSelection);
+        textarea.removeEventListener('mouseup', checkSelection);
+        textarea.removeEventListener('keyup', checkSelection);
+      }
+      clearInterval(interval);
+    };
+  }, [textareaRef, value]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -157,5 +197,5 @@ export function usePromptWeighting({ value, onChange, onPropChange }: UsePromptW
     [value, onChange, onPropChange]
   );
 
-  return { handleKeyDown, isModifierHeld };
+  return { handleKeyDown, isModifierHeld, hasTextSelection, selectionText };
 }

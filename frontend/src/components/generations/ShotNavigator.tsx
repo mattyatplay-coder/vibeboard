@@ -87,7 +87,7 @@ export const ShotNavigator = forwardRef<ShotNavigatorRef, ShotNavigatorProps>(
     },
     ref
   ) => {
-    const [isOpen, setIsOpen] = useState(true);
+    const [isOpen, setIsOpen] = useState(false);
     const [sceneChains, setSceneChains] = useState<any[]>([]);
     const [selectedChainId, setSelectedChainId] = useState<string | null>(null);
     const [shots, setShots] = useState<Shot[]>([]);

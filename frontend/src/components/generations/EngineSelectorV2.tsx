@@ -79,11 +79,11 @@ export function EngineSelectorV2({
             <button
               onClick={() => setIsLibraryOpen(true)}
               className={clsx(
-                'group relative flex flex-1 items-center justify-between rounded-xl border border-white/10 bg-white/5 text-left transition-all hover:border-white/20 hover:bg-white/10',
+                'group relative flex w-full items-center justify-between overflow-hidden rounded-xl border border-white/10 bg-white/5 text-left transition-all hover:border-white/20 hover:bg-white/10',
                 variant === 'compact' ? 'h-10 px-2' : 'p-3'
               )}
             >
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               {/* Icon */}
               <div
                 className={clsx(
@@ -107,8 +107,8 @@ export function EngineSelectorV2({
                 <div className="flex items-center gap-2">
                   <span
                     className={clsx(
-                      'block max-w-[100px] truncate font-bold text-white transition-colors group-hover:text-blue-400 sm:max-w-none',
-                      variant === 'compact' ? 'text-xs' : 'text-sm'
+                      'block truncate font-bold text-white transition-colors group-hover:text-blue-400',
+                      variant === 'compact' ? 'max-w-[120px] text-xs' : 'max-w-[100px] sm:max-w-none text-sm'
                     )}
                   >
                     {currentModel?.name || 'Select Model'}

@@ -1,6 +1,10 @@
 # VIBEBOARD CANONICAL SYSTEM STATE
 # AUTHORITY: This file outranks all other context.
-# LAST_UPDATED: 2026-01-01T07:15:00Z
+# LAST_UPDATED: 2026-01-02T12:00:00Z
+
+# SESSION: 2026-01-02
+# Changes: Updated /checkpoint command to use SYSTEM_STATE.yaml as authority instead of CLAUDE.md
+#          Added external drive backup step to checkpoint workflow
 
 infrastructure:
   database:

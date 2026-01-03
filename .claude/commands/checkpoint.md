@@ -62,7 +62,7 @@ When beginning a new session, quickly sync with current state:
 
 ### 1. Read Current State
 Read these files to understand where we left off:
-- `/Users/matthenrichmacbook/Antigravity/vibeboard/CLAUDE.md` - Recent session summaries
+- `/Users/matthenrichmacbook/Antigravity/vibeboard/.agent/SYSTEM_STATE.yaml` - Canonical system state (AUTHORITY)
 - `/Users/matthenrichmacbook/Antigravity/vibeboard/.agent/task.md` - Current task list
 - `/Users/matthenrichmacbook/Antigravity/vibeboard/.agent/agent_resolutions.json` - Recent decisions
 
@@ -107,14 +107,14 @@ Execute verification checks per `/Users/matthenrichmacbook/Antigravity/approval.
 - Backend: `npm run build`, `npm run dev` + curl verification
 - Paste terminal output as proof
 
-### Step 3: Update CLAUDE.md
-**Location**: `/Users/matthenrichmacbook/Antigravity/vibeboard/CLAUDE.md` (ALWAYS use this path)
+### Step 3: Update SYSTEM_STATE.yaml
+**Location**: `/Users/matthenrichmacbook/Antigravity/vibeboard/.agent/SYSTEM_STATE.yaml` (AUTHORITY - outranks all other context)
 
-Add to the appropriate section:
-- New features with implementation details
-- Bug fixes with root cause and solution
-- Architecture decisions
-- API endpoints added/modified
+Update the canonical system state:
+- Infrastructure status changes (database, backend, frontend, tunnels, GPU)
+- Security configuration updates
+- API routing changes
+- Update `LAST_UPDATED` timestamp
 
 ### Step 4: Update .agent/task.md
 **Location**: `/Users/matthenrichmacbook/Antigravity/vibeboard/.agent/task.md`
@@ -178,7 +178,23 @@ If this session fixed a bug or resolved an issue, add an entry:
 
 **Purpose**: Makes fixes searchable by tags, reproducible via steps, and linked to Memory MCP.
 
-### Step 6: Update vibeboard.md (if needed)
+### Step 6: Backup to External Drive
+**Location**: `/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/complete backup`
+
+Sync all changes to the backup drive:
+```bash
+rsync -av --delete \
+  --exclude 'node_modules' \
+  --exclude '.next' \
+  --exclude 'dist' \
+  --exclude '.git' \
+  /Users/matthenrichmacbook/Antigravity/vibeboard/ \
+  "/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/complete backup/"
+```
+
+Verify the backup completed successfully.
+
+### Step 7: Update vibeboard.md (if needed)
 **Location**: `/Users/matthenrichmacbook/Antigravity/vibeboard/vibeboard.md`
 
 Update for:
@@ -188,14 +204,14 @@ Update for:
 - Resolved bugs (add to table)
 - Change log entries
 
-### Step 7: Back up to Memory MCP
+### Step 8: Back up to Memory MCP
 Create/update entities for:
 - Current active work and status
 - Recently completed features
 - Key technical decisions
 - Any blockers for next session
 
-### Step 8: Verification Summary
+### Step 9: Verification Summary
 End with:
 ```markdown
 # Verification Results
@@ -210,17 +226,18 @@ End with:
 - Backend: npm run dev PASS/FAIL
 
 # Documentation Updated
-- [ ] CLAUDE.md
+- [ ] .agent/SYSTEM_STATE.yaml (AUTHORITY)
 - [ ] .agent/task.md
 - [ ] agent_resolutions.json
 - [ ] vibeboard.md (if applicable)
 - [ ] Memory MCP backup
+- [ ] External drive backup (Samsung SSD)
 
 # Approval Gate
 - Status: READY FOR APPROVAL | UNVERIFIED
 ```
 
-### Step 9: Export Session History
+### Step 10: Export Session History
 **IMPORTANT**: Export the current session transcript for future reference.
 
 Run the export script:
@@ -243,7 +260,7 @@ The session export includes:
 - User requests summary
 - Tool usage statistics
 
-### Step 10: Sync All Sessions to Memory MCP
+### Step 11: Sync All Sessions to Memory MCP
 **IMPORTANT**: Run the unified sync script to push all Claude AND Gemini sessions to Memory MCP.
 
 ```bash
@@ -263,7 +280,7 @@ The script:
 - Saves to `memory_mcp_sync.json` for Memory MCP import
 - Tracks processed sessions to avoid duplicates
 
-### Step 11: Session Continuity Summary
+### Step 12: Session Continuity Summary
 Provide brief summary:
 - What was accomplished
 - What to focus on next

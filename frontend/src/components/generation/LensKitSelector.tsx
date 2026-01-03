@@ -107,25 +107,25 @@ export function LensKitSelector({
         <button
           onClick={() => setIsOpen(true)}
           className={clsx(
-            'flex h-10 items-center gap-2 rounded-xl border px-3 transition-all hover:scale-105',
+            'group flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 transition-all',
             isAnamorphic
-              ? 'border-blue-500/30 bg-blue-500/10 text-blue-400'
+              ? 'border-blue-500/30 bg-blue-500/20 text-blue-400'
               : selectedLens
-                ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-400'
-                : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                ? 'border-cyan-500/30 bg-cyan-500/20 text-cyan-400'
+                : 'border-white/5 bg-black/20 text-gray-400 hover:bg-white/5 hover:text-white'
           )}
         >
-          <Aperture className="h-4 w-4" />
-          <span className="text-xs font-medium">
-            {selectedLens ? selectedLens.focalLength : 'Lens Kit'}
+          <Aperture className="h-4 w-4 shrink-0" />
+          <span className="hidden text-xs font-medium sm:inline">
+            {selectedLens ? selectedLens.focalLength : 'Lens'}
           </span>
           {isAnamorphic && (
-            <span className="rounded-full bg-blue-500/30 px-1.5 py-0.5 text-[10px] text-blue-300">
-              ANAMORPHIC
+            <span className="rounded bg-blue-500/30 px-1 py-0.5 text-[9px] text-blue-300">
+              A
             </span>
           )}
           {selectedEffects.length > 0 && (
-            <span className="rounded-full bg-cyan-500/30 px-1.5 py-0.5 text-[10px]">
+            <span className="rounded bg-cyan-500/30 px-1 py-0.5 text-[9px]">
               +{selectedEffects.length}
             </span>
           )}
@@ -509,12 +509,12 @@ export function LensKitCompact({
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={clsx(
-          'flex h-10 items-center gap-2 rounded-xl border px-3 transition-all hover:scale-105',
+          'group flex h-10 shrink-0 items-center gap-2 rounded-xl border px-3 transition-all',
           isAnamorphic
-            ? 'border-blue-500/30 bg-blue-500/10 text-blue-400'
+            ? 'border-blue-500/30 bg-blue-500/20 text-blue-400'
             : selectedLens
-              ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-400'
-              : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+              ? 'border-cyan-500/30 bg-cyan-500/20 text-cyan-400'
+              : 'border-white/5 bg-black/20 text-gray-400 hover:bg-white/5 hover:text-white'
         )}
       >
         <Aperture className="h-4 w-4" />

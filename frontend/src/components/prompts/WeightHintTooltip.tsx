@@ -2,14 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Info, ArrowUp, ArrowDown, Command } from 'lucide-react';
+import { Info, ArrowUp, ArrowDown, Highlighter } from 'lucide-react';
 import { clsx } from 'clsx';
 
 interface WeightHintTooltipProps {
   /** Whether the hint should be visible */
   isVisible: boolean;
-  /** Optional position offset from bottom */
-  bottomOffset?: number;
+  /** The currently selected text (if any) */
+  selectedText?: string;
+  /** Reference to the prompt container for positioning */
+  promptContainerRef?: React.RefObject<HTMLElement | null>;
 }
 
 /**
@@ -24,14 +26,30 @@ const WEIGHT_MAPPING = [
   { range: '1.6+', repetitions: '3', note: '' },
 ];
 
-export function WeightHintTooltip({ isVisible, bottomOffset = 180 }: WeightHintTooltipProps) {
+export function WeightHintTooltip({ isVisible, selectedText, promptContainerRef }: WeightHintTooltipProps) {
   const [isMac, setIsMac] = useState(true);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
 
   useEffect(() => {
     setIsMac(navigator.platform?.toLowerCase().includes('mac') ?? true);
   }, []);
 
+  // Position the tooltip above the prompt container, aligned to left edge
+  useEffect(() => {
+    if (isVisible && promptContainerRef?.current) {
+      const rect = promptContainerRef.current.getBoundingClientRect();
+      // Position above the prompt box, aligned to left edge
+      setPosition({
+        top: rect.top - 10, // 10px gap above the prompt box
+        left: rect.left,
+      });
+    }
+  }, [isVisible, promptContainerRef]);
+
   const modKey = isMac ? '⌘' : 'Ctrl';
+  const displayText = selectedText && selectedText.length > 25
+    ? selectedText.slice(0, 25) + '...'
+    : selectedText;
 
   return (
     <AnimatePresence>
@@ -41,8 +59,8 @@ export function WeightHintTooltip({ isVisible, bottomOffset = 180 }: WeightHintT
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 10, scale: 0.95 }}
           transition={{ duration: 0.15 }}
-          className="pointer-events-none fixed z-[100]"
-          style={{ bottom: bottomOffset, left: 'calc(256px + 2rem)' }}
+          className="pointer-events-none fixed z-[100] -translate-y-full"
+          style={{ top: position.top, left: position.left }}
         >
           <div className="w-72 rounded-xl border border-white/10 bg-[#1a1a1a]/95 p-4 shadow-2xl backdrop-blur-xl">
             {/* Header */}
@@ -52,6 +70,16 @@ export function WeightHintTooltip({ isVisible, bottomOffset = 180 }: WeightHintT
               </div>
               <span className="text-sm font-semibold text-white">Prompt Weighting</span>
             </div>
+
+            {/* Selected text indicator */}
+            {selectedText && (
+              <div className="mb-3 flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/10 px-2 py-1.5">
+                <Highlighter className="h-3.5 w-3.5 text-blue-400" />
+                <code className="truncate text-xs text-blue-300">
+                  {displayText}
+                </code>
+              </div>
+            )}
 
             {/* Keyboard Shortcuts */}
             <div className="mb-4 space-y-2">

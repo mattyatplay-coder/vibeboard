@@ -138,7 +138,7 @@ export function RenderQueuePanel({
   shotCount,
   onRenderComplete,
 }: RenderQueuePanelProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [presets, setPresets] = useState<Record<RenderQuality, QualityPreset> | null>(null);
   const [selectedQualities, setSelectedQualities] = useState<RenderQuality[]>(['draft']);
   const [currentJob, setCurrentJob] = useState<RenderJob | null>(null);

@@ -13,6 +13,12 @@ interface ProducerWidgetProps {
     isExpanded?: boolean;
     /** Callback when toggle is clicked (for accordion behavior) */
     onToggle?: () => void;
+    /** Super compact mode for header placement */
+    compact?: boolean;
+    /** Inline mode for toolbar placement - shows EST. COST label with chevron */
+    inline?: boolean;
+    /** Whether toolbar is in compact/stacked mode (affects toast positioning) */
+    isCompactToolbar?: boolean;
 }
 
 /**
@@ -23,7 +29,7 @@ interface ProducerWidgetProps {
  * - Consistency: Character/style drift warnings
  * - Technical: VRAM/GPU requirements
  */
-export function ProducerWidget({ collapsed = false, isExpanded: controlledExpanded, onToggle }: ProducerWidgetProps) {
+export function ProducerWidget({ collapsed = false, isExpanded: controlledExpanded, onToggle, compact = false, inline = false, isCompactToolbar = false }: ProducerWidgetProps) {
     const {
         alerts,
         clearAlert,
@@ -103,6 +109,131 @@ export function ProducerWidget({ collapsed = false, isExpanded: controlledExpand
             handleAction(topAlert.id, topAlert.actionType, topAlert.actionValue);
         }
     };
+
+    // Compact header view - minimal pill showing just cost
+    if (compact) {
+        return (
+            <Tooltip content={`Est. Job Cost: $${totalCostEstimate.toFixed(2)}`} side="bottom">
+                <button
+                    onClick={onToggle}
+                    className={clsx(
+                        'flex h-8 items-center gap-1.5 rounded-lg border px-2 transition-all',
+                        alerts.length > 0
+                            ? 'border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20'
+                            : 'border-green-500/30 bg-green-500/10 hover:bg-green-500/20'
+                    )}
+                >
+                    {alerts.length > 0 ? (
+                        <CheckCircle className="h-3.5 w-3.5 text-amber-400" />
+                    ) : (
+                        <CheckCircle className="h-3.5 w-3.5 text-green-400" />
+                    )}
+                    <span className={clsx(
+                        'font-mono text-xs font-bold',
+                        alerts.length > 0 ? 'text-amber-400' : 'text-green-400'
+                    )}>
+                        ${totalCostEstimate.toFixed(2)}
+                    </span>
+                </button>
+            </Tooltip>
+        );
+    }
+
+    // Inline toolbar view - EST. COST label with checkmark, dollar amount, and chevron (all on one line)
+    if (inline) {
+        return (
+            <div className="relative">
+                <button
+                    onClick={handleToggle}
+                    className="flex h-8 items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-2.5 transition-all hover:bg-white/5"
+                >
+                    <CheckCircle className="h-3.5 w-3.5 text-green-400" />
+                    <span className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">Est. Cost</span>
+                    <span className={clsx(
+                        'font-mono text-xs font-bold',
+                        alerts.length > 0 ? 'text-amber-400' : 'text-green-400'
+                    )}>
+                        ${isEstimating ? '...' : totalCostEstimate.toFixed(2)}
+                    </span>
+                    {expanded ? (
+                        <ChevronUp className="h-3.5 w-3.5 text-gray-500" />
+                    ) : (
+                        <ChevronDown className="h-3.5 w-3.5 text-gray-500" />
+                    )}
+                </button>
+
+                {/* Expanded Toast Panel - positioned above toolbar border */}
+                {expanded && (
+                    <div className={clsx(
+                        'absolute z-50 w-72 animate-in fade-in slide-in-from-bottom-2 rounded-xl border border-white/10 bg-[#1a1a1a] p-4 shadow-2xl',
+                        isCompactToolbar ? '-right-4 bottom-full mb-[7.5rem]' : '-right-4 bottom-full mb-[4.5rem]'
+                    )}>
+                        {/* Header */}
+                        <div className="mb-3 flex items-center justify-between">
+                            <h4 className="text-sm font-semibold text-white">Cost Breakdown</h4>
+                            <Tooltip content="Switch to Toast Mode" side="left">
+                                <button
+                                    onClick={toggleDisplayMode}
+                                    className="rounded p-1 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+                                >
+                                    <Bell className="h-4 w-4" />
+                                </button>
+                            </Tooltip>
+                        </div>
+
+                        {/* Model Info */}
+                        <div className="rounded-lg border border-white/5 bg-white/5 p-3">
+                            <div className="flex items-center justify-between text-xs">
+                                <span className="text-gray-400">Model</span>
+                                <span className="font-medium text-white">{costBreakdown.modelName}</span>
+                            </div>
+                            <div className="mt-1 flex items-center justify-between text-xs">
+                                <span className="text-gray-400">Tier</span>
+                                <span className={clsx(
+                                    'rounded px-1.5 py-0.5 text-[10px] font-bold uppercase',
+                                    costBreakdown.modelTier === 'pro' ? 'bg-purple-500/20 text-purple-300' :
+                                    costBreakdown.modelTier === 'fast' ? 'bg-green-500/20 text-green-300' :
+                                    'bg-gray-500/20 text-gray-300'
+                                )}>
+                                    {costBreakdown.modelTier}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Calculation Table */}
+                        <div className="mt-3 space-y-2 text-xs">
+                            <div className="flex items-center justify-between">
+                                <span className="text-gray-400">Base Cost</span>
+                                <span className="font-mono text-white">${costBreakdown.baseCost.toFixed(3)}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-gray-400">Variations</span>
+                                <span className="font-mono text-white">×{costBreakdown.variations}</span>
+                            </div>
+                            <div className="h-px bg-white/10" />
+                            <div className="flex items-center justify-between">
+                                <span className="text-gray-400">Formula</span>
+                                <span className="font-mono text-[10px] text-gray-300">{costBreakdown.formula}</span>
+                            </div>
+                        </div>
+
+                        {/* Total */}
+                        <div className="mt-3 flex items-center justify-between rounded-lg border border-white/10 bg-gradient-to-r from-violet-500/10 to-blue-500/10 p-3">
+                            <span className="text-sm font-medium text-white">Estimated Total</span>
+                            <span className={clsx(
+                                'font-mono text-xl font-bold',
+                                costBreakdown.total >= 5 ? 'text-red-400' :
+                                costBreakdown.total >= 1 ? 'text-amber-400' :
+                                'text-green-400'
+                            )}>
+                                ${costBreakdown.total.toFixed(2)}
+                            </span>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    }
 
     // Collapsed sidebar view - just show cost with icon
     if (collapsed) {
