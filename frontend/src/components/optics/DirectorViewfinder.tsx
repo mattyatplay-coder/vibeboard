@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, X, Check, Aperture } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -210,7 +210,7 @@ export function DirectorViewfinder({
   const [focalLength, setFocalLength] = useState<number | null>(initialFocalLength);
 
   // Sync local state when props change
-  useMemo(() => {
+  useEffect(() => {
     setCamera(initialCamera);
     setLensFamily(initialLensFamily);
     setFocalLength(initialFocalLength);
