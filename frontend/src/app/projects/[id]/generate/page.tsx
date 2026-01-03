@@ -56,7 +56,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { snapCenterToCursor } from '@dnd-kit/modifiers';
 
 import { Tag } from '@/components/tag-system';
-import { getModelRequirements } from '@/lib/ModelConstraints';
+import { getModelRequirements, validateModelInputs } from '@/lib/ModelConstraints';
 import { ALL_MODELS, PROVIDER_DEFINITIONS } from '@/lib/ModelRegistry';
 import { useEngineConfigStore } from '@/lib/engineConfigStore';
 import { costTracker } from '@/lib/CostTracker';
@@ -771,8 +771,7 @@ export default function GeneratePage() {
   const handleGenerateClick = () => {
     if (!prompt.trim()) return;
 
-    // Import validation function
-    const { validateModelInputs } = require('@/lib/ModelConstraints');
+    // Validate model inputs using imported function
     const validation = validateModelInputs(engineConfig.model, preFlightInputs);
 
     // If there are missing required inputs, show the pre-flight modal

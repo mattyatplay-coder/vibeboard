@@ -26,8 +26,10 @@ export const StudioShell = ({ children, inspectorPanel }: StudioShellProps) => {
   const { isCollapsed } = useSidebarStore();
 
   return (
-    <div className="min-h-screen w-full text-zinc-100 overflow-x-hidden" style={{ background: 'var(--background)' }}>
-
+    <div
+      className="min-h-screen w-full overflow-x-hidden text-zinc-100"
+      style={{ background: 'var(--background)' }}
+    >
       {/* 1. SIDEBAR: Fixed position, responsive behavior
           - Mobile (<768px): Hidden
           - Tablet (md): Visible, auto-collapsed by useEffect in Sidebar
@@ -40,31 +42,27 @@ export const StudioShell = ({ children, inspectorPanel }: StudioShellProps) => {
       {/* 2. MAIN CONTENT: Offset by sidebar width */}
       <main
         className={clsx(
-          'min-h-screen flex flex-col transition-all duration-300 ease-in-out',
+          'flex min-h-screen flex-col transition-all duration-300 ease-in-out',
           // No margin on mobile (sidebar hidden)
           // On tablet+, account for sidebar width
           isCollapsed ? 'md:ml-20' : 'md:ml-64'
         )}
       >
         {/* The Stage (Canvas) */}
-        <div className="flex-1 relative flex flex-row">
-
+        <div className="relative flex flex-1 flex-row">
           {/* Center Stage - Primary Content Area */}
-          <div className="flex-1 relative min-w-0 flex flex-col">
-            {children}
-          </div>
+          <div className="relative flex min-w-0 flex-1 flex-col">{children}</div>
 
           {/* 3. RIGHT INSPECTOR: The "Workstation" Logic
               - Tablet/Laptop (<1920px): Hidden (User toggles as Drawer/Modal)
               - Ultrawide (1920px+): Permanently visible, docked to right
           */}
           {inspectorPanel && (
-            <aside className="hidden 3xl:flex w-80 border-l border-white/5 bg-zinc-950/50 backdrop-blur-sm shrink-0 flex-col overflow-y-auto">
+            <aside className="3xl:flex hidden w-80 shrink-0 flex-col overflow-y-auto border-l border-white/5 bg-zinc-950/50 backdrop-blur-sm">
               {inspectorPanel}
             </aside>
           )}
         </div>
-
       </main>
     </div>
   );

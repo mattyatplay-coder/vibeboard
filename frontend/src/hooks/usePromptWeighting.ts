@@ -7,7 +7,12 @@ interface UsePromptWeightingProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
-export function usePromptWeighting({ value, onChange, onPropChange, textareaRef }: UsePromptWeightingProps) {
+export function usePromptWeighting({
+  value,
+  onChange,
+  onPropChange,
+  textareaRef,
+}: UsePromptWeightingProps) {
   const [isModifierHeld, setIsModifierHeld] = useState(false);
   const [hasTextSelection, setHasTextSelection] = useState(false);
   const [selectionText, setSelectionText] = useState('');

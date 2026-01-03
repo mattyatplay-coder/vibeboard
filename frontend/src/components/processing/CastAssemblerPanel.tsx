@@ -78,9 +78,7 @@ export function CastAssemblerPanel({ projectId, onSaveResult }: CastAssemblerPan
   const handleCharacterUpload = async (id: string, file: File) => {
     // Create local preview URL
     const localUrl = URL.createObjectURL(file);
-    setCharacters(
-      characters.map(c => (c.id === id ? { ...c, imageUrl: localUrl, file } : c))
-    );
+    setCharacters(characters.map(c => (c.id === id ? { ...c, imageUrl: localUrl, file } : c)));
   };
 
   const handleBackgroundUpload = async (file: File) => {
@@ -226,7 +224,7 @@ export function CastAssemblerPanel({ projectId, onSaveResult }: CastAssemblerPan
                 {characters.length > 2 && (
                   <button
                     onClick={() => handleRemoveCharacter(char.id)}
-                    className="absolute -right-2 -top-2 rounded-full bg-red-500/80 p-1 text-white hover:bg-red-500"
+                    className="absolute -top-2 -right-2 rounded-full bg-red-500/80 p-1 text-white hover:bg-red-500"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -269,9 +267,7 @@ export function CastAssemblerPanel({ projectId, onSaveResult }: CastAssemblerPan
                   value={char.label}
                   onChange={e =>
                     setCharacters(
-                      characters.map(c =>
-                        c.id === char.id ? { ...c, label: e.target.value } : c
-                      )
+                      characters.map(c => (c.id === char.id ? { ...c, label: e.target.value } : c))
                     )
                   }
                   className="rounded border border-white/10 bg-black/30 px-2 py-1 text-center text-xs text-white"
@@ -301,7 +297,7 @@ export function CastAssemblerPanel({ projectId, onSaveResult }: CastAssemblerPan
                       setBackgroundImage(null);
                       setBackgroundFile(null);
                     }}
-                    className="absolute right-2 top-2 rounded-full bg-black/60 p-1 hover:bg-black/80"
+                    className="absolute top-2 right-2 rounded-full bg-black/60 p-1 hover:bg-black/80"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -381,10 +377,7 @@ export function CastAssemblerPanel({ projectId, onSaveResult }: CastAssemblerPan
                 <span className="text-sm font-medium text-purple-300">Result</span>
                 <div className="flex gap-2">
                   <Tooltip content="Copy URL">
-                    <button
-                      onClick={handleCopyUrl}
-                      className="rounded p-1 hover:bg-white/10"
-                    >
+                    <button onClick={handleCopyUrl} className="rounded p-1 hover:bg-white/10">
                       {copied ? (
                         <Check className="h-4 w-4 text-green-400" />
                       ) : (
@@ -393,10 +386,7 @@ export function CastAssemblerPanel({ projectId, onSaveResult }: CastAssemblerPan
                     </button>
                   </Tooltip>
                   <Tooltip content="Download">
-                    <button
-                      onClick={handleDownload}
-                      className="rounded p-1 hover:bg-white/10"
-                    >
+                    <button onClick={handleDownload} className="rounded p-1 hover:bg-white/10">
                       <Download className="h-4 w-4" />
                     </button>
                   </Tooltip>

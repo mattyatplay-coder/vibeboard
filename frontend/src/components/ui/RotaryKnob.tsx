@@ -81,52 +81,55 @@ export const RotaryKnob = ({
   // We use 270° range to leave a "dead zone" at the bottom
   const visualRotation = ((value - min) / (max - min)) * 270 - 135; // -135 to 135
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      setIsDragging(true);
 
-    const startY = e.clientY;
-    const startVal = value;
-    document.body.style.cursor = 'ns-resize';
-    document.body.style.userSelect = 'none';
+      const startY = e.clientY;
+      const startVal = value;
+      document.body.style.cursor = 'ns-resize';
+      document.body.style.userSelect = 'none';
 
-    const handleMouseMove = (ev: MouseEvent) => {
-      // Dragging UP increases value, DOWN decreases
-      const deltaY = startY - ev.clientY;
-      const change = deltaY * sensitivity;
+      const handleMouseMove = (ev: MouseEvent) => {
+        // Dragging UP increases value, DOWN decreases
+        const deltaY = startY - ev.clientY;
+        const change = deltaY * sensitivity;
 
-      let newVal: number;
-      if (wrap) {
-        // Wrap around for circular values (like degrees)
-        newVal = ((startVal + change - min) % (max - min + 1)) + min;
-        if (newVal < min) newVal += (max - min + 1);
-      } else {
-        // Clamp for linear values
-        newVal = Math.min(max, Math.max(min, startVal + change));
-      }
+        let newVal: number;
+        if (wrap) {
+          // Wrap around for circular values (like degrees)
+          newVal = ((startVal + change - min) % (max - min + 1)) + min;
+          if (newVal < min) newVal += max - min + 1;
+        } else {
+          // Clamp for linear values
+          newVal = Math.min(max, Math.max(min, startVal + change));
+        }
 
-      onChange(Math.round(newVal));
-    };
+        onChange(Math.round(newVal));
+      };
 
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      document.body.style.cursor = 'default';
-      document.body.style.userSelect = '';
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
+      const handleMouseUp = () => {
+        setIsDragging(false);
+        document.body.style.cursor = 'default';
+        document.body.style.userSelect = '';
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-  }, [value, min, max, wrap, sensitivity, onChange]);
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    },
+    [value, min, max, wrap, sensitivity, onChange]
+  );
 
   return (
     <div className="flex flex-col items-center gap-2 select-none">
       {/* The Knob */}
       <div
         className={clsx(
-          "relative rounded-full bg-zinc-900 border border-white/10 shadow-inner cursor-ns-resize group",
-          isDragging && "border-white/20"
+          'group relative cursor-ns-resize rounded-full border border-white/10 bg-zinc-900 shadow-inner',
+          isDragging && 'border-white/20'
         )}
         style={{ width: size, height: size }}
         onMouseDown={handleMouseDown}
@@ -135,14 +138,15 @@ export const RotaryKnob = ({
         <div
           className="absolute inset-1 rounded-full border border-white/5"
           style={{
-            background: 'conic-gradient(from -135deg, rgba(255,255,255,0.05) 0deg, rgba(255,255,255,0.02) 270deg, transparent 270deg)',
+            background:
+              'conic-gradient(from -135deg, rgba(255,255,255,0.05) 0deg, rgba(255,255,255,0.02) 270deg, transparent 270deg)',
           }}
         />
 
         {/* The Indicator Dot */}
         <div
           className={clsx(
-            "absolute w-1.5 h-1.5 rounded-full transition-transform duration-75 ease-out",
+            'absolute h-1.5 w-1.5 rounded-full transition-transform duration-75 ease-out',
             styles.dot,
             styles.glow
           )}
@@ -156,15 +160,12 @@ export const RotaryKnob = ({
         />
 
         {/* Center Cap */}
-        <div className="absolute inset-3 bg-zinc-800 rounded-full border border-white/5" />
+        <div className="absolute inset-3 rounded-full border border-white/5 bg-zinc-800" />
 
         {/* Active Ring Glow */}
         {isDragging && (
           <div
-            className={clsx(
-              "absolute inset-0 border-2 rounded-full animate-pulse",
-              styles.ring
-            )}
+            className={clsx('absolute inset-0 animate-pulse rounded-full border-2', styles.ring)}
           />
         )}
       </div>
@@ -172,11 +173,12 @@ export const RotaryKnob = ({
       {/* Label & Value */}
       {label && (
         <div className="flex flex-col items-center">
-          <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">
+          <span className="text-[9px] font-bold tracking-widest text-zinc-500 uppercase">
             {label}
           </span>
-          <span className="text-[10px] font-mono text-zinc-300">
-            {value}{unit}
+          <span className="font-mono text-[10px] text-zinc-300">
+            {value}
+            {unit}
           </span>
         </div>
       )}

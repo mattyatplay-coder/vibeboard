@@ -237,17 +237,13 @@ export function FrameTimeline({
                   {/* Edited indicator */}
                   {isEdited && (
                     <Tooltip content="Edited" side="top">
-                      <div
-                        className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-green-500"
-                      />
+                      <div className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-green-500" />
                     </Tooltip>
                   )}
                   {/* Masked indicator */}
                   {hasMask && !isEdited && (
                     <Tooltip content="Has mask" side="top">
-                      <div
-                        className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-purple-500"
-                      />
+                      <div className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-purple-500" />
                     </Tooltip>
                   )}
                   {/* Frame number overlay */}

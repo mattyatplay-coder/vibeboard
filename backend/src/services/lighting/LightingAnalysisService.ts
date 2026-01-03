@@ -8,59 +8,59 @@
 import { GrokAdapter } from '../llm/GrokAdapter';
 
 export interface AnalyzedLight {
-    type: 'key' | 'fill' | 'back' | 'rim' | 'practical' | 'ambient';
-    name: string;
-    x: number;           // 0-1 normalized position (0 = left, 1 = right)
-    y: number;           // 0-1 normalized position (0 = top/back, 1 = bottom/front)
-    intensity: number;   // 0-100
-    colorTemp: number;   // Kelvin (2700-10000)
-    softness: number;    // 0-100 (0 = hard, 100 = very soft)
-    description: string; // Human-readable description
-    // Enhanced color fields from Chromatic Mandate analysis
-    hex?: string;        // Direct hex color code (e.g., "#4D94FF")
-    isGel?: boolean;     // Whether this is a colored gel light
-    gelName?: string;    // Name of the gel (e.g., "Steel Blue", "CTO Full")
+  type: 'key' | 'fill' | 'back' | 'rim' | 'practical' | 'ambient';
+  name: string;
+  x: number; // 0-1 normalized position (0 = left, 1 = right)
+  y: number; // 0-1 normalized position (0 = top/back, 1 = bottom/front)
+  intensity: number; // 0-100
+  colorTemp: number; // Kelvin (2700-10000)
+  softness: number; // 0-100 (0 = hard, 100 = very soft)
+  description: string; // Human-readable description
+  // Enhanced color fields from Chromatic Mandate analysis
+  hex?: string; // Direct hex color code (e.g., "#4D94FF")
+  isGel?: boolean; // Whether this is a colored gel light
+  gelName?: string; // Name of the gel (e.g., "Steel Blue", "CTO Full")
 }
 
 export interface LightingAnalysisResult {
-    lights: AnalyzedLight[];
-    overallStyle: string;
-    lightingRatio: string;      // e.g., "3:1", "5:1"
-    keyLightPosition: string;   // e.g., "45° camera left"
-    mood: string[];
-    genre?: string;             // e.g., "Sci-Fi Noir", "Horror", "Romance"
-    colorPalette: {
-        dominant: string;       // Hex color
-        accent: string;         // Hex color
-        shadows: string;        // Hex color
-    };
-    promptSuggestion: string;   // Ready-to-use lighting prompt
-    cinematicReference?: string; // e.g., "Similar to Gordon Willis's work in The Godfather"
+  lights: AnalyzedLight[];
+  overallStyle: string;
+  lightingRatio: string; // e.g., "3:1", "5:1"
+  keyLightPosition: string; // e.g., "45° camera left"
+  mood: string[];
+  genre?: string; // e.g., "Sci-Fi Noir", "Horror", "Romance"
+  colorPalette: {
+    dominant: string; // Hex color
+    accent: string; // Hex color
+    shadows: string; // Hex color
+  };
+  promptSuggestion: string; // Ready-to-use lighting prompt
+  cinematicReference?: string; // e.g., "Similar to Gordon Willis's work in The Godfather"
 }
 
 export class LightingAnalysisService {
-    private static instance: LightingAnalysisService;
-    private grokAdapter: GrokAdapter;
+  private static instance: LightingAnalysisService;
+  private grokAdapter: GrokAdapter;
 
-    private constructor() {
-        this.grokAdapter = new GrokAdapter();
+  private constructor() {
+    this.grokAdapter = new GrokAdapter();
+  }
+
+  static getInstance(): LightingAnalysisService {
+    if (!LightingAnalysisService.instance) {
+      LightingAnalysisService.instance = new LightingAnalysisService();
     }
+    return LightingAnalysisService.instance;
+  }
 
-    static getInstance(): LightingAnalysisService {
-        if (!LightingAnalysisService.instance) {
-            LightingAnalysisService.instance = new LightingAnalysisService();
-        }
-        return LightingAnalysisService.instance;
-    }
+  /**
+   * Analyze a reference image and extract its lighting setup
+   * This is the core "Inverse Gaffing" function
+   */
+  async analyzeLighting(imageUrl: string): Promise<LightingAnalysisResult> {
+    console.log('[LightingAnalysis] Analyzing reference image lighting...');
 
-    /**
-     * Analyze a reference image and extract its lighting setup
-     * This is the core "Inverse Gaffing" function
-     */
-    async analyzeLighting(imageUrl: string): Promise<LightingAnalysisResult> {
-        console.log('[LightingAnalysis] Analyzing reference image lighting...');
-
-        const prompt = `You are an Academy Award-winning Cinematographer and Master Gaffer. Reverse-engineer this image's lighting setup with surgical precision for a 2D lighting map.
+    const prompt = `You are an Academy Award-winning Cinematographer and Master Gaffer. Reverse-engineer this image's lighting setup with surgical precision for a 2D lighting map.
 
 ## STRICT COLOR MANDATE (CRITICAL!)
 - Do NOT default to "neutral" or "white" unless the light is PURE 5600K daylight with NO color cast.
@@ -179,115 +179,124 @@ When generating promptSuggestion, use SPECIFIC gel names:
 REMEMBER: Color is the soul of cinematography. Be specific. Be bold. No "neutral" unless truly neutral.
 REMEMBER: Match your coordinate placement (x,y) to your description (front/back/side).`;
 
-        try {
-            const response = await this.grokAdapter.analyzeImage([imageUrl], prompt);
+    try {
+      const response = await this.grokAdapter.analyzeImage([imageUrl], prompt);
 
-            // Extract JSON from response
-            const jsonMatch = response.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) {
-                console.error('[LightingAnalysis] No JSON found in response');
-                return this.getDefaultResult();
-            }
+      // Extract JSON from response
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error('[LightingAnalysis] No JSON found in response');
+        return this.getDefaultResult();
+      }
 
-            const parsed = JSON.parse(jsonMatch[0]);
+      const parsed = JSON.parse(jsonMatch[0]);
 
-            // Validate and normalize the lights array
-            // Include new hex/gel fields from Chromatic Mandate analysis
-            const lights: AnalyzedLight[] = (parsed.lights || []).map((light: any) => ({
-                type: this.validateLightType(light.type),
-                name: light.name || 'Light',
-                x: this.clamp(light.x ?? 0.5, 0, 1),
-                y: this.clamp(light.y ?? 0.5, 0, 1),
-                intensity: this.clamp(light.intensity ?? 50, 0, 100),
-                colorTemp: this.clamp(light.colorTemp ?? 5600, 2700, 10000),
-                softness: this.clamp(light.softness ?? 50, 0, 100),
-                description: light.description || '',
-                // New color fields from enhanced analysis
-                hex: light.hex || undefined,
-                isGel: light.isGel === true,
-                gelName: light.gelName || undefined,
-            }));
+      // Validate and normalize the lights array
+      // Include new hex/gel fields from Chromatic Mandate analysis
+      const lights: AnalyzedLight[] = (parsed.lights || []).map((light: any) => ({
+        type: this.validateLightType(light.type),
+        name: light.name || 'Light',
+        x: this.clamp(light.x ?? 0.5, 0, 1),
+        y: this.clamp(light.y ?? 0.5, 0, 1),
+        intensity: this.clamp(light.intensity ?? 50, 0, 100),
+        colorTemp: this.clamp(light.colorTemp ?? 5600, 2700, 10000),
+        softness: this.clamp(light.softness ?? 50, 0, 100),
+        description: light.description || '',
+        // New color fields from enhanced analysis
+        hex: light.hex || undefined,
+        isGel: light.isGel === true,
+        gelName: light.gelName || undefined,
+      }));
 
-            // Log gel usage for debugging
-            const gelLights = lights.filter(l => l.isGel || l.hex);
-            if (gelLights.length > 0) {
-                console.log(`[LightingAnalysis] Detected ${gelLights.length} gel-colored lights:`,
-                    gelLights.map(l => `${l.name}: ${l.hex} (${l.gelName || 'unnamed'})`));
-            }
-            console.log(`[LightingAnalysis] Detected ${lights.length} total lights`);
+      // Log gel usage for debugging
+      const gelLights = lights.filter(l => l.isGel || l.hex);
+      if (gelLights.length > 0) {
+        console.log(
+          `[LightingAnalysis] Detected ${gelLights.length} gel-colored lights:`,
+          gelLights.map(l => `${l.name}: ${l.hex} (${l.gelName || 'unnamed'})`)
+        );
+      }
+      console.log(`[LightingAnalysis] Detected ${lights.length} total lights`);
 
-            return {
-                lights,
-                overallStyle: parsed.overallStyle || 'Natural',
-                lightingRatio: parsed.lightingRatio || '2:1',
-                keyLightPosition: parsed.keyLightPosition || 'Front',
-                mood: Array.isArray(parsed.mood) ? parsed.mood : ['neutral'],
-                genre: parsed.genre || undefined,
-                colorPalette: {
-                    dominant: parsed.colorPalette?.dominant || '#808080',
-                    accent: parsed.colorPalette?.accent || '#808080',
-                    shadows: parsed.colorPalette?.shadows || '#1a1a1a'
-                },
-                promptSuggestion: parsed.promptSuggestion || this.generatePromptFromLights(lights),
-                cinematicReference: parsed.cinematicReference
-            };
-        } catch (error) {
-            console.error('[LightingAnalysis] Analysis failed:', error);
-            return this.getDefaultResult();
-        }
+      return {
+        lights,
+        overallStyle: parsed.overallStyle || 'Natural',
+        lightingRatio: parsed.lightingRatio || '2:1',
+        keyLightPosition: parsed.keyLightPosition || 'Front',
+        mood: Array.isArray(parsed.mood) ? parsed.mood : ['neutral'],
+        genre: parsed.genre || undefined,
+        colorPalette: {
+          dominant: parsed.colorPalette?.dominant || '#808080',
+          accent: parsed.colorPalette?.accent || '#808080',
+          shadows: parsed.colorPalette?.shadows || '#1a1a1a',
+        },
+        promptSuggestion: parsed.promptSuggestion || this.generatePromptFromLights(lights),
+        cinematicReference: parsed.cinematicReference,
+      };
+    } catch (error) {
+      console.error('[LightingAnalysis] Analysis failed:', error);
+      return this.getDefaultResult();
     }
+  }
 
-    private validateLightType(type: string | undefined): AnalyzedLight['type'] {
-        const validTypes: AnalyzedLight['type'][] = ['key', 'fill', 'back', 'rim', 'practical', 'ambient'];
-        if (type && validTypes.includes(type as AnalyzedLight['type'])) {
-            return type as AnalyzedLight['type'];
-        }
-        return 'key';
+  private validateLightType(type: string | undefined): AnalyzedLight['type'] {
+    const validTypes: AnalyzedLight['type'][] = [
+      'key',
+      'fill',
+      'back',
+      'rim',
+      'practical',
+      'ambient',
+    ];
+    if (type && validTypes.includes(type as AnalyzedLight['type'])) {
+      return type as AnalyzedLight['type'];
     }
+    return 'key';
+  }
 
-    private clamp(value: number, min: number, max: number): number {
-        return Math.max(min, Math.min(max, value));
-    }
+  private clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+  }
 
-    private generatePromptFromLights(lights: AnalyzedLight[]): string {
-        if (lights.length === 0) return 'natural lighting';
+  private generatePromptFromLights(lights: AnalyzedLight[]): string {
+    if (lights.length === 0) return 'natural lighting';
 
-        const descriptions = lights.map(light => {
-            const temp = light.colorTemp < 4000 ? 'warm' : light.colorTemp > 6000 ? 'cool' : 'neutral';
-            const soft = light.softness > 60 ? 'soft' : light.softness < 30 ? 'hard' : '';
-            return `${soft} ${temp} ${light.type} light`.trim();
-        });
+    const descriptions = lights.map(light => {
+      const temp = light.colorTemp < 4000 ? 'warm' : light.colorTemp > 6000 ? 'cool' : 'neutral';
+      const soft = light.softness > 60 ? 'soft' : light.softness < 30 ? 'hard' : '';
+      return `${soft} ${temp} ${light.type} light`.trim();
+    });
 
-        return descriptions.join(', ');
-    }
+    return descriptions.join(', ');
+  }
 
-    private getDefaultResult(): LightingAnalysisResult {
-        return {
-            lights: [
-                {
-                    type: 'key',
-                    name: 'Key Light',
-                    x: 0.3,
-                    y: 0.35,
-                    intensity: 100,
-                    colorTemp: 5600,
-                    softness: 40,
-                    description: 'Main key light'
-                }
-            ],
-            overallStyle: 'Natural',
-            lightingRatio: '2:1',
-            keyLightPosition: 'Front-left',
-            mood: ['neutral'],
-            colorPalette: {
-                dominant: 'neutral',
-                accent: 'neutral',
-                shadows: 'grey'
-            },
-            promptSuggestion: 'natural soft lighting',
-            cinematicReference: undefined
-        };
-    }
+  private getDefaultResult(): LightingAnalysisResult {
+    return {
+      lights: [
+        {
+          type: 'key',
+          name: 'Key Light',
+          x: 0.3,
+          y: 0.35,
+          intensity: 100,
+          colorTemp: 5600,
+          softness: 40,
+          description: 'Main key light',
+        },
+      ],
+      overallStyle: 'Natural',
+      lightingRatio: '2:1',
+      keyLightPosition: 'Front-left',
+      mood: ['neutral'],
+      colorPalette: {
+        dominant: 'neutral',
+        accent: 'neutral',
+        shadows: 'grey',
+      },
+      promptSuggestion: 'natural soft lighting',
+      cinematicReference: undefined,
+    };
+  }
 }
 
 export const lightingAnalysisService = LightingAnalysisService.getInstance();

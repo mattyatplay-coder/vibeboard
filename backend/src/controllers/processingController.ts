@@ -423,17 +423,30 @@ Respond ONLY with valid JSON.`;
       const clampedZoom = Math.min(Math.max(0, zoom_out_percentage), 90);
 
       // If no expansion specified, return error
-      if (clampedTop === 0 && clampedBottom === 0 && clampedLeft === 0 && clampedRight === 0 && clampedZoom === 0) {
-        res.status(400).json({ error: 'At least one expansion direction or zoom_out_percentage must be specified' });
+      if (
+        clampedTop === 0 &&
+        clampedBottom === 0 &&
+        clampedLeft === 0 &&
+        clampedRight === 0 &&
+        clampedZoom === 0
+      ) {
+        res.status(400).json({
+          error: 'At least one expansion direction or zoom_out_percentage must be specified',
+        });
         return;
       }
 
       console.log(`[Processing] Outpaint requested:`);
       console.log(`  Image URL: ${image_url.substring(0, 80)}...`);
-      console.log(`  Expand: top=${clampedTop}, bottom=${clampedBottom}, left=${clampedLeft}, right=${clampedRight}`);
+      console.log(
+        `  Expand: top=${clampedTop}, bottom=${clampedBottom}, left=${clampedLeft}, right=${clampedRight}`
+      );
       console.log(`  Zoom Out: ${clampedZoom}%`);
       if (prompt) console.log(`  Prompt: ${prompt.substring(0, 100)}...`);
-      if (lensKit) console.log(`  Lens Kit: ${lensKit.lensName || 'unknown'}, anamorphic=${lensKit.isAnamorphic || false}`);
+      if (lensKit)
+        console.log(
+          `  Lens Kit: ${lensKit.lensName || 'unknown'}, anamorphic=${lensKit.isAnamorphic || false}`
+        );
       if (originalPrompt) console.log(`  Original Prompt: ${originalPrompt.substring(0, 80)}...`);
 
       // Build enhanced prompt with context awareness
@@ -450,7 +463,11 @@ Respond ONLY with valid JSON.`;
       if (originalPrompt && originalPrompt.trim()) {
         // Extract key descriptive elements (not the whole prompt to stay under 500 chars)
         const contextSnippet = originalPrompt.substring(0, 200).trim();
-        if (!promptParts.some(p => p.toLowerCase().includes(contextSnippet.toLowerCase().substring(0, 50)))) {
+        if (
+          !promptParts.some(p =>
+            p.toLowerCase().includes(contextSnippet.toLowerCase().substring(0, 50))
+          )
+        ) {
           promptParts.push(`context: ${contextSnippet}`);
         }
       }

@@ -168,11 +168,11 @@ export function DatasetReviewPanel({ jobId, onComplete, datasetPath }: Props) {
                   disabled={deleting === img.filename}
                   className="scale-90 transform rounded-full bg-red-500 p-3 text-white shadow-xl transition-all group-hover:scale-100 hover:bg-red-600"
                 >
-                {deleting === img.filename ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  <Trash2 className="h-6 w-6" />
-                )}
+                  {deleting === img.filename ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-6 w-6" />
+                  )}
                 </button>
               </Tooltip>
             </div>

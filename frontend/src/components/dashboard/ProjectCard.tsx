@@ -84,7 +84,7 @@ export const ProjectCard = ({
                 <img
                   src={thumbnail}
                   alt={name}
-                  className="h-full w-full object-cover opacity-70 transition-all duration-500 group-hover:opacity-90 group-hover:scale-105"
+                  className="h-full w-full object-cover opacity-70 transition-all duration-500 group-hover:scale-105 group-hover:opacity-90"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/10" />
               </>
@@ -97,7 +97,7 @@ export const ProjectCard = ({
             )}
 
             {/* Top Badges */}
-            <div className="absolute left-3 top-3 flex gap-2">
+            <div className="absolute top-3 left-3 flex gap-2">
               <span className="rounded border border-white/5 bg-black/50 px-2 py-0.5 font-mono text-[10px] font-medium text-zinc-300 backdrop-blur-sm">
                 {aspectRatio}
               </span>
@@ -112,12 +112,12 @@ export const ProjectCard = ({
             {onDelete && (
               <Tooltip content="Delete Project" side="left">
                 <button
-                  onClick={(e) => {
+                  onClick={e => {
                     e.preventDefault();
                     e.stopPropagation();
                     onDelete(e);
                   }}
-                  className="absolute right-3 top-3 rounded-full p-1.5 text-white/40 opacity-0 transition-all duration-200 hover:bg-red-500/20 hover:text-red-400 group-hover:opacity-100"
+                  className="absolute top-3 right-3 rounded-full p-1.5 text-white/40 opacity-0 transition-all duration-200 group-hover:opacity-100 hover:bg-red-500/20 hover:text-red-400"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -152,11 +152,11 @@ export const ProjectCard = ({
 
               {/* Context Menu Trigger */}
               <button
-                onClick={(e) => {
+                onClick={e => {
                   e.preventDefault();
                   e.stopPropagation();
                 }}
-                className="text-zinc-600 opacity-0 transition-all hover:text-white group-hover:opacity-100"
+                className="text-zinc-600 opacity-0 transition-all group-hover:opacity-100 hover:text-white"
               >
                 <MoreHorizontal size={16} />
               </button>

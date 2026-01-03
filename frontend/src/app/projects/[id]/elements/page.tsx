@@ -244,7 +244,9 @@ export default function ElementsPage() {
       });
 
       if (response.success) {
-        alert(`Scene deconstruction complete! Created ${response.createdElements?.length || 0} 3D assets.`);
+        alert(
+          `Scene deconstruction complete! Created ${response.createdElements?.length || 0} 3D assets.`
+        );
         loadElements(); // Refresh to show new child elements
       } else {
         alert(`Deconstruction failed: ${response.error || 'Unknown error'}`);
@@ -473,7 +475,7 @@ export default function ElementsPage() {
 
   return (
     <PageLayout maxWidth="" spotlight={true}>
-      <div className="flex flex-col h-full" {...getRootProps()}>
+      <div className="flex h-full flex-col" {...getRootProps()}>
         <input {...getInputProps()} />
 
         {/* Global Drop Overlay */}
@@ -483,21 +485,21 @@ export default function ElementsPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-4 z-50 rounded-2xl border-2 border-dashed border-violet-500 bg-zinc-950/90 backdrop-blur-sm flex items-center justify-center pointer-events-none"
+              className="pointer-events-none fixed inset-4 z-50 flex items-center justify-center rounded-2xl border-2 border-dashed border-violet-500 bg-zinc-950/90 backdrop-blur-sm"
             >
               <div className="text-center">
-                <div className="w-16 h-16 rounded-2xl bg-violet-500/20 flex items-center justify-center mx-auto mb-4">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-500/20">
                   <Upload size={32} className="text-violet-400" />
                 </div>
                 <p className="text-lg font-semibold text-white">Drop to Ingest</p>
-                <p className="text-sm text-zinc-500 mt-1">Release to upload files</p>
+                <p className="mt-1 text-sm text-zinc-500">Release to upload files</p>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
         {/* 1. DAM-Style Header with Compact Actions */}
-        <header className="h-16 border-b border-white/5 bg-zinc-950/80 backdrop-blur-md px-6 flex items-center justify-between z-20 sticky top-0">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-white/5 bg-zinc-950/80 px-6 backdrop-blur-md">
           <div>
             <h1 className="text-lg font-bold text-white">Elements</h1>
             <p className="text-xs text-zinc-500">Manage characters, props, and locations.</p>
@@ -512,20 +514,16 @@ export default function ElementsPage() {
               whileTap={{ scale: 0.98 }}
               className={clsx(
                 'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all',
-                'bg-white/5 border border-white/10 text-zinc-300',
-                'hover:bg-white/10 hover:border-white/20 hover:text-white',
-                'disabled:opacity-50 disabled:cursor-not-allowed'
+                'border border-white/10 bg-white/5 text-zinc-300',
+                'hover:border-white/20 hover:bg-white/10 hover:text-white',
+                'disabled:cursor-not-allowed disabled:opacity-50'
               )}
             >
-              {uploading ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Upload size={14} />
-              )}
+              {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
               <span>{uploading ? 'Uploading...' : 'Upload'}</span>
             </motion.button>
 
-            <div className="h-6 w-px bg-white/10 mx-2" />
+            <div className="mx-2 h-6 w-px bg-white/10" />
 
             {/* Sort, Filter, Select All */}
             <SortFilterHeader
@@ -533,11 +531,13 @@ export default function ElementsPage() {
               onChange={setSortFilter}
               availableTags={availableTags}
               availableSessions={sessions}
-              onSelectAll={elements.length > 0 ? (
-                selectedElementIds.length === sortedElements.length
-                  ? deselectAllElements
-                  : selectAllElements
-              ) : undefined}
+              onSelectAll={
+                elements.length > 0
+                  ? selectedElementIds.length === sortedElements.length
+                    ? deselectAllElements
+                    : selectAllElements
+                  : undefined
+              }
               selectAllLabel={
                 selectedElementIds.length === sortedElements.length ? 'Deselect All' : 'Select All'
               }
@@ -548,52 +548,52 @@ export default function ElementsPage() {
         {/* 2. The Grid (No more huge dashed box) */}
         <div className="flex-1 overflow-y-auto p-6">
           <div className="space-y-8">
-        {sortedElements.length === 0 ? (
-          <div className="w-full py-12 text-center text-gray-500">
-            {elements.length === 0
-              ? 'No elements found. Upload some above!'
-              : 'No elements match your filters.'}
-          </div>
-        ) : (
-          Object.entries(
-            sortedElements.reduce(
-              (acc, el) => {
-                const sessionName = el.session?.name || 'Global / Unassigned';
-                if (!acc[sessionName]) acc[sessionName] = [];
-                acc[sessionName].push(el);
-                return acc;
-              },
-              {} as Record<string, StoreElement[]>
-            )
-          ).map(([sessionName, sessionElements]) => (
-            <div key={sessionName}>
-              <h2 className="mb-4 border-b border-white/5 pb-2 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-                {sessionName}
-              </h2>
-              {/* Responsive Smart Grid - DAM style */}
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                <AnimatePresence>
-                  {sessionElements.map(element => (
-                    <ElementCard
-                      key={element.id}
-                      element={element}
-                      onEdit={() => handleElementClick(element)}
-                      onUpdate={handleUpdateElement}
-                      onDelete={handleDeleteElement}
-                      onFabricate={() => setPropFabricatorElement(element)}
-                      onDeconstruct={() => handleDeconstruct(element)}
-                      onExtractMaterials={() => handleExtractMaterials(element)}
-                      onViewMaterials={() => handleViewMaterials(element)}
-                      isProcessing={processingElementIds.has(element.id)}
-                      isSelected={selectedElementIds.includes(element.id)}
-                      onToggleSelection={() => toggleElementSelection(element.id)}
-                    />
-                  ))}
-                </AnimatePresence>
+            {sortedElements.length === 0 ? (
+              <div className="w-full py-12 text-center text-gray-500">
+                {elements.length === 0
+                  ? 'No elements found. Upload some above!'
+                  : 'No elements match your filters.'}
               </div>
-            </div>
-          ))
-        )}
+            ) : (
+              Object.entries(
+                sortedElements.reduce(
+                  (acc, el) => {
+                    const sessionName = el.session?.name || 'Global / Unassigned';
+                    if (!acc[sessionName]) acc[sessionName] = [];
+                    acc[sessionName].push(el);
+                    return acc;
+                  },
+                  {} as Record<string, StoreElement[]>
+                )
+              ).map(([sessionName, sessionElements]) => (
+                <div key={sessionName}>
+                  <h2 className="mb-4 border-b border-white/5 pb-2 text-sm font-semibold tracking-wider text-zinc-500 uppercase">
+                    {sessionName}
+                  </h2>
+                  {/* Responsive Smart Grid - DAM style */}
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                    <AnimatePresence>
+                      {sessionElements.map(element => (
+                        <ElementCard
+                          key={element.id}
+                          element={element}
+                          onEdit={() => handleElementClick(element)}
+                          onUpdate={handleUpdateElement}
+                          onDelete={handleDeleteElement}
+                          onFabricate={() => setPropFabricatorElement(element)}
+                          onDeconstruct={() => handleDeconstruct(element)}
+                          onExtractMaterials={() => handleExtractMaterials(element)}
+                          onViewMaterials={() => handleViewMaterials(element)}
+                          isProcessing={processingElementIds.has(element.id)}
+                          isSelected={selectedElementIds.includes(element.id)}
+                          onToggleSelection={() => toggleElementSelection(element.id)}
+                        />
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -654,7 +654,9 @@ export default function ElementsPage() {
                 className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-white/10"
               >
                 <CheckSquare className="h-4 w-4" />
-                {selectedElementIds.length === sortedElements.length ? 'Deselect All' : 'Select All'}
+                {selectedElementIds.length === sortedElements.length
+                  ? 'Deselect All'
+                  : 'Select All'}
               </button>
               <button
                 onClick={deselectAllElements}
@@ -892,7 +894,7 @@ function ElementCard({
       className={clsx(
         'group relative cursor-pointer overflow-hidden rounded-xl transition-all duration-300',
         'border border-white/5 bg-zinc-900 hover:border-violet-500/50',
-        isSelected && 'ring-2 ring-violet-500/50 border-violet-500/30',
+        isSelected && 'border-violet-500/30 ring-2 ring-violet-500/50',
         aspectRatioClass
       )}
       onMouseEnter={handleMouseEnter}
@@ -962,21 +964,22 @@ function ElementCard({
           {isUploading || (element.metadata as { status?: string })?.status === 'pending' ? (
             // Professional shimmer skeleton for pending/uploading states
             <div className="relative h-full w-full overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer"
-                   style={{
-                     backgroundSize: '200% 100%',
-                     animation: 'shimmer 1.5s ease-in-out infinite'
-                   }}
+              <div
+                className="animate-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"
+                style={{
+                  backgroundSize: '200% 100%',
+                  animation: 'shimmer 1.5s ease-in-out infinite',
+                }}
               />
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <div className="w-12 h-12 rounded-lg bg-white/5 mb-2" />
+                <div className="mb-2 h-12 w-12 rounded-lg bg-white/5" />
                 <div className="h-2 w-16 rounded bg-white/5" />
               </div>
             </div>
           ) : (
             <>
               {/* Type-specific icons with subtle styling */}
-              <div className="w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center mb-2">
+              <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-lg bg-white/5">
                 {element.type === 'character' ? (
                   <User className="h-6 w-6 text-zinc-600" />
                 ) : element.type === 'place' ? (
@@ -995,7 +998,7 @@ function ElementCard({
               {/* Upload button for broken/missing images */}
               <button
                 onClick={handleUploadClick}
-                className="mt-3 flex items-center gap-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20 px-3 py-1.5 text-xs font-medium text-violet-400 transition-colors hover:bg-violet-500/20"
+                className="mt-3 flex items-center gap-1.5 rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-400 transition-colors hover:bg-violet-500/20"
               >
                 <Upload className="h-3.5 w-3.5" />
                 Upload Image
@@ -1022,10 +1025,10 @@ function ElementCard({
       )}
 
       {/* Top action bar - visible on hover */}
-      <div className="absolute inset-x-0 top-0 p-2 flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+      <div className="absolute inset-x-0 top-0 z-10 flex justify-end gap-1 p-2 opacity-0 transition-opacity group-hover:opacity-100">
         <button
           onClick={handleDownload}
-          className="rounded-lg bg-black/50 p-1.5 text-white transition-colors hover:bg-white/20 backdrop-blur-sm"
+          className="rounded-lg bg-black/50 p-1.5 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
         >
           <Download className="h-4 w-4" />
         </button>
@@ -1036,7 +1039,7 @@ function ElementCard({
                 e.stopPropagation();
                 onFabricate();
               }}
-              className="rounded-lg bg-black/50 p-1.5 text-white transition-colors hover:bg-amber-500/20 hover:text-amber-400 backdrop-blur-sm"
+              className="rounded-lg bg-black/50 p-1.5 text-white backdrop-blur-sm transition-colors hover:bg-amber-500/20 hover:text-amber-400"
             >
               <Wand2 className="h-4 w-4" />
             </button>
@@ -1051,7 +1054,7 @@ function ElementCard({
               }}
               disabled={isProcessing}
               className={clsx(
-                'rounded-lg bg-black/50 p-1.5 transition-colors backdrop-blur-sm',
+                'rounded-lg bg-black/50 p-1.5 backdrop-blur-sm transition-colors',
                 isProcessing
                   ? 'cursor-not-allowed text-gray-500'
                   : 'text-white hover:bg-cyan-500/20 hover:text-cyan-400'
@@ -1074,7 +1077,7 @@ function ElementCard({
               }}
               disabled={isProcessing}
               className={clsx(
-                'rounded-lg bg-black/50 p-1.5 transition-colors backdrop-blur-sm',
+                'rounded-lg bg-black/50 p-1.5 backdrop-blur-sm transition-colors',
                 isProcessing
                   ? 'cursor-not-allowed text-gray-500'
                   : 'text-white hover:bg-purple-500/20 hover:text-purple-400'
@@ -1096,7 +1099,7 @@ function ElementCard({
                 e.stopPropagation();
                 onViewMaterials();
               }}
-              className="rounded-lg bg-purple-500/30 p-1.5 text-purple-400 transition-colors hover:bg-purple-500/40 backdrop-blur-sm"
+              className="rounded-lg bg-purple-500/30 p-1.5 text-purple-400 backdrop-blur-sm transition-colors hover:bg-purple-500/40"
             >
               <Layers className="h-4 w-4" />
             </button>
@@ -1104,7 +1107,7 @@ function ElementCard({
         )}
         <button
           onClick={handleTrash}
-          className="rounded-lg bg-black/50 p-1.5 text-white transition-colors hover:bg-red-500/20 hover:text-red-400 backdrop-blur-sm"
+          className="rounded-lg bg-black/50 p-1.5 text-white backdrop-blur-sm transition-colors hover:bg-red-500/20 hover:text-red-400"
         >
           <Trash2 className="h-4 w-4" />
         </button>
@@ -1113,20 +1116,21 @@ function ElementCard({
             e.stopPropagation();
             onEdit();
           }}
-          className="rounded-lg bg-black/50 p-1.5 text-white transition-colors hover:bg-white/20 backdrop-blur-sm"
+          className="rounded-lg bg-black/50 p-1.5 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
         >
           <Edit2 className="h-4 w-4" />
         </button>
       </div>
 
       {/* DAM-style Metadata Overlay (Slide up on hover) */}
-      <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/90 to-transparent translate-y-full group-hover:translate-y-0 transition-transform duration-200">
+      <div className="absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-t from-black/90 to-transparent p-3 transition-transform duration-200 group-hover:translate-y-0">
         <div className="flex items-center gap-2">
-          {element.type === 'video' && <Film className="h-3 w-3 text-cyan-400 shrink-0" />}
-          <p className="text-xs font-medium text-white truncate">{element.name}</p>
+          {element.type === 'video' && <Film className="h-3 w-3 shrink-0 text-cyan-400" />}
+          <p className="truncate text-xs font-medium text-white">{element.name}</p>
         </div>
-        <p className="text-[10px] text-zinc-400 font-mono mt-0.5">
-          {element.type.toUpperCase()} • {element.metadata?.width && element.metadata?.height
+        <p className="mt-0.5 font-mono text-[10px] text-zinc-400">
+          {element.type.toUpperCase()} •{' '}
+          {element.metadata?.width && element.metadata?.height
             ? `${element.metadata.width}×${element.metadata.height}`
             : 'Unknown size'}
         </p>

@@ -36,24 +36,24 @@ export const PageLayout = ({
   className,
 }: PageLayoutProps) => {
   return (
-    <div className="min-h-screen bg-zinc-950 relative">
+    <div className="relative min-h-screen bg-zinc-950">
       {/* 1. Ambient Spotlight (Top Center) */}
       {spotlight && (
         <div
-          className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-violet-900/10 blur-[120px] rounded-full pointer-events-none z-0"
+          className="pointer-events-none fixed top-0 left-1/2 z-0 h-[500px] w-[800px] -translate-x-1/2 rounded-full bg-violet-900/10 blur-[120px]"
           aria-hidden="true"
         />
       )}
 
       {/* 2. Secondary glow (subtle bottom-right accent) */}
       <div
-        className="fixed bottom-0 right-0 w-[400px] h-[300px] bg-cyan-900/5 blur-[80px] rounded-full pointer-events-none z-0"
+        className="pointer-events-none fixed right-0 bottom-0 z-0 h-[300px] w-[400px] rounded-full bg-cyan-900/5 blur-[80px]"
         aria-hidden="true"
       />
 
       {/* 3. Noise Texture */}
       <div
-        className="fixed inset-0 opacity-[0.012] pointer-events-none z-0 mix-blend-overlay"
+        className="pointer-events-none fixed inset-0 z-0 opacity-[0.012] mix-blend-overlay"
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
         }}

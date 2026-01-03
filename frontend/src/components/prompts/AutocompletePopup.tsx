@@ -15,10 +15,13 @@ interface AutocompletePopupProps {
   className?: string;
 }
 
-const TRIGGER_CONFIG: Record<TriggerType, { icon: LucideIcon; color: string; label: string; bgColor: string }> = {
+const TRIGGER_CONFIG: Record<
+  TriggerType,
+  { icon: LucideIcon; color: string; label: string; bgColor: string }
+> = {
   '@': { icon: Users, color: 'text-blue-400', label: 'Elements', bgColor: 'bg-blue-500/20' },
   '#': { icon: Package, color: 'text-amber-400', label: 'Props', bgColor: 'bg-amber-500/20' },
-  '$': { icon: Variable, color: 'text-purple-400', label: 'Variables', bgColor: 'bg-purple-500/20' },
+  $: { icon: Variable, color: 'text-purple-400', label: 'Variables', bgColor: 'bg-purple-500/20' },
 };
 
 export function AutocompletePopup({
@@ -46,13 +49,9 @@ export function AutocompletePopup({
       <div className="flex items-center justify-between border-b border-white/10 bg-white/5 px-3 py-2">
         <div className="flex items-center gap-2">
           <Icon className={clsx('h-3 w-3', config.color)} />
-          <span className="text-xs font-medium uppercase tracking-wider text-gray-300">
+          <span className="text-xs font-medium tracking-wider text-gray-300 uppercase">
             {config.label}
-            {query && (
-              <span className="ml-1 text-gray-500">
-                : "{query}"
-              </span>
-            )}
+            {query && <span className="ml-1 text-gray-500">: "{query}"</span>}
           </span>
         </div>
         <span className="text-[10px] text-gray-500">
@@ -64,21 +63,17 @@ export function AutocompletePopup({
       {triggerType === '@' ? (
         // Horizontal thumbnail layout for elements
         <div className="scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent flex gap-2 overflow-x-auto p-2">
-          {items.map((item) => (
+          {items.map(item => (
             <button
               key={item.id}
-              onMouseDown={(e) => {
+              onMouseDown={e => {
                 e.preventDefault(); // Prevent textarea blur
                 onSelect(item);
               }}
               className="group relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border border-white/10 transition-all hover:scale-105 hover:border-blue-500"
             >
               {item.imageUrl ? (
-                <img
-                  src={item.imageUrl}
-                  alt={item.name}
-                  className="h-full w-full object-cover"
-                />
+                <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center bg-gray-800">
                   <Image className="h-6 w-6 text-gray-600" />
@@ -96,10 +91,10 @@ export function AutocompletePopup({
       ) : (
         // Vertical list for props and variables
         <div className="max-h-48 overflow-y-auto p-1">
-          {items.map((item) => (
+          {items.map(item => (
             <button
               key={item.id}
-              onMouseDown={(e) => {
+              onMouseDown={e => {
                 e.preventDefault(); // Prevent textarea blur
                 onSelect(item);
               }}
@@ -110,13 +105,14 @@ export function AutocompletePopup({
             >
               {/* Icon or thumbnail */}
               {item.imageUrl ? (
-                <img
-                  src={item.imageUrl}
-                  alt={item.name}
-                  className="h-8 w-8 rounded object-cover"
-                />
+                <img src={item.imageUrl} alt={item.name} className="h-8 w-8 rounded object-cover" />
               ) : (
-                <div className={clsx('flex h-8 w-8 items-center justify-center rounded', config.bgColor)}>
+                <div
+                  className={clsx(
+                    'flex h-8 w-8 items-center justify-center rounded',
+                    config.bgColor
+                  )}
+                >
                   <Icon className={clsx('h-4 w-4', config.color)} />
                 </div>
               )}
@@ -133,7 +129,8 @@ export function AutocompletePopup({
                 </div>
                 {item.description && (
                   <p className="truncate text-xs text-gray-500">
-                    {item.description.slice(0, 60)}{item.description.length > 60 ? '...' : ''}
+                    {item.description.slice(0, 60)}
+                    {item.description.length > 60 ? '...' : ''}
                   </p>
                 )}
               </div>

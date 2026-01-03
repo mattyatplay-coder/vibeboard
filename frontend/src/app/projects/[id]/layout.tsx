@@ -6,9 +6,7 @@ import { SessionProvider } from '@/context/SessionContext';
 export default function ProjectLayout({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
-      <StudioShell>
-        {children}
-      </StudioShell>
+      <StudioShell>{children}</StudioShell>
     </SessionProvider>
   );
 }

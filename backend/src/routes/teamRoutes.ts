@@ -8,17 +8,17 @@
 import { Router } from 'express';
 import { withAuth } from '../middleware/auth';
 import {
-    createTeam,
-    getMyTeams,
-    getTeam,
-    getTeamBySlug,
-    updateTeam,
-    deleteTeam,
-    addMember,
-    updateMemberRole,
-    removeMember,
-    leaveTeam,
-    getTeamQuota,
+  createTeam,
+  getMyTeams,
+  getTeam,
+  getTeamBySlug,
+  updateTeam,
+  deleteTeam,
+  addMember,
+  updateMemberRole,
+  removeMember,
+  leaveTeam,
+  getTeamQuota,
 } from '../controllers/teamController';
 
 const router = Router();

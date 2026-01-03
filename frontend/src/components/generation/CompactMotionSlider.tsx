@@ -89,7 +89,7 @@ export const CompactMotionSlider: React.FC<CompactMotionSliderProps> = ({
           side="top"
           align="end"
           sideOffset={8}
-          className="z-50 w-64 animate-in fade-in slide-in-from-bottom-2 rounded-xl border border-white/10 bg-[#1a1a1a] p-3 shadow-2xl duration-150"
+          className="animate-in fade-in slide-in-from-bottom-2 z-50 w-64 rounded-xl border border-white/10 bg-[#1a1a1a] p-3 shadow-2xl duration-150"
         >
           {/* Header */}
           <div className="mb-3 flex items-center justify-between">

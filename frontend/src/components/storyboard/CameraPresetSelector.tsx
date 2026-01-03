@@ -120,9 +120,7 @@ export function CameraPresetSelector({
         {/* Indicators */}
         {isRecommended && !isSelected && (
           <Tooltip content="Recommended for this genre" side="top">
-            <span
-              className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-green-500"
-            />
+            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-green-500" />
           </Tooltip>
         )}
         {isAvoided && <Ban className="absolute -top-1 -right-1 h-3 w-3 text-red-400" />}
@@ -378,7 +376,9 @@ export function CameraPresetSelector({
           </div>
           <Tooltip content="Clear selection" side="top">
             <button
-              onClick={() => onSelect({ id: '', name: '', prompt: '', description: '', genres: [] })}
+              onClick={() =>
+                onSelect({ id: '', name: '', prompt: '', description: '', genres: [] })
+              }
               className="rounded p-1 text-gray-400 hover:bg-white/10 hover:text-white"
             >
               <X className="h-3 w-3" />

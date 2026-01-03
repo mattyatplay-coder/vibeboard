@@ -524,7 +524,9 @@ export function EngineLibraryModal({
                     <>
                       <span className="font-medium text-white">{stagedModel.name}</span>
                       <span className="text-gray-600">•</span>
-                      <span className="text-emerald-400">{getModelPriceString(stagedModel.id)}</span>
+                      <span className="text-emerald-400">
+                        {getModelPriceString(stagedModel.id)}
+                      </span>
                     </>
                   ) : (
                     <span>No model selected</span>

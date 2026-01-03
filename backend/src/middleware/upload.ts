@@ -26,9 +26,30 @@ try {
 }
 
 // Pro file types - expanded MIME support
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/tiff', 'image/bmp'];
-const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska'];
-const ALLOWED_AUDIO_TYPES = ['audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/mp3', 'audio/ogg', 'audio/aac', 'audio/flac'];
+const ALLOWED_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/tiff',
+  'image/bmp',
+];
+const ALLOWED_VIDEO_TYPES = [
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'video/x-msvideo',
+  'video/x-matroska',
+];
+const ALLOWED_AUDIO_TYPES = [
+  'audio/mpeg',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/mp3',
+  'audio/ogg',
+  'audio/aac',
+  'audio/flac',
+];
 const ALLOWED_3D_TYPES = ['model/gltf-binary', 'model/gltf+json', 'application/octet-stream']; // .glb, .gltf
 const ALLOWED_AI_TYPES = ['application/x-hdf', 'application/octet-stream']; // .safetensors, .ckpt, .pt
 const ALLOWED_DOCUMENT_TYPES = ['application/pdf', 'text/plain', 'application/json'];
@@ -43,12 +64,12 @@ const ALL_ALLOWED_TYPES = [
 ];
 
 // Size limits by type
-const MAX_IMAGE_SIZE = 20 * 1024 * 1024;       // 20MB
-const MAX_VIDEO_SIZE = 500 * 1024 * 1024;      // 500MB
-const MAX_AUDIO_SIZE = 100 * 1024 * 1024;      // 100MB
-const MAX_3D_SIZE = 200 * 1024 * 1024;         // 200MB
+const MAX_IMAGE_SIZE = 20 * 1024 * 1024; // 20MB
+const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500MB
+const MAX_AUDIO_SIZE = 100 * 1024 * 1024; // 100MB
+const MAX_3D_SIZE = 200 * 1024 * 1024; // 200MB
 const MAX_AI_MODEL_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
-const MAX_DEFAULT_SIZE = 100 * 1024 * 1024;    // 100MB fallback
+const MAX_DEFAULT_SIZE = 100 * 1024 * 1024; // 100MB fallback
 
 const getMaxSizeForMimetype = (mimetype: string): number => {
   if (ALLOWED_VIDEO_TYPES.includes(mimetype)) return MAX_VIDEO_SIZE;
@@ -69,16 +90,40 @@ const storage = multer.diskStorage({
   },
 });
 
-const fileFilter = (req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+const fileFilter = (
+  req: Express.Request,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback
+) => {
   // Check by extension for files that browsers may not report correct MIME
   const ext = path.extname(file.originalname).toLowerCase();
   const extensionAllowed = [
-    '.jpg', '.jpeg', '.png', '.webp', '.gif', '.tiff', '.bmp',
-    '.mp4', '.webm', '.mov', '.avi', '.mkv',
-    '.mp3', '.wav', '.ogg', '.aac', '.flac',
-    '.glb', '.gltf',
-    '.safetensors', '.ckpt', '.pt', '.pth',
-    '.pdf', '.txt', '.json',
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.webp',
+    '.gif',
+    '.tiff',
+    '.bmp',
+    '.mp4',
+    '.webm',
+    '.mov',
+    '.avi',
+    '.mkv',
+    '.mp3',
+    '.wav',
+    '.ogg',
+    '.aac',
+    '.flac',
+    '.glb',
+    '.gltf',
+    '.safetensors',
+    '.ckpt',
+    '.pt',
+    '.pth',
+    '.pdf',
+    '.txt',
+    '.json',
   ].includes(ext);
 
   if (ALL_ALLOWED_TYPES.includes(file.mimetype) || extensionAllowed) {

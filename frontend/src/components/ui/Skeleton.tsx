@@ -28,21 +28,16 @@ interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
  * // Text placeholder
  * <Skeleton variant="text" className="w-24" />
  */
-function Skeleton({
-  className,
-  intensity = 'low',
-  variant = 'default',
-  ...props
-}: SkeletonProps) {
+function Skeleton({ className, intensity = 'low', variant = 'default', ...props }: SkeletonProps) {
   return (
     <div
       className={cn(
-        "relative overflow-hidden bg-zinc-900/50",
+        'relative overflow-hidden bg-zinc-900/50',
         // Shape variants
-        variant === 'circular' && "rounded-full",
-        variant === 'text' && "h-4 rounded",
-        variant === 'title' && "h-6 rounded",
-        variant === 'default' && "rounded-lg",
+        variant === 'circular' && 'rounded-full',
+        variant === 'text' && 'h-4 rounded',
+        variant === 'title' && 'h-6 rounded',
+        variant === 'default' && 'rounded-lg',
         className
       )}
       {...props}
@@ -50,8 +45,8 @@ function Skeleton({
       {/* The Shimmer Effect - animated gradient sweep */}
       <div
         className={cn(
-          "absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/5 to-transparent",
-          "animate-shimmer"
+          'absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/5 to-transparent',
+          'animate-shimmer'
         )}
         style={{ opacity: intensity === 'high' ? 0.2 : 0.1 }}
       />
@@ -64,11 +59,11 @@ function Skeleton({
  */
 function SkeletonCard() {
   return (
-    <div className="p-3 border border-white/5 rounded-xl bg-zinc-950/50">
-      <Skeleton className="h-32 w-full mb-3" intensity="high" />
+    <div className="rounded-xl border border-white/5 bg-zinc-950/50 p-3">
+      <Skeleton className="mb-3 h-32 w-full" intensity="high" />
       <div className="flex items-center gap-3">
         <Skeleton variant="circular" className="h-8 w-8" />
-        <div className="space-y-2 flex-1">
+        <div className="flex-1 space-y-2">
           <Skeleton variant="text" className="w-3/4" />
           <Skeleton variant="text" className="w-1/2" intensity="low" />
         </div>
@@ -98,11 +93,8 @@ function SkeletonTimeline() {
  */
 function SkeletonStage() {
   return (
-    <div className="flex-1 flex items-center justify-center p-8">
-      <Skeleton
-        className="w-full max-w-4xl aspect-video"
-        intensity="high"
-      />
+    <div className="flex flex-1 items-center justify-center p-8">
+      <Skeleton className="aspect-video w-full max-w-4xl" intensity="high" />
     </div>
   );
 }

@@ -3,7 +3,15 @@
 import React, { useRef, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
-import { MoreVertical, Play, Image as ImageIcon, CheckCircle2, Trash2, Download, Copy } from 'lucide-react';
+import {
+  MoreVertical,
+  Play,
+  Image as ImageIcon,
+  CheckCircle2,
+  Trash2,
+  Download,
+  Copy,
+} from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 
 export interface Asset {
@@ -72,28 +80,31 @@ export const MediaCard = ({
   }, [asset.type]);
 
   // Scrub through video based on mouse X position
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (asset.type !== 'video' || !videoRef.current || !isHovered) return;
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (asset.type !== 'video' || !videoRef.current || !isHovered) return;
 
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const clampedX = Math.max(0, Math.min(1, x));
-    setScrubPosition(clampedX);
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const clampedX = Math.max(0, Math.min(1, x));
+      setScrubPosition(clampedX);
 
-    // Scrub video to position
-    if (videoRef.current.duration) {
-      videoRef.current.currentTime = clampedX * videoRef.current.duration;
-    }
-  }, [asset.type, isHovered]);
+      // Scrub video to position
+      if (videoRef.current.duration) {
+        videoRef.current.currentTime = clampedX * videoRef.current.duration;
+      }
+    },
+    [asset.type, isHovered]
+  );
 
   return (
     <motion.div
       layout
       className={clsx(
-        "group relative aspect-video bg-zinc-900 rounded-lg overflow-hidden cursor-pointer border transition-all duration-200",
+        'group relative aspect-video cursor-pointer overflow-hidden rounded-lg border bg-zinc-900 transition-all duration-200',
         selected
-          ? "border-violet-500 shadow-[0_0_15px_rgba(139,92,246,0.3)] ring-1 ring-violet-500"
-          : "border-white/5 hover:border-zinc-700"
+          ? 'border-violet-500 shadow-[0_0_15px_rgba(139,92,246,0.3)] ring-1 ring-violet-500'
+          : 'border-white/5 hover:border-zinc-700'
       )}
       onClick={onSelect}
       onDoubleClick={onDoubleClick}
@@ -109,8 +120,8 @@ export const MediaCard = ({
             src={asset.thumbnail}
             alt={asset.title}
             className={clsx(
-              "absolute inset-0 w-full h-full object-cover transition-opacity duration-200",
-              isHovered && "opacity-0"
+              'absolute inset-0 h-full w-full object-cover transition-opacity duration-200',
+              isHovered && 'opacity-0'
             )}
           />
           <video
@@ -121,25 +132,21 @@ export const MediaCard = ({
             playsInline
             preload="metadata"
             className={clsx(
-              "absolute inset-0 w-full h-full object-cover transition-opacity duration-200",
-              !isHovered && "opacity-0"
+              'absolute inset-0 h-full w-full object-cover transition-opacity duration-200',
+              !isHovered && 'opacity-0'
             )}
           />
         </>
       ) : (
-        <img
-          src={asset.src}
-          alt={asset.title}
-          className="w-full h-full object-cover"
-        />
+        <img src={asset.src} alt={asset.title} className="h-full w-full object-cover" />
       )}
 
       {/* 2. Overlay Layer (Gradient for text readability) */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
 
       {/* 3. Scrub Progress Bar (video only) */}
       {asset.type === 'video' && isHovered && (
-        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black/50">
+        <div className="absolute right-0 bottom-0 left-0 h-0.5 bg-black/50">
           <div
             className="h-full bg-violet-500 transition-all duration-75"
             style={{ width: `${scrubPosition * 100}%` }}
@@ -150,19 +157,19 @@ export const MediaCard = ({
       {/* 4. Status Indicators */}
       <div className="absolute top-2 left-2 flex gap-1">
         {selected && (
-          <div className="bg-violet-500 text-white rounded-full p-0.5 shadow-lg">
+          <div className="rounded-full bg-violet-500 p-0.5 text-white shadow-lg">
             <CheckCircle2 size={12} />
           </div>
         )}
       </div>
 
       {/* 5. Actions Menu */}
-      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100">
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <button
-              className="p-1 rounded hover:bg-black/50 text-white/80 hover:text-white transition-colors"
-              onClick={(e) => e.stopPropagation()}
+              className="rounded p-1 text-white/80 transition-colors hover:bg-black/50 hover:text-white"
+              onClick={e => e.stopPropagation()}
             >
               <MoreVertical size={14} />
             </button>
@@ -170,14 +177,14 @@ export const MediaCard = ({
 
           <DropdownMenu.Portal>
             <DropdownMenu.Content
-              className="z-50 min-w-[140px] rounded-lg border border-white/10 bg-zinc-900/95 backdrop-blur-md p-1 shadow-xl"
+              className="z-50 min-w-[140px] rounded-lg border border-white/10 bg-zinc-900/95 p-1 shadow-xl backdrop-blur-md"
               sideOffset={4}
               align="end"
             >
               {onDownload && (
                 <DropdownMenu.Item
-                  className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-zinc-300 outline-none cursor-pointer hover:bg-white/10 hover:text-white transition-colors"
-                  onClick={(e) => {
+                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs text-zinc-300 transition-colors outline-none hover:bg-white/10 hover:text-white"
+                  onClick={e => {
                     e.stopPropagation();
                     onDownload();
                   }}
@@ -188,8 +195,8 @@ export const MediaCard = ({
               )}
               {onDuplicate && (
                 <DropdownMenu.Item
-                  className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-zinc-300 outline-none cursor-pointer hover:bg-white/10 hover:text-white transition-colors"
-                  onClick={(e) => {
+                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs text-zinc-300 transition-colors outline-none hover:bg-white/10 hover:text-white"
+                  onClick={e => {
                     e.stopPropagation();
                     onDuplicate();
                   }}
@@ -202,8 +209,8 @@ export const MediaCard = ({
                 <>
                   <DropdownMenu.Separator className="my-1 h-px bg-white/10" />
                   <DropdownMenu.Item
-                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-red-400 outline-none cursor-pointer hover:bg-red-500/10 hover:text-red-300 transition-colors"
-                    onClick={(e) => {
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs text-red-400 transition-colors outline-none hover:bg-red-500/10 hover:text-red-300"
+                    onClick={e => {
                       e.stopPropagation();
                       onDelete();
                     }}
@@ -219,19 +226,19 @@ export const MediaCard = ({
       </div>
 
       {/* 6. Metadata Layer */}
-      <div className="absolute bottom-0 left-0 right-0 p-2 flex justify-between items-end pointer-events-none">
-        <div className="flex flex-col min-w-0">
-          <span className="text-xs font-medium text-white truncate drop-shadow-md">
+      <div className="pointer-events-none absolute right-0 bottom-0 left-0 flex items-end justify-between p-2">
+        <div className="flex min-w-0 flex-col">
+          <span className="truncate text-xs font-medium text-white drop-shadow-md">
             {asset.title}
           </span>
-          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity delay-75">
+          <div className="flex items-center gap-2 opacity-0 transition-opacity delay-75 group-hover:opacity-100">
             {asset.resolution && (
-              <span className="text-[10px] font-mono text-zinc-300 bg-black/50 px-1 rounded backdrop-blur-sm">
+              <span className="rounded bg-black/50 px-1 font-mono text-[10px] text-zinc-300 backdrop-blur-sm">
                 {asset.resolution}
               </span>
             )}
             {asset.type === 'video' && asset.duration && (
-              <span className="text-[10px] font-mono text-zinc-300 bg-black/50 px-1 rounded backdrop-blur-sm">
+              <span className="rounded bg-black/50 px-1 font-mono text-[10px] text-zinc-300 backdrop-blur-sm">
                 {asset.duration}
               </span>
             )}
@@ -250,7 +257,7 @@ export const MediaCard = ({
 
       {/* 7. Duration Badge (always visible for video) */}
       {asset.type === 'video' && asset.duration && !isHovered && (
-        <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-mono px-1.5 py-0.5 rounded backdrop-blur-sm">
+        <div className="absolute right-2 bottom-2 rounded bg-black/70 px-1.5 py-0.5 font-mono text-[10px] text-white backdrop-blur-sm">
           {asset.duration}
         </div>
       )}

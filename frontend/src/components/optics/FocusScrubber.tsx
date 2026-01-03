@@ -42,56 +42,68 @@ export function FocusScrubber({ videoUrl, onFocusChange, className }: FocusScrub
 
   // Scrub to specific percentage
   // Uses Frame Stepping Protocol for smooth, non-clunky playback
-  const scrubTo = useCallback((percent: number) => {
-    const clampedPercent = Math.max(0, Math.min(100, percent));
-    setFocusPercent(clampedPercent);
+  const scrubTo = useCallback(
+    (percent: number) => {
+      const clampedPercent = Math.max(0, Math.min(100, percent));
+      setFocusPercent(clampedPercent);
 
-    const video = videoRef.current;
-    if (video && duration > 0) {
-      // CRITICAL FIX 1: Pause while scrubbing to stop browser playback engine
-      // from fighting the manual seek commands
-      if (!video.paused) {
-        video.pause();
-        setIsPlaying(false);
+      const video = videoRef.current;
+      if (video && duration > 0) {
+        // CRITICAL FIX 1: Pause while scrubbing to stop browser playback engine
+        // from fighting the manual seek commands
+        if (!video.paused) {
+          video.pause();
+          setIsPlaying(false);
+        }
+
+        const targetTime = (clampedPercent / 100) * duration;
+
+        // CRITICAL FIX 2: Only seek if the difference exceeds threshold
+        // This reduces I/O overhead and prevents staggering from micro-seeks
+        if (Math.abs(video.currentTime - targetTime) > SEEK_THRESHOLD) {
+          video.currentTime = targetTime;
+        }
       }
 
-      const targetTime = (clampedPercent / 100) * duration;
-
-      // CRITICAL FIX 2: Only seek if the difference exceeds threshold
-      // This reduces I/O overhead and prevents staggering from micro-seeks
-      if (Math.abs(video.currentTime - targetTime) > SEEK_THRESHOLD) {
-        video.currentTime = targetTime;
-      }
-    }
-
-    onFocusChange?.(clampedPercent);
-  }, [duration, onFocusChange]);
+      onFocusChange?.(clampedPercent);
+    },
+    [duration, onFocusChange]
+  );
 
   // Handle slider change
-  const handleSliderChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const percent = parseFloat(e.target.value);
-    scrubTo(percent);
-  }, [scrubTo]);
+  const handleSliderChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const percent = parseFloat(e.target.value);
+      scrubTo(percent);
+    },
+    [scrubTo]
+  );
 
   // Handle click on progress bar
-  const handleProgressClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!containerRef.current) return;
+  const handleProgressClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!containerRef.current) return;
 
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percent = (x / rect.width) * 100;
-    scrubTo(percent);
-  }, [scrubTo]);
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const percent = (x / rect.width) * 100;
+      scrubTo(percent);
+    },
+    [scrubTo]
+  );
 
   // Handle mouse drag on progress bar
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging || !containerRef.current) return;
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!isDragging || !containerRef.current) return;
 
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percent = (x / rect.width) * 100;
-    scrubTo(percent);
-  }, [isDragging, scrubTo]);
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const percent = (x / rect.width) * 100;
+      scrubTo(percent);
+    },
+    [isDragging, scrubTo]
+  );
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -207,17 +219,13 @@ export function FocusScrubber({ videoUrl, onFocusChange, className }: FocusScrub
             disabled={!isLoaded}
             className="flex h-8 w-8 items-center justify-center rounded-full bg-cyan-500/20 text-cyan-400 transition-colors hover:bg-cyan-500/30 disabled:opacity-50"
           >
-            {isPlaying ? (
-              <Pause className="h-4 w-4" />
-            ) : (
-              <Play className="h-4 w-4 ml-0.5" />
-            )}
+            {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
           </button>
 
           {/* Focus Label */}
           <div className="flex items-center gap-1.5">
             <Focus className="h-4 w-4 text-cyan-400" />
-            <span className="text-xs font-mono text-cyan-400">FOCUS</span>
+            <span className="font-mono text-xs text-cyan-400">FOCUS</span>
           </div>
 
           {/* Progress Bar / Scrubber */}

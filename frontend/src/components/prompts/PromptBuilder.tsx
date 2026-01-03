@@ -369,9 +369,13 @@ export function PromptBuilder({
           consistencyPriority,
           images: [
             ...images.map(img => resolveFileUrl(img)),
-            ...selectedElementObjects.map(e => resolveFileUrl(e.imageUrl)).filter((url): url is string => !!url),
+            ...selectedElementObjects
+              .map(e => resolveFileUrl(e.imageUrl))
+              .filter((url): url is string => !!url),
             // Include prop reference images
-            ...props.filter(p => p.referenceImageUrl).map(p => resolveFileUrl(p.referenceImageUrl!)),
+            ...props
+              .filter(p => p.referenceImageUrl)
+              .map(p => resolveFileUrl(p.referenceImageUrl!)),
           ], // Combine manual uploads + element images + prop images (resolved to full URLs)
           // Prop Bin items for object consistency
           props: props.map(p => ({

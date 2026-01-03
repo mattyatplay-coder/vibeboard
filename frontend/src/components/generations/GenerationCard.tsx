@@ -67,7 +67,7 @@ interface GenerationCardProps {
   onToggleSelection?: (e: React.MouseEvent) => void;
   onFindSimilarComposition?: (generationId: string) => void;
   onFindSimilarLighting?: (generationId: string) => void;
-  onFindSimilarVisual?: (generationId: string) => void;  // CLIP vector-based visual similarity
+  onFindSimilarVisual?: (generationId: string) => void; // CLIP vector-based visual similarity
 }
 
 // Upscale options
@@ -867,531 +867,579 @@ export function GenerationCard({
 
   return (
     <TooltipProvider>
-    <>
-      <div
-        ref={setNodeRef}
-        style={style}
-        {...listeners}
-        {...attributes}
-        className={clsx(
-          'group @container relative cursor-pointer touch-none rounded-xl border bg-white/5 transition-all',
-          isSelected
-            ? 'border-blue-500 ring-1 ring-blue-500'
-            : 'border-white/10 hover:border-blue-500/50'
-        )}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        onClick={e => {
-          if (onToggleSelection && (e.ctrlKey || e.metaKey || isSelected)) {
-            e.stopPropagation();
-            onToggleSelection(e);
-          } else if (generation.status === 'succeeded' || generation.status === 'failed') {
-            setShowPopup(true);
-          }
-        }}
-      >
+      <>
         <div
-          className="@container relative overflow-hidden rounded-t-xl bg-black/50"
-          style={{ aspectRatio: generation.aspectRatio?.replace(':', '/') || '16/9' }}
+          ref={setNodeRef}
+          style={style}
+          {...listeners}
+          {...attributes}
+          className={clsx(
+            'group @container relative cursor-pointer touch-none rounded-xl border bg-white/5 transition-all',
+            isSelected
+              ? 'border-blue-500 ring-1 ring-blue-500'
+              : 'border-white/10 hover:border-blue-500/50'
+          )}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          onClick={e => {
+            if (onToggleSelection && (e.ctrlKey || e.metaKey || isSelected)) {
+              e.stopPropagation();
+              onToggleSelection(e);
+            } else if (generation.status === 'succeeded' || generation.status === 'failed') {
+              setShowPopup(true);
+            }
+          }}
         >
-          {/* FULL WIDTH TOOLBAR: Inside image container with container-relative sizing */}
           <div
-            className={clsx(
-              'absolute z-20 flex items-center justify-between transition-opacity duration-200',
-              'top-[clamp(6px,2cqh,12px)] right-[clamp(6px,2cqw,12px)] left-[clamp(6px,2cqw,12px)]',
-              isHovered || isSelected || generation.isFavorite || showUpscaleMenu || showEnhanceMenu || showReshootMenu
-                ? 'opacity-100'
-                : 'opacity-0'
-            )}
+            className="@container relative overflow-hidden rounded-t-xl bg-black/50"
+            style={{ aspectRatio: generation.aspectRatio?.replace(':', '/') || '16/9' }}
           >
-            {/* LEFT: Selection Checkbox + Favorite Heart */}
-            <div className="flex items-center gap-[clamp(4px,1.2cqw,8px)]">
-              {onToggleSelection && (
-                <div
-                  onClick={e => {
-                    e.stopPropagation();
-                    onToggleSelection(e);
-                  }}
-                  className={clsx(
-                    'flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] cursor-pointer items-center justify-center rounded border-2 backdrop-blur-sm transition-colors',
-                    isSelected
-                      ? 'border-blue-500 bg-blue-500'
-                      : 'border-white/60 bg-black/40 hover:border-white hover:bg-black/60'
-                  )}
-                >
-                  {isSelected && <Check className="h-[60%] w-[60%] text-white" />}
-                </div>
+            {/* FULL WIDTH TOOLBAR: Inside image container with container-relative sizing */}
+            <div
+              className={clsx(
+                'absolute z-20 flex items-center justify-between transition-opacity duration-200',
+                'top-[clamp(6px,2cqh,12px)] right-[clamp(6px,2cqw,12px)] left-[clamp(6px,2cqw,12px)]',
+                isHovered ||
+                  isSelected ||
+                  generation.isFavorite ||
+                  showUpscaleMenu ||
+                  showEnhanceMenu ||
+                  showReshootMenu
+                  ? 'opacity-100'
+                  : 'opacity-0'
               )}
-              {generation.status === 'succeeded' && (
-                <button
-                  onClick={toggleFavorite}
-                  className={clsx(
-                    'flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded backdrop-blur-sm transition-colors',
-                    generation.isFavorite ? 'bg-red-500/80' : 'bg-black/40 hover:bg-red-500/50'
-                  )}
-                >
-                  <Heart
+            >
+              {/* LEFT: Selection Checkbox + Favorite Heart */}
+              <div className="flex items-center gap-[clamp(4px,1.2cqw,8px)]">
+                {onToggleSelection && (
+                  <div
+                    onClick={e => {
+                      e.stopPropagation();
+                      onToggleSelection(e);
+                    }}
                     className={clsx(
-                      'h-[60%] w-[60%]',
-                      generation.isFavorite ? 'fill-white text-white' : 'text-white'
+                      'flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] cursor-pointer items-center justify-center rounded border-2 backdrop-blur-sm transition-colors',
+                      isSelected
+                        ? 'border-blue-500 bg-blue-500'
+                        : 'border-white/60 bg-black/40 hover:border-white hover:bg-black/60'
                     )}
-                  />
-                </button>
-              )}
-            </div>
-
-            {/* RIGHT: Action Buttons */}
-            <div className="flex items-center gap-[clamp(4px,1.2cqw,8px)]">
-              {/* Fullscreen (Success only) */}
-              {generation.status === 'succeeded' && (
-                <Tooltip content="Fullscreen" side="top">
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      setShowPopup(true);
-                      setIsFullscreen(true);
-                    }}
-                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-white/20"
-                    aria-label="View fullscreen"
                   >
-                    <Maximize2 className="h-[60%] w-[60%] text-white" />
-                  </button>
-                </Tooltip>
-              )}
-
-              {/* Upscale (Success + Image only) - Radix Portal Dropdown */}
-              {generation.status === 'succeeded' && !isVideo && onUpscale && (
-                <DropdownMenu.Root open={showUpscaleMenu} onOpenChange={setShowUpscaleMenu}>
-                  <Tooltip content="Upscale" side="top">
-                    <DropdownMenu.Trigger asChild>
-                      <button
-                        onClick={e => e.stopPropagation()}
-                        onPointerDown={e => e.stopPropagation()}
-                        className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-green-600/80 backdrop-blur-sm transition-colors hover:bg-green-500"
-                        aria-label="Upscale image"
-                      >
-                        <ZoomIn className="h-[60%] w-[60%] text-white" />
-                      </button>
-                    </DropdownMenu.Trigger>
-                  </Tooltip>
-
-                  <AnimatePresence>
-                    {showUpscaleMenu && (
-                      <DropdownMenu.Portal forceMount>
-                        <DropdownMenu.Content
-                          asChild
-                          side="top"
-                          align="end"
-                          sideOffset={6}
-                          onClick={e => e.stopPropagation()}
-                        >
-                          <motion.div
-                            initial={{ opacity: 0, y: -5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -5 }}
-                            className="z-[9999] w-44 overflow-hidden rounded-lg border border-white/20 bg-[#1a1a1a] shadow-xl"
-                          >
-                            {UPSCALE_OPTIONS.map((option, idx) => (
-                              <DropdownMenu.Item key={option.id} asChild>
-                                <button
-                                  onClick={e => handleUpscale(e, option.id)}
-                                  className={clsx(
-                                    'w-full px-3 py-2 text-left transition-colors outline-none hover:bg-green-500/20',
-                                    idx < UPSCALE_OPTIONS.length - 1 && 'border-b border-white/5'
-                                  )}
-                                >
-                                  <div className="text-sm font-medium text-white">
-                                    {option.name}
-                                  </div>
-                                  <div className="text-[10px] text-gray-500">
-                                    {option.description}
-                                  </div>
-                                </button>
-                              </DropdownMenu.Item>
-                            ))}
-                          </motion.div>
-                        </DropdownMenu.Content>
-                      </DropdownMenu.Portal>
+                    {isSelected && <Check className="h-[60%] w-[60%] text-white" />}
+                  </div>
+                )}
+                {generation.status === 'succeeded' && (
+                  <button
+                    onClick={toggleFavorite}
+                    className={clsx(
+                      'flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded backdrop-blur-sm transition-colors',
+                      generation.isFavorite ? 'bg-red-500/80' : 'bg-black/40 hover:bg-red-500/50'
                     )}
-                  </AnimatePresence>
-                </DropdownMenu.Root>
-              )}
+                  >
+                    <Heart
+                      className={clsx(
+                        'h-[60%] w-[60%]',
+                        generation.isFavorite ? 'fill-white text-white' : 'text-white'
+                      )}
+                    />
+                  </button>
+                )}
+              </div>
 
-              {/* AI Reshoot (Success + Image only) - Qwen Image Edit */}
-              {generation.status === 'succeeded' && !isVideo && onReshoot && (
-                <DropdownMenu.Root open={showReshootMenu} onOpenChange={setShowReshootMenu}>
-                  <Tooltip content="AI Reshoot - Fix expression, gaze, pose" side="top">
-                    <DropdownMenu.Trigger asChild>
-                      <button
-                        onClick={e => e.stopPropagation()}
-                        onPointerDown={e => e.stopPropagation()}
-                        className={clsx(
-                          'flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded backdrop-blur-sm transition-colors',
-                          isReshooting
-                            ? 'bg-amber-500/80 animate-pulse'
-                            : 'bg-amber-600/80 hover:bg-amber-500'
-                        )}
-                        aria-label="AI Reshoot"
-                        disabled={isReshooting}
-                      >
-                        {isReshooting ? (
-                          <Loader2 className="h-[60%] w-[60%] text-white animate-spin" />
-                        ) : (
-                          <Clapperboard className="h-[60%] w-[60%] text-white" />
-                        )}
-                      </button>
-                    </DropdownMenu.Trigger>
+              {/* RIGHT: Action Buttons */}
+              <div className="flex items-center gap-[clamp(4px,1.2cqw,8px)]">
+                {/* Fullscreen (Success only) */}
+                {generation.status === 'succeeded' && (
+                  <Tooltip content="Fullscreen" side="top">
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        setShowPopup(true);
+                        setIsFullscreen(true);
+                      }}
+                      className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-white/20"
+                      aria-label="View fullscreen"
+                    >
+                      <Maximize2 className="h-[60%] w-[60%] text-white" />
+                    </button>
                   </Tooltip>
+                )}
 
-                  <AnimatePresence>
-                    {showReshootMenu && (
-                      <DropdownMenu.Portal forceMount>
-                        <DropdownMenu.Content
-                          asChild
-                          side="top"
-                          align="end"
-                          sideOffset={6}
+                {/* Upscale (Success + Image only) - Radix Portal Dropdown */}
+                {generation.status === 'succeeded' && !isVideo && onUpscale && (
+                  <DropdownMenu.Root open={showUpscaleMenu} onOpenChange={setShowUpscaleMenu}>
+                    <Tooltip content="Upscale" side="top">
+                      <DropdownMenu.Trigger asChild>
+                        <button
                           onClick={e => e.stopPropagation()}
+                          onPointerDown={e => e.stopPropagation()}
+                          className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-green-600/80 backdrop-blur-sm transition-colors hover:bg-green-500"
+                          aria-label="Upscale image"
                         >
-                          <motion.div
-                            initial={{ opacity: 0, y: -5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -5 }}
-                            className="z-[9999] w-64 overflow-hidden rounded-lg border border-white/20 bg-[#1a1a1a] p-3 shadow-xl"
-                          >
-                            <div className="mb-2 flex items-center gap-2">
-                              <Clapperboard className="h-4 w-4 text-amber-400" />
-                              <span className="text-sm font-medium text-white">AI Reshoot</span>
-                            </div>
-                            <p className="mb-2 text-[10px] text-gray-400">
-                              Fix expressions, gaze, or pose without regenerating the entire image.
-                            </p>
+                          <ZoomIn className="h-[60%] w-[60%] text-white" />
+                        </button>
+                      </DropdownMenu.Trigger>
+                    </Tooltip>
 
-                            {/* Quick presets */}
-                            <div className="mb-2 flex flex-wrap gap-1">
-                              {[
-                                'Look at camera',
-                                'Smile',
-                                'Close mouth',
-                                'Turn head left',
-                                'Eyes open',
-                              ].map(preset => (
-                                <button
-                                  key={preset}
-                                  onClick={() => setReshootInstruction(preset)}
-                                  className={clsx(
-                                    'rounded border px-1.5 py-0.5 text-[9px] transition-all',
-                                    reshootInstruction === preset
-                                      ? 'border-amber-500/50 bg-amber-500/20 text-amber-300'
-                                      : 'border-white/10 bg-white/5 text-gray-400 hover:border-white/20'
-                                  )}
-                                >
-                                  {preset}
-                                </button>
+                    <AnimatePresence>
+                      {showUpscaleMenu && (
+                        <DropdownMenu.Portal forceMount>
+                          <DropdownMenu.Content
+                            asChild
+                            side="top"
+                            align="end"
+                            sideOffset={6}
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <motion.div
+                              initial={{ opacity: 0, y: -5 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -5 }}
+                              className="z-[9999] w-44 overflow-hidden rounded-lg border border-white/20 bg-[#1a1a1a] shadow-xl"
+                            >
+                              {UPSCALE_OPTIONS.map((option, idx) => (
+                                <DropdownMenu.Item key={option.id} asChild>
+                                  <button
+                                    onClick={e => handleUpscale(e, option.id)}
+                                    className={clsx(
+                                      'w-full px-3 py-2 text-left transition-colors outline-none hover:bg-green-500/20',
+                                      idx < UPSCALE_OPTIONS.length - 1 && 'border-b border-white/5'
+                                    )}
+                                  >
+                                    <div className="text-sm font-medium text-white">
+                                      {option.name}
+                                    </div>
+                                    <div className="text-[10px] text-gray-500">
+                                      {option.description}
+                                    </div>
+                                  </button>
+                                </DropdownMenu.Item>
                               ))}
-                            </div>
+                            </motion.div>
+                          </DropdownMenu.Content>
+                        </DropdownMenu.Portal>
+                      )}
+                    </AnimatePresence>
+                  </DropdownMenu.Root>
+                )}
 
-                            {/* Custom instruction input */}
-                            <div className="flex gap-2">
-                              <input
-                                type="text"
-                                value={reshootInstruction}
-                                onChange={e => setReshootInstruction(e.target.value)}
-                                onKeyDown={e => {
-                                  if (e.key === 'Enter' && reshootInstruction.trim() && mediaUrl) {
-                                    e.preventDefault();
-                                    setIsReshooting(true);
-                                    onReshoot(mediaUrl, reshootInstruction.trim())
-                                      .then(() => {
-                                        toast.success('Reshoot complete!');
-                                        setReshootInstruction('');
-                                        setShowReshootMenu(false);
-                                      })
-                                      .catch(err => toast.error(err.message || 'Reshoot failed'))
-                                      .finally(() => setIsReshooting(false));
-                                  }
-                                }}
-                                placeholder="e.g., Make character smile..."
-                                className="flex-1 rounded border border-white/10 bg-black/50 px-2 py-1.5 text-xs text-white placeholder-gray-500 outline-none focus:border-amber-500/50"
-                              />
-                              <button
-                                onClick={() => {
-                                  if (reshootInstruction.trim() && mediaUrl) {
-                                    setIsReshooting(true);
-                                    onReshoot(mediaUrl, reshootInstruction.trim())
-                                      .then(() => {
-                                        toast.success('Reshoot complete!');
-                                        setReshootInstruction('');
-                                        setShowReshootMenu(false);
-                                      })
-                                      .catch(err => toast.error(err.message || 'Reshoot failed'))
-                                      .finally(() => setIsReshooting(false));
-                                  }
-                                }}
-                                disabled={!reshootInstruction.trim() || isReshooting}
-                                className={clsx(
-                                  'rounded px-2 py-1.5 transition-all',
-                                  reshootInstruction.trim() && !isReshooting
-                                    ? 'bg-amber-500 text-white hover:bg-amber-400'
-                                    : 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                                )}
-                              >
-                                {isReshooting ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <Send className="h-3.5 w-3.5" />
-                                )}
-                              </button>
-                            </div>
-                          </motion.div>
-                        </DropdownMenu.Content>
-                      </DropdownMenu.Portal>
-                    )}
-                  </AnimatePresence>
-                </DropdownMenu.Root>
-              )}
-
-              {/* Animate (Success + Image only) */}
-              {generation.status === 'succeeded' && !isVideo && onAnimate && (
-                <Tooltip content="Animate" side="top">
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      if (mediaUrl) onAnimate(mediaUrl);
-                    }}
-                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-purple-600/80 backdrop-blur-sm transition-colors hover:bg-purple-500"
-                    aria-label="Animate image"
-                  >
-                    <Play className="h-[60%] w-[60%] fill-current text-white" />
-                  </button>
-                </Tooltip>
-              )}
-
-              {/* Find Similar Composition (Success + Image only) */}
-              {generation.status === 'succeeded' && !isVideo && onFindSimilarComposition && (
-                <Tooltip content="Find Similar Composition" side="top">
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      onFindSimilarComposition(generation.id);
-                    }}
-                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-purple-500/50"
-                    aria-label="Find images with similar framing and composition"
-                  >
-                    <Layers className="h-[60%] w-[60%] text-white" />
-                  </button>
-                </Tooltip>
-              )}
-
-              {/* Find Similar Lighting (Success + Image only) */}
-              {generation.status === 'succeeded' && !isVideo && onFindSimilarLighting && (
-                <Tooltip content="Find Similar Lighting" side="top">
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      onFindSimilarLighting(generation.id);
-                    }}
-                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-amber-500/50"
-                    aria-label="Find images with similar lighting setup"
-                  >
-                    <Sun className="h-[60%] w-[60%] text-white" />
-                  </button>
-                </Tooltip>
-              )}
-
-              {/* Find Similar Visual (CLIP Vector - Success + Image only) */}
-              {generation.status === 'succeeded' && !isVideo && onFindSimilarVisual && (
-                <Tooltip content="Find Similar (AI Vision)" side="top">
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      onFindSimilarVisual(generation.id);
-                    }}
-                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-cyan-500/50"
-                    aria-label="Find visually similar images using AI"
-                  >
-                    <Eye className="h-[60%] w-[60%] text-white" />
-                  </button>
-                </Tooltip>
-              )}
-
-              {/* Enhance Video Menu (Success + Video only) - Radix Portal Dropdown */}
-              {generation.status === 'succeeded' && isVideo && onEnhanceVideo && (
-                <DropdownMenu.Root open={showEnhanceMenu} onOpenChange={setShowEnhanceMenu}>
-                  <Tooltip content="Enhance video" side="top">
-                    <DropdownMenu.Trigger asChild>
-                      <button
-                        onClick={e => e.stopPropagation()}
-                        onPointerDown={e => e.stopPropagation()}
-                        className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-gradient-to-r from-purple-600/80 to-pink-600/80 backdrop-blur-sm transition-colors hover:from-purple-500 hover:to-pink-500 focus:ring-2 focus:ring-purple-400 focus:outline-none"
-                        aria-label="Enhance video options"
-                      >
-                        <Wand2 className="h-[60%] w-[60%] text-white" />
-                      </button>
-                    </DropdownMenu.Trigger>
-                  </Tooltip>
-
-                  <AnimatePresence>
-                    {showEnhanceMenu && (
-                      <DropdownMenu.Portal forceMount>
-                        <DropdownMenu.Content
-                          asChild
-                          side="top"
-                          align="end"
-                          sideOffset={8}
+                {/* AI Reshoot (Success + Image only) - Qwen Image Edit */}
+                {generation.status === 'succeeded' && !isVideo && onReshoot && (
+                  <DropdownMenu.Root open={showReshootMenu} onOpenChange={setShowReshootMenu}>
+                    <Tooltip content="AI Reshoot - Fix expression, gaze, pose" side="top">
+                      <DropdownMenu.Trigger asChild>
+                        <button
                           onClick={e => e.stopPropagation()}
+                          onPointerDown={e => e.stopPropagation()}
+                          className={clsx(
+                            'flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded backdrop-blur-sm transition-colors',
+                            isReshooting
+                              ? 'animate-pulse bg-amber-500/80'
+                              : 'bg-amber-600/80 hover:bg-amber-500'
+                          )}
+                          aria-label="AI Reshoot"
+                          disabled={isReshooting}
                         >
-                          <motion.div
-                            initial={{ opacity: 0, y: 5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 5 }}
-                            className="z-[9999] min-w-[180px] overflow-hidden rounded-lg border border-gray-700 bg-gray-900 shadow-xl"
+                          {isReshooting ? (
+                            <Loader2 className="h-[60%] w-[60%] animate-spin text-white" />
+                          ) : (
+                            <Clapperboard className="h-[60%] w-[60%] text-white" />
+                          )}
+                        </button>
+                      </DropdownMenu.Trigger>
+                    </Tooltip>
+
+                    <AnimatePresence>
+                      {showReshootMenu && (
+                        <DropdownMenu.Portal forceMount>
+                          <DropdownMenu.Content
+                            asChild
+                            side="top"
+                            align="end"
+                            sideOffset={6}
+                            onClick={e => e.stopPropagation()}
                           >
-                            {ENHANCE_ITEMS.map((item, idx) => (
-                              <DropdownMenu.Item key={item.mode} asChild>
-                                <button
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    onEnhanceVideo(generation.id, item.mode);
-                                    setShowEnhanceMenu(false);
+                            <motion.div
+                              initial={{ opacity: 0, y: -5 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -5 }}
+                              className="z-[9999] w-64 overflow-hidden rounded-lg border border-white/20 bg-[#1a1a1a] p-3 shadow-xl"
+                            >
+                              <div className="mb-2 flex items-center gap-2">
+                                <Clapperboard className="h-4 w-4 text-amber-400" />
+                                <span className="text-sm font-medium text-white">AI Reshoot</span>
+                              </div>
+                              <p className="mb-2 text-[10px] text-gray-400">
+                                Fix expressions, gaze, or pose without regenerating the entire
+                                image.
+                              </p>
+
+                              {/* Quick presets */}
+                              <div className="mb-2 flex flex-wrap gap-1">
+                                {[
+                                  'Look at camera',
+                                  'Smile',
+                                  'Close mouth',
+                                  'Turn head left',
+                                  'Eyes open',
+                                ].map(preset => (
+                                  <button
+                                    key={preset}
+                                    onClick={() => setReshootInstruction(preset)}
+                                    className={clsx(
+                                      'rounded border px-1.5 py-0.5 text-[9px] transition-all',
+                                      reshootInstruction === preset
+                                        ? 'border-amber-500/50 bg-amber-500/20 text-amber-300'
+                                        : 'border-white/10 bg-white/5 text-gray-400 hover:border-white/20'
+                                    )}
+                                  >
+                                    {preset}
+                                  </button>
+                                ))}
+                              </div>
+
+                              {/* Custom instruction input */}
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={reshootInstruction}
+                                  onChange={e => setReshootInstruction(e.target.value)}
+                                  onKeyDown={e => {
+                                    if (
+                                      e.key === 'Enter' &&
+                                      reshootInstruction.trim() &&
+                                      mediaUrl
+                                    ) {
+                                      e.preventDefault();
+                                      setIsReshooting(true);
+                                      onReshoot(mediaUrl, reshootInstruction.trim())
+                                        .then(() => {
+                                          toast.success('Reshoot complete!');
+                                          setReshootInstruction('');
+                                          setShowReshootMenu(false);
+                                        })
+                                        .catch(err => toast.error(err.message || 'Reshoot failed'))
+                                        .finally(() => setIsReshooting(false));
+                                    }
                                   }}
+                                  placeholder="e.g., Make character smile..."
+                                  className="flex-1 rounded border border-white/10 bg-black/50 px-2 py-1.5 text-xs text-white placeholder-gray-500 outline-none focus:border-amber-500/50"
+                                />
+                                <button
+                                  onClick={() => {
+                                    if (reshootInstruction.trim() && mediaUrl) {
+                                      setIsReshooting(true);
+                                      onReshoot(mediaUrl, reshootInstruction.trim())
+                                        .then(() => {
+                                          toast.success('Reshoot complete!');
+                                          setReshootInstruction('');
+                                          setShowReshootMenu(false);
+                                        })
+                                        .catch(err => toast.error(err.message || 'Reshoot failed'))
+                                        .finally(() => setIsReshooting(false));
+                                    }
+                                  }}
+                                  disabled={!reshootInstruction.trim() || isReshooting}
                                   className={clsx(
-                                    'flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-white outline-none hover:bg-purple-600/50',
-                                    idx < ENHANCE_ITEMS.length - 1 && 'border-b border-gray-700'
+                                    'rounded px-2 py-1.5 transition-all',
+                                    reshootInstruction.trim() && !isReshooting
+                                      ? 'bg-amber-500 text-white hover:bg-amber-400'
+                                      : 'cursor-not-allowed bg-gray-700 text-gray-500'
                                   )}
                                 >
-                                  <span className="text-lg">{item.emoji}</span>
-                                  <div>
-                                    <div className="font-medium">{item.title}</div>
-                                    <div className="text-xs text-gray-400">{item.description}</div>
-                                  </div>
+                                  {isReshooting ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Send className="h-3.5 w-3.5" />
+                                  )}
                                 </button>
-                              </DropdownMenu.Item>
-                            ))}
-                          </motion.div>
-                        </DropdownMenu.Content>
-                      </DropdownMenu.Portal>
-                    )}
-                  </AnimatePresence>
-                </DropdownMenu.Root>
-              )}
+                              </div>
+                            </motion.div>
+                          </DropdownMenu.Content>
+                        </DropdownMenu.Portal>
+                      )}
+                    </AnimatePresence>
+                  </DropdownMenu.Root>
+                )}
 
-              {/* Roto & Paint (Success + Image only) */}
-              {generation.status === 'succeeded' && !isVideo && mediaUrl && (
-                <Tooltip content="Roto & Paint" side="top">
+                {/* Animate (Success + Image only) */}
+                {generation.status === 'succeeded' && !isVideo && onAnimate && (
+                  <Tooltip content="Animate" side="top">
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        if (mediaUrl) onAnimate(mediaUrl);
+                      }}
+                      className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-purple-600/80 backdrop-blur-sm transition-colors hover:bg-purple-500"
+                      aria-label="Animate image"
+                    >
+                      <Play className="h-[60%] w-[60%] fill-current text-white" />
+                    </button>
+                  </Tooltip>
+                )}
+
+                {/* Find Similar Composition (Success + Image only) */}
+                {generation.status === 'succeeded' && !isVideo && onFindSimilarComposition && (
+                  <Tooltip content="Find Similar Composition" side="top">
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        onFindSimilarComposition(generation.id);
+                      }}
+                      className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-purple-500/50"
+                      aria-label="Find images with similar framing and composition"
+                    >
+                      <Layers className="h-[60%] w-[60%] text-white" />
+                    </button>
+                  </Tooltip>
+                )}
+
+                {/* Find Similar Lighting (Success + Image only) */}
+                {generation.status === 'succeeded' && !isVideo && onFindSimilarLighting && (
+                  <Tooltip content="Find Similar Lighting" side="top">
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        onFindSimilarLighting(generation.id);
+                      }}
+                      className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-amber-500/50"
+                      aria-label="Find images with similar lighting setup"
+                    >
+                      <Sun className="h-[60%] w-[60%] text-white" />
+                    </button>
+                  </Tooltip>
+                )}
+
+                {/* Find Similar Visual (CLIP Vector - Success + Image only) */}
+                {generation.status === 'succeeded' && !isVideo && onFindSimilarVisual && (
+                  <Tooltip content="Find Similar (AI Vision)" side="top">
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        onFindSimilarVisual(generation.id);
+                      }}
+                      className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-cyan-500/50"
+                      aria-label="Find visually similar images using AI"
+                    >
+                      <Eye className="h-[60%] w-[60%] text-white" />
+                    </button>
+                  </Tooltip>
+                )}
+
+                {/* Enhance Video Menu (Success + Video only) - Radix Portal Dropdown */}
+                {generation.status === 'succeeded' && isVideo && onEnhanceVideo && (
+                  <DropdownMenu.Root open={showEnhanceMenu} onOpenChange={setShowEnhanceMenu}>
+                    <Tooltip content="Enhance video" side="top">
+                      <DropdownMenu.Trigger asChild>
+                        <button
+                          onClick={e => e.stopPropagation()}
+                          onPointerDown={e => e.stopPropagation()}
+                          className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-gradient-to-r from-purple-600/80 to-pink-600/80 backdrop-blur-sm transition-colors hover:from-purple-500 hover:to-pink-500 focus:ring-2 focus:ring-purple-400 focus:outline-none"
+                          aria-label="Enhance video options"
+                        >
+                          <Wand2 className="h-[60%] w-[60%] text-white" />
+                        </button>
+                      </DropdownMenu.Trigger>
+                    </Tooltip>
+
+                    <AnimatePresence>
+                      {showEnhanceMenu && (
+                        <DropdownMenu.Portal forceMount>
+                          <DropdownMenu.Content
+                            asChild
+                            side="top"
+                            align="end"
+                            sideOffset={8}
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <motion.div
+                              initial={{ opacity: 0, y: 5 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: 5 }}
+                              className="z-[9999] min-w-[180px] overflow-hidden rounded-lg border border-gray-700 bg-gray-900 shadow-xl"
+                            >
+                              {ENHANCE_ITEMS.map((item, idx) => (
+                                <DropdownMenu.Item key={item.mode} asChild>
+                                  <button
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      onEnhanceVideo(generation.id, item.mode);
+                                      setShowEnhanceMenu(false);
+                                    }}
+                                    className={clsx(
+                                      'flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-white outline-none hover:bg-purple-600/50',
+                                      idx < ENHANCE_ITEMS.length - 1 && 'border-b border-gray-700'
+                                    )}
+                                  >
+                                    <span className="text-lg">{item.emoji}</span>
+                                    <div>
+                                      <div className="font-medium">{item.title}</div>
+                                      <div className="text-xs text-gray-400">
+                                        {item.description}
+                                      </div>
+                                    </div>
+                                  </button>
+                                </DropdownMenu.Item>
+                              ))}
+                            </motion.div>
+                          </DropdownMenu.Content>
+                        </DropdownMenu.Portal>
+                      )}
+                    </AnimatePresence>
+                  </DropdownMenu.Root>
+                )}
+
+                {/* Roto & Paint (Success + Image only) */}
+                {generation.status === 'succeeded' && !isVideo && mediaUrl && (
+                  <Tooltip content="Roto & Paint" side="top">
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        // Encode the URL for safe passing via query params
+                        const encodedUrl = encodeURIComponent(mediaUrl);
+                        router.push(
+                          `/projects/${generation.projectId}/process?url=${encodedUrl}&tool=eraser`
+                        );
+                      }}
+                      className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-orange-600/80 backdrop-blur-sm transition-colors hover:bg-orange-500"
+                      aria-label="Edit in Roto & Paint"
+                    >
+                      <Paintbrush className="h-[60%] w-[60%] text-white" />
+                    </button>
+                  </Tooltip>
+                )}
+
+                {/* Set Extension / Outpaint (Success + Image only) */}
+                {generation.status === 'succeeded' && !isVideo && mediaUrl && (
+                  <Tooltip content="Set Extension" side="top">
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        const encodedUrl = encodeURIComponent(mediaUrl);
+                        router.push(
+                          `/projects/${generation.projectId}/process?url=${encodedUrl}&tool=extend`
+                        );
+                      }}
+                      className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-teal-600/80 backdrop-blur-sm transition-colors hover:bg-teal-500"
+                      aria-label="Extend image (Infinite Canvas)"
+                    >
+                      <Expand className="h-[60%] w-[60%] text-white" />
+                    </button>
+                  </Tooltip>
+                )}
+
+                {/* Rotoscope (Success + Video only) */}
+                {generation.status === 'succeeded' && isVideo && mediaUrl && (
+                  <Tooltip content="Rotoscope" side="top">
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        const encodedUrl = encodeURIComponent(mediaUrl);
+                        router.push(
+                          `/projects/${generation.projectId}/process?video=${encodedUrl}&tool=rotoscope`
+                        );
+                      }}
+                      className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-cyan-600/80 backdrop-blur-sm transition-colors hover:bg-cyan-500"
+                      aria-label="Edit in Rotoscope"
+                    >
+                      <Film className="h-[60%] w-[60%] text-white" />
+                    </button>
+                  </Tooltip>
+                )}
+
+                {/* Save as Element (Success only) */}
+                {generation.status === 'succeeded' && onSaveAsElement && (
+                  <Tooltip content="Save as Element" side="top">
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        if (mediaUrl) onSaveAsElement(mediaUrl, isVideo ? 'video' : 'image');
+                      }}
+                      className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-blue-500/50"
+                      aria-label="Save as Element"
+                    >
+                      <FilePlus className="h-[60%] w-[60%] text-white" />
+                    </button>
+                  </Tooltip>
+                )}
+
+                {/* Download (Success only) */}
+                {generation.status === 'succeeded' && (
+                  <Tooltip content="Download" side="top">
+                    <button
+                      onClick={handleDownload}
+                      className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-white/20"
+                      aria-label="Download media"
+                    >
+                      <Download className="h-[60%] w-[60%] text-white" />
+                    </button>
+                  </Tooltip>
+                )}
+
+                {/* Delete (ALWAYS VISIBLE) */}
+                <Tooltip content="Delete" side="top">
                   <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      // Encode the URL for safe passing via query params
-                      const encodedUrl = encodeURIComponent(mediaUrl);
-                      router.push(
-                        `/projects/${generation.projectId}/process?url=${encodedUrl}&tool=eraser`
-                      );
-                    }}
-                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-orange-600/80 backdrop-blur-sm transition-colors hover:bg-orange-500"
-                    aria-label="Edit in Roto & Paint"
+                    onClick={handleDelete}
+                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-red-500/50"
+                    aria-label="Delete generation"
                   >
-                    <Paintbrush className="h-[60%] w-[60%] text-white" />
+                    <Trash2 className="h-[60%] w-[60%] text-red-400" />
                   </button>
                 </Tooltip>
-              )}
-
-              {/* Set Extension / Outpaint (Success + Image only) */}
-              {generation.status === 'succeeded' && !isVideo && mediaUrl && (
-                <Tooltip content="Set Extension" side="top">
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      const encodedUrl = encodeURIComponent(mediaUrl);
-                      router.push(
-                        `/projects/${generation.projectId}/process?url=${encodedUrl}&tool=extend`
-                      );
-                    }}
-                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-teal-600/80 backdrop-blur-sm transition-colors hover:bg-teal-500"
-                    aria-label="Extend image (Infinite Canvas)"
-                  >
-                    <Expand className="h-[60%] w-[60%] text-white" />
-                  </button>
-                </Tooltip>
-              )}
-
-              {/* Rotoscope (Success + Video only) */}
-              {generation.status === 'succeeded' && isVideo && mediaUrl && (
-                <Tooltip content="Rotoscope" side="top">
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      const encodedUrl = encodeURIComponent(mediaUrl);
-                      router.push(
-                        `/projects/${generation.projectId}/process?video=${encodedUrl}&tool=rotoscope`
-                      );
-                    }}
-                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-cyan-600/80 backdrop-blur-sm transition-colors hover:bg-cyan-500"
-                    aria-label="Edit in Rotoscope"
-                  >
-                    <Film className="h-[60%] w-[60%] text-white" />
-                  </button>
-                </Tooltip>
-              )}
-
-              {/* Save as Element (Success only) */}
-              {generation.status === 'succeeded' && onSaveAsElement && (
-                <Tooltip content="Save as Element" side="top">
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      if (mediaUrl) onSaveAsElement(mediaUrl, isVideo ? 'video' : 'image');
-                    }}
-                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-blue-500/50"
-                    aria-label="Save as Element"
-                  >
-                    <FilePlus className="h-[60%] w-[60%] text-white" />
-                  </button>
-                </Tooltip>
-              )}
-
-              {/* Download (Success only) */}
-              {generation.status === 'succeeded' && (
-                <Tooltip content="Download" side="top">
-                  <button
-                    onClick={handleDownload}
-                    className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-white/20"
-                    aria-label="Download media"
-                  >
-                    <Download className="h-[60%] w-[60%] text-white" />
-                  </button>
-                </Tooltip>
-              )}
-
-              {/* Delete (ALWAYS VISIBLE) */}
-              <Tooltip content="Delete" side="top">
-                <button
-                  onClick={handleDelete}
-                  className="flex h-[clamp(24px,8cqw,36px)] w-[clamp(24px,8cqw,36px)] items-center justify-center rounded bg-black/50 backdrop-blur-sm transition-colors hover:bg-red-500/50"
-                  aria-label="Delete generation"
-                >
-                  <Trash2 className="h-[60%] w-[60%] text-red-400" />
-                </button>
-              </Tooltip>
+              </div>
             </div>
-          </div>
 
-          {/* Media content */}
-          {generation.status === 'succeeded' && mediaUrl ? (
-            isVideo ? (
-              <div
-                ref={videoContainerRef}
-                className="relative h-full w-full"
-                onMouseMove={handleVideoScrub}
-              >
-                <video
-                  ref={videoRef}
+            {/* Media content */}
+            {generation.status === 'succeeded' && mediaUrl ? (
+              isVideo ? (
+                <div
+                  ref={videoContainerRef}
+                  className="relative h-full w-full"
+                  onMouseMove={handleVideoScrub}
+                >
+                  <video
+                    ref={videoRef}
+                    src={mediaUrl}
+                    className="h-full w-full object-cover"
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                    onContextMenu={e => e.stopPropagation()}
+                    onPointerDown={e => {
+                      // Stop propagation for right click (button 2) to prevent dnd-kit from grabbing it
+                      if (e.button === 2) {
+                        e.stopPropagation();
+                      }
+                    }}
+                  />
+                  {/* Hover-Scrub Indicator */}
+                  {isHovered && (
+                    <>
+                      {/* Scrub position line */}
+                      <div
+                        className="pointer-events-none absolute top-0 bottom-0 z-10 w-0.5 bg-white/80 transition-transform duration-75"
+                        style={{ left: `${scrubPosition * 100}%` }}
+                      />
+                      {/* Progress bar at bottom */}
+                      <div className="pointer-events-none absolute right-0 bottom-0 left-0 z-10 h-1 bg-black/50">
+                        <div
+                          className="h-full bg-blue-500 transition-all duration-75"
+                          style={{ width: `${scrubPosition * 100}%` }}
+                        />
+                      </div>
+                      {/* Film strip icon indicator */}
+                      <div className="pointer-events-none absolute right-2 bottom-2 z-10 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white/70 backdrop-blur-sm">
+                        <Film className="h-3 w-3" />
+                        <span>Scrub</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <img
                   src={mediaUrl}
                   className="h-full w-full object-cover"
-                  muted
-                  loop
-                  playsInline
-                  preload="metadata"
+                  loading="lazy"
                   onContextMenu={e => e.stopPropagation()}
                   onPointerDown={e => {
                     // Stop propagation for right click (button 2) to prevent dnd-kit from grabbing it
@@ -1400,834 +1448,820 @@ export function GenerationCard({
                     }
                   }}
                 />
-                {/* Hover-Scrub Indicator */}
-                {isHovered && (
-                  <>
-                    {/* Scrub position line */}
-                    <div
-                      className="pointer-events-none absolute top-0 bottom-0 z-10 w-0.5 bg-white/80 transition-transform duration-75"
-                      style={{ left: `${scrubPosition * 100}%` }}
-                    />
-                    {/* Progress bar at bottom */}
-                    <div className="pointer-events-none absolute right-0 bottom-0 left-0 z-10 h-1 bg-black/50">
-                      <div
-                        className="h-full bg-blue-500 transition-all duration-75"
-                        style={{ width: `${scrubPosition * 100}%` }}
-                      />
-                    </div>
-                    {/* Film strip icon indicator */}
-                    <div className="pointer-events-none absolute right-2 bottom-2 z-10 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white/70 backdrop-blur-sm">
-                      <Film className="h-3 w-3" />
-                      <span>Scrub</span>
-                    </div>
-                  </>
-                )}
-              </div>
+              )
             ) : (
-              <img
-                src={mediaUrl}
-                className="h-full w-full object-cover"
-                loading="lazy"
-                onContextMenu={e => e.stopPropagation()}
-                onPointerDown={e => {
-                  // Stop propagation for right click (button 2) to prevent dnd-kit from grabbing it
-                  if (e.button === 2) {
-                    e.stopPropagation();
-                  }
-                }}
-              />
-            )
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center">
-              {generation.status === 'queued' || generation.status === 'running' ? (
-                /* Proxy Placeholder - Enhanced loading state */
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-800/50 to-zinc-900">
-                  {/* Animated background effect for slow video models */}
-                  {estimatedTime.isSlow && (
-                    <div className="pointer-events-none absolute inset-0 overflow-hidden">
-                      <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-transparent via-blue-500/5 to-transparent" />
-                      <div
-                        className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/3 to-transparent"
-                        style={{
-                          animation: 'shimmer 2s infinite',
-                          left: '-33%',
-                        }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Main spinner */}
-                  <div className="relative">
-                    <Loader2
-                      className={clsx(
-                        'animate-spin',
-                        estimatedTime.isSlow ? 'h-10 w-10 text-purple-400' : 'h-8 w-8 text-blue-500'
-                      )}
-                    />
-                    {estimatedTime.isVideo && (
-                      <Film className="absolute -right-1 -bottom-1 h-4 w-4 text-purple-300" />
-                    )}
-                  </div>
-
-                  {/* Status and time info */}
-                  <div className="mt-3 flex flex-col items-center gap-1">
-                    <span className="text-xs font-medium text-white/80 capitalize">
-                      {generation.status === 'queued' ? 'In Queue' : 'Generating'}
-                    </span>
-
-                    {/* Model name badge */}
-                    {modelId && (
-                      <span className="max-w-[120px] truncate text-[10px] text-gray-500">
-                        {modelId.split('/').pop()?.split('-').slice(0, 2).join('-')}
-                      </span>
-                    )}
-
-                    {/* Time display */}
-                    <div className="mt-1 flex items-center gap-1.5">
-                      <Clock className="h-3 w-3 text-gray-500" />
-                      <span className="text-[10px] text-gray-400">
-                        {elapsedDisplay} / {estimatedTime.label}
-                      </span>
-                    </div>
-
-                    {/* Slow model warning */}
-                    {estimatedTime.isSlow && elapsedSeconds > 60 && (
-                      <div className="mt-1 flex items-center gap-1 text-[9px] text-amber-400/70">
-                        <Zap className="h-2.5 w-2.5" />
-                        <span>Premium model - please wait</span>
+              <div className="absolute inset-0 flex items-center justify-center">
+                {generation.status === 'queued' || generation.status === 'running' ? (
+                  /* Proxy Placeholder - Enhanced loading state */
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-800/50 to-zinc-900">
+                    {/* Animated background effect for slow video models */}
+                    {estimatedTime.isSlow && (
+                      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                        <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-transparent via-blue-500/5 to-transparent" />
+                        <div
+                          className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/3 to-transparent"
+                          style={{
+                            animation: 'shimmer 2s infinite',
+                            left: '-33%',
+                          }}
+                        />
                       </div>
                     )}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2 px-4 text-center">
-                  <span className="font-medium text-red-500">Failed</span>
-                  {generation.failureReason && (
-                    <span className="line-clamp-3 text-[10px] leading-tight text-red-400/80">
-                      {generation.failureReason}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
 
-          {/* Status Badge */}
-          <AnimatePresence>
-            {showStatus && generation.status !== 'failed' && generation.status !== 'succeeded' && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="pointer-events-none absolute bottom-2 left-2 z-10 rounded bg-black/60 px-2 py-1 text-xs text-white capitalize backdrop-blur-md"
-              >
-                {generation.status}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <div className="p-3">
-          <p className="line-clamp-2 text-sm text-gray-300">{generation.inputPrompt}</p>
-          <div className="mt-2 text-xs text-gray-500">
-            {new Date(generation.createdAt).toLocaleTimeString()}
-          </div>
-        </div>
-
-        {/* Delete Confirmation */}
-        {showDeleteConfirm && (
-          <div
-            className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/90 p-4 text-center"
-            onClick={e => e.stopPropagation()}
-          >
-            <p className="mb-3 text-sm font-medium text-white">Delete this generation?</p>
-            <div className="flex gap-2">
-              <button
-                onClick={e => {
-                  e.stopPropagation();
-                  setShowDeleteConfirm(false);
-                }}
-                className="rounded bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/20"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="rounded bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-500"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Popup Modal */}
-      <AnimatePresence>
-        {showPopup && (
-          <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md"
-            onClick={() => {
-              setShowPopup(false);
-              setIsFullscreen(false);
-            }}
-          >
-            {(() => {
-              // Determine if vertical layout is needed
-              const isVertical = generation.aspectRatio
-                ? generation.aspectRatio.includes(':')
-                  ? parseInt(generation.aspectRatio.split(':')[1]) >
-                    parseInt(generation.aspectRatio.split(':')[0])
-                  : generation.aspectRatio.startsWith('portrait') ||
-                    generation.aspectRatio === '9:16'
-                : false;
-
-              return (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className={`relative flex w-full overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl ${
-                    isVertical ? 'h-[85vh] max-w-7xl flex-row' : 'max-h-[90vh] max-w-5xl flex-col'
-                  }`}
-                  onClick={e => e.stopPropagation()}
-                >
-                  {/* Top buttons row */}
-                  <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-                    <Tooltip content={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} side="top">
-                      <button
-                        onClick={() => setIsFullscreen(!isFullscreen)}
-                        className="rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-white/20"
-                      >
-                        <Maximize2 className="h-5 w-5" />
-                      </button>
-                    </Tooltip>
-                    <Tooltip content="Close" side="top">
-                      <button
-                        onClick={() => {
-                          setShowPopup(false);
-                          setIsFullscreen(false);
-                        }}
-                        className="rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-white/20"
-                      >
-                        <X className="h-6 w-6" />
-                      </button>
-                    </Tooltip>
-                  </div>
-
-                  {/* Fullscreen mode - just show the image/video */}
-                  {isFullscreen ? (
-                    <div
-                      className="flex h-full w-full items-center justify-center bg-black"
-                      onClick={() => setIsFullscreen(false)}
-                    >
-                      {isVideo ? (
-                        <video
-                          src={mediaUrl}
-                          controls
-                          autoPlay
-                          className="max-h-full max-w-full object-contain"
-                        />
-                      ) : (
-                        <img src={mediaUrl} className="max-h-full max-w-full object-contain" />
+                    {/* Main spinner */}
+                    <div className="relative">
+                      <Loader2
+                        className={clsx(
+                          'animate-spin',
+                          estimatedTime.isSlow
+                            ? 'h-10 w-10 text-purple-400'
+                            : 'h-8 w-8 text-blue-500'
+                        )}
+                      />
+                      {estimatedTime.isVideo && (
+                        <Film className="absolute -right-1 -bottom-1 h-4 w-4 text-purple-300" />
                       )}
                     </div>
-                  ) : (
-                    <>
+
+                    {/* Status and time info */}
+                    <div className="mt-3 flex flex-col items-center gap-1">
+                      <span className="text-xs font-medium text-white/80 capitalize">
+                        {generation.status === 'queued' ? 'In Queue' : 'Generating'}
+                      </span>
+
+                      {/* Model name badge */}
+                      {modelId && (
+                        <span className="max-w-[120px] truncate text-[10px] text-gray-500">
+                          {modelId.split('/').pop()?.split('-').slice(0, 2).join('-')}
+                        </span>
+                      )}
+
+                      {/* Time display */}
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <Clock className="h-3 w-3 text-gray-500" />
+                        <span className="text-[10px] text-gray-400">
+                          {elapsedDisplay} / {estimatedTime.label}
+                        </span>
+                      </div>
+
+                      {/* Slow model warning */}
+                      {estimatedTime.isSlow && elapsedSeconds > 60 && (
+                        <div className="mt-1 flex items-center gap-1 text-[9px] text-amber-400/70">
+                          <Zap className="h-2.5 w-2.5" />
+                          <span>Premium model - please wait</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2 px-4 text-center">
+                    <span className="font-medium text-red-500">Failed</span>
+                    {generation.failureReason && (
+                      <span className="line-clamp-3 text-[10px] leading-tight text-red-400/80">
+                        {generation.failureReason}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Status Badge */}
+            <AnimatePresence>
+              {showStatus &&
+                generation.status !== 'failed' &&
+                generation.status !== 'succeeded' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="pointer-events-none absolute bottom-2 left-2 z-10 rounded bg-black/60 px-2 py-1 text-xs text-white capitalize backdrop-blur-md"
+                  >
+                    {generation.status}
+                  </motion.div>
+                )}
+            </AnimatePresence>
+          </div>
+
+          <div className="p-3">
+            <p className="line-clamp-2 text-sm text-gray-300">{generation.inputPrompt}</p>
+            <div className="mt-2 text-xs text-gray-500">
+              {new Date(generation.createdAt).toLocaleTimeString()}
+            </div>
+          </div>
+
+          {/* Delete Confirmation */}
+          {showDeleteConfirm && (
+            <div
+              className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/90 p-4 text-center"
+              onClick={e => e.stopPropagation()}
+            >
+              <p className="mb-3 text-sm font-medium text-white">Delete this generation?</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={e => {
+                    e.stopPropagation();
+                    setShowDeleteConfirm(false);
+                  }}
+                  className="rounded bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/20"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="rounded bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-500"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Popup Modal */}
+        <AnimatePresence>
+          {showPopup && (
+            <div
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md"
+              onClick={() => {
+                setShowPopup(false);
+                setIsFullscreen(false);
+              }}
+            >
+              {(() => {
+                // Determine if vertical layout is needed
+                const isVertical = generation.aspectRatio
+                  ? generation.aspectRatio.includes(':')
+                    ? parseInt(generation.aspectRatio.split(':')[1]) >
+                      parseInt(generation.aspectRatio.split(':')[0])
+                    : generation.aspectRatio.startsWith('portrait') ||
+                      generation.aspectRatio === '9:16'
+                  : false;
+
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className={`relative flex w-full overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl ${
+                      isVertical ? 'h-[85vh] max-w-7xl flex-row' : 'max-h-[90vh] max-w-5xl flex-col'
+                    }`}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {/* Top buttons row */}
+                    <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+                      <Tooltip content={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} side="top">
+                        <button
+                          onClick={() => setIsFullscreen(!isFullscreen)}
+                          className="rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-white/20"
+                        >
+                          <Maximize2 className="h-5 w-5" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Close" side="top">
+                        <button
+                          onClick={() => {
+                            setShowPopup(false);
+                            setIsFullscreen(false);
+                          }}
+                          className="rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-white/20"
+                        >
+                          <X className="h-6 w-6" />
+                        </button>
+                      </Tooltip>
+                    </div>
+
+                    {/* Fullscreen mode - just show the image/video */}
+                    {isFullscreen ? (
                       <div
-                        className={`flex items-center justify-center overflow-hidden bg-black ${
-                          isVertical ? 'h-full w-2/3' : 'w-full flex-1'
-                        }`}
+                        className="flex h-full w-full items-center justify-center bg-black"
+                        onClick={() => setIsFullscreen(false)}
                       >
-                        {generation.status === 'failed' ? (
-                          <div className="flex flex-col items-center justify-center p-8 text-center">
-                            <div className="mb-4 text-6xl">{failureInfo?.icon}</div>
-                            <h3 className="mb-2 text-xl font-bold text-red-400">
-                              {failureInfo?.category}
-                            </h3>
-                            <p className="max-w-md text-sm text-gray-400">{failureInfo?.advice}</p>
-                          </div>
-                        ) : isVideo ? (
+                        {isVideo ? (
                           <video
                             src={mediaUrl}
                             controls
                             autoPlay
-                            className="h-full w-full object-contain"
+                            className="max-h-full max-w-full object-contain"
                           />
                         ) : (
-                          <img src={mediaUrl} className="h-full w-full object-contain" />
+                          <img src={mediaUrl} className="max-h-full max-w-full object-contain" />
                         )}
                       </div>
-
-                      <div
-                        className={`border-white/10 bg-[#1a1a1a] ${
-                          isVertical
-                            ? 'h-full w-1/3 overflow-y-auto border-l p-6'
-                            : 'w-full border-t p-6'
-                        }`}
-                      >
-                        {/* Failed Generation Details Panel */}
-                        {generation.status === 'failed' ? (
-                          <div>
-                            <div className="mb-4 flex items-center justify-between">
-                              <h3 className="text-lg font-bold text-white">What Went Wrong</h3>
-                              <div className="flex gap-3">
-                                {/* Copy Recipe Button */}
-                                <Tooltip content="Copy recipe as JSON" side="top">
-                                  <button
-                                    onClick={handleCopyRecipe}
-                                    className="flex items-center gap-1.5 text-sm font-medium text-gray-400 transition-colors hover:text-white"
-                                  >
-                                    <Copy className="h-3.5 w-3.5" />
-                                    Copy
-                                  </button>
-                                </Tooltip>
-                                {/* Fork Recipe Button */}
-                                {onUseSettings && (
-                                  <Tooltip content="Fork this recipe - load settings and retry" side="top">
-                                    <button
-                                      onClick={handleRestoreSettings}
-                                      className={clsx(
-                                        'flex items-center gap-1.5 text-sm font-medium transition-all duration-200',
-                                        isRestoring
-                                          ? 'scale-105 text-green-400'
-                                          : 'text-purple-400 hover:text-purple-300'
-                                      )}
-                                    >
-                                      {isRestoring ? (
-                                        <>
-                                          <Check className="h-3.5 w-3.5" />
-                                          Forked!
-                                        </>
-                                      ) : (
-                                        <>
-                                          <GitFork className="h-3.5 w-3.5" />
-                                          Fork & Retry
-                                        </>
-                                      )}
-                                    </button>
-                                  </Tooltip>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Raw Error Message */}
-                            <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3">
-                              <span className="mb-1 block text-xs font-medium text-red-400">
-                                Error Details
-                              </span>
-                              <p className="font-mono text-sm break-words text-gray-300">
-                                {generation.failureReason || 'No error details available'}
+                    ) : (
+                      <>
+                        <div
+                          className={`flex items-center justify-center overflow-hidden bg-black ${
+                            isVertical ? 'h-full w-2/3' : 'w-full flex-1'
+                          }`}
+                        >
+                          {generation.status === 'failed' ? (
+                            <div className="flex flex-col items-center justify-center p-8 text-center">
+                              <div className="mb-4 text-6xl">{failureInfo?.icon}</div>
+                              <h3 className="mb-2 text-xl font-bold text-red-400">
+                                {failureInfo?.category}
+                              </h3>
+                              <p className="max-w-md text-sm text-gray-400">
+                                {failureInfo?.advice}
                               </p>
                             </div>
+                          ) : isVideo ? (
+                            <video
+                              src={mediaUrl}
+                              controls
+                              autoPlay
+                              className="h-full w-full object-contain"
+                            />
+                          ) : (
+                            <img src={mediaUrl} className="h-full w-full object-contain" />
+                          )}
+                        </div>
 
-                            {/* Prompt Used */}
-                            <div className="mb-4">
-                              <span className="mb-1 block text-xs text-gray-500">Prompt Used</span>
-                              <p className="text-sm text-gray-400">{generation.inputPrompt}</p>
-                            </div>
+                        <div
+                          className={`border-white/10 bg-[#1a1a1a] ${
+                            isVertical
+                              ? 'h-full w-1/3 overflow-y-auto border-l p-6'
+                              : 'w-full border-t p-6'
+                          }`}
+                        >
+                          {/* Failed Generation Details Panel */}
+                          {generation.status === 'failed' ? (
+                            <div>
+                              <div className="mb-4 flex items-center justify-between">
+                                <h3 className="text-lg font-bold text-white">What Went Wrong</h3>
+                                <div className="flex gap-3">
+                                  {/* Copy Recipe Button */}
+                                  <Tooltip content="Copy recipe as JSON" side="top">
+                                    <button
+                                      onClick={handleCopyRecipe}
+                                      className="flex items-center gap-1.5 text-sm font-medium text-gray-400 transition-colors hover:text-white"
+                                    >
+                                      <Copy className="h-3.5 w-3.5" />
+                                      Copy
+                                    </button>
+                                  </Tooltip>
+                                  {/* Fork Recipe Button */}
+                                  {onUseSettings && (
+                                    <Tooltip
+                                      content="Fork this recipe - load settings and retry"
+                                      side="top"
+                                    >
+                                      <button
+                                        onClick={handleRestoreSettings}
+                                        className={clsx(
+                                          'flex items-center gap-1.5 text-sm font-medium transition-all duration-200',
+                                          isRestoring
+                                            ? 'scale-105 text-green-400'
+                                            : 'text-purple-400 hover:text-purple-300'
+                                        )}
+                                      >
+                                        {isRestoring ? (
+                                          <>
+                                            <Check className="h-3.5 w-3.5" />
+                                            Forked!
+                                          </>
+                                        ) : (
+                                          <>
+                                            <GitFork className="h-3.5 w-3.5" />
+                                            Fork & Retry
+                                          </>
+                                        )}
+                                      </button>
+                                    </Tooltip>
+                                  )}
+                                </div>
+                              </div>
 
-                            {/* Constraint Violations */}
-                            {failureInfo?.constraintViolations &&
-                              failureInfo.constraintViolations.length > 0 && (
-                                <div className="mb-4 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
+                              {/* Raw Error Message */}
+                              <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3">
+                                <span className="mb-1 block text-xs font-medium text-red-400">
+                                  Error Details
+                                </span>
+                                <p className="font-mono text-sm break-words text-gray-300">
+                                  {generation.failureReason || 'No error details available'}
+                                </p>
+                              </div>
+
+                              {/* Prompt Used */}
+                              <div className="mb-4">
+                                <span className="mb-1 block text-xs text-gray-500">
+                                  Prompt Used
+                                </span>
+                                <p className="text-sm text-gray-400">{generation.inputPrompt}</p>
+                              </div>
+
+                              {/* Constraint Violations */}
+                              {failureInfo?.constraintViolations &&
+                                failureInfo.constraintViolations.length > 0 && (
+                                  <div className="mb-4 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
+                                    <div className="mb-2 flex items-center gap-2">
+                                      <AlertTriangle className="h-4 w-4 text-yellow-400" />
+                                      <span className="text-sm font-medium text-yellow-300">
+                                        Model Constraints Violated
+                                      </span>
+                                    </div>
+                                    <ul className="list-inside list-disc space-y-1 text-sm text-gray-300">
+                                      {failureInfo.constraintViolations.map((v, i) => (
+                                        <li key={i}>{v}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+
+                              {/* Quick Fix Suggestions */}
+                              <div className="rounded-lg border border-blue-500/20 bg-blue-500/10 p-3">
+                                <div className="mb-2 flex items-center gap-2">
+                                  <Lightbulb className="h-4 w-4 text-blue-400" />
+                                  <span className="text-sm font-medium text-blue-300">
+                                    Suggested Fix
+                                  </span>
+                                </div>
+                                <p className="text-sm text-gray-300">{failureInfo?.advice}</p>
+                              </div>
+
+                              {/* Model Tips */}
+                              {failureInfo?.modelTips && failureInfo.modelTips.length > 0 && (
+                                <div className="mt-4 rounded-lg border border-purple-500/20 bg-purple-500/10 p-3">
                                   <div className="mb-2 flex items-center gap-2">
-                                    <AlertTriangle className="h-4 w-4 text-yellow-400" />
-                                    <span className="text-sm font-medium text-yellow-300">
-                                      Model Constraints Violated
+                                    <Sparkles className="h-4 w-4 text-purple-400" />
+                                    <span className="text-sm font-medium text-purple-300">
+                                      Model Notes
                                     </span>
                                   </div>
-                                  <ul className="list-inside list-disc space-y-1 text-sm text-gray-300">
-                                    {failureInfo.constraintViolations.map((v, i) => (
-                                      <li key={i}>{v}</li>
+                                  <ul className="list-inside list-disc space-y-1 text-xs text-gray-400">
+                                    {failureInfo.modelTips.map((tip, i) => (
+                                      <li key={i}>{tip}</li>
                                     ))}
                                   </ul>
                                 </div>
                               )}
 
-                            {/* Quick Fix Suggestions */}
-                            <div className="rounded-lg border border-blue-500/20 bg-blue-500/10 p-3">
-                              <div className="mb-2 flex items-center gap-2">
-                                <Lightbulb className="h-4 w-4 text-blue-400" />
-                                <span className="text-sm font-medium text-blue-300">
-                                  Suggested Fix
-                                </span>
-                              </div>
-                              <p className="text-sm text-gray-300">{failureInfo?.advice}</p>
-                            </div>
-
-                            {/* Model Tips */}
-                            {failureInfo?.modelTips && failureInfo.modelTips.length > 0 && (
-                              <div className="mt-4 rounded-lg border border-purple-500/20 bg-purple-500/10 p-3">
-                                <div className="mb-2 flex items-center gap-2">
-                                  <Sparkles className="h-4 w-4 text-purple-400" />
-                                  <span className="text-sm font-medium text-purple-300">
-                                    Model Notes
-                                  </span>
-                                </div>
-                                <ul className="list-inside list-disc space-y-1 text-xs text-gray-400">
-                                  {failureInfo.modelTips.map((tip, i) => (
-                                    <li key={i}>{tip}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-
-                            {/* Generation Metadata for Failed */}
-                            <div className="mt-6 border-t border-white/10 pt-4">
-                              <h4 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                                Settings Used
-                              </h4>
-                              <div className="grid grid-cols-2 gap-4 text-xs">
-                                <div>
-                                  <span className="mb-1 block text-gray-500">Provider</span>
-                                  <span className="text-white capitalize">
-                                    {generation.usedLoras?.provider || 'Unknown'}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="mb-1 block text-gray-500">Model</span>
-                                  <span className="break-all text-white">
-                                    {generation.usedLoras?.model || 'Unknown'}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="mb-1 block text-gray-500">Resolution</span>
-                                  <span className="text-white">
-                                    {generation.aspectRatio || 'Unknown'}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="mb-1 block text-gray-500">Created</span>
-                                  <span className="text-white">
-                                    {new Date(generation.createdAt).toLocaleString()}
-                                  </span>
+                              {/* Generation Metadata for Failed */}
+                              <div className="mt-6 border-t border-white/10 pt-4">
+                                <h4 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                                  Settings Used
+                                </h4>
+                                <div className="grid grid-cols-2 gap-4 text-xs">
+                                  <div>
+                                    <span className="mb-1 block text-gray-500">Provider</span>
+                                    <span className="text-white capitalize">
+                                      {generation.usedLoras?.provider || 'Unknown'}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="mb-1 block text-gray-500">Model</span>
+                                    <span className="break-all text-white">
+                                      {generation.usedLoras?.model || 'Unknown'}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="mb-1 block text-gray-500">Resolution</span>
+                                    <span className="text-white">
+                                      {generation.aspectRatio || 'Unknown'}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="mb-1 block text-gray-500">Created</span>
+                                    <span className="text-white">
+                                      {new Date(generation.createdAt).toLocaleString()}
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        ) : (
-                          /* Successful Generation Details Panel */
-                          <>
-                            <div className="mb-4 flex items-center justify-between">
-                              <h3 className="text-lg font-bold text-white">Generation Details</h3>
-                              <div className="flex gap-3">
-                                {/* Copy Recipe Button */}
-                                <Tooltip content="Copy recipe as JSON" side="top">
-                                  <button
-                                    onClick={handleCopyRecipe}
-                                    className="flex items-center gap-1.5 text-sm font-medium text-gray-400 transition-colors hover:text-white"
-                                  >
-                                    <Copy className="h-3.5 w-3.5" />
-                                    Copy
-                                  </button>
-                                </Tooltip>
-                                {/* Fork Recipe Button */}
-                                {onUseSettings && (
-                                  <Tooltip content="Fork this recipe - load exact settings into generator" side="top">
+                          ) : (
+                            /* Successful Generation Details Panel */
+                            <>
+                              <div className="mb-4 flex items-center justify-between">
+                                <h3 className="text-lg font-bold text-white">Generation Details</h3>
+                                <div className="flex gap-3">
+                                  {/* Copy Recipe Button */}
+                                  <Tooltip content="Copy recipe as JSON" side="top">
                                     <button
-                                      onClick={handleRestoreSettings}
-                                      className={clsx(
-                                        'flex items-center gap-1.5 text-sm font-medium transition-all duration-200',
-                                        isRestoring
-                                          ? 'scale-105 text-green-400'
-                                          : 'text-purple-400 hover:text-purple-300'
-                                      )}
+                                      onClick={handleCopyRecipe}
+                                      className="flex items-center gap-1.5 text-sm font-medium text-gray-400 transition-colors hover:text-white"
                                     >
-                                      {isRestoring ? (
-                                        <>
-                                          <Check className="h-3.5 w-3.5" />
-                                          Forked!
-                                        </>
-                                      ) : (
-                                        <>
-                                          <GitFork className="h-3.5 w-3.5" />
-                                          Fork Recipe
-                                        </>
-                                      )}
+                                      <Copy className="h-3.5 w-3.5" />
+                                      Copy
                                     </button>
                                   </Tooltip>
-                                )}
-                                <button
-                                  onClick={() => setIsEditing(!isEditing)}
-                                  className="text-sm font-medium text-blue-400 hover:text-blue-300"
-                                >
-                                  {isEditing ? 'Cancel Edit' : 'Iterate Prompt'}
-                                </button>
-                              </div>
-                            </div>
-
-                            {isEditing ? (
-                              <div className="space-y-4">
-                                <textarea
-                                  value={editedPrompt}
-                                  onChange={e => setEditedPrompt(e.target.value)}
-                                  className="h-32 w-full resize-none rounded-lg border border-white/10 bg-black/50 p-3 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                  placeholder="Edit your prompt..."
-                                />
-                                <div className="flex justify-end gap-3">
-                                  <button
-                                    onClick={handleUpdatePrompt}
-                                    className="rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
-                                  >
-                                    Update Current
-                                  </button>
-
-                                  <button
-                                    onClick={handleIterate}
-                                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-blue-600/20 transition-colors hover:bg-blue-500"
-                                  >
-                                    Generate New
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div>
-                                <p className="mb-4 text-gray-400">{generation.inputPrompt}</p>
-                                {generation.usedLoras?.negativePrompt && (
-                                  <div className="mb-4 border-t border-white/5 pt-3">
-                                    <span className="mb-1 block text-xs text-gray-500">
-                                      Negative Prompt
-                                    </span>
-                                    <p className="font-mono text-[10px] break-words text-gray-400 italic">
-                                      {generation.usedLoras.negativePrompt}
-                                    </p>
-                                  </div>
-                                )}
-                                <button
-                                  onClick={handleSmartRefine}
-                                  disabled={isRefining}
-                                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-purple-500/30 bg-purple-600/20 py-2 text-sm font-medium text-purple-300 transition-colors hover:bg-purple-600/30 disabled:opacity-50"
-                                >
-                                  {isRefining ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Sparkles className="h-4 w-4" />
-                                  )}
-                                  Smart Refine (Vision)
-                                </button>
-
-                                {/* Analyze Failure Button */}
-                                {!analysis &&
-                                  generation.status === 'succeeded' &&
-                                  !showAnalysisInput && (
-                                    <button
-                                      onClick={handleAnalyzeClick}
-                                      disabled={isAnalyzing}
-                                      className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 py-2 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/20"
+                                  {/* Fork Recipe Button */}
+                                  {onUseSettings && (
+                                    <Tooltip
+                                      content="Fork this recipe - load exact settings into generator"
+                                      side="top"
                                     >
-                                      {isAnalyzing ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                      ) : (
-                                        <AlertTriangle className="h-4 w-4" />
-                                      )}
-                                      Analyze Failure
+                                      <button
+                                        onClick={handleRestoreSettings}
+                                        className={clsx(
+                                          'flex items-center gap-1.5 text-sm font-medium transition-all duration-200',
+                                          isRestoring
+                                            ? 'scale-105 text-green-400'
+                                            : 'text-purple-400 hover:text-purple-300'
+                                        )}
+                                      >
+                                        {isRestoring ? (
+                                          <>
+                                            <Check className="h-3.5 w-3.5" />
+                                            Forked!
+                                          </>
+                                        ) : (
+                                          <>
+                                            <GitFork className="h-3.5 w-3.5" />
+                                            Fork Recipe
+                                          </>
+                                        )}
+                                      </button>
+                                    </Tooltip>
+                                  )}
+                                  <button
+                                    onClick={() => setIsEditing(!isEditing)}
+                                    className="text-sm font-medium text-blue-400 hover:text-blue-300"
+                                  >
+                                    {isEditing ? 'Cancel Edit' : 'Iterate Prompt'}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {isEditing ? (
+                                <div className="space-y-4">
+                                  <textarea
+                                    value={editedPrompt}
+                                    onChange={e => setEditedPrompt(e.target.value)}
+                                    className="h-32 w-full resize-none rounded-lg border border-white/10 bg-black/50 p-3 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                    placeholder="Edit your prompt..."
+                                  />
+                                  <div className="flex justify-end gap-3">
+                                    <button
+                                      onClick={handleUpdatePrompt}
+                                      className="rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+                                    >
+                                      Update Current
                                     </button>
+
+                                    <button
+                                      onClick={handleIterate}
+                                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-blue-600/20 transition-colors hover:bg-blue-500"
+                                    >
+                                      Generate New
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div>
+                                  <p className="mb-4 text-gray-400">{generation.inputPrompt}</p>
+                                  {generation.usedLoras?.negativePrompt && (
+                                    <div className="mb-4 border-t border-white/5 pt-3">
+                                      <span className="mb-1 block text-xs text-gray-500">
+                                        Negative Prompt
+                                      </span>
+                                      <p className="font-mono text-[10px] break-words text-gray-400 italic">
+                                        {generation.usedLoras.negativePrompt}
+                                      </p>
+                                    </div>
+                                  )}
+                                  <button
+                                    onClick={handleSmartRefine}
+                                    disabled={isRefining}
+                                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-purple-500/30 bg-purple-600/20 py-2 text-sm font-medium text-purple-300 transition-colors hover:bg-purple-600/30 disabled:opacity-50"
+                                  >
+                                    {isRefining ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Sparkles className="h-4 w-4" />
+                                    )}
+                                    Smart Refine (Vision)
+                                  </button>
+
+                                  {/* Analyze Failure Button */}
+                                  {!analysis &&
+                                    generation.status === 'succeeded' &&
+                                    !showAnalysisInput && (
+                                      <button
+                                        onClick={handleAnalyzeClick}
+                                        disabled={isAnalyzing}
+                                        className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 py-2 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/20"
+                                      >
+                                        {isAnalyzing ? (
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <AlertTriangle className="h-4 w-4" />
+                                        )}
+                                        Analyze Failure
+                                      </button>
+                                    )}
+
+                                  {/* Analysis Feedback Input */}
+                                  {showAnalysisInput && (
+                                    <div className="animate-in fade-in slide-in-from-top-2 mt-2 rounded-lg border border-red-500/20 bg-red-900/10 p-3 duration-200">
+                                      <p className="mb-2 text-xs font-medium text-red-200">
+                                        What seems to be wrong? (Optional)
+                                      </p>
+                                      <textarea
+                                        value={analysisFeedback}
+                                        onChange={e => setAnalysisFeedback(e.target.value)}
+                                        className="mb-2 h-20 w-full resize-none rounded border border-white/10 bg-black/40 p-2 text-xs text-white placeholder:text-white/20 focus:border-red-500/50 focus:outline-none"
+                                        placeholder="E.g. The eyes are asymmetrical..."
+                                        autoFocus
+                                      />
+                                      <div className="flex justify-end gap-2">
+                                        <button
+                                          onClick={() => setShowAnalysisInput(false)}
+                                          className="px-3 py-1.5 text-xs text-gray-400 transition-colors hover:text-white"
+                                        >
+                                          Cancel
+                                        </button>
+                                        <button
+                                          onClick={confirmAnalyze}
+                                          className="flex items-center gap-1.5 rounded bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-500"
+                                        >
+                                          {isAnalyzing && (
+                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                          )}
+                                          Start Analysis
+                                        </button>
+                                      </div>
+                                    </div>
                                   )}
 
-                                {/* Analysis Feedback Input */}
-                                {showAnalysisInput && (
-                                  <div className="animate-in fade-in slide-in-from-top-2 mt-2 rounded-lg border border-red-500/20 bg-red-900/10 p-3 duration-200">
-                                    <p className="mb-2 text-xs font-medium text-red-200">
-                                      What seems to be wrong? (Optional)
-                                    </p>
-                                    <textarea
-                                      value={analysisFeedback}
-                                      onChange={e => setAnalysisFeedback(e.target.value)}
-                                      className="mb-2 h-20 w-full resize-none rounded border border-white/10 bg-black/40 p-2 text-xs text-white placeholder:text-white/20 focus:border-red-500/50 focus:outline-none"
-                                      placeholder="E.g. The eyes are asymmetrical..."
-                                      autoFocus
-                                    />
-                                    <div className="flex justify-end gap-2">
-                                      <button
-                                        onClick={() => setShowAnalysisInput(false)}
-                                        className="px-3 py-1.5 text-xs text-gray-400 transition-colors hover:text-white"
-                                      >
-                                        Cancel
-                                      </button>
-                                      <button
-                                        onClick={confirmAnalyze}
-                                        className="flex items-center gap-1.5 rounded bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-500"
-                                      >
-                                        {isAnalyzing && (
-                                          <Loader2 className="h-3 w-3 animate-spin" />
-                                        )}
-                                        Start Analysis
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Analysis Results Display */}
-                                {analysis && (
-                                  <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/5 p-3">
-                                    <div className="mb-2 flex items-start justify-between">
-                                      <h4 className="flex items-center gap-2 text-sm font-semibold text-red-200">
-                                        <Lightbulb className="h-4 w-4" />
-                                        AI Critique ({analysis.rating}/5)
-                                      </h4>
-                                    </div>
-
-                                    <div className="space-y-3 text-xs">
-                                      <div>
-                                        <span className="block font-medium text-red-400">
-                                          Flaws:
-                                        </span>
-                                        <ul className="list-inside list-disc pl-1 text-gray-300">
-                                          {analysis.flaws?.map((flaw: string, i: number) => (
-                                            <li key={i}>{flaw}</li>
-                                          ))}
-                                        </ul>
+                                  {/* Analysis Results Display */}
+                                  {analysis && (
+                                    <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+                                      <div className="mb-2 flex items-start justify-between">
+                                        <h4 className="flex items-center gap-2 text-sm font-semibold text-red-200">
+                                          <Lightbulb className="h-4 w-4" />
+                                          AI Critique ({analysis.rating}/5)
+                                        </h4>
                                       </div>
 
-                                      <div>
-                                        <span className="block font-medium text-green-400">
-                                          Good:
-                                        </span>
-                                        <p className="text-gray-300">
-                                          {analysis.positiveTraits?.join(', ')}
-                                        </p>
-                                      </div>
+                                      <div className="space-y-3 text-xs">
+                                        <div>
+                                          <span className="block font-medium text-red-400">
+                                            Flaws:
+                                          </span>
+                                          <ul className="list-inside list-disc pl-1 text-gray-300">
+                                            {analysis.flaws?.map((flaw: string, i: number) => (
+                                              <li key={i}>{flaw}</li>
+                                            ))}
+                                          </ul>
+                                        </div>
 
-                                      <div className="border-t border-white/5 pt-2">
-                                        <span className="block font-medium text-blue-300">
-                                          Advice:
-                                        </span>
-                                        <p className="text-gray-300 italic">"{analysis.advice}"</p>
-                                      </div>
+                                        <div>
+                                          <span className="block font-medium text-green-400">
+                                            Good:
+                                          </span>
+                                          <p className="text-gray-300">
+                                            {analysis.positiveTraits?.join(', ')}
+                                          </p>
+                                        </div>
 
-                                      {/* Feedback Buttons */}
-                                      <div className="mt-3 border-t border-white/10 pt-3">
-                                        {critiqueFeedbackGiven ? (
-                                          <div className="flex items-center gap-2 text-xs text-gray-400">
-                                            {critiqueFeedbackGiven === 'positive' ? (
-                                              <>
-                                                <ThumbsUp className="h-3 w-3 text-green-400" />
-                                                Thanks for the feedback!
-                                              </>
-                                            ) : (
-                                              <>
-                                                <ThumbsDown className="h-3 w-3 text-red-400" />
-                                                We'll learn from this!
-                                              </>
-                                            )}
-                                          </div>
-                                        ) : (
-                                          <div className="flex items-center gap-3">
-                                            <span className="text-xs text-gray-500">
-                                              Was this helpful?
-                                            </span>
-                                            <Tooltip content="Yes, this was helpful" side="top">
-                                              <button
-                                                onClick={() => handleCritiqueFeedback(true)}
-                                                className="rounded bg-green-500/10 p-1.5 text-green-400 transition-colors hover:bg-green-500/30"
-                                              >
-                                                <ThumbsUp className="h-3.5 w-3.5" />
-                                              </button>
-                                            </Tooltip>
-                                            <Tooltip content="No, this was wrong" side="top">
-                                              <button
-                                                onClick={() => handleCritiqueFeedback(false)}
-                                                className="rounded bg-red-500/10 p-1.5 text-red-400 transition-colors hover:bg-red-500/30"
-                                              >
-                                                <ThumbsDown className="h-3.5 w-3.5" />
-                                              </button>
-                                            </Tooltip>
-                                          </div>
-                                        )}
+                                        <div className="border-t border-white/5 pt-2">
+                                          <span className="block font-medium text-blue-300">
+                                            Advice:
+                                          </span>
+                                          <p className="text-gray-300 italic">
+                                            "{analysis.advice}"
+                                          </p>
+                                        </div>
 
-                                        {/* Correction Input */}
-                                        {showCritiqueCorrection && (
-                                          <div className="animate-in fade-in slide-in-from-top-2 mt-3 duration-200">
-                                            <textarea
-                                              value={critiqueCorrection}
-                                              onChange={e => setCritiqueCorrection(e.target.value)}
-                                              className="h-16 w-full resize-none rounded border border-white/10 bg-black/50 p-2 text-xs text-white placeholder:text-gray-500 focus:border-red-500/50 focus:outline-none"
-                                              placeholder="What was wrong with this analysis?"
-                                              autoFocus
-                                            />
-                                            <div className="mt-2 flex gap-2">
-                                              <button
-                                                onClick={() => {
-                                                  setShowCritiqueCorrection(false);
-                                                  setCritiqueFeedbackGiven(null);
-                                                }}
-                                                className="px-2 py-1 text-xs text-gray-400 transition-colors hover:text-white"
-                                              >
-                                                Cancel
-                                              </button>
-                                              <button
-                                                onClick={submitCritiqueCorrection}
-                                                disabled={isSubmittingFeedback}
-                                                className="flex items-center gap-1 rounded bg-red-600 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-red-500 disabled:opacity-50"
-                                              >
-                                                {isSubmittingFeedback && (
-                                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                                )}
-                                                Submit
-                                              </button>
+                                        {/* Feedback Buttons */}
+                                        <div className="mt-3 border-t border-white/10 pt-3">
+                                          {critiqueFeedbackGiven ? (
+                                            <div className="flex items-center gap-2 text-xs text-gray-400">
+                                              {critiqueFeedbackGiven === 'positive' ? (
+                                                <>
+                                                  <ThumbsUp className="h-3 w-3 text-green-400" />
+                                                  Thanks for the feedback!
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <ThumbsDown className="h-3 w-3 text-red-400" />
+                                                  We'll learn from this!
+                                                </>
+                                              )}
                                             </div>
-                                          </div>
-                                        )}
+                                          ) : (
+                                            <div className="flex items-center gap-3">
+                                              <span className="text-xs text-gray-500">
+                                                Was this helpful?
+                                              </span>
+                                              <Tooltip content="Yes, this was helpful" side="top">
+                                                <button
+                                                  onClick={() => handleCritiqueFeedback(true)}
+                                                  className="rounded bg-green-500/10 p-1.5 text-green-400 transition-colors hover:bg-green-500/30"
+                                                >
+                                                  <ThumbsUp className="h-3.5 w-3.5" />
+                                                </button>
+                                              </Tooltip>
+                                              <Tooltip content="No, this was wrong" side="top">
+                                                <button
+                                                  onClick={() => handleCritiqueFeedback(false)}
+                                                  className="rounded bg-red-500/10 p-1.5 text-red-400 transition-colors hover:bg-red-500/30"
+                                                >
+                                                  <ThumbsDown className="h-3.5 w-3.5" />
+                                                </button>
+                                              </Tooltip>
+                                            </div>
+                                          )}
+
+                                          {/* Correction Input */}
+                                          {showCritiqueCorrection && (
+                                            <div className="animate-in fade-in slide-in-from-top-2 mt-3 duration-200">
+                                              <textarea
+                                                value={critiqueCorrection}
+                                                onChange={e =>
+                                                  setCritiqueCorrection(e.target.value)
+                                                }
+                                                className="h-16 w-full resize-none rounded border border-white/10 bg-black/50 p-2 text-xs text-white placeholder:text-gray-500 focus:border-red-500/50 focus:outline-none"
+                                                placeholder="What was wrong with this analysis?"
+                                                autoFocus
+                                              />
+                                              <div className="mt-2 flex gap-2">
+                                                <button
+                                                  onClick={() => {
+                                                    setShowCritiqueCorrection(false);
+                                                    setCritiqueFeedbackGiven(null);
+                                                  }}
+                                                  className="px-2 py-1 text-xs text-gray-400 transition-colors hover:text-white"
+                                                >
+                                                  Cancel
+                                                </button>
+                                                <button
+                                                  onClick={submitCritiqueCorrection}
+                                                  disabled={isSubmittingFeedback}
+                                                  className="flex items-center gap-1 rounded bg-red-600 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-red-500 disabled:opacity-50"
+                                                >
+                                                  {isSubmittingFeedback && (
+                                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                                  )}
+                                                  Submit
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                                  )}
+                                </div>
+                              )}
 
-                            {/* Generation Metadata */}
-                            <div className="mt-6 border-t border-white/10 pt-4">
-                              <h4 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                                Generation Details
-                              </h4>
-                              <div
-                                className={`grid gap-4 text-xs ${isVertical ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-4'}`}
-                              >
-                                <div>
-                                  <span className="mb-1 block text-gray-500">Provider</span>
-                                  <span className="text-white capitalize">
-                                    {generation.usedLoras?.provider || 'Unknown'}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="mb-1 block text-gray-500">Model</span>
-                                  <span className="break-all text-white">
-                                    {generation.usedLoras?.model || 'Unknown'}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="mb-1 block text-gray-500">Resolution</span>
-                                  <span className="text-white">
-                                    {generation.aspectRatio || 'Unknown'}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="mb-1 block text-gray-500">Seed</span>
-                                  <span className="font-mono text-white">
-                                    {generation.usedLoras?.seed || 'Random'}
-                                  </span>
-                                </div>
-
-                                {generation.usedLoras?.sampler && (
+                              {/* Generation Metadata */}
+                              <div className="mt-6 border-t border-white/10 pt-4">
+                                <h4 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                                  Generation Details
+                                </h4>
+                                <div
+                                  className={`grid gap-4 text-xs ${isVertical ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-4'}`}
+                                >
                                   <div>
-                                    <span className="mb-1 block text-gray-500">Sampler</span>
-                                    <span className="text-white">
-                                      {typeof generation.usedLoras.sampler === 'object'
-                                        ? (generation.usedLoras.sampler as any).name ||
-                                          (generation.usedLoras.sampler as any).value
-                                        : generation.usedLoras.sampler}
+                                    <span className="mb-1 block text-gray-500">Provider</span>
+                                    <span className="text-white capitalize">
+                                      {generation.usedLoras?.provider || 'Unknown'}
                                     </span>
                                   </div>
-                                )}
-
-                                {generation.usedLoras?.scheduler && (
                                   <div>
-                                    <span className="mb-1 block text-gray-500">Scheduler</span>
-                                    <span className="text-white">
-                                      {typeof generation.usedLoras.scheduler === 'object'
-                                        ? (generation.usedLoras.scheduler as any).name ||
-                                          (generation.usedLoras.scheduler as any).value
-                                        : generation.usedLoras.scheduler}
+                                    <span className="mb-1 block text-gray-500">Model</span>
+                                    <span className="break-all text-white">
+                                      {generation.usedLoras?.model || 'Unknown'}
                                     </span>
                                   </div>
-                                )}
-
-                                {generation.usedLoras?.steps && (
                                   <div>
-                                    <span className="mb-1 block text-gray-500">Steps</span>
-                                    <span className="text-white">{generation.usedLoras.steps}</span>
-                                  </div>
-                                )}
-
-                                {generation.usedLoras?.guidanceScale && (
-                                  <div>
-                                    <span className="mb-1 block text-gray-500">CFG</span>
+                                    <span className="mb-1 block text-gray-500">Resolution</span>
                                     <span className="text-white">
-                                      {generation.usedLoras.guidanceScale}
+                                      {generation.aspectRatio || 'Unknown'}
                                     </span>
                                   </div>
-                                )}
-
-                                {generation.usedLoras?.strength !== undefined && (
                                   <div>
-                                    <span className="mb-1 block text-gray-500">Denoise</span>
-                                    <span className="text-white">
-                                      {Number(generation.usedLoras.strength).toFixed(2)}
+                                    <span className="mb-1 block text-gray-500">Seed</span>
+                                    <span className="font-mono text-white">
+                                      {generation.usedLoras?.seed || 'Random'}
                                     </span>
                                   </div>
-                                )}
 
-                                {generation.usedLoras?.referenceStrengths &&
-                                  Object.keys(generation.usedLoras.referenceStrengths).length >
-                                    0 && (
-                                    <div className="col-span-2">
-                                      <span className="mb-1 block text-gray-500">
-                                        Ref Strengths
+                                  {generation.usedLoras?.sampler && (
+                                    <div>
+                                      <span className="mb-1 block text-gray-500">Sampler</span>
+                                      <span className="text-white">
+                                        {typeof generation.usedLoras.sampler === 'object'
+                                          ? (generation.usedLoras.sampler as any).name ||
+                                            (generation.usedLoras.sampler as any).value
+                                          : generation.usedLoras.sampler}
                                       </span>
-                                      <div className="flex flex-col gap-1">
-                                        {Object.entries(
-                                          generation.usedLoras.referenceStrengths
-                                        ).map(([id, str]: [string, any]) => {
-                                          const element = elements?.find(e => e.id === id);
-                                          const name = element
-                                            ? element.name
-                                            : id.substring(0, 6) + '...';
-                                          return (
-                                            <div
-                                              key={id}
-                                              className="flex items-center justify-between rounded bg-white/5 px-2 py-0.5 text-[10px] text-gray-400"
-                                            >
-                                              <Tooltip content={element?.name || id} side="left">
-                                                <span className="max-w-[80px] truncate">
-                                                  {name}
+                                    </div>
+                                  )}
+
+                                  {generation.usedLoras?.scheduler && (
+                                    <div>
+                                      <span className="mb-1 block text-gray-500">Scheduler</span>
+                                      <span className="text-white">
+                                        {typeof generation.usedLoras.scheduler === 'object'
+                                          ? (generation.usedLoras.scheduler as any).name ||
+                                            (generation.usedLoras.scheduler as any).value
+                                          : generation.usedLoras.scheduler}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {generation.usedLoras?.steps && (
+                                    <div>
+                                      <span className="mb-1 block text-gray-500">Steps</span>
+                                      <span className="text-white">
+                                        {generation.usedLoras.steps}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {generation.usedLoras?.guidanceScale && (
+                                    <div>
+                                      <span className="mb-1 block text-gray-500">CFG</span>
+                                      <span className="text-white">
+                                        {generation.usedLoras.guidanceScale}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {generation.usedLoras?.strength !== undefined && (
+                                    <div>
+                                      <span className="mb-1 block text-gray-500">Denoise</span>
+                                      <span className="text-white">
+                                        {Number(generation.usedLoras.strength).toFixed(2)}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {generation.usedLoras?.referenceStrengths &&
+                                    Object.keys(generation.usedLoras.referenceStrengths).length >
+                                      0 && (
+                                      <div className="col-span-2">
+                                        <span className="mb-1 block text-gray-500">
+                                          Ref Strengths
+                                        </span>
+                                        <div className="flex flex-col gap-1">
+                                          {Object.entries(
+                                            generation.usedLoras.referenceStrengths
+                                          ).map(([id, str]: [string, any]) => {
+                                            const element = elements?.find(e => e.id === id);
+                                            const name = element
+                                              ? element.name
+                                              : id.substring(0, 6) + '...';
+                                            return (
+                                              <div
+                                                key={id}
+                                                className="flex items-center justify-between rounded bg-white/5 px-2 py-0.5 text-[10px] text-gray-400"
+                                              >
+                                                <Tooltip content={element?.name || id} side="left">
+                                                  <span className="max-w-[80px] truncate">
+                                                    {name}
+                                                  </span>
+                                                </Tooltip>
+                                                <span className="ml-2 text-gray-300">
+                                                  {Number(str).toFixed(2)}
                                                 </span>
-                                              </Tooltip>
-                                              <span className="ml-2 text-gray-300">
-                                                {Number(str).toFixed(2)}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
+                                </div>
+
+                                {generation.usedLoras?.loras &&
+                                  generation.usedLoras.loras.length > 0 && (
+                                    <div className="mt-4 border-t border-white/5 pt-3">
+                                      <span className="mb-2 block text-xs text-gray-500">
+                                        Active LoRAs
+                                      </span>
+                                      <div className="flex flex-wrap gap-2">
+                                        {generation.usedLoras.loras.map(
+                                          (lora: any, idx: number) => (
+                                            <div
+                                              key={idx}
+                                              className="rounded border border-white/10 bg-white/5 px-2 py-1 text-xs text-gray-300"
+                                            >
+                                              {lora.name || lora.path?.split('/').pop() || lora.id}
+                                              <span className="ml-1 text-gray-500">
+                                                ({lora.strength})
                                               </span>
                                             </div>
-                                          );
-                                        })}
+                                          )
+                                        )}
                                       </div>
                                     </div>
                                   )}
                               </div>
-
-                              {generation.usedLoras?.loras &&
-                                generation.usedLoras.loras.length > 0 && (
-                                  <div className="mt-4 border-t border-white/5 pt-3">
-                                    <span className="mb-2 block text-xs text-gray-500">
-                                      Active LoRAs
-                                    </span>
-                                    <div className="flex flex-wrap gap-2">
-                                      {generation.usedLoras.loras.map((lora: any, idx: number) => (
-                                        <div
-                                          key={idx}
-                                          className="rounded border border-white/10 bg-white/5 px-2 py-1 text-xs text-gray-300"
-                                        >
-                                          {lora.name || lora.path?.split('/').pop() || lora.id}
-                                          <span className="ml-1 text-gray-500">
-                                            ({lora.strength})
-                                          </span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </motion.div>
-              );
-            })()}
-          </div>
-        )}
-      </AnimatePresence>
-    </>
+                            </>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </motion.div>
+                );
+              })()}
+            </div>
+          )}
+        </AnimatePresence>
+      </>
     </TooltipProvider>
   );
 }

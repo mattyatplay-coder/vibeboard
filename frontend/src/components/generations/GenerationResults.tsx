@@ -1,7 +1,10 @@
 import { useState, useMemo } from 'react';
 import { Generation, Element } from '@/lib/store';
 import { GenerationCard } from '@/components/generations/GenerationCard';
-import { GenerationSearch, GenerationSortFilterState } from '@/components/generations/GenerationSearch';
+import {
+  GenerationSearch,
+  GenerationSortFilterState,
+} from '@/components/generations/GenerationSearch';
 import { Copy, FilePlus, Trash2, CheckSquare, X, Download, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -108,7 +111,10 @@ export function GenerationResults({
         if (sortFilter.filterStatus.includes('succeeded') && status === 'succeeded') {
           return true;
         }
-        if (sortFilter.filterStatus.includes('processing') && (status === 'running' || status === 'queued')) {
+        if (
+          sortFilter.filterStatus.includes('processing') &&
+          (status === 'running' || status === 'queued')
+        ) {
           return true;
         }
         if (sortFilter.filterStatus.includes('failed') && status === 'failed') {
@@ -177,9 +183,13 @@ export function GenerationResults({
         if (data.results && data.results.length > 0) {
           setSearchResults(data.results);
           setSearchQuery(`Similar composition to #${generationId.slice(0, 8)}`);
-          toast.success(`Found ${data.results.length} similar compositions`, { id: 'find-similar' });
+          toast.success(`Found ${data.results.length} similar compositions`, {
+            id: 'find-similar',
+          });
         } else {
-          toast.info('No similar compositions found. Try indexing more images.', { id: 'find-similar' });
+          toast.info('No similar compositions found. Try indexing more images.', {
+            id: 'find-similar',
+          });
         }
       }
     } catch (err) {
@@ -199,9 +209,13 @@ export function GenerationResults({
         if (data.results && data.results.length > 0) {
           setSearchResults(data.results);
           setSearchQuery(`Similar lighting to #${generationId.slice(0, 8)}`);
-          toast.success(`Found ${data.results.length} with similar lighting`, { id: 'find-similar' });
+          toast.success(`Found ${data.results.length} with similar lighting`, {
+            id: 'find-similar',
+          });
         } else {
-          toast.info('No similar lighting found. Try indexing more images.', { id: 'find-similar' });
+          toast.info('No similar lighting found. Try indexing more images.', {
+            id: 'find-similar',
+          });
         }
       }
     } catch (err) {
@@ -229,7 +243,9 @@ export function GenerationResults({
           setSearchQuery(`Visually similar to #${generationId.slice(0, 8)}`);
           toast.success(`Found ${data.results.length} visually similar`, { id: 'find-similar' });
         } else {
-          toast.info('No visually similar images found. Try embedding more images.', { id: 'find-similar' });
+          toast.info('No visually similar images found. Try embedding more images.', {
+            id: 'find-similar',
+          });
         }
       } else {
         const errData = await res.json();

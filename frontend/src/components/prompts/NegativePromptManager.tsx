@@ -921,7 +921,10 @@ export function NegativePromptManager({
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Tooltip content={alreadyAdded ? 'Add again' : 'Append to current'} side="top">
+                      <Tooltip
+                        content={alreadyAdded ? 'Add again' : 'Append to current'}
+                        side="top"
+                      >
                         <button
                           onClick={e => handleAppendPrompt(prompt, e)}
                           className={clsx(

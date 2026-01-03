@@ -114,7 +114,16 @@ export const StoryConceptInput = ({
     }
 
     onSubmit?.(data);
-  }, [selectedGenreId, concept, isContent, archetype, hook, currentArchetypes, visualStyle, onSubmit]);
+  }, [
+    selectedGenreId,
+    concept,
+    isContent,
+    archetype,
+    hook,
+    currentArchetypes,
+    visualStyle,
+    onSubmit,
+  ]);
 
   const canSubmit = selectedGenreId && concept.trim().length > 0 && !isLoading;
 
@@ -122,7 +131,7 @@ export const StoryConceptInput = ({
     <div className="space-y-6 rounded-xl border border-zinc-800 bg-zinc-950 p-6">
       {/* Genre Selector */}
       <div className="space-y-2">
-        <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-zinc-500">
+        <label className="flex items-center gap-2 text-xs font-bold tracking-wider text-zinc-500 uppercase">
           <Film className="h-3 w-3" />
           Content Format
         </label>
@@ -130,14 +139,14 @@ export const StoryConceptInput = ({
           <select
             value={selectedGenreId}
             onChange={handleGenreChange}
-            className="w-full appearance-none rounded-lg border border-zinc-700 bg-zinc-900 p-3 pr-10 text-white outline-none transition-colors focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+            className="w-full appearance-none rounded-lg border border-zinc-700 bg-zinc-900 p-3 pr-10 text-white transition-colors outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
           >
             <option value="" disabled>
               Select a genre...
             </option>
 
             <optgroup label="Narrative / Film">
-              {genreGroups.narrative.map((g) => (
+              {genreGroups.narrative.map(g => (
                 <option key={g.value} value={g.value}>
                   {g.icon} {g.label}
                 </option>
@@ -145,20 +154,18 @@ export const StoryConceptInput = ({
             </optgroup>
 
             <optgroup label="Social / Content">
-              {genreGroups.content.map((g) => (
+              {genreGroups.content.map(g => (
                 <option key={g.value} value={g.value}>
                   {g.icon} {g.label}
                 </option>
               ))}
             </optgroup>
           </select>
-          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+          <ChevronDown className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-zinc-500" />
         </div>
 
         {/* Genre description */}
-        {selectedGenre && (
-          <p className="text-xs text-zinc-500">{selectedGenre.description}</p>
-        )}
+        {selectedGenre && <p className="text-xs text-zinc-500">{selectedGenre.description}</p>}
       </div>
 
       {/* Dynamic Module Injection */}
@@ -183,13 +190,13 @@ export const StoryConceptInput = ({
           </div>
           {/* You can integrate your existing CinemaControls here */}
           <div className="space-y-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-zinc-500">
+            <label className="text-xs font-bold tracking-wider text-zinc-500 uppercase">
               Visual Style Notes
             </label>
             <input
               type="text"
               value={visualStyle}
-              onChange={(e) => setVisualStyle(e.target.value)}
+              onChange={e => setVisualStyle(e.target.value)}
               placeholder="e.g., Wes Anderson symmetry, neon noir lighting..."
               className="w-full rounded-lg border border-zinc-700 bg-zinc-900 p-3 text-white outline-none focus:border-purple-500"
             />
@@ -199,18 +206,18 @@ export const StoryConceptInput = ({
 
       {/* Concept Input */}
       <div className="space-y-2">
-        <label className="text-xs font-bold uppercase tracking-wider text-zinc-500">
+        <label className="text-xs font-bold tracking-wider text-zinc-500 uppercase">
           {isContent ? 'Video Topic / Body' : 'Story Concept'}
         </label>
         <textarea
           value={concept}
-          onChange={(e) => setConcept(e.target.value)}
+          onChange={e => setConcept(e.target.value)}
           placeholder={
             isContent
               ? "What is the video about? (e.g., 'I built a secret room in my house to hide from my family...')"
               : "Describe your story concept... (e.g., 'A noir detective in 1940s LA investigates a disappearance...')"
           }
-          className="h-32 w-full resize-none rounded-lg border border-zinc-700 bg-zinc-900 p-3 text-white outline-none transition-colors focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+          className="h-32 w-full resize-none rounded-lg border border-zinc-700 bg-zinc-900 p-3 text-white transition-colors outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
         />
       </div>
 
@@ -262,9 +269,7 @@ export const StoryConceptInput = ({
             {isMature && <AlertTriangle className="h-3 w-3 text-red-400" />}
           </div>
           <div className="text-[10px] text-zinc-500">
-            {isMature
-              ? 'Unrestricted genres unlocked (18+).'
-              : 'Standard safety filters active.'}
+            {isMature ? 'Unrestricted genres unlocked (18+).' : 'Standard safety filters active.'}
           </div>
         </div>
       </div>

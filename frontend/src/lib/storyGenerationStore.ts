@@ -52,7 +52,10 @@ async function saveStoryProgress(
       body: JSON.stringify(updatePayload),
     });
 
-    console.log('[StoryGeneration] Auto-saved story progress:', Object.keys(updatePayload).join(', '));
+    console.log(
+      '[StoryGeneration] Auto-saved story progress:',
+      Object.keys(updatePayload).join(', ')
+    );
   } catch (error) {
     // Log but don't throw - we don't want to interrupt generation for save failures
     console.error('[StoryGeneration] Failed to auto-save story progress:', error);
@@ -283,7 +286,6 @@ export const useStoryGenerationStore = create<StoryGenerationState>((set, get) =
 
       // Continue with breakdown and prompts
       await runBreakdownAndPrompts(config, scriptResponse.script);
-
     } catch (error) {
       console.error('Pipeline error:', error);
       const currentStage = get().currentStage;
@@ -328,7 +330,6 @@ export const useStoryGenerationStore = create<StoryGenerationState>((set, get) =
 
       // Continue with breakdown and prompts
       await runBreakdownAndPrompts(config, config.uploadedScript);
-
     } catch (error) {
       console.error('Pipeline error:', error);
       const currentStage = get().currentStage;
@@ -362,7 +363,9 @@ export const useStoryGenerationStore = create<StoryGenerationState>((set, get) =
     const completedStages: Record<PipelineStage, StageStatus> = {
       concept: { status: 'complete' },
       outline: hasOutline ? { status: 'complete', data: fromData.outline } : { status: 'pending' },
-      script: hasScript ? { status: 'complete', data: { script: fromData.script } } : { status: 'pending' },
+      script: hasScript
+        ? { status: 'complete', data: { script: fromData.script } }
+        : { status: 'pending' },
       breakdown: hasScenes ? { status: 'complete', data: fromData.scenes } : { status: 'pending' },
       prompts: { status: 'pending' },
       complete: { status: 'pending' },
@@ -421,7 +424,9 @@ export const useStoryGenerationStore = create<StoryGenerationState>((set, get) =
         updateStageStatus('script', { status: 'complete', data: scriptResponse });
 
         // Auto-save script
-        await saveStoryProgress(config.projectId, config.storyId, { script: scriptResponse.script });
+        await saveStoryProgress(config.projectId, config.storyId, {
+          script: scriptResponse.script,
+        });
 
         await runBreakdownAndPrompts(config, scriptResponse.script);
       } else {
@@ -528,7 +533,7 @@ async function runPromptsOnly(config: GenerationConfig, scenes: unknown[]) {
   // Auto-save prompts and mark story as complete
   await saveStoryProgress(config.projectId, config.storyId, {
     prompts: allPrompts,
-    status: 'complete'
+    status: 'complete',
   });
 
   // Complete!
@@ -685,7 +690,7 @@ async function runBreakdownAndPrompts(config: GenerationConfig, scriptText: stri
   // Auto-save prompts and mark story as complete
   await saveStoryProgress(config.projectId, config.storyId, {
     prompts: allPrompts,
-    status: 'complete'
+    status: 'complete',
   });
 
   // Complete!

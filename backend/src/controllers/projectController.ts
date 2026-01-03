@@ -71,10 +71,7 @@ export const getProjects = async (req: Request, res: Response) => {
       // 1. Owned directly by user (userId match)
       // 2. OR belong to any team the user is a member of
       whereClause = {
-        OR: [
-          { userId },
-          ...(teamIds.length > 0 ? [{ teamId: { in: teamIds } }] : []),
-        ],
+        OR: [{ userId }, ...(teamIds.length > 0 ? [{ teamId: { in: teamIds } }] : [])],
       };
     }
     // If no auth, show all (backward compatibility for dev mode)
@@ -169,7 +166,9 @@ export const deleteProject = async (req: Request, res: Response) => {
           where: { teamId_userId: { teamId: project.teamId, userId } },
         });
         if (!membership || !['owner', 'admin'].includes(membership.role)) {
-          return res.status(403).json({ error: 'Only project owner or team admin can delete this project' });
+          return res
+            .status(403)
+            .json({ error: 'Only project owner or team admin can delete this project' });
         }
       } else if (!canDelete) {
         return res.status(403).json({ error: 'You do not have permission to delete this project' });

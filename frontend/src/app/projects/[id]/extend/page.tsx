@@ -29,10 +29,7 @@ export default function ExtendVideoPage() {
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Button
-          startIcon={<ArrowBack />}
-          onClick={handleBack}
-        >
+        <Button startIcon={<ArrowBack />} onClick={handleBack}>
           {mode === 'select' ? 'Back' : 'Change Mode'}
         </Button>
         <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }}>

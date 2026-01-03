@@ -52,10 +52,10 @@ export const CompactUploadZone = ({
         whileTap={{ scale: 0.98 }}
         className={clsx(
           'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all',
-          'bg-white/5 border border-white/10 text-zinc-300',
-          'hover:bg-white/10 hover:border-white/20 hover:text-white',
-          'disabled:opacity-50 disabled:cursor-not-allowed',
-          isDragActive && 'bg-violet-500/10 border-violet-500/30 text-violet-300'
+          'border border-white/10 bg-white/5 text-zinc-300',
+          'hover:border-white/20 hover:bg-white/10 hover:text-white',
+          'disabled:cursor-not-allowed disabled:opacity-50',
+          isDragActive && 'border-violet-500/30 bg-violet-500/10 text-violet-300'
         )}
       >
         <AnimatePresence mode="wait">
@@ -100,14 +100,14 @@ export const GlobalDropOverlay = ({ isActive }: { isActive: boolean }) => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-4 z-50 rounded-2xl border-2 border-dashed border-violet-500 bg-zinc-950/90 backdrop-blur-sm flex items-center justify-center pointer-events-none"
+          className="pointer-events-none fixed inset-4 z-50 flex items-center justify-center rounded-2xl border-2 border-dashed border-violet-500 bg-zinc-950/90 backdrop-blur-sm"
         >
           <div className="text-center">
-            <div className="w-16 h-16 rounded-2xl bg-violet-500/20 flex items-center justify-center mx-auto mb-4">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-500/20">
               <Upload size={32} className="text-violet-400" />
             </div>
             <p className="text-lg font-semibold text-white">Drop to Ingest</p>
-            <p className="text-sm text-zinc-500 mt-1">Release to upload files</p>
+            <p className="mt-1 text-sm text-zinc-500">Release to upload files</p>
           </div>
         </motion.div>
       )}

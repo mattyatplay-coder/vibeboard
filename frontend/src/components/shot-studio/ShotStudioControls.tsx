@@ -117,10 +117,8 @@ export function ShotStudioControls({
         });
 
         // Update local state
-        setLocations((prev) =>
-          prev.map((loc) =>
-            loc.id === locationId ? { ...loc, isLocked: !currentlyLocked } : loc
-          )
+        setLocations(prev =>
+          prev.map(loc => (loc.id === locationId ? { ...loc, isLocked: !currentlyLocked } : loc))
         );
       } catch (err) {
         console.error('Failed to toggle location lock:', err);
@@ -150,9 +148,7 @@ export function ShotStudioControls({
   // Update region
   const handleUpdateRegion = useCallback(
     (regionId: string, updates: Partial<BlockingRegion>) => {
-      const updated = regions.map((r) =>
-        r.id === regionId ? { ...r, ...updates } : r
-      );
+      const updated = regions.map(r => (r.id === regionId ? { ...r, ...updates } : r));
       setRegions(updated);
       onBlockingUpdate(updated);
     },
@@ -162,7 +158,7 @@ export function ShotStudioControls({
   // Delete region
   const handleDeleteRegion = useCallback(
     (regionId: string) => {
-      const updated = regions.filter((r) => r.id !== regionId);
+      const updated = regions.filter(r => r.id !== regionId);
       setRegions(updated);
       onBlockingUpdate(updated);
     },
@@ -172,7 +168,7 @@ export function ShotStudioControls({
   // Toggle region lock
   const handleToggleRegionLock = useCallback(
     (regionId: string) => {
-      const region = regions.find((r) => r.id === regionId);
+      const region = regions.find(r => r.id === regionId);
       if (region) {
         handleUpdateRegion(regionId, { locked: !region.locked });
       }
@@ -184,7 +180,7 @@ export function ShotStudioControls({
     <div className={clsx('space-y-4', className)}>
       {/* === Spatia: Virtual Set Selection === */}
       <div className="rounded-xl border border-white/5 bg-zinc-900/40 p-4 backdrop-blur-sm">
-        <label className="mb-3 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+        <label className="mb-3 flex items-center gap-2 text-[10px] font-medium tracking-wider text-zinc-500 uppercase">
           <MapPin className="h-3.5 w-3.5 text-cyan-400" />
           Virtual Set (Spatia)
         </label>
@@ -203,7 +199,7 @@ export function ShotStudioControls({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2">
-            {locations.map((location) => {
+            {locations.map(location => {
               const isSelected = selectedLocationId === location.id;
 
               return (
@@ -242,7 +238,7 @@ export function ShotStudioControls({
                       </span>
                       <Tooltip content={location.isLocked ? 'Unlock Set' : 'Lock Set'}>
                         <button
-                          onClick={(e) => {
+                          onClick={e => {
                             e.stopPropagation();
                             handleToggleLock(location.id, location.isLocked);
                           }}
@@ -282,21 +278,19 @@ export function ShotStudioControls({
           </div>
         )}
 
-        <p className="mt-2 text-[10px] text-zinc-600">
-          Locks geometry for pans and continuity.
-        </p>
+        <p className="mt-2 text-[10px] text-zinc-600">Locks geometry for pans and continuity.</p>
       </div>
 
       {/* === ReCo: Region Blocking === */}
       <div className="rounded-xl border border-white/5 bg-zinc-900/40 p-4 backdrop-blur-sm">
-        <label className="mb-3 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+        <label className="mb-3 flex items-center gap-2 text-[10px] font-medium tracking-wider text-zinc-500 uppercase">
           <BoxSelect className="h-3.5 w-3.5 text-violet-400" />
           Region Blocking (ReCo)
         </label>
 
         <button
           onClick={handleAddRegion}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-violet-500/20 bg-violet-500/5 py-2 text-xs font-medium text-violet-400 transition-colors hover:bg-violet-500/10 hover:border-violet-500/30"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-violet-500/20 bg-violet-500/5 py-2 text-xs font-medium text-violet-400 transition-colors hover:border-violet-500/30 hover:bg-violet-500/10"
         >
           <Plus className="h-3.5 w-3.5" />
           Add Bounding Box
@@ -332,9 +326,7 @@ export function ShotStudioControls({
                   <input
                     type="text"
                     value={region.label}
-                    onChange={(e) =>
-                      handleUpdateRegion(region.id, { label: e.target.value })
-                    }
+                    onChange={e => handleUpdateRegion(region.id, { label: e.target.value })}
                     placeholder="Object label..."
                     className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder-gray-500 focus:outline-none"
                   />

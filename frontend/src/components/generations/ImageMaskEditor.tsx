@@ -228,7 +228,9 @@ export function ImageMaskEditor({
                     onClick={() => setTool('eraser')}
                     className={clsx(
                       'rounded-md p-2 transition-colors',
-                      tool === 'eraser' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                      tool === 'eraser'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-400 hover:text-white'
                     )}
                   >
                     <Eraser className="h-5 w-5" />

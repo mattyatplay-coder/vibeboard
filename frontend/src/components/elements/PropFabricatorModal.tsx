@@ -2,16 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Loader2,
-  X,
-  Wand2,
-  Download,
-  Copy,
-  Check,
-  Sparkles,
-  Layers,
-} from 'lucide-react';
+import { Loader2, X, Wand2, Download, Copy, Check, Sparkles, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { Tooltip } from '@/components/ui/Tooltip';
 
@@ -26,12 +17,30 @@ interface PropFabricatorModalProps {
 }
 
 const TRANSFORM_PRESETS = [
-  { label: 'Cyberpunk', prompt: 'transform into a futuristic cyberpunk version with neon lights and chrome accents' },
-  { label: 'Steampunk', prompt: 'transform into a Victorian steampunk version with brass, gears, and copper pipes' },
-  { label: 'Fantasy', prompt: 'transform into a magical fantasy version with runes, crystals, and enchanted glow' },
-  { label: 'Rustic', prompt: 'transform into an aged rustic version with weathered wood and vintage patina' },
-  { label: 'Sci-Fi', prompt: 'transform into a sleek sci-fi version with holographic elements and alien technology' },
-  { label: 'Horror', prompt: 'transform into a dark horror version with blood stains, rust, and decay' },
+  {
+    label: 'Cyberpunk',
+    prompt: 'transform into a futuristic cyberpunk version with neon lights and chrome accents',
+  },
+  {
+    label: 'Steampunk',
+    prompt: 'transform into a Victorian steampunk version with brass, gears, and copper pipes',
+  },
+  {
+    label: 'Fantasy',
+    prompt: 'transform into a magical fantasy version with runes, crystals, and enchanted glow',
+  },
+  {
+    label: 'Rustic',
+    prompt: 'transform into an aged rustic version with weathered wood and vintage patina',
+  },
+  {
+    label: 'Sci-Fi',
+    prompt: 'transform into a sleek sci-fi version with holographic elements and alien technology',
+  },
+  {
+    label: 'Horror',
+    prompt: 'transform into a dark horror version with blood stains, rust, and decay',
+  },
 ];
 
 export function PropFabricatorModal({
@@ -61,7 +70,9 @@ export function PropFabricatorModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          propImage: propImageUrl.startsWith('http') ? propImageUrl : `${BACKEND_URL}${propImageUrl}`,
+          propImage: propImageUrl.startsWith('http')
+            ? propImageUrl
+            : `${BACKEND_URL}${propImageUrl}`,
           transformDescription: transformPrompt.trim(),
           maintainPerspective,
         }),
@@ -87,7 +98,7 @@ export function PropFabricatorModal({
     }
   };
 
-  const handlePresetClick = (preset: typeof TRANSFORM_PRESETS[0]) => {
+  const handlePresetClick = (preset: (typeof TRANSFORM_PRESETS)[0]) => {
     setTransformPrompt(preset.prompt);
   };
 
@@ -153,14 +164,10 @@ export function PropFabricatorModal({
             <div className="flex w-1/3 flex-col gap-4">
               <div>
                 <span className="text-sm font-medium text-white/70">Original Prop</span>
-                <p className="text-xs text-white/40 mt-1 truncate">{propName}</p>
+                <p className="mt-1 truncate text-xs text-white/40">{propName}</p>
               </div>
               <div className="relative overflow-hidden rounded-lg border border-white/10 bg-black/30">
-                <img
-                  src={propImageUrl}
-                  alt={propName}
-                  className="h-48 w-full object-contain"
-                />
+                <img src={propImageUrl} alt={propName} className="h-48 w-full object-contain" />
               </div>
 
               {/* Maintain Perspective toggle */}
@@ -230,10 +237,7 @@ export function PropFabricatorModal({
                     <span className="text-sm font-medium text-amber-300">Result</span>
                     <div className="flex gap-2">
                       <Tooltip content="Copy URL">
-                        <button
-                          onClick={handleCopyUrl}
-                          className="rounded p-1 hover:bg-white/10"
-                        >
+                        <button onClick={handleCopyUrl} className="rounded p-1 hover:bg-white/10">
                           {copied ? (
                             <Check className="h-4 w-4 text-green-400" />
                           ) : (
@@ -242,10 +246,7 @@ export function PropFabricatorModal({
                         </button>
                       </Tooltip>
                       <Tooltip content="Download">
-                        <button
-                          onClick={handleDownload}
-                          className="rounded p-1 hover:bg-white/10"
-                        >
+                        <button onClick={handleDownload} className="rounded p-1 hover:bg-white/10">
                           <Download className="h-4 w-4" />
                         </button>
                       </Tooltip>

@@ -45,25 +45,25 @@ export function SegmentedControl<T extends string>({
   fullWidth = false,
   label,
 }: SegmentedControlProps<T>) {
-  const selectedIndex = options.findIndex((opt) => opt.value === value);
+  const selectedIndex = options.findIndex(opt => opt.value === value);
 
   return (
     <div className={clsx('flex flex-col gap-1.5', fullWidth && 'w-full')}>
       {label && (
-        <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">
+        <label className="text-[9px] font-bold tracking-widest text-zinc-500 uppercase">
           {label}
         </label>
       )}
 
       <div
         className={clsx(
-          'relative inline-flex rounded-lg bg-zinc-900/60 border border-white/5 p-0.5',
+          'relative inline-flex rounded-lg border border-white/5 bg-zinc-900/60 p-0.5',
           fullWidth && 'w-full'
         )}
       >
         {/* Animated Background Pill */}
         <motion.div
-          className="absolute top-0.5 bottom-0.5 bg-white/10 rounded-md"
+          className="absolute top-0.5 bottom-0.5 rounded-md bg-white/10"
           initial={false}
           animate={{
             left: `calc(${(selectedIndex / options.length) * 100}% + 2px)`,
@@ -73,16 +73,18 @@ export function SegmentedControl<T extends string>({
         />
 
         {/* Options */}
-        {options.map((option) => (
+        {options.map(option => (
           <button
             key={option.value}
             onClick={() => onChange(option.value)}
             className={clsx(
-              'relative z-10 flex items-center justify-center gap-1.5 rounded-md transition-colors whitespace-nowrap',
-              size === 'sm' ? 'px-4 py-1.5 text-[10px] min-w-[60px]' : 'px-5 py-2 text-xs min-w-[72px]',
+              'relative z-10 flex items-center justify-center gap-1.5 rounded-md whitespace-nowrap transition-colors',
+              size === 'sm'
+                ? 'min-w-[60px] px-4 py-1.5 text-[10px]'
+                : 'min-w-[72px] px-5 py-2 text-xs',
               fullWidth && 'flex-1',
               value === option.value
-                ? 'text-white font-medium'
+                ? 'font-medium text-white'
                 : 'text-zinc-500 hover:text-zinc-300'
             )}
           >

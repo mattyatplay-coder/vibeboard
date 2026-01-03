@@ -52,9 +52,8 @@ const parseElementJsonFields = (element: any) => {
   let parsedMetadata = null;
   if (element.metadata) {
     try {
-      parsedMetadata = typeof element.metadata === 'string'
-        ? JSON.parse(element.metadata)
-        : element.metadata;
+      parsedMetadata =
+        typeof element.metadata === 'string' ? JSON.parse(element.metadata) : element.metadata;
     } catch {
       console.warn(`Failed to parse metadata for element ${element.id}`);
       parsedMetadata = {};
@@ -94,7 +93,9 @@ export const uploadElement = async (req: Request, res: Response) => {
       if (file.path && fs.existsSync(file.path)) {
         fs.unlinkSync(file.path);
       }
-      return res.status(400).json({ error: validationError.message || 'Invalid file type or size' });
+      return res
+        .status(400)
+        .json({ error: validationError.message || 'Invalid file type or size' });
     }
 
     // Upload to storage (R2/S3/local based on STORAGE_PROVIDER)
@@ -258,7 +259,7 @@ export const updateElement = async (req: Request, res: Response) => {
     console.error('Element update error:', error);
     res.status(500).json({
       error: 'Failed to update element',
-      details: error?.message || 'Unknown error'
+      details: error?.message || 'Unknown error',
     });
   }
 };

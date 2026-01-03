@@ -94,9 +94,7 @@ export function usePromptAutocomplete({
 
     if (autocomplete.triggerType === '#') {
       // Filter props
-      const filtered = props
-        .filter(p => p.name.toLowerCase().includes(query))
-        .slice(0, 20);
+      const filtered = props.filter(p => p.name.toLowerCase().includes(query)).slice(0, 20);
 
       return filtered.map(p => ({
         id: p.id,
@@ -110,9 +108,7 @@ export function usePromptAutocomplete({
 
     if (autocomplete.triggerType === '$') {
       // Filter variables
-      const filtered = variables
-        .filter(v => v.name.toLowerCase().includes(query))
-        .slice(0, 20);
+      const filtered = variables.filter(v => v.name.toLowerCase().includes(query)).slice(0, 20);
 
       return filtered.map(v => ({
         id: v.id,
@@ -124,7 +120,15 @@ export function usePromptAutocomplete({
     }
 
     return [];
-  }, [autocomplete.isOpen, autocomplete.triggerType, autocomplete.query, elements, props, variables, projectId]);
+  }, [
+    autocomplete.isOpen,
+    autocomplete.triggerType,
+    autocomplete.query,
+    elements,
+    props,
+    variables,
+    projectId,
+  ]);
 
   // Detect triggers in text
   const detectTrigger = useCallback((text: string, cursorPos: number) => {
@@ -225,7 +229,13 @@ export function usePromptAutocomplete({
         cursorPosition: 0,
       });
     },
-    [value, onChange, autocomplete.triggerType, autocomplete.triggerPosition, autocomplete.cursorPosition]
+    [
+      value,
+      onChange,
+      autocomplete.triggerType,
+      autocomplete.triggerPosition,
+      autocomplete.cursorPosition,
+    ]
   );
 
   // Close the popup

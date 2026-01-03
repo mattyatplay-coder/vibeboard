@@ -74,7 +74,9 @@ export function PropBinPanel({ isOpen, onClose }: PropBinPanelProps) {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   // Generation picker state
-  const [generations, setGenerations] = useState<Array<{ id: string; outputUrl: string; prompt?: string }>>([]);
+  const [generations, setGenerations] = useState<
+    Array<{ id: string; outputUrl: string; prompt?: string }>
+  >([]);
   const [loadingGenerations, setLoadingGenerations] = useState(false);
   const [selectedGenerationId, setSelectedGenerationId] = useState<string | null>(null);
 
@@ -347,11 +349,7 @@ export function PropBinPanel({ isOpen, onClose }: PropBinPanelProps) {
         {/* Preview Image */}
         {prop.extractedUrl && (
           <div className="relative aspect-square overflow-hidden rounded-xl border border-white/10 bg-black/50">
-            <img
-              src={prop.extractedUrl}
-              alt={prop.name}
-              className="h-full w-full object-contain"
-            />
+            <img src={prop.extractedUrl} alt={prop.name} className="h-full w-full object-contain" />
             {/* Checkerboard background for transparency */}
             <div
               className="absolute inset-0 -z-10"
@@ -385,7 +383,11 @@ export function PropBinPanel({ isOpen, onClose }: PropBinPanelProps) {
               <div
                 className={clsx(
                   'text-sm font-medium',
-                  prop.edgeQuality > 0.7 ? 'text-green-400' : prop.edgeQuality > 0.4 ? 'text-amber-400' : 'text-red-400'
+                  prop.edgeQuality > 0.7
+                    ? 'text-green-400'
+                    : prop.edgeQuality > 0.4
+                      ? 'text-amber-400'
+                      : 'text-red-400'
                 )}
               >
                 {Math.round(prop.edgeQuality * 100)}%
@@ -420,15 +422,19 @@ export function PropBinPanel({ isOpen, onClose }: PropBinPanelProps) {
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-lg border border-white/10 bg-black/30 p-2">
               <div className="text-xs text-gray-500">Reflectivity</div>
-              <div className="text-sm font-medium capitalize text-white">{analysis.reflectivity}</div>
+              <div className="text-sm font-medium text-white capitalize">
+                {analysis.reflectivity}
+              </div>
             </div>
             <div className="rounded-lg border border-white/10 bg-black/30 p-2">
               <div className="text-xs text-gray-500">Transparency</div>
-              <div className="text-sm font-medium capitalize text-white">{analysis.transparency}</div>
+              <div className="text-sm font-medium text-white capitalize">
+                {analysis.transparency}
+              </div>
             </div>
             <div className="rounded-lg border border-white/10 bg-black/30 p-2">
               <div className="text-xs text-gray-500">Texture</div>
-              <div className="text-sm font-medium capitalize text-white">{analysis.texture}</div>
+              <div className="text-sm font-medium text-white capitalize">{analysis.texture}</div>
             </div>
             {prop.usageCount !== undefined && (
               <div className="rounded-lg border border-white/10 bg-black/30 p-2">
@@ -544,7 +550,9 @@ export function PropBinPanel({ isOpen, onClose }: PropBinPanelProps) {
                 {viewMode === 'inspector' ? 'Material Inspector' : 'Prop Bin'}
               </h2>
               {viewMode === 'list' && (
-                <span className="rounded-full bg-white/5 px-2 py-0.5 text-xs text-gray-500">#PropName</span>
+                <span className="rounded-full bg-white/5 px-2 py-0.5 text-xs text-gray-500">
+                  #PropName
+                </span>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -558,7 +566,10 @@ export function PropBinPanel({ isOpen, onClose }: PropBinPanelProps) {
                   </button>
                 </Tooltip>
               )}
-              <button onClick={onClose} className="rounded-lg p-1.5 transition-colors hover:bg-white/10">
+              <button
+                onClick={onClose}
+                className="rounded-lg p-1.5 transition-colors hover:bg-white/10"
+              >
                 <X className="h-5 w-5 text-gray-400" />
               </button>
             </div>
@@ -655,7 +666,11 @@ export function PropBinPanel({ isOpen, onClose }: PropBinPanelProps) {
                   {uploadPreview ? (
                     <>
                       <div className="relative mx-auto mb-4 aspect-square w-48 overflow-hidden rounded-lg border border-white/10">
-                        <img src={uploadPreview} alt="Upload preview" className="h-full w-full object-contain" />
+                        <img
+                          src={uploadPreview}
+                          alt="Upload preview"
+                          className="h-full w-full object-contain"
+                        />
                         <button
                           onClick={() => {
                             setUploadPreview(null);
@@ -893,7 +908,9 @@ export function PropBinPanel({ isOpen, onClose }: PropBinPanelProps) {
                           />
                           <textarea
                             value={editingProp.description}
-                            onChange={e => setEditingProp({ ...editingProp, description: e.target.value })}
+                            onChange={e =>
+                              setEditingProp({ ...editingProp, description: e.target.value })
+                            }
                             className="h-20 w-full resize-none rounded border border-white/10 bg-black/50 px-2 py-1 text-xs text-white focus:border-amber-500/30 focus:outline-none"
                             placeholder="Detailed prompt description..."
                           />
@@ -932,7 +949,8 @@ export function PropBinPanel({ isOpen, onClose }: PropBinPanelProps) {
                         // Display Mode
                         <div className="flex gap-3">
                           {/* Thumbnail */}
-                          {(prop as ExtractedProp).thumbnailUrl || (prop as ExtractedProp).extractedUrl ? (
+                          {(prop as ExtractedProp).thumbnailUrl ||
+                          (prop as ExtractedProp).extractedUrl ? (
                             <button
                               onClick={() => {
                                 setSelectedProp(prop as ExtractedProp);
@@ -941,7 +959,10 @@ export function PropBinPanel({ isOpen, onClose }: PropBinPanelProps) {
                               className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-black/50"
                             >
                               <img
-                                src={(prop as ExtractedProp).thumbnailUrl || (prop as ExtractedProp).extractedUrl}
+                                src={
+                                  (prop as ExtractedProp).thumbnailUrl ||
+                                  (prop as ExtractedProp).extractedUrl
+                                }
                                 alt={prop.name}
                                 className="h-full w-full object-contain"
                               />
@@ -960,7 +981,9 @@ export function PropBinPanel({ isOpen, onClose }: PropBinPanelProps) {
                                   </button>
                                 </Tooltip>
                                 {prop.category && PROP_CATEGORIES[prop.category] && (
-                                  <span className="text-xs opacity-60">{PROP_CATEGORIES[prop.category].icon}</span>
+                                  <span className="text-xs opacity-60">
+                                    {PROP_CATEGORIES[prop.category].icon}
+                                  </span>
                                 )}
                                 {(prop as ExtractedProp).proxy3dStatus === 'complete' && (
                                   <Box className="h-3 w-3 text-purple-400" />
@@ -998,11 +1021,16 @@ export function PropBinPanel({ isOpen, onClose }: PropBinPanelProps) {
                                 </Tooltip>
                               </div>
                             </div>
-                            <p className="mt-1 line-clamp-2 text-xs text-gray-400">{prop.description}</p>
+                            <p className="mt-1 line-clamp-2 text-xs text-gray-400">
+                              {prop.description}
+                            </p>
                             {prop.tags && prop.tags.length > 0 && (
                               <div className="mt-1 flex flex-wrap gap-1">
                                 {prop.tags.map((tag, i) => (
-                                  <span key={i} className="rounded bg-white/5 px-1.5 py-0.5 text-[9px] text-gray-500">
+                                  <span
+                                    key={i}
+                                    className="rounded bg-white/5 px-1.5 py-0.5 text-[9px] text-gray-500"
+                                  >
                                     {tag}
                                   </span>
                                 ))}
@@ -1097,8 +1125,9 @@ export function PropBinPanel({ isOpen, onClose }: PropBinPanelProps) {
               {/* Usage Hint */}
               <div className="px-3 pb-3">
                 <div className="rounded-lg border border-amber-500/10 bg-amber-500/5 p-2 text-[10px] text-amber-400/70">
-                  <strong>Usage:</strong> Type <code className="rounded bg-black/30 px-1">#PropName</code> in your
-                  prompt. It will expand to the full description when generating.
+                  <strong>Usage:</strong> Type{' '}
+                  <code className="rounded bg-black/30 px-1">#PropName</code> in your prompt. It
+                  will expand to the full description when generating.
                 </div>
               </div>
             </>

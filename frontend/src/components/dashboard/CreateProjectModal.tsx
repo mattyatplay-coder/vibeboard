@@ -73,9 +73,9 @@ export const CreateProjectModal = ({ onClose, onSuccess }: CreateProjectModalPro
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2"
+        className="fixed top-1/2 left-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2"
       >
-        <div className="rounded-2xl border border-white/10 bg-zinc-900/95 backdrop-blur-xl shadow-2xl shadow-black/50">
+        <div className="rounded-2xl border border-white/10 bg-zinc-900/95 shadow-2xl shadow-black/50 backdrop-blur-xl">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
             <div className="flex items-center gap-2">
@@ -108,12 +108,12 @@ export const CreateProjectModal = ({ onClose, onSuccess }: CreateProjectModalPro
                   id="project-name"
                   type="text"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={e => setName(e.target.value)}
                   placeholder="My Awesome Production"
                   autoFocus
                   required
                   disabled={isSubmitting}
-                  className="w-full rounded-lg border border-white/10 bg-zinc-800/50 px-4 py-3 text-white placeholder-zinc-500 transition-all focus:border-violet-500/50 focus:outline-none focus:ring-2 focus:ring-violet-500/20 disabled:opacity-50"
+                  className="w-full rounded-lg border border-white/10 bg-zinc-800/50 px-4 py-3 text-white placeholder-zinc-500 transition-all focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 focus:outline-none disabled:opacity-50"
                 />
               </div>
 
@@ -128,11 +128,11 @@ export const CreateProjectModal = ({ onClose, onSuccess }: CreateProjectModalPro
                 <textarea
                   id="project-desc"
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={e => setDescription(e.target.value)}
                   placeholder="A brief description of your project..."
                   rows={3}
                   disabled={isSubmitting}
-                  className="w-full resize-none rounded-lg border border-white/10 bg-zinc-800/50 px-4 py-3 text-white placeholder-zinc-500 transition-all focus:border-violet-500/50 focus:outline-none focus:ring-2 focus:ring-violet-500/20 disabled:opacity-50"
+                  className="w-full resize-none rounded-lg border border-white/10 bg-zinc-800/50 px-4 py-3 text-white placeholder-zinc-500 transition-all focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 focus:outline-none disabled:opacity-50"
                 />
               </div>
             </div>
