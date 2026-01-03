@@ -418,7 +418,8 @@ export function LoRAManager({
     setError(null);
 
     // Use custom category if selected, otherwise use dropdown value
-    const finalCategory = newCategory === '__custom__' ? newCustomCategory.toLowerCase().trim() : newCategory;
+    const finalCategory =
+      newCategory === '__custom__' ? newCustomCategory.toLowerCase().trim() : newCategory;
 
     try {
       await fetchAPI(`/projects/${projectId}/loras`, {
@@ -508,7 +509,8 @@ export function LoRAManager({
       .filter(a => a.length > 0);
 
     // Use custom category if selected, otherwise use dropdown value
-    const finalCategory = editCategory === '__custom__' ? editCustomCategory.toLowerCase().trim() : editCategory;
+    const finalCategory =
+      editCategory === '__custom__' ? editCustomCategory.toLowerCase().trim() : editCategory;
 
     try {
       await fetchAPI(`/projects/${projectId}/loras/${editingLora.id}`, {
