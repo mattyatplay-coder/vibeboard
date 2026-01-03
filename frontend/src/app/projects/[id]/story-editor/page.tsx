@@ -40,7 +40,13 @@ import { GenreSelector, GenrePills } from '@/components/storyboard/GenreSelector
 import { Tooltip } from '@/components/ui/Tooltip';
 import { Genre, GENRE_TEMPLATES, getGenreTemplate } from '@/data/GenreTemplates';
 import ThumbnailGeneratorPanel from '@/components/content/ThumbnailGeneratorPanel';
-import { useStoryGenerationStore, PipelineStage, StageStatus, StoryCharacter as GlobalStoryCharacter, ContinueFromData } from '@/lib/storyGenerationStore';
+import {
+  useStoryGenerationStore,
+  PipelineStage,
+  StageStatus,
+  StoryCharacter as GlobalStoryCharacter,
+  ContinueFromData,
+} from '@/lib/storyGenerationStore';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { ScrubbableInput } from '@/components/ui/ScrubbableInput';
 
@@ -98,7 +104,11 @@ export default function StoryEditorPage() {
   const [shotDuration, setShotDuration] = useState<number>(5); // Default duration per video shot in seconds
   const [allowNSFW, setAllowNSFW] = useState(false); // Allow NSFW content in prompts
   const [useRAG, setUseRAG] = useState(true); // Use RAG-enhanced generation with script library
-  const [ragStats, setRagStats] = useState<{ totalScripts: number; indexedScripts: number; genreBreakdown: Record<string, number> } | null>(null);
+  const [ragStats, setRagStats] = useState<{
+    totalScripts: number;
+    indexedScripts: number;
+    genreBreakdown: Record<string, number>;
+  } | null>(null);
 
   // Pipeline state
   const [currentStage, setCurrentStage] = useState<PipelineStage>('concept');
@@ -162,13 +172,8 @@ export default function StoryEditorPage() {
   const [hasMounted, setHasMounted] = useState(false);
   const [showRecoveryToast, setShowRecoveryToast] = useState(false);
   const [recoverableSession, setRecoverableSession] = useState<StoryEditorSession | null>(null);
-  const {
-    saveSession,
-    getSession,
-    clearSession,
-    dismissRecovery,
-    isRecoveryDismissed,
-  } = usePageAutoSave<StoryEditorSession>('story-editor');
+  const { saveSession, getSession, clearSession, dismissRecovery, isRecoveryDismissed } =
+    usePageAutoSave<StoryEditorSession>('story-editor');
 
   // Load project elements on mount
   useEffect(() => {
@@ -236,7 +241,8 @@ export default function StoryEditorPage() {
       if (globalStore.script) setScript(globalStore.script as string);
       if (globalStore.scenes.length > 0) setScenes(globalStore.scenes);
       if (globalStore.prompts.length > 0) setPrompts(globalStore.prompts);
-      if (globalStore.progressInfo) setProgressInfo(globalStore.progressInfo as typeof progressInfo);
+      if (globalStore.progressInfo)
+        setProgressInfo(globalStore.progressInfo as typeof progressInfo);
     } else if (globalStore.activeProjectId === projectId && !globalStore.isRunning) {
       // Generation completed while navigated away - sync final results
       console.log('[StoryEditor] Syncing completed generation from global store');
@@ -254,7 +260,7 @@ export default function StoryEditorPage() {
     if (!projectId || globalStore.activeProjectId !== projectId) return;
 
     // Create a subscription to the store
-    const unsubscribe = useStoryGenerationStore.subscribe((state) => {
+    const unsubscribe = useStoryGenerationStore.subscribe(state => {
       if (state.activeProjectId !== projectId) return;
 
       // Update local state from global store
@@ -302,7 +308,8 @@ export default function StoryEditorPage() {
 
     const saveInterval = setInterval(() => {
       // Only save if there's meaningful content
-      const hasContent = concept.trim().length > 0 || script.trim().length > 0 || storyName.trim().length > 0;
+      const hasContent =
+        concept.trim().length > 0 || script.trim().length > 0 || storyName.trim().length > 0;
       if (!hasContent) return;
 
       saveSession({
@@ -501,23 +508,27 @@ export default function StoryEditorPage() {
 
       // Restore selected characters
       if (story.characters && Array.isArray(story.characters)) {
-        setSelectedCharacters(story.characters.map((c: {
-          name: string;
-          elementId?: string;
-          loraId?: string;
-          triggerWord?: string;
-          visualDescription?: string;
-          referenceImageUrl?: string;
-          role?: string;
-        }) => ({
-          name: c.name,
-          elementId: c.elementId,
-          loraId: c.loraId,
-          triggerWord: c.triggerWord,
-          visualDescription: c.visualDescription,
-          referenceImageUrl: c.referenceImageUrl,
-          role: c.role,
-        })));
+        setSelectedCharacters(
+          story.characters.map(
+            (c: {
+              name: string;
+              elementId?: string;
+              loraId?: string;
+              triggerWord?: string;
+              visualDescription?: string;
+              referenceImageUrl?: string;
+              role?: string;
+            }) => ({
+              name: c.name,
+              elementId: c.elementId,
+              loraId: c.loraId,
+              triggerWord: c.triggerWord,
+              visualDescription: c.visualDescription,
+              referenceImageUrl: c.referenceImageUrl,
+              role: c.role,
+            })
+          )
+        );
       }
 
       // Update stage based on what's loaded
@@ -676,9 +687,9 @@ export default function StoryEditorPage() {
     // Try to extract a meaningful title from the first sentence or phrase
     // Look for natural break points: period, comma, dash, "about", "where", "when"
     const breakPatterns = [
-      /^(.{10,50}?)[.!?]/,           // First sentence up to 50 chars
-      /^(.{10,40}?),\s/,             // First clause up to 40 chars
-      /^(.{10,35}?)\s[-–—]\s/,       // Before a dash
+      /^(.{10,50}?)[.!?]/, // First sentence up to 50 chars
+      /^(.{10,40}?),\s/, // First clause up to 40 chars
+      /^(.{10,35}?)\s[-–—]\s/, // Before a dash
       /^(.{10,30}?)\s(?:about|where|when|who)\s/i, // Before common conjunctions
     ];
 
@@ -704,7 +715,8 @@ export default function StoryEditorPage() {
   // Auto-save story config before generation
   const autoSaveStoryConfig = async (): Promise<string | null> => {
     // Generate a working title if we don't have one
-    const workingTitle = storyName.trim() || generateWorkingTitle(concept, selectedGenre || 'Draft');
+    const workingTitle =
+      storyName.trim() || generateWorkingTitle(concept, selectedGenre || 'Draft');
 
     const storyData = {
       name: workingTitle,
@@ -763,35 +775,38 @@ export default function StoryEditorPage() {
   const titleSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isSavingTitle, setIsSavingTitle] = useState(false);
 
-  const handleTitleChange = useCallback((newTitle: string) => {
-    setStoryName(newTitle);
+  const handleTitleChange = useCallback(
+    (newTitle: string) => {
+      setStoryName(newTitle);
 
-    // Clear any pending save
-    if (titleSaveTimeoutRef.current) {
-      clearTimeout(titleSaveTimeoutRef.current);
-    }
-
-    // Only auto-save if we have a story ID
-    if (!currentStoryId) return;
-
-    // Debounce the save by 800ms
-    titleSaveTimeoutRef.current = setTimeout(async () => {
-      if (!newTitle.trim()) return;
-
-      setIsSavingTitle(true);
-      try {
-        await fetchAPI(`/projects/${projectId}/stories/${currentStoryId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ name: newTitle.trim() }),
-        });
-        console.log('[StoryEditor] Auto-saved title:', newTitle.trim());
-      } catch (error) {
-        console.error('[StoryEditor] Failed to auto-save title:', error);
-      } finally {
-        setIsSavingTitle(false);
+      // Clear any pending save
+      if (titleSaveTimeoutRef.current) {
+        clearTimeout(titleSaveTimeoutRef.current);
       }
-    }, 800);
-  }, [currentStoryId, projectId]);
+
+      // Only auto-save if we have a story ID
+      if (!currentStoryId) return;
+
+      // Debounce the save by 800ms
+      titleSaveTimeoutRef.current = setTimeout(async () => {
+        if (!newTitle.trim()) return;
+
+        setIsSavingTitle(true);
+        try {
+          await fetchAPI(`/projects/${projectId}/stories/${currentStoryId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ name: newTitle.trim() }),
+          });
+          console.log('[StoryEditor] Auto-saved title:', newTitle.trim());
+        } catch (error) {
+          console.error('[StoryEditor] Failed to auto-save title:', error);
+        } finally {
+          setIsSavingTitle(false);
+        }
+      }, 800);
+    },
+    [currentStoryId, projectId]
+  );
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -1644,6 +1659,7 @@ export default function StoryEditorPage() {
             targetDuration: sceneDuration,
             aspectRatio: '16:9',
             status: 'draft',
+            orderIndex: i, // Scene order from script lab
           }),
         });
 
@@ -1673,6 +1689,7 @@ export default function StoryEditorPage() {
                 prompt: promptData.prompt,
                 firstFramePrompt: promptData.firstFramePrompt || promptData.prompt,
                 lastFramePrompt: promptData.lastFramePrompt || null,
+                negativePrompt: promptData.negativePrompt || null, // AI-generated negative prompt for I2I surgical removal
                 duration: shot.duration || shotDuration,
                 orderIndex: j,
                 transitionType: 'smooth',
@@ -1682,7 +1699,9 @@ export default function StoryEditorPage() {
               }),
             });
 
-            console.log(`Created segment ${j + 1} for scene ${i + 1}`);
+            console.log(
+              `Created segment ${j + 1} for scene ${i + 1}${promptData.negativePrompt ? ' (with negative prompt)' : ''}`
+            );
           }
         }
       }
@@ -2029,7 +2048,7 @@ The parser will automatically detect scenes and break them down into shots."
                     { value: 'fast', label: 'Fast' },
                   ]}
                   value={pace}
-                  onChange={(val) => setPace(val as 'slow' | 'medium' | 'fast')}
+                  onChange={val => setPace(val as 'slow' | 'medium' | 'fast')}
                   label="Pacing"
                 />
               </div>
@@ -2423,14 +2442,14 @@ The parser will automatically detect scenes and break them down into shots."
                       const sceneMins = Math.floor(sceneDuration / 60);
                       const sceneSecs = sceneDuration % 60;
                       return (
-                        <div key={i} className="flex items-center justify-between text-xs group">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="max-w-[100px] truncate text-zinc-500 group-hover:text-zinc-400 transition-colors">
+                        <div key={i} className="group flex items-center justify-between text-xs">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="max-w-[100px] truncate text-zinc-500 transition-colors group-hover:text-zinc-400">
                               Scene {scene.sceneNumber}
                             </span>
                             {/* Shot count badge */}
                             {shotCount > 0 && (
-                              <span className="px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400 font-mono text-[10px]">
+                              <span className="rounded bg-violet-500/10 px-1.5 py-0.5 font-mono text-[10px] text-violet-400">
                                 {shotCount} shot{shotCount !== 1 ? 's' : ''}
                               </span>
                             )}
@@ -2461,24 +2480,24 @@ The parser will automatically detect scenes and break them down into shots."
             >
               <div className="space-y-4">
                 {/* Editable Working Title */}
-                <div className="rounded-lg bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20 p-3">
-                  <div className="flex items-center gap-2 mb-2">
+                <div className="rounded-lg border border-violet-500/20 bg-gradient-to-r from-violet-500/10 to-purple-500/10 p-3">
+                  <div className="mb-2 flex items-center gap-2">
                     <Pencil className="h-3.5 w-3.5 text-violet-400" />
-                    <span className="text-xs font-medium text-violet-400 uppercase tracking-wider">
+                    <span className="text-xs font-medium tracking-wider text-violet-400 uppercase">
                       Working Title
                     </span>
                     {isSavingTitle && (
-                      <Loader2 className="h-3 w-3 text-violet-400 animate-spin ml-auto" />
+                      <Loader2 className="ml-auto h-3 w-3 animate-spin text-violet-400" />
                     )}
                   </div>
                   <input
                     type="text"
                     value={storyName}
-                    onChange={(e) => handleTitleChange(e.target.value)}
+                    onChange={e => handleTitleChange(e.target.value)}
                     placeholder="Enter a title for your story..."
-                    className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white text-lg font-semibold placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all"
+                    className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-lg font-semibold text-white placeholder-gray-500 transition-all focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/50 focus:outline-none"
                   />
-                  <p className="text-xs text-gray-500 mt-1.5">
+                  <p className="mt-1.5 text-xs text-gray-500">
                     This title will be used when exporting your story
                   </p>
                 </div>
@@ -2558,20 +2577,20 @@ The parser will automatically detect scenes and break them down into shots."
                 )}
 
                 {/* Regenerate from Outline button */}
-                <div className="pt-3 border-t border-white/5 mt-4">
+                <div className="mt-4 border-t border-white/5 pt-3">
                   <button
                     onClick={() => regenerateFromStage('script')}
                     disabled={isRunning}
                     className={clsx(
                       'flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all',
                       'border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20',
-                      isRunning && 'opacity-50 cursor-not-allowed'
+                      isRunning && 'cursor-not-allowed opacity-50'
                     )}
                   >
                     <RefreshCw className="h-3 w-3" />
                     Regenerate Script, Breakdown & Prompts
                   </button>
-                  <p className="text-[10px] text-gray-500 mt-1.5">
+                  <p className="mt-1.5 text-[10px] text-gray-500">
                     Keeps outline, regenerates everything downstream
                   </p>
                 </div>
@@ -2592,22 +2611,22 @@ The parser will automatically detect scenes and break them down into shots."
                 <div className="space-y-3">
                   <textarea
                     value={editedScript}
-                    onChange={(e) => setEditedScript(e.target.value)}
-                    className="w-full h-96 rounded-lg bg-black/50 border border-violet-500/30 p-4 font-mono text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-y"
+                    onChange={e => setEditedScript(e.target.value)}
+                    className="h-96 w-full resize-y rounded-lg border border-violet-500/30 bg-black/50 p-4 font-mono text-xs text-gray-200 focus:ring-2 focus:ring-violet-500/50 focus:outline-none"
                     placeholder="Edit your screenplay..."
                   />
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => saveScriptEdit(true)}
                       disabled={isRunning}
-                      className="flex items-center gap-2 rounded-lg border border-violet-500/30 bg-violet-500/20 px-3 py-1.5 text-xs font-medium text-violet-300 hover:bg-violet-500/30 transition-all"
+                      className="flex items-center gap-2 rounded-lg border border-violet-500/30 bg-violet-500/20 px-3 py-1.5 text-xs font-medium text-violet-300 transition-all hover:bg-violet-500/30"
                     >
                       <RefreshCw className="h-3 w-3" />
                       Save & Regenerate Downstream
                     </button>
                     <button
                       onClick={() => saveScriptEdit(false)}
-                      className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-gray-300 hover:bg-white/10 transition-all"
+                      className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-gray-300 transition-all hover:bg-white/10"
                     >
                       <Check className="h-3 w-3" />
                       Save Only
@@ -2617,14 +2636,15 @@ The parser will automatically detect scenes and break them down into shots."
                         setIsEditingScript(false);
                         setEditedScript('');
                       }}
-                      className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-300 hover:bg-white/10 transition-all"
+                      className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-gray-400 transition-all hover:bg-white/10 hover:text-gray-300"
                     >
                       <X className="h-3 w-3" />
                       Cancel
                     </button>
                   </div>
                   <p className="text-[10px] text-gray-500">
-                    "Save & Regenerate" will update scene breakdown and shot prompts based on your changes
+                    "Save & Regenerate" will update scene breakdown and shot prompts based on your
+                    changes
                   </p>
                 </div>
               ) : (
@@ -2633,13 +2653,13 @@ The parser will automatically detect scenes and break them down into shots."
                     {script}
                   </pre>
                   {/* Edit & Regenerate Controls */}
-                  <div className="mt-3 flex items-center gap-2 flex-wrap">
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
                     <button
                       onClick={() => {
                         setEditedScript(script);
                         setIsEditingScript(true);
                       }}
-                      className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-gray-300 hover:bg-white/10 transition-all"
+                      className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-gray-300 transition-all hover:bg-white/10"
                     >
                       <Pencil className="h-3 w-3" />
                       Edit Script
@@ -2650,7 +2670,7 @@ The parser will automatically detect scenes and break them down into shots."
                       className={clsx(
                         'flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all',
                         'border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20',
-                        isRunning && 'opacity-50 cursor-not-allowed'
+                        isRunning && 'cursor-not-allowed opacity-50'
                       )}
                     >
                       <RefreshCw className="h-3 w-3" />
@@ -2675,7 +2695,9 @@ The parser will automatically detect scenes and break them down into shots."
                       ) : breakdownResult ? (
                         <>
                           <Check className="h-3 w-3" />
-                          {breakdownResult.breakdown.characters}C / {breakdownResult.breakdown.locations}L / {breakdownResult.breakdown.props}P
+                          {breakdownResult.breakdown.characters}C /{' '}
+                          {breakdownResult.breakdown.locations}L / {breakdownResult.breakdown.props}
+                          P
                         </>
                       ) : (
                         <>
@@ -2686,7 +2708,7 @@ The parser will automatically detect scenes and break them down into shots."
                     </button>
                   </div>
                   {breakdownResult && (
-                    <span className="block mt-2 text-xs text-gray-500">
+                    <span className="mt-2 block text-xs text-gray-500">
                       → Check Asset Bin for {breakdownResult.assetsCreated} new placeholders
                     </span>
                   )}
@@ -2703,7 +2725,7 @@ The parser will automatically detect scenes and break them down into shots."
                 <span className="text-xs font-bold tracking-wider text-zinc-400 uppercase">
                   Scene Breakdown
                 </span>
-                <span className="px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400 font-mono text-[10px]">
+                <span className="rounded bg-violet-500/10 px-1.5 py-0.5 font-mono text-[10px] text-violet-400">
                   {scenes.length} scenes
                 </span>
                 <div className="flex-1" />
@@ -2713,7 +2735,7 @@ The parser will automatically detect scenes and break them down into shots."
                   className={clsx(
                     'flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-medium transition-all',
                     'border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20',
-                    isRunning && 'opacity-50 cursor-not-allowed'
+                    isRunning && 'cursor-not-allowed opacity-50'
                   )}
                 >
                   <RefreshCw className="h-3 w-3" />
@@ -2723,67 +2745,69 @@ The parser will automatically detect scenes and break them down into shots."
               {scenes.map((scene, i) => {
                 const shotCount = scene.suggestedShots?.length || 0;
                 return (
-                <CollapsibleSection
-                  key={i}
-                  title={`Scene ${scene.sceneNumber}: ${scene.heading?.intExt || 'INT'}. ${scene.heading?.location || 'LOCATION'}`}
-                  icon={Film}
-                  isExpanded={expandedSections.includes(`scene-${i}`)}
-                  onToggle={() => toggleSection(`scene-${i}`)}
-                  status={stages.breakdown.status}
-                  badge={shotCount > 0 ? `${shotCount} shot${shotCount !== 1 ? 's' : ''}` : undefined}
-                >
-                  <div className="space-y-3">
-                    {/* Scene metadata */}
-                    <div className="flex items-center justify-between">
-                      <span
-                        className={clsx(
-                          'rounded px-2 py-0.5 text-[10px] font-bold uppercase',
-                          scene.emotionalBeat === 'tension' && 'bg-red-500/20 text-red-300',
-                          scene.emotionalBeat === 'release' && 'bg-green-500/20 text-green-300',
-                          'bg-zinc-800/50 text-zinc-400'
-                        )}
-                      >
-                        {scene.emotionalBeat || 'neutral'}
-                      </span>
-                      <span className="text-xs text-zinc-500 font-mono">
-                        {shotCount} shots
-                      </span>
-                    </div>
-
-                    <p className="text-sm text-gray-400">{scene.description}</p>
-
-                    {scene.characters?.length > 0 && (
-                      <div>
-                        <span className="text-[10px] text-gray-500">Characters: </span>
-                        <span className="text-xs text-gray-300">{scene.characters.join(', ')}</span>
-                      </div>
-                    )}
-
-                    {/* Shots list */}
-                    <div className="space-y-2 border-t border-white/10 pt-2">
-                      <span className="text-[10px] font-bold text-gray-500 uppercase">Shots</span>
-                      {scene.suggestedShots?.map((shot: any, j: number) => (
-                        <div
-                          key={j}
-                          className="flex items-start gap-2 rounded bg-white/5 p-2 text-xs"
+                  <CollapsibleSection
+                    key={i}
+                    title={`Scene ${scene.sceneNumber}: ${scene.heading?.intExt || 'INT'}. ${scene.heading?.location || 'LOCATION'}`}
+                    icon={Film}
+                    isExpanded={expandedSections.includes(`scene-${i}`)}
+                    onToggle={() => toggleSection(`scene-${i}`)}
+                    status={stages.breakdown.status}
+                    badge={
+                      shotCount > 0 ? `${shotCount} shot${shotCount !== 1 ? 's' : ''}` : undefined
+                    }
+                  >
+                    <div className="space-y-3">
+                      {/* Scene metadata */}
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={clsx(
+                            'rounded px-2 py-0.5 text-[10px] font-bold uppercase',
+                            scene.emotionalBeat === 'tension' && 'bg-red-500/20 text-red-300',
+                            scene.emotionalBeat === 'release' && 'bg-green-500/20 text-green-300',
+                            'bg-zinc-800/50 text-zinc-400'
+                          )}
                         >
-                          <span className="font-bold text-blue-400">{shot.shotNumber}.</span>
-                          <div className="flex-1">
-                            <p className="text-gray-300">{shot.description}</p>
-                            <div className="mt-1 flex items-center gap-2">
-                              <span className="rounded bg-green-500/20 px-1.5 py-0.5 text-[10px] text-green-300">
-                                {shot.cameraPresetId?.replace(/_/g, ' ')}
-                              </span>
-                              <span className="text-gray-500">{shot.lighting}</span>
-                              <span className="text-gray-500">{shot.duration}s</span>
+                          {scene.emotionalBeat || 'neutral'}
+                        </span>
+                        <span className="font-mono text-xs text-zinc-500">{shotCount} shots</span>
+                      </div>
+
+                      <p className="text-sm text-gray-400">{scene.description}</p>
+
+                      {scene.characters?.length > 0 && (
+                        <div>
+                          <span className="text-[10px] text-gray-500">Characters: </span>
+                          <span className="text-xs text-gray-300">
+                            {scene.characters.join(', ')}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Shots list */}
+                      <div className="space-y-2 border-t border-white/10 pt-2">
+                        <span className="text-[10px] font-bold text-gray-500 uppercase">Shots</span>
+                        {scene.suggestedShots?.map((shot: any, j: number) => (
+                          <div
+                            key={j}
+                            className="flex items-start gap-2 rounded bg-white/5 p-2 text-xs"
+                          >
+                            <span className="font-bold text-blue-400">{shot.shotNumber}.</span>
+                            <div className="flex-1">
+                              <p className="text-gray-300">{shot.description}</p>
+                              <div className="mt-1 flex items-center gap-2">
+                                <span className="rounded bg-green-500/20 px-1.5 py-0.5 text-[10px] text-green-300">
+                                  {shot.cameraPresetId?.replace(/_/g, ' ')}
+                                </span>
+                                <span className="text-gray-500">{shot.lighting}</span>
+                                <span className="text-gray-500">{shot.duration}s</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                </CollapsibleSection>
-              );
+                  </CollapsibleSection>
+                );
               })}
             </div>
           )}
@@ -2957,17 +2981,18 @@ The parser will automatically detect scenes and break them down into shots."
                     </Tooltip>
                   )}
                   {/* Thumbnail Generator Button */}
-                  {selectedGenre && (selectedGenre === 'youtuber' || selectedGenre === 'onlyfans') && (
-                    <Tooltip content="Generate YouTube-optimized thumbnail">
-                      <button
-                        onClick={() => setShowThumbnailGenerator(true)}
-                        className="flex items-center gap-2 rounded-lg border border-purple-500/30 bg-purple-500/20 px-4 py-2 text-sm font-medium text-purple-300 hover:bg-purple-500/30"
-                      >
-                        <Image className="h-4 w-4" />
-                        Generate Thumbnail
-                      </button>
-                    </Tooltip>
-                  )}
+                  {selectedGenre &&
+                    (selectedGenre === 'youtuber' || selectedGenre === 'onlyfans') && (
+                      <Tooltip content="Generate YouTube-optimized thumbnail">
+                        <button
+                          onClick={() => setShowThumbnailGenerator(true)}
+                          className="flex items-center gap-2 rounded-lg border border-purple-500/30 bg-purple-500/20 px-4 py-2 text-sm font-medium text-purple-300 hover:bg-purple-500/30"
+                        >
+                          <Image className="h-4 w-4" />
+                          Generate Thumbnail
+                        </button>
+                      </Tooltip>
+                    )}
                 </div>
               </div>
             </div>
@@ -3005,7 +3030,7 @@ The parser will automatically detect scenes and break them down into shots."
           genre={selectedGenre === 'onlyfans' ? 'onlyfans' : 'youtuber'}
           isOpen={showThumbnailGenerator}
           onClose={() => setShowThumbnailGenerator(false)}
-          onThumbnailGenerated={(result) => {
+          onThumbnailGenerated={result => {
             console.log('Thumbnail generated:', result);
             // Could save to project elements here
           }}
@@ -3054,7 +3079,7 @@ function CollapsibleSection({
           <span className="font-bold text-white">{title}</span>
           {/* Badge for shot counts or metadata */}
           {badge && (
-            <span className="px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400 font-mono text-[10px]">
+            <span className="rounded bg-violet-500/10 px-1.5 py-0.5 font-mono text-[10px] text-violet-400">
               {badge}
             </span>
           )}

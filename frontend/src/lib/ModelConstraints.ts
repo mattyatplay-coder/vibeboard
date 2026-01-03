@@ -692,14 +692,108 @@ export const MODEL_CONSTRAINTS: Record<string, Partial<ModelConstraints>> = {
     nsfwStrength: 'strict',
     notes: ['Video editing and style transfer', 'Requires source video'],
   },
-  'fal-ai/qwen-image/edit-plus': {
+  // === QWEN IMAGE MODELS ===
+  'fal-ai/qwen-image': {
+    supportsLoRA: false,
+    supportsIPAdapter: false,
+    supportsNegativePrompt: true,
+    nsfwFiltered: false,
+    nsfwStrength: 'permissive',
+    notes: ['Foundation text-to-image', 'Strong prompt adherence', 'Turbo mode available'],
+  },
+  'fal-ai/qwen-image-2512': {
+    supportsLoRA: false,
+    supportsIPAdapter: false,
+    supportsNegativePrompt: true,
+    nsfwFiltered: false,
+    nsfwStrength: 'permissive',
+    notes: [
+      'Latest Qwen model',
+      'Better text rendering',
+      'Finer natural textures',
+      'Realistic humans',
+    ],
+  },
+  'fal-ai/qwen-image/image-to-image': {
     supportsLoRA: false,
     supportsIPAdapter: false,
     maxReferences: 1,
     minReferences: 1,
-    nsfwFiltered: true,
-    nsfwStrength: 'moderate',
-    notes: ['Advanced object removal', 'Requires source image'],
+    supportsNegativePrompt: true,
+    nsfwFiltered: false,
+    nsfwStrength: 'permissive',
+    notes: ['Image transformation', 'Maintains structure', 'Requires source image'],
+  },
+  'fal-ai/qwen-image-edit': {
+    supportsLoRA: false,
+    supportsIPAdapter: false,
+    maxReferences: 1,
+    minReferences: 1,
+    supportsNegativePrompt: true,
+    nsfwFiltered: false,
+    nsfwStrength: 'permissive',
+    notes: ['Instruction-based editing', 'Inpainting support', 'Requires source image'],
+  },
+  'fal-ai/qwen-image-edit-2509': {
+    supportsLoRA: true, // Great base for LoRA training
+    maxLoRAs: 1,
+    supportsIPAdapter: false,
+    maxReferences: 4, // Multi-image support
+    minReferences: 1,
+    supportsNegativePrompt: true,
+    nsfwFiltered: false,
+    nsfwStrength: 'permissive',
+    notes: [
+      'Superior text editing',
+      'Multi-image compositing (up to 4 images)',
+      'Excellent LoRA base model',
+      'Requires source image',
+    ],
+  },
+  'fal-ai/qwen-image-edit-2511': {
+    supportsLoRA: true, // Great base for LoRA training
+    maxLoRAs: 1,
+    supportsIPAdapter: false,
+    maxReferences: 4, // Multi-image compositing
+    minReferences: 1,
+    supportsNegativePrompt: true,
+    nsfwFiltered: false,
+    nsfwStrength: 'permissive',
+    notes: [
+      'Latest edit model',
+      'Geometric reasoning for pose/expression fixes',
+      'Multi-image compositing (up to 4 images)',
+      'Excellent LoRA base model',
+      'AI Reshoot capability',
+    ],
+  },
+  'fal-ai/qwen-image-layered': {
+    supportsLoRA: false,
+    supportsIPAdapter: false,
+    maxReferences: 1,
+    minReferences: 1,
+    supportsNegativePrompt: false,
+    nsfwFiltered: false,
+    nsfwStrength: 'permissive',
+    notes: ['Decomposes images into RGBA layers', 'Outputs up to 10 layers', 'VFX compositing'],
+  },
+
+  // === RUNPOD SELF-HOSTED ===
+  'runpod/stable-video-infinity': {
+    supportsLoRA: false,
+    supportsIPAdapter: true, // For character consistency via seed image
+    maxReferences: 1, // The seed image
+    minReferences: 1, // SVI requires a seed image
+    nsfwFiltered: false,
+    nsfwStrength: 'permissive',
+    supportedAspectRatios: ['16:9', '9:16', '1:1', '4:3', '3:4'],
+    notes: [
+      'Premium long-form video with infinite continuity',
+      'Self-hosted on RunPod - no per-generation cost',
+      'Requires seed image (image-to-video only)',
+      'Supports up to 100 frames for extended sequences',
+      'Replaces StoryMem + Spatia + InfCam',
+    ],
   },
 };
 
@@ -1248,13 +1342,59 @@ export const MODEL_REQUIREMENTS: ModelRequirements[] = [
       },
     ],
   },
+  // === QWEN IMAGE MODELS ===
   {
-    modelId: 'fal-ai/qwen-image/edit-plus',
+    modelId: 'fal-ai/qwen-image/image-to-image',
     requirements: [
       {
         input: 'image',
         label: 'Source Image',
-        description: 'Image for object removal/editing',
+        description: 'Image to transform',
+        accept: 'image/*',
+      },
+    ],
+  },
+  {
+    modelId: 'fal-ai/qwen-image-edit',
+    requirements: [
+      {
+        input: 'image',
+        label: 'Source Image',
+        description: 'Image to edit',
+        accept: 'image/*',
+      },
+    ],
+  },
+  {
+    modelId: 'fal-ai/qwen-image-edit-2509',
+    requirements: [
+      {
+        input: 'image',
+        label: 'Source Image(s)',
+        description: 'Up to 4 images for compositing - superior text editing (LoRA base model)',
+        accept: 'image/*',
+      },
+    ],
+  },
+  {
+    modelId: 'fal-ai/qwen-image-edit-2511',
+    requirements: [
+      {
+        input: 'image',
+        label: 'Source Image(s)',
+        description:
+          'Up to 4 images - geometric reasoning, pose/expression fixes (LoRA base model)',
+        accept: 'image/*',
+      },
+    ],
+  },
+  {
+    modelId: 'fal-ai/qwen-image-layered',
+    requirements: [
+      {
+        input: 'image',
+        label: 'Source Image',
+        description: 'Image to decompose into RGBA layers',
         accept: 'image/*',
       },
     ],
@@ -1396,6 +1536,7 @@ export type LoRABaseModel =
   | 'Pony'
   | 'Illustrious'
   | 'Wan'
+  | 'Qwen'
   | 'Unknown';
 
 /**
@@ -1413,6 +1554,10 @@ export const MODEL_LORA_COMPATIBILITY: Record<string, LoRABaseModel[]> = {
 
   // === FAL.AI WAN (video) ===
   'fal-ai/wan/v2.2-a14b/image-to-video/lora': ['Wan'],
+
+  // === FAL.AI QWEN IMAGE EDIT (LoRA base models) ===
+  'fal-ai/qwen-image-edit-2509': ['Qwen'],
+  'fal-ai/qwen-image-edit-2511': ['Qwen'],
 
   // === REPLICATE MODELS ===
   'black-forest-labs/flux-dev': ['Flux', 'Flux.1'],
@@ -1475,6 +1620,11 @@ export function normalizeLoRABaseModel(baseModel: string): LoRABaseModel {
   // Wan
   if (lower.includes('wan')) {
     return 'Wan';
+  }
+
+  // Qwen
+  if (lower.includes('qwen') || lower.includes('qwen2')) {
+    return 'Qwen';
   }
 
   return 'Unknown';

@@ -8,7 +8,7 @@
 import { Router, Request, Response } from 'express';
 import { SemanticIndexService } from '../services/search/SemanticIndexService';
 import { VectorEmbeddingService } from '../services/search/VectorEmbeddingService';
-import { withAuth, requireGenerationQuota } from '../middleware/auth';
+import { withAuth, withDevAuth, requireGenerationQuota } from '../middleware/auth';
 
 const router = Router();
 
@@ -17,11 +17,18 @@ const router = Router();
 // Indexing routes use Grok Vision (LLM $) and require quota
 // =============================================================================
 
+// Use dev auth in development, real auth in production
+const authMiddleware = process.env.NODE_ENV === 'production' ? withAuth : withDevAuth;
+const quotaMiddleware =
+  process.env.NODE_ENV === 'production'
+    ? requireGenerationQuota
+    : (_req: any, _res: any, next: any) => next();
+
 /**
  * GET /api/projects/:projectId/search
  * Search generations using natural language query
  */
-router.get('/projects/:projectId/search', withAuth, async (req: Request, res: Response) => {
+router.get('/projects/:projectId/search', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { projectId } = req.params;
     const { q, limit } = req.query;
@@ -49,18 +56,22 @@ router.get('/projects/:projectId/search', withAuth, async (req: Request, res: Re
  * GET /api/projects/:projectId/search/stats
  * Get indexing statistics for a project
  */
-router.get('/projects/:projectId/search/stats', withAuth, async (req: Request, res: Response) => {
-  try {
-    const { projectId } = req.params;
-    const service = SemanticIndexService.getInstance();
-    const stats = await service.getIndexStats(projectId);
+router.get(
+  '/projects/:projectId/search/stats',
+  authMiddleware,
+  async (req: Request, res: Response) => {
+    try {
+      const { projectId } = req.params;
+      const service = SemanticIndexService.getInstance();
+      const stats = await service.getIndexStats(projectId);
 
-    res.json(stats);
-  } catch (error: any) {
-    console.error('Stats error:', error);
-    res.status(500).json({ error: error.message });
+      res.json(stats);
+    } catch (error: any) {
+      console.error('Stats error:', error);
+      res.status(500).json({ error: error.message });
+    }
   }
-});
+);
 
 /**
  * POST /api/projects/:projectId/search/index
@@ -69,8 +80,8 @@ router.get('/projects/:projectId/search/stats', withAuth, async (req: Request, r
 // EXPENSIVE: Uses Grok Vision ($) for batch indexing
 router.post(
   '/projects/:projectId/search/index',
-  withAuth,
-  requireGenerationQuota,
+  authMiddleware,
+  quotaMiddleware,
   async (req: Request, res: Response) => {
     try {
       const { projectId } = req.params;
@@ -97,8 +108,8 @@ router.post(
 // EXPENSIVE: Uses Grok Vision ($) for single indexing
 router.post(
   '/generations/:generationId/index',
-  withAuth,
-  requireGenerationQuota,
+  authMiddleware,
+  quotaMiddleware,
   async (req: Request, res: Response) => {
     try {
       const { generationId } = req.params;
@@ -127,7 +138,7 @@ router.post(
  */
 router.get(
   '/projects/:projectId/search/suggestions',
-  withAuth,
+  authMiddleware,
   async (req: Request, res: Response) => {
     try {
       const { projectId } = req.params;
@@ -147,7 +158,7 @@ router.get(
  */
 router.get(
   '/projects/:projectId/search/similar/:generationId',
-  withAuth,
+  authMiddleware,
   async (req: Request, res: Response) => {
     try {
       const { projectId, generationId } = req.params;
@@ -172,57 +183,65 @@ router.get(
  * GET /api/projects/:projectId/search/reality
  * Search by visual REALITY (what AI actually generated) - searches visualDescription
  */
-router.get('/projects/:projectId/search/reality', withAuth, async (req: Request, res: Response) => {
-  try {
-    const { projectId } = req.params;
-    const { q, limit } = req.query;
+router.get(
+  '/projects/:projectId/search/reality',
+  authMiddleware,
+  async (req: Request, res: Response) => {
+    try {
+      const { projectId } = req.params;
+      const { q, limit } = req.query;
 
-    if (!q || typeof q !== 'string') {
-      return res.status(400).json({ error: 'Query parameter "q" is required' });
+      if (!q || typeof q !== 'string') {
+        return res.status(400).json({ error: 'Query parameter "q" is required' });
+      }
+
+      const service = SemanticIndexService.getInstance();
+      const results = await service.searchByReality(projectId, q, parseInt(limit as string) || 50);
+
+      res.json({
+        query: q,
+        mode: 'reality',
+        count: results.length,
+        results,
+      });
+    } catch (error: any) {
+      console.error('Reality search error:', error);
+      res.status(500).json({ error: error.message });
     }
-
-    const service = SemanticIndexService.getInstance();
-    const results = await service.searchByReality(projectId, q, parseInt(limit as string) || 50);
-
-    res.json({
-      query: q,
-      mode: 'reality',
-      count: results.length,
-      results,
-    });
-  } catch (error: any) {
-    console.error('Reality search error:', error);
-    res.status(500).json({ error: error.message });
   }
-});
+);
 
 /**
  * GET /api/projects/:projectId/search/intent
  * Search by user INTENT (what was prompted) - searches inputPrompt only
  */
-router.get('/projects/:projectId/search/intent', withAuth, async (req: Request, res: Response) => {
-  try {
-    const { projectId } = req.params;
-    const { q, limit } = req.query;
+router.get(
+  '/projects/:projectId/search/intent',
+  authMiddleware,
+  async (req: Request, res: Response) => {
+    try {
+      const { projectId } = req.params;
+      const { q, limit } = req.query;
 
-    if (!q || typeof q !== 'string') {
-      return res.status(400).json({ error: 'Query parameter "q" is required' });
+      if (!q || typeof q !== 'string') {
+        return res.status(400).json({ error: 'Query parameter "q" is required' });
+      }
+
+      const service = SemanticIndexService.getInstance();
+      const results = await service.searchByIntent(projectId, q, parseInt(limit as string) || 50);
+
+      res.json({
+        query: q,
+        mode: 'intent',
+        count: results.length,
+        results,
+      });
+    } catch (error: any) {
+      console.error('Intent search error:', error);
+      res.status(500).json({ error: error.message });
     }
-
-    const service = SemanticIndexService.getInstance();
-    const results = await service.searchByIntent(projectId, q, parseInt(limit as string) || 50);
-
-    res.json({
-      query: q,
-      mode: 'intent',
-      count: results.length,
-      results,
-    });
-  } catch (error: any) {
-    console.error('Intent search error:', error);
-    res.status(500).json({ error: error.message });
   }
-});
+);
 
 // =============================================================================
 // VECTOR SIMILARITY SEARCH (CLIP Embeddings)
@@ -236,7 +255,7 @@ router.get('/projects/:projectId/search/intent', withAuth, async (req: Request, 
  */
 router.get(
   '/projects/:projectId/search/vector/similar/:generationId',
-  withAuth,
+  authMiddleware,
   async (req: Request, res: Response) => {
     try {
       const { projectId, generationId } = req.params;
@@ -270,8 +289,8 @@ router.get(
 // EXPENSIVE: Uses CLIP embeddings ($) for batch embedding
 router.post(
   '/projects/:projectId/search/vector/embed',
-  withAuth,
-  requireGenerationQuota,
+  authMiddleware,
+  quotaMiddleware,
   async (req: Request, res: Response) => {
     try {
       const { projectId } = req.params;
@@ -298,8 +317,8 @@ router.post(
 // EXPENSIVE: Uses CLIP embeddings ($) for single embedding
 router.post(
   '/generations/:generationId/embed',
-  withAuth,
-  requireGenerationQuota,
+  authMiddleware,
+  quotaMiddleware,
   async (req: Request, res: Response) => {
     try {
       const { generationId } = req.params;
@@ -325,7 +344,7 @@ router.post(
  */
 router.get(
   '/projects/:projectId/search/vector/stats',
-  withAuth,
+  authMiddleware,
   async (req: Request, res: Response) => {
     try {
       const { projectId } = req.params;

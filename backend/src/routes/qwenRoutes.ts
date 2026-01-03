@@ -14,16 +14,23 @@
 
 import { Router, Request, Response } from 'express';
 import { FalAIAdapter } from '../services/generators/FalAIAdapter';
-import { withAuth, requireGenerationQuota } from '../middleware/auth';
+import { withAuth, withDevAuth, requireGenerationQuota } from '../middleware/auth';
 
 const router = Router();
 const falAdapter = new FalAIAdapter();
+
+// Use dev auth in development, real auth in production
+const authMiddleware = process.env.NODE_ENV === 'production' ? withAuth : withDevAuth;
+const quotaMiddleware =
+  process.env.NODE_ENV === 'production'
+    ? requireGenerationQuota
+    : (_req: any, _res: any, next: any) => next();
 
 /**
  * POST /api/qwen/edit
  * Core Qwen image editing endpoint - USES Fal.ai ($)
  */
-router.post('/edit', withAuth, requireGenerationQuota, async (req: Request, res: Response) => {
+router.post('/edit', authMiddleware, quotaMiddleware, async (req: Request, res: Response) => {
   try {
     const {
       prompt,
@@ -69,7 +76,7 @@ router.post('/edit', withAuth, requireGenerationQuota, async (req: Request, res:
  * - "Change expression to smiling"
  * - "Close the character's mouth"
  */
-router.post('/reshoot', withAuth, requireGenerationQuota, async (req: Request, res: Response) => {
+router.post('/reshoot', authMiddleware, quotaMiddleware, async (req: Request, res: Response) => {
   try {
     const { imageUrl, instruction, preserveBackground, seed } = req.body;
 
@@ -96,7 +103,7 @@ router.post('/reshoot', withAuth, requireGenerationQuota, async (req: Request, r
  * Cast Assembler - Composite multiple characters into one scene
  * Solves multi-LoRA concept bleeding
  */
-router.post('/assemble', withAuth, requireGenerationQuota, async (req: Request, res: Response) => {
+router.post('/assemble', authMiddleware, quotaMiddleware, async (req: Request, res: Response) => {
   try {
     const { characterImages, sceneDescription, backgroundImage, seed, imageSize } = req.body;
 
@@ -131,8 +138,8 @@ router.post('/assemble', withAuth, requireGenerationQuota, async (req: Request, 
  */
 router.post(
   '/fabricate-prop',
-  withAuth,
-  requireGenerationQuota,
+  authMiddleware,
+  quotaMiddleware,
   async (req: Request, res: Response) => {
     try {
       const { propImage, transformDescription, maintainPerspective, seed } = req.body;
@@ -160,7 +167,7 @@ router.post(
  * POST /api/qwen/fix-text
  * Text/Sign Fixer - Correct gibberish or localize text
  */
-router.post('/fix-text', withAuth, requireGenerationQuota, async (req: Request, res: Response) => {
+router.post('/fix-text', authMiddleware, quotaMiddleware, async (req: Request, res: Response) => {
   try {
     const { imageUrl, textInstruction, matchStyle, seed } = req.body;
 
@@ -189,8 +196,8 @@ router.post('/fix-text', withAuth, requireGenerationQuota, async (req: Request, 
  */
 router.post(
   '/generate-pose',
-  withAuth,
-  requireGenerationQuota,
+  authMiddleware,
+  quotaMiddleware,
   async (req: Request, res: Response) => {
     try {
       const {
@@ -225,14 +232,80 @@ router.post(
 
 /**
  * GET /api/qwen/capabilities
- * Returns information about Qwen's capabilities
+ * Returns information about all Qwen model capabilities
  */
 router.get('/capabilities', (req: Request, res: Response) => {
   res.json({
-    model: 'qwen-image-edit-2511',
-    provider: 'fal.ai',
-    cost: '$0.03 per megapixel',
-    capabilities: {
+    models: {
+      // Text-to-Image
+      'fal-ai/qwen-image': {
+        name: 'Qwen Image',
+        type: 'text-to-image',
+        cost: '$0.02/MP',
+        description: 'Foundation text-to-image with strong prompt adherence',
+        capabilities: ['text-to-image', 'turbo-mode'],
+      },
+      'fal-ai/qwen-image-2512': {
+        name: 'Qwen Image 2512',
+        type: 'text-to-image',
+        cost: '$0.02/MP',
+        description: 'Latest Qwen with better text rendering, finer textures, realistic humans',
+        capabilities: ['text-to-image', 'text-rendering', 'acceleration'],
+      },
+      // Image-to-Image
+      'fal-ai/qwen-image/image-to-image': {
+        name: 'Qwen Image I2I',
+        type: 'image-to-image',
+        cost: '$0.02/MP',
+        description: 'Transform images while maintaining structure and style',
+        capabilities: ['image-to-image', 'style-transfer'],
+      },
+      // Image Editing
+      'fal-ai/qwen-image-edit': {
+        name: 'Qwen Image Edit',
+        type: 'image-editing',
+        cost: '$0.03/MP',
+        description: 'Instruction-based image editing with inpainting support',
+        capabilities: ['image-editing', 'inpainting'],
+      },
+      'fal-ai/qwen-image-edit-2509': {
+        name: 'Qwen Image Edit 2509',
+        type: 'image-editing',
+        cost: '$0.03/MP',
+        description: 'Superior text editing and multi-image support. Excellent LoRA base model.',
+        capabilities: ['image-editing', 'text-editing', 'multi-image', 'lora-base'],
+        loraCompatible: true,
+        maxImages: 4,
+      },
+      'fal-ai/qwen-image-edit-2511': {
+        name: 'Qwen Image Edit 2511',
+        type: 'image-editing',
+        cost: '$0.03/MP',
+        description:
+          'Latest edit model - geometric reasoning, pose/expression fixes, multi-image compositing. Best LoRA base model.',
+        capabilities: [
+          'ai-reshoot',
+          'cast-assembly',
+          'prop-fabrication',
+          'text-fix',
+          'pose-generation',
+          'lora-base',
+        ],
+        loraCompatible: true,
+        maxImages: 4,
+      },
+      // Layer Decomposition
+      'fal-ai/qwen-image-layered': {
+        name: 'Qwen Image Layered',
+        type: 'layer-decomposition',
+        cost: '$0.05/image',
+        description: 'Decompose images into RGBA layers for compositing and VFX',
+        capabilities: ['layer-extraction', 'compositing'],
+        maxLayers: 10,
+      },
+    },
+    // Specialized capabilities for Qwen Edit 2511
+    editCapabilities: {
       reshoot: {
         description: 'Fix expressions, gaze, minor poses without regenerating',
         examples: [
@@ -278,6 +351,7 @@ router.get('/capabilities', (req: Request, res: Response) => {
       guidanceScale: { default: 4.5, range: [1, 20] },
       imageSizes: ['square_hd', 'portrait_4_3', 'landscape_4_3', 'portrait_16_9', 'landscape_16_9'],
     },
+    loraBaseModels: ['fal-ai/qwen-image-edit-2509', 'fal-ai/qwen-image-edit-2511'],
   });
 });
 

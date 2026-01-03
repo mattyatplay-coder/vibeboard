@@ -32,7 +32,10 @@ import {
 import { Element, Generation, Scene } from '@/lib/store';
 import { clsx } from 'clsx';
 import { GenerationCard } from '@/components/generations/GenerationCard';
-import { GenerationSearch, GenerationSortFilterState } from '@/components/generations/GenerationSearch';
+import {
+  GenerationSearch,
+  GenerationSortFilterState,
+} from '@/components/generations/GenerationSearch';
 import { ShotNavigator, ShotNavigatorRef } from '@/components/generations/ShotNavigator';
 import { ElementReferencePicker } from '@/components/storyboard/ElementReferencePicker';
 import { StyleConfig } from '@/components/storyboard/StyleSelectorModal';
@@ -62,7 +65,8 @@ import { WeightHintTooltip } from '@/components/prompts/WeightHintTooltip';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { usePromptVariablesStore, detectUnexpandedVariables } from '@/lib/promptVariablesStore';
 import { DynamicRatioIcon } from '@/components/ui/DynamicRatioIcon';
-import { LensPreset, LENS_EFFECTS, buildLensPrompt } from '@/data/LensPresets';
+import { CameraSpec, LensFamily, buildCinematicModifier } from '@/data/CameraDatabase';
+import { Camera } from 'lucide-react';
 import { usePropBinStore } from '@/lib/propBinStore';
 import { usePromptTreeStore } from '@/lib/promptTreeStore';
 import { useLightingStore } from '@/lib/lightingStore';
@@ -70,70 +74,156 @@ import { useSessionRecoveryStore, formatTimeAgo } from '@/lib/sessionRecoverySto
 import { ProducerWidget } from '@/components/ui/ProducerWidget';
 
 // === DYNAMIC IMPORTS for heavy modal components (loaded on demand) ===
-const PromptBuilder = dynamic(() => import('@/components/prompts/PromptBuilder').then(m => ({ default: m.PromptBuilder })), {
-  loading: () => <div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-cyan-400" /></div>,
-  ssr: false
-});
+const PromptBuilder = dynamic(
+  () => import('@/components/prompts/PromptBuilder').then(m => ({ default: m.PromptBuilder })),
+  {
+    loading: () => (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
+      </div>
+    ),
+    ssr: false,
+  }
+);
 
-const StyleSelectorModal = dynamic(() => import('@/components/storyboard/StyleSelectorModal').then(m => ({ default: m.StyleSelectorModal })), {
-  ssr: false
-});
+const StyleSelectorModal = dynamic(
+  () =>
+    import('@/components/storyboard/StyleSelectorModal').then(m => ({
+      default: m.StyleSelectorModal,
+    })),
+  {
+    ssr: false,
+  }
+);
 
-const SaveElementModal = dynamic(() => import('@/components/generations/SaveElementModal').then(m => ({ default: m.SaveElementModal })), {
-  ssr: false
-});
+const SaveElementModal = dynamic(
+  () =>
+    import('@/components/generations/SaveElementModal').then(m => ({
+      default: m.SaveElementModal,
+    })),
+  {
+    ssr: false,
+  }
+);
 
-const EditElementModal = dynamic(() => import('@/components/elements/EditElementModal').then(m => ({ default: m.EditElementModal })), {
-  ssr: false
-});
+const EditElementModal = dynamic(
+  () =>
+    import('@/components/elements/EditElementModal').then(m => ({ default: m.EditElementModal })),
+  {
+    ssr: false,
+  }
+);
 
-const VideoMaskEditor = dynamic(() => import('@/components/generations/VideoMaskEditor').then(m => ({ default: m.VideoMaskEditor })), {
-  ssr: false
-});
+const VideoMaskEditor = dynamic(
+  () =>
+    import('@/components/generations/VideoMaskEditor').then(m => ({ default: m.VideoMaskEditor })),
+  {
+    ssr: false,
+  }
+);
 
-const ImageMaskEditor = dynamic(() => import('@/components/generations/ImageMaskEditor').then(m => ({ default: m.ImageMaskEditor })), {
-  ssr: false
-});
+const ImageMaskEditor = dynamic(
+  () =>
+    import('@/components/generations/ImageMaskEditor').then(m => ({ default: m.ImageMaskEditor })),
+  {
+    ssr: false,
+  }
+);
 
-const AudioInputModal = dynamic(() => import('@/components/generations/AudioInputModal').then(m => ({ default: m.AudioInputModal })), {
-  ssr: false
-});
+const AudioInputModal = dynamic(
+  () =>
+    import('@/components/generations/AudioInputModal').then(m => ({ default: m.AudioInputModal })),
+  {
+    ssr: false,
+  }
+);
 
-const DataBackupModal = dynamic(() => import('@/components/settings/DataBackupModal').then(m => ({ default: m.DataBackupModal })), {
-  ssr: false
-});
+const DataBackupModal = dynamic(
+  () => import('@/components/settings/DataBackupModal').then(m => ({ default: m.DataBackupModal })),
+  {
+    ssr: false,
+  }
+);
 
-const TagSelectorModal = dynamic(() => import('@/components/generation/TagSelectorModal').then(m => ({ default: m.TagSelectorModal })), {
-  ssr: false
-});
+const TagSelectorModal = dynamic(
+  () =>
+    import('@/components/generation/TagSelectorModal').then(m => ({ default: m.TagSelectorModal })),
+  {
+    ssr: false,
+  }
+);
 
-const CompactMotionSlider = dynamic(() => import('@/components/generation/CompactMotionSlider').then(m => ({ default: m.CompactMotionSlider })), {
-  ssr: false
-});
+const CompactMotionSlider = dynamic(
+  () =>
+    import('@/components/generation/CompactMotionSlider').then(m => ({
+      default: m.CompactMotionSlider,
+    })),
+  {
+    ssr: false,
+  }
+);
 
-const LensKitSelector = dynamic(() => import('@/components/generation/LensKitSelector').then(m => ({ default: m.LensKitSelector })), {
-  ssr: false
-});
+const DirectorViewfinderModal = dynamic(
+  () =>
+    import('@/components/optics/DirectorViewfinder').then(m => ({ default: m.DirectorViewfinder })),
+  {
+    ssr: false,
+  }
+);
 
-const PromptVariablesPanel = dynamic(() => import('@/components/prompts/PromptVariablesPanel').then(m => ({ default: m.PromptVariablesPanel })), {
-  ssr: false
-});
+const PromptVariablesPanel = dynamic(
+  () =>
+    import('@/components/prompts/PromptVariablesPanel').then(m => ({
+      default: m.PromptVariablesPanel,
+    })),
+  {
+    ssr: false,
+  }
+);
 
-const PropBinPanel = dynamic(() => import('@/components/prompts/PropBinPanel').then(m => ({ default: m.PropBinPanel })), {
-  ssr: false
-});
+const PropBinPanel = dynamic(
+  () => import('@/components/prompts/PropBinPanel').then(m => ({ default: m.PropBinPanel })),
+  {
+    ssr: false,
+  }
+);
 
-const PromptTreePanel = dynamic(() => import('@/components/prompts/PromptTreePanel').then(m => ({ default: m.PromptTreePanel })), {
-  ssr: false
-});
+const PromptTreePanel = dynamic(
+  () => import('@/components/prompts/PromptTreePanel').then(m => ({ default: m.PromptTreePanel })),
+  {
+    ssr: false,
+  }
+);
 
-const LightingStage = dynamic(() => import('@/components/lighting/LightingStage').then(m => ({ default: m.LightingStage })), {
-  ssr: false
-});
+const LightingStage = dynamic(
+  () => import('@/components/lighting/LightingStage').then(m => ({ default: m.LightingStage })),
+  {
+    ssr: false,
+  }
+);
 
-const AcousticStudioPanel = dynamic(() => import('@/components/audio/AcousticStudioPanel').then(m => ({ default: m.AcousticStudioPanel })), {
-  ssr: false
-});
+const AcousticStudioPanel = dynamic(
+  () =>
+    import('@/components/audio/AcousticStudioPanel').then(m => ({
+      default: m.AcousticStudioPanel,
+    })),
+  {
+    ssr: false,
+  }
+);
+
+const PreFlightCheckModal = dynamic(
+  () =>
+    import('@/components/generations/PreFlightCheckModal').then(m => ({
+      default: m.PreFlightCheckModal,
+    })),
+  {
+    ssr: false,
+  }
+);
+
+// Import the hook for building inputs
+import { usePreFlightInputs } from '@/components/generations/PreFlightCheckModal';
 
 interface PipelineStage {
   id: string;
@@ -249,6 +339,7 @@ export default function GeneratePage() {
   const [isStyleModalOpen, setIsStyleModalOpen] = useState(false);
   const [isElementPickerOpen, setIsElementPickerOpen] = useState(false);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+  const [isPreFlightOpen, setIsPreFlightOpen] = useState(false);
   const [isSaveElementModalOpen, setIsSaveElementModalOpen] = useState(false);
   const [isBatchSaveMode, setIsBatchSaveMode] = useState(false);
   const [saveElementData, setSaveElementData] = useState<{ url: string; type: string } | null>(
@@ -334,7 +425,11 @@ export default function GeneratePage() {
   const [isAcousticStudioOpen, setIsAcousticStudioOpen] = useState(false);
 
   // Prompt Weighting: Ctrl/Cmd + Arrow Up/Down to adjust weights (word:1.1)
-  const { handleKeyDown: handleWeightingKeyDown, hasTextSelection, selectionText } = usePromptWeighting({
+  const {
+    handleKeyDown: handleWeightingKeyDown,
+    hasTextSelection,
+    selectionText,
+  } = usePromptWeighting({
     value: prompt,
     onChange: setPrompt,
     textareaRef,
@@ -350,10 +445,12 @@ export default function GeneratePage() {
   const [isTagSelectorOpen, setIsTagSelectorOpen] = useState(false);
   const [isVariablesPanelOpen, setIsVariablesPanelOpen] = useState(false);
 
-  // Lens Kit State
-  const [selectedLens, setSelectedLens] = useState<LensPreset | null>(null);
-  const [selectedLensEffects, setSelectedLensEffects] = useState<string[]>([]);
-  const [isAnamorphic, setIsAnamorphic] = useState(false);
+  // Director's Viewfinder State (Camera + Lens Database)
+  const [isViewfinderOpen, setIsViewfinderOpen] = useState(false);
+  const [viewfinderCamera, setViewfinderCamera] = useState<CameraSpec | null>(null);
+  const [viewfinderLensFamily, setViewfinderLensFamily] = useState<LensFamily | null>(null);
+  const [viewfinderFocalLength, setViewfinderFocalLength] = useState<number | null>(null);
+  const [viewfinderModifier, setViewfinderModifier] = useState<string>('');
 
   // Engine State
   const [engineConfig, setEngineConfig] = useState<{ provider: string; model: string }>({
@@ -374,6 +471,15 @@ export default function GeneratePage() {
     const isVideo = currentModel?.type === 'video';
     return { needsImage, needsAudio, needsMotionVideo, isVideo, requirements };
   }, [engineConfig.model]);
+
+  // Pre-Flight Check: Build current inputs for validation
+  const preFlightInputs = usePreFlightInputs(
+    selectedElementIds,
+    elements,
+    audioFile,
+    audioUrl,
+    styleConfig ?? undefined
+  );
 
   // Auto-update mode when model changes
   React.useEffect(() => {
@@ -470,7 +576,8 @@ export default function GeneratePage() {
 
   // Check for recoverable session on mount
   const [showRecoveryToast, setShowRecoveryToast] = useState(false);
-  const [recoverableSession, setRecoverableSession] = useState<ReturnType<typeof getRecoverableSession>>(null);
+  const [recoverableSession, setRecoverableSession] =
+    useState<ReturnType<typeof getRecoverableSession>>(null);
 
   // TEMPORARILY DISABLED FOR TESTING - Re-enable after Sprint 1 UX testing
   // useEffect(() => {
@@ -505,9 +612,6 @@ export default function GeneratePage() {
     if (recoverableSession.audioFileUrl) {
       setAudioUrl(recoverableSession.audioFileUrl);
     }
-    if (recoverableSession.lensKit) {
-      setIsAnamorphic(recoverableSession.lensKit.isAnamorphic);
-    }
 
     markClean();
     setShowRecoveryToast(false);
@@ -539,13 +643,6 @@ export default function GeneratePage() {
         variations,
         selectedElementIds,
         audioFileUrl: audioUrl,
-        lensKit: selectedLens
-          ? {
-              lensId: selectedLens.id,
-              focalMm: selectedLens.focalMm,
-              isAnamorphic,
-            }
-          : null,
         isDirty: true,
       });
     }, 500);
@@ -562,8 +659,6 @@ export default function GeneratePage() {
     variations,
     selectedElementIds,
     audioUrl,
-    selectedLens,
-    isAnamorphic,
     styleConfig?.negativePrompt,
     saveSession,
   ]);
@@ -672,8 +767,27 @@ export default function GeneratePage() {
     }
   };
 
+  // Pre-flight validation before generation
+  const handleGenerateClick = () => {
+    if (!prompt.trim()) return;
+
+    // Import validation function
+    const { validateModelInputs } = require('@/lib/ModelConstraints');
+    const validation = validateModelInputs(engineConfig.model, preFlightInputs);
+
+    // If there are missing required inputs, show the pre-flight modal
+    if (!validation.valid) {
+      setIsPreFlightOpen(true);
+      return;
+    }
+
+    // No issues, proceed directly
+    handleGenerate();
+  };
+
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
+    setIsPreFlightOpen(false); // Close modal if open
     setIsGenerating(true);
     try {
       // Expand prompt variables ($VariableName -> actual value)
@@ -682,13 +796,9 @@ export default function GeneratePage() {
       // Expand prop references (#PropName -> prop description)
       expandedPrompt = expandPropReferences(expandedPrompt);
 
-      // Add Lens Kit modifiers to the prompt (using buildLensPrompt helper)
-      if (selectedLens || selectedLensEffects.length > 0 || isAnamorphic) {
-        const lensPrompt = buildLensPrompt(selectedLens, isAnamorphic, selectedLensEffects);
-        if (lensPrompt.positive) {
-          expandedPrompt = `${expandedPrompt}, ${lensPrompt.positive}`;
-        }
-        // Note: lensPrompt.negative can be added to negative prompt if needed
+      // Add Director's Viewfinder camera/lens modifiers
+      if (viewfinderModifier) {
+        expandedPrompt = `${expandedPrompt}, ${viewfinderModifier}`;
       }
 
       // Add Virtual Gaffer lighting modifiers
@@ -849,20 +959,21 @@ export default function GeneratePage() {
       // This ensures elements mentioned with @ syntax are included even if not manually selected
       // Use ORIGINAL prompt (not expanded) to preserve @ElementName syntax
       // Use case-insensitive matching and normalize separators for better UX
-      const normalizeForMatch = (str: string) =>
-        str.toLowerCase().replace(/[\s_.-]+/g, ''); // Remove spaces, underscores, dots, hyphens
+      const normalizeForMatch = (str: string) => str.toLowerCase().replace(/[\s_.-]+/g, ''); // Remove spaces, underscores, dots, hyphens
 
       const promptNormalized = normalizeForMatch(prompt);
 
-      const promptElementRefs = elements.filter(e => {
-        // Check both exact match and normalized match
-        const nameNormalized = normalizeForMatch(e.name);
-        // Look for @elementname in the normalized prompt
-        return (
-          promptNormalized.includes(`@${nameNormalized}`) ||
-          prompt.toLowerCase().includes(`@${e.name.toLowerCase()}`)
-        );
-      }).map(e => e.id);
+      const promptElementRefs = elements
+        .filter(e => {
+          // Check both exact match and normalized match
+          const nameNormalized = normalizeForMatch(e.name);
+          // Look for @elementname in the normalized prompt
+          return (
+            promptNormalized.includes(`@${nameNormalized}`) ||
+            prompt.toLowerCase().includes(`@${e.name.toLowerCase()}`)
+          );
+        })
+        .map(e => e.id);
 
       // Debug logging for element detection
       console.log(`[GeneratePage] Element detection:`, {
@@ -940,7 +1051,9 @@ export default function GeneratePage() {
         metadata: {
           model: engineConfig.model,
           aspectRatio,
-          lensPreset: selectedLens?.name,
+          camera: viewfinderCamera?.model,
+          lensFamily: viewfinderLensFamily?.name,
+          focalLength: viewfinderFocalLength ?? undefined,
           selectedElements: selectedElementIds,
         },
       });
@@ -1020,7 +1133,10 @@ export default function GeneratePage() {
         if (sortFilter.filterStatus.includes('succeeded') && status === 'succeeded') {
           return true;
         }
-        if (sortFilter.filterStatus.includes('processing') && (status === 'running' || status === 'queued')) {
+        if (
+          sortFilter.filterStatus.includes('processing') &&
+          (status === 'running' || status === 'queued')
+        ) {
           return true;
         }
         if (sortFilter.filterStatus.includes('failed') && status === 'failed') {
@@ -1277,6 +1393,13 @@ export default function GeneratePage() {
       });
 
       if (result.outputs && result.outputs.length > 0) {
+        // Transform outputs from plain strings to {url, type} objects
+        // Fal.ai returns ["https://..."] but GenerationCard expects [{url: "...", type: "image"}]
+        const formattedOutputs = result.outputs.map((url: string) => ({
+          url,
+          type: 'image',
+        }));
+
         // Create new generation with the reshoot result
         await fetchAPI(`/projects/${projectId}/generations`, {
           method: 'POST',
@@ -1284,9 +1407,9 @@ export default function GeneratePage() {
             inputPrompt: `[AI Reshoot] ${instruction}`,
             falModel: 'fal-ai/qwen-image-edit-2511',
             aspectRatio,
-            mode: 'image',
+            mode: 'image_to_image', // Reshoot is I2I - mode must match backend enum
             status: 'succeeded',
-            outputs: result.outputs,
+            outputs: formattedOutputs,
           }),
         });
         toast.success('AI Reshoot complete!', { id: toastId });
@@ -1468,7 +1591,7 @@ export default function GeneratePage() {
     const anySuggestionsOpen = showSuggestions || showPropSuggestions || showVariableSuggestions;
     if (e.key === 'Enter' && !e.shiftKey && !anySuggestionsOpen) {
       e.preventDefault();
-      handleGenerate();
+      handleGenerateClick();
     }
   };
 
@@ -1525,7 +1648,7 @@ export default function GeneratePage() {
   );
 
   // Select a prop from # suggestions
-  const selectPropSuggestion = (prop: typeof propBinItems[0]) => {
+  const selectPropSuggestion = (prop: (typeof propBinItems)[0]) => {
     const textBeforeCursor = prompt.slice(0, cursorPosition);
     const textAfterCursor = prompt.slice(cursorPosition);
     const lastHashSymbol = textBeforeCursor.lastIndexOf('#');
@@ -1546,7 +1669,7 @@ export default function GeneratePage() {
   };
 
   // Select a variable from $ suggestions
-  const selectVariableSuggestion = (variable: typeof promptVariables[0]) => {
+  const selectVariableSuggestion = (variable: (typeof promptVariables)[0]) => {
     const textBeforeCursor = prompt.slice(0, cursorPosition);
     const textAfterCursor = prompt.slice(cursorPosition);
     const lastDollarSymbol = textBeforeCursor.lastIndexOf('$');
@@ -2038,7 +2161,10 @@ export default function GeneratePage() {
             {/* Fixed Bottom Bar */}
             <div className="pointer-events-none absolute right-0 bottom-0 left-0 z-50 bg-gradient-to-t from-black via-black/95 to-transparent px-8 pt-12 pb-8">
               <div className="pointer-events-auto mx-auto w-full">
-                <div ref={promptContainerRef} className="relative flex flex-col gap-2 rounded-xl border border-white/10 bg-[#1a1a1a] p-2 shadow-2xl">
+                <div
+                  ref={promptContainerRef}
+                  className="relative flex flex-col gap-2 rounded-xl border border-white/10 bg-[#1a1a1a] p-2 shadow-2xl"
+                >
                   {/* @ Reference Suggestions Dropdown (Horizontal) - Moved here to span full width */}
                   {showSuggestions && filteredElements.length > 0 && (
                     <div className="animate-in slide-in-from-bottom-2 fade-in absolute right-0 bottom-full left-0 z-50 mb-2 rounded-xl border border-white/20 bg-[#1a1a1a] shadow-2xl duration-200">
@@ -2065,7 +2191,11 @@ export default function GeneratePage() {
                             >
                               {el.url ? (
                                 el.type === 'video' ? (
-                                  <video src={el.url} className="h-full w-full object-cover" muted />
+                                  <video
+                                    src={el.url}
+                                    className="h-full w-full object-cover"
+                                    muted
+                                  />
                                 ) : (
                                   <img
                                     src={el.url}
@@ -2104,7 +2234,7 @@ export default function GeneratePage() {
                           {filteredProps.length} match{filteredProps.length !== 1 ? 'es' : ''}
                         </span>
                       </div>
-                      <div className="flex flex-wrap gap-2 p-3 max-h-32 overflow-y-auto">
+                      <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto p-3">
                         {filteredProps.map((prop, idx) => (
                           <Tooltip
                             key={prop.id || `prop-${idx}`}
@@ -2151,10 +2281,11 @@ export default function GeneratePage() {
                           </span>
                         </div>
                         <span className="text-[10px] text-gray-500">
-                          {filteredVariables.length} match{filteredVariables.length !== 1 ? 'es' : ''}
+                          {filteredVariables.length} match
+                          {filteredVariables.length !== 1 ? 'es' : ''}
                         </span>
                       </div>
-                      <div className="flex flex-wrap gap-2 p-3 max-h-32 overflow-y-auto">
+                      <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto p-3">
                         {filteredVariables.map((variable, idx) => (
                           <Tooltip
                             key={variable.id || `var-${idx}`}
@@ -2219,14 +2350,18 @@ export default function GeneratePage() {
 
                   {/* Unified Prompt Bar - Director's Viewfinder */}
                   {/* Responsive: stacked layout at < 1600px viewport for more prompt space */}
-                  <div className={clsx(
-                    'flex gap-2 transition-all',
-                    isCompactToolbar ? 'flex-col' : 'items-end'
-                  )}>
-                    <div className={clsx(
-                      'group relative rounded-xl bg-white/5 transition-all',
-                      isCompactToolbar ? 'w-full' : 'w-[400px] shrink-0'
-                    )}>
+                  <div
+                    className={clsx(
+                      'flex gap-2 transition-all',
+                      isCompactToolbar ? 'flex-col' : 'items-end'
+                    )}
+                  >
+                    <div
+                      className={clsx(
+                        'group relative rounded-xl bg-white/5 transition-all',
+                        isCompactToolbar ? 'w-full' : 'w-[400px] shrink-0'
+                      )}
+                    >
                       {/* Focus Brackets - Director's Viewfinder Corners */}
                       <div
                         className={clsx(
@@ -2329,10 +2464,12 @@ export default function GeneratePage() {
                       )}
                     </div>
 
-                    <div className={clsx(
-                      'relative flex items-center gap-1.5',
-                      isCompactToolbar ? 'w-full' : 'min-w-0 flex-1'
-                    )}>
+                    <div
+                      className={clsx(
+                        'relative flex items-center gap-1.5',
+                        isCompactToolbar ? 'w-full' : 'min-w-0 flex-1'
+                      )}
+                    >
                       {/* 1. Smart Prompt (Wand) - PINNED LEFT */}
                       <Tooltip content="Smart Prompt Builder" side="top">
                         <button
@@ -2340,7 +2477,9 @@ export default function GeneratePage() {
                           className="group flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-white/5 bg-black/20 px-2.5 text-purple-400 transition-all hover:bg-purple-500/20 hover:text-purple-300"
                         >
                           <Wand2 className="h-4 w-4 shrink-0" />
-                          <span className="text-xs font-medium">{hideAspectRatioText ? 'Smart' : 'Smart Prompt'}</span>
+                          <span className="text-xs font-medium">
+                            {hideAspectRatioText ? 'Smart' : 'Smart Prompt'}
+                          </span>
                         </button>
                       </Tooltip>
 
@@ -2390,29 +2529,48 @@ export default function GeneratePage() {
                             )}
                           >
                             <Code2 className="h-4 w-4 shrink-0" />
-                            <span className="text-xs font-medium">${hasMounted ? promptVariables.length : 0}</span>
+                            <span className="text-xs font-medium">
+                              ${hasMounted ? promptVariables.length : 0}
+                            </span>
                           </button>
                         </Tooltip>
 
-                        {/* 2c. Lens Kit - Focal Length & Anamorphic */}
-                        <LensKitSelector
-                          selectedLens={selectedLens}
-                          selectedEffects={selectedLensEffects}
-                          isAnamorphic={isAnamorphic}
-                          onLensChange={setSelectedLens}
-                          onEffectsChange={setSelectedLensEffects}
-                          onAnamorphicChange={value => {
-                            setIsAnamorphic(value);
-                            // Auto-lock to 21:9 aspect ratio when anamorphic is enabled
-                            if (value) {
-                              setAspectRatio('21:9');
-                            }
-                          }}
-                          onAspectRatioLock={ratio => setAspectRatio(ratio)}
-                        />
+                        {/* 2c. Director's Viewfinder - Camera & Lens Database */}
+                        <Tooltip
+                          content="Director's Viewfinder - Professional Camera & Lens Selection"
+                          side="top"
+                        >
+                          <button
+                            onClick={() => setIsViewfinderOpen(true)}
+                            className={clsx(
+                              'group flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-xl border px-2.5 transition-all',
+                              viewfinderCamera || viewfinderLensFamily
+                                ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'
+                                : 'border-white/5 bg-black/20 text-gray-400 hover:bg-white/5 hover:text-white'
+                            )}
+                          >
+                            <Camera className="h-4 w-4 shrink-0" />
+                            <span className="max-w-[80px] truncate text-xs font-medium">
+                              {viewfinderCamera ? viewfinderCamera.brand : 'Camera & Lens'}
+                            </span>
+                            {viewfinderFocalLength && (
+                              <span className="rounded-full bg-cyan-500/30 px-1.5 py-0.5 font-mono text-[10px]">
+                                {viewfinderFocalLength}mm
+                              </span>
+                            )}
+                            {viewfinderLensFamily?.is_anamorphic && (
+                              <span className="rounded-full bg-blue-500/30 px-1 py-0.5 text-[9px] font-bold text-blue-300">
+                                A
+                              </span>
+                            )}
+                          </button>
+                        </Tooltip>
 
                         {/* 2d. Prop Bin - Object Consistency */}
-                        <Tooltip content="Prop Bin (#PropName syntax for object consistency)" side="top">
+                        <Tooltip
+                          content="Prop Bin (#PropName syntax for object consistency)"
+                          side="top"
+                        >
                           <button
                             onClick={() => setIsPropBinOpen(true)}
                             className={clsx(
@@ -2423,7 +2581,9 @@ export default function GeneratePage() {
                             )}
                           >
                             <Package className="h-4 w-4 shrink-0" />
-                            <span className="text-xs font-medium">#{hasMounted ? propBinItems.length : 0}</span>
+                            <span className="text-xs font-medium">
+                              #{hasMounted ? propBinItems.length : 0}
+                            </span>
                           </button>
                         </Tooltip>
 
@@ -2439,7 +2599,9 @@ export default function GeneratePage() {
                             )}
                           >
                             <GitBranch className="h-4 w-4 shrink-0" />
-                            <span className="text-xs font-medium">{hasMounted ? promptTreeNodes.length : 0}</span>
+                            <span className="text-xs font-medium">
+                              {hasMounted ? promptTreeNodes.length : 0}
+                            </span>
                           </button>
                         </Tooltip>
 
@@ -2460,7 +2622,15 @@ export default function GeneratePage() {
                           <Tooltip content="Click to cycle aspect ratio" side="top">
                             <button
                               onClick={() => {
-                                const ratios = ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9', '2.35:1'];
+                                const ratios = [
+                                  '16:9',
+                                  '9:16',
+                                  '1:1',
+                                  '4:3',
+                                  '3:4',
+                                  '21:9',
+                                  '2.35:1',
+                                ];
                                 const currentIndex = ratios.indexOf(aspectRatio);
                                 const nextIndex = (currentIndex + 1) % ratios.length;
                                 setAspectRatio(ratios[nextIndex]);
@@ -2473,7 +2643,9 @@ export default function GeneratePage() {
                                 className="shrink-0 text-gray-400 transition-colors group-hover:text-white"
                               />
                               {!hideAspectRatioText && (
-                                <span className="font-mono text-[10px] text-gray-500 group-hover:text-gray-300">{aspectRatio}</span>
+                                <span className="font-mono text-[10px] text-gray-500 group-hover:text-gray-300">
+                                  {aspectRatio}
+                                </span>
                               )}
                             </button>
                           </Tooltip>
@@ -2522,7 +2694,10 @@ export default function GeneratePage() {
                         </Tooltip>
 
                         {/* Reference Elements - part of middle section */}
-                        <Tooltip content="Reference Elements - Characters, Styles, Props" side="top">
+                        <Tooltip
+                          content="Reference Elements - Characters, Styles, Props"
+                          side="top"
+                        >
                           <button
                             onClick={() => setIsElementPickerOpen(!isElementPickerOpen)}
                             className={clsx(
@@ -2533,7 +2708,9 @@ export default function GeneratePage() {
                             )}
                           >
                             <Users className="h-4 w-4 shrink-0" />
-                            <span className="text-xs font-medium">{hideAspectRatioText ? 'Ref' : 'Reference'}</span>
+                            <span className="text-xs font-medium">
+                              {hideAspectRatioText ? 'Ref' : 'Reference'}
+                            </span>
                             {selectedElementIds.length > 0 && (
                               <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white">
                                 {selectedElementIds.length}
@@ -2541,13 +2718,12 @@ export default function GeneratePage() {
                             )}
                           </button>
                         </Tooltip>
-
                       </div>
 
                       {/* Pinned Right Section - Model Selector & Generate Button ONLY */}
                       <div className="flex shrink-0 items-center gap-2 border-l border-white/10 pl-2">
                         {/* 6. Model Selector Pill */}
-                        <div className="min-w-[120px] max-w-[180px]">
+                        <div className="max-w-[180px] min-w-[120px]">
                           <EngineSelectorV2
                             selectedProvider={engineConfig.provider}
                             selectedModel={engineConfig.model}
@@ -2563,168 +2739,173 @@ export default function GeneratePage() {
                           />
                         </div>
 
-                      {/* Pipeline Node Workflow (Vidu Q2 Only) */}
-                      {engineConfig.model === 'fal-ai/vidu/q2/reference-to-video' && (
-                        <div className="absolute right-0 bottom-full z-50 mb-2 flex w-72 flex-col gap-3 rounded-xl border border-white/10 bg-[#1a1a1a] p-3 shadow-xl">
-                          <div className="flex items-center justify-between text-xs font-semibold text-gray-300">
-                            <div className="flex items-center gap-2">
-                              <Layers className="h-4 w-4 text-blue-400" />
-                              <span>Generation Pipeline</span>
+                        {/* Pipeline Node Workflow (Vidu Q2 Only) */}
+                        {engineConfig.model === 'fal-ai/vidu/q2/reference-to-video' && (
+                          <div className="absolute right-0 bottom-full z-50 mb-2 flex w-72 flex-col gap-3 rounded-xl border border-white/10 bg-[#1a1a1a] p-3 shadow-xl">
+                            <div className="flex items-center justify-between text-xs font-semibold text-gray-300">
+                              <div className="flex items-center gap-2">
+                                <Layers className="h-4 w-4 text-blue-400" />
+                                <span>Generation Pipeline</span>
+                              </div>
                             </div>
-                          </div>
 
-                          {/* Base Stage (Implicit Vidu) */}
-                          <div className="flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/10 p-2 text-xs text-blue-200">
-                            <span className="font-bold">1. Base:</span> Vidu Q2 (Reference-to-Video)
-                          </div>
+                            {/* Base Stage (Implicit Vidu) */}
+                            <div className="flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/10 p-2 text-xs text-blue-200">
+                              <span className="font-bold">1. Base:</span> Vidu Q2
+                              (Reference-to-Video)
+                            </div>
 
-                          {/* Dynamic Stages */}
-                          {pipelineStages.map((stage, idx) => (
-                            <div
-                              key={stage.id}
-                              className="animate-in slide-in-from-left-2 fade-in relative rounded-lg border border-white/10 bg-white/5 p-3"
-                            >
-                              <div className="absolute top-2 right-2">
+                            {/* Dynamic Stages */}
+                            {pipelineStages.map((stage, idx) => (
+                              <div
+                                key={stage.id}
+                                className="animate-in slide-in-from-left-2 fade-in relative rounded-lg border border-white/10 bg-white/5 p-3"
+                              >
+                                <div className="absolute top-2 right-2">
+                                  <button
+                                    onClick={() =>
+                                      setPipelineStages(prev => prev.filter(s => s.id !== stage.id))
+                                    }
+                                    className="text-gray-500 hover:text-red-400"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                                <div className="mb-2 text-xs font-bold text-gray-300">
+                                  {idx + 2}.{' '}
+                                  {stage.type === 'motion'
+                                    ? 'Motion (One-To-All)'
+                                    : 'Lip Sync (SyncLabs)'}
+                                </div>
+
+                                {stage.type === 'motion' && (
+                                  <div className="flex flex-col gap-2">
+                                    <label className="text-[10px] text-gray-400 uppercase">
+                                      Driving Video
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() =>
+                                          document
+                                            .getElementById(`stage-video-${stage.id}`)
+                                            ?.click()
+                                        }
+                                        className={clsx(
+                                          'flex w-full items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-2 transition-all',
+                                          stage.videoFile
+                                            ? 'border-green-500/50 bg-green-500/10 text-green-400'
+                                            : 'border-white/20 bg-white/5 text-gray-400 hover:border-white/40'
+                                        )}
+                                      >
+                                        <Video className="h-3 w-3" />
+                                        <span className="max-w-[150px] truncate text-xs">
+                                          {stage.videoFile ? stage.videoFile.name : 'Upload Video'}
+                                        </span>
+                                      </button>
+                                      <input
+                                        id={`stage-video-${stage.id}`}
+                                        type="file"
+                                        accept="video/mp4,video/quicktime,video/webm"
+                                        className="hidden"
+                                        onChange={e => {
+                                          if (e.target.files?.[0]) {
+                                            const file = e.target.files[0];
+                                            setPipelineStages(prev =>
+                                              prev.map(s =>
+                                                s.id === stage.id ? { ...s, videoFile: file } : s
+                                              )
+                                            );
+                                          }
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+
+                                {stage.type === 'lipsync' && (
+                                  <div className="flex flex-col gap-2">
+                                    <label className="text-[10px] text-gray-400 uppercase">
+                                      Driving Audio or Video
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() =>
+                                          document
+                                            .getElementById(`stage-audio-${stage.id}`)
+                                            ?.click()
+                                        }
+                                        className={clsx(
+                                          'flex w-full items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-2 transition-all',
+                                          stage.audioFile
+                                            ? 'border-purple-500/50 bg-purple-500/10 text-purple-400'
+                                            : 'border-white/20 bg-white/5 text-gray-400 hover:border-white/40'
+                                        )}
+                                      >
+                                        <Music className="h-3 w-3" />
+                                        <span className="max-w-[150px] truncate text-xs">
+                                          {stage.audioFile
+                                            ? stage.audioFile.name
+                                            : 'Upload Audio/Video'}
+                                        </span>
+                                      </button>
+                                      <input
+                                        id={`stage-audio-${stage.id}`}
+                                        type="file"
+                                        accept="audio/*,video/*"
+                                        className="hidden"
+                                        onChange={e => {
+                                          if (e.target.files?.[0]) {
+                                            const file = e.target.files[0];
+                                            setPipelineStages(prev =>
+                                              prev.map(s =>
+                                                s.id === stage.id ? { ...s, audioFile: file } : s
+                                              )
+                                            );
+                                          }
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="absolute top-1/2 -left-1.5 -mt-1 h-px w-3 bg-white/20" />
+                              </div>
+                            ))}
+
+                            <div className="mt-2 flex gap-2">
+                              <Tooltip content="Add One-To-All Motion Stage" side="top">
                                 <button
                                   onClick={() =>
-                                    setPipelineStages(prev => prev.filter(s => s.id !== stage.id))
+                                    setPipelineStages(prev => [
+                                      ...prev,
+                                      { id: Date.now().toString(), type: 'motion' },
+                                    ])
                                   }
-                                  className="text-gray-500 hover:text-red-400"
+                                  className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/5 py-1.5 text-xs text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
                                 >
-                                  <Trash2 className="h-3 w-3" />
+                                  <Video className="h-3 w-3" /> + Motion
                                 </button>
-                              </div>
-                              <div className="mb-2 text-xs font-bold text-gray-300">
-                                {idx + 2}.{' '}
-                                {stage.type === 'motion'
-                                  ? 'Motion (One-To-All)'
-                                  : 'Lip Sync (SyncLabs)'}
-                              </div>
-
-                              {stage.type === 'motion' && (
-                                <div className="flex flex-col gap-2">
-                                  <label className="text-[10px] text-gray-400 uppercase">
-                                    Driving Video
-                                  </label>
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      onClick={() =>
-                                        document.getElementById(`stage-video-${stage.id}`)?.click()
-                                      }
-                                      className={clsx(
-                                        'flex w-full items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-2 transition-all',
-                                        stage.videoFile
-                                          ? 'border-green-500/50 bg-green-500/10 text-green-400'
-                                          : 'border-white/20 bg-white/5 text-gray-400 hover:border-white/40'
-                                      )}
-                                    >
-                                      <Video className="h-3 w-3" />
-                                      <span className="max-w-[150px] truncate text-xs">
-                                        {stage.videoFile ? stage.videoFile.name : 'Upload Video'}
-                                      </span>
-                                    </button>
-                                    <input
-                                      id={`stage-video-${stage.id}`}
-                                      type="file"
-                                      accept="video/mp4,video/quicktime,video/webm"
-                                      className="hidden"
-                                      onChange={e => {
-                                        if (e.target.files?.[0]) {
-                                          const file = e.target.files[0];
-                                          setPipelineStages(prev =>
-                                            prev.map(s =>
-                                              s.id === stage.id ? { ...s, videoFile: file } : s
-                                            )
-                                          );
-                                        }
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                              )}
-
-                              {stage.type === 'lipsync' && (
-                                <div className="flex flex-col gap-2">
-                                  <label className="text-[10px] text-gray-400 uppercase">
-                                    Driving Audio or Video
-                                  </label>
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      onClick={() =>
-                                        document.getElementById(`stage-audio-${stage.id}`)?.click()
-                                      }
-                                      className={clsx(
-                                        'flex w-full items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-2 transition-all',
-                                        stage.audioFile
-                                          ? 'border-purple-500/50 bg-purple-500/10 text-purple-400'
-                                          : 'border-white/20 bg-white/5 text-gray-400 hover:border-white/40'
-                                      )}
-                                    >
-                                      <Music className="h-3 w-3" />
-                                      <span className="max-w-[150px] truncate text-xs">
-                                        {stage.audioFile
-                                          ? stage.audioFile.name
-                                          : 'Upload Audio/Video'}
-                                      </span>
-                                    </button>
-                                    <input
-                                      id={`stage-audio-${stage.id}`}
-                                      type="file"
-                                      accept="audio/*,video/*"
-                                      className="hidden"
-                                      onChange={e => {
-                                        if (e.target.files?.[0]) {
-                                          const file = e.target.files[0];
-                                          setPipelineStages(prev =>
-                                            prev.map(s =>
-                                              s.id === stage.id ? { ...s, audioFile: file } : s
-                                            )
-                                          );
-                                        }
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                              )}
-
-                              <div className="absolute top-1/2 -left-1.5 -mt-1 h-px w-3 bg-white/20" />
+                              </Tooltip>
+                              <Tooltip content="Add SyncLabs Lip Sync Stage" side="top">
+                                <button
+                                  onClick={() =>
+                                    setPipelineStages(prev => [
+                                      ...prev,
+                                      { id: Date.now().toString(), type: 'lipsync' },
+                                    ])
+                                  }
+                                  className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/5 py-1.5 text-xs text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+                                >
+                                  <Music className="h-3 w-3" /> + Lip Sync
+                                </button>
+                              </Tooltip>
                             </div>
-                          ))}
-
-                          <div className="mt-2 flex gap-2">
-                            <Tooltip content="Add One-To-All Motion Stage" side="top">
-                              <button
-                                onClick={() =>
-                                  setPipelineStages(prev => [
-                                    ...prev,
-                                    { id: Date.now().toString(), type: 'motion' },
-                                  ])
-                                }
-                                className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/5 py-1.5 text-xs text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-                              >
-                                <Video className="h-3 w-3" /> + Motion
-                              </button>
-                            </Tooltip>
-                            <Tooltip content="Add SyncLabs Lip Sync Stage" side="top">
-                              <button
-                                onClick={() =>
-                                  setPipelineStages(prev => [
-                                    ...prev,
-                                    { id: Date.now().toString(), type: 'lipsync' },
-                                  ])
-                                }
-                                className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/5 py-1.5 text-xs text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-                              >
-                                <Music className="h-3 w-3" /> + Lip Sync
-                              </button>
-                            </Tooltip>
                           </div>
-                        </div>
-                      )}
+                        )}
 
                         {/* 5. Generate Button */}
                         <button
-                          onClick={handleGenerate}
+                          onClick={handleGenerateClick}
                           disabled={isGenerating || !prompt?.trim()}
                           className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-blue-600 px-3 font-medium text-white shadow-lg shadow-blue-500/20 transition-all hover:scale-105 hover:bg-blue-500 active:scale-95 disabled:opacity-50 disabled:grayscale"
                         >
@@ -2740,7 +2921,6 @@ export default function GeneratePage() {
                             </>
                           )}
                         </button>
-
                       </div>
                     </div>
                   </div>
@@ -2804,7 +2984,9 @@ export default function GeneratePage() {
                               id: p.id,
                               name: p.name,
                               description: p.description,
-                              referenceImageUrl: p.referenceImageUrl ? resolveFileUrl(p.referenceImageUrl) : undefined,
+                              referenceImageUrl: p.referenceImageUrl
+                                ? resolveFileUrl(p.referenceImageUrl)
+                                : undefined,
                               category: p.category,
                             }))}
                           lightingPrompt={lightingEnabled ? getLightingModifier() : ''}
@@ -2942,7 +3124,7 @@ export default function GeneratePage() {
         projectId={projectId}
         config={styleConfig || undefined} // Pass current config to sync modal state
         currentModelId={engineConfig.model} // For LoRA base model auto-filtering
-        isAnamorphicLocked={isAnamorphic} // Lock to 21:9 when anamorphic glass is enabled
+        isAnamorphicLocked={viewfinderLensFamily?.is_anamorphic || false} // Lock to 21:9 when anamorphic glass is enabled
       />
 
       {/* Virtual Gaffer: 3-Point Lighting Designer Stage */}
@@ -2950,7 +3132,7 @@ export default function GeneratePage() {
 
       {/* Acoustic Studio: Perspective-Matched Audio */}
       <AcousticStudioPanel
-        focalLength={selectedLens?.focalMm || 35}
+        focalLength={viewfinderFocalLength || 35}
         isOpen={isAcousticStudioOpen}
         onClose={() => setIsAcousticStudioOpen(false)}
       />
@@ -3091,6 +3273,18 @@ export default function GeneratePage() {
         }}
       />
 
+      {/* Pre-Flight Check Modal - Validation Gate */}
+      <PreFlightCheckModal
+        isOpen={isPreFlightOpen}
+        onClose={() => setIsPreFlightOpen(false)}
+        onProceed={handleGenerate}
+        modelId={engineConfig.model}
+        currentInputs={preFlightInputs}
+        loraCount={0}
+        referenceCount={selectedElementIds.length}
+        hasNegativePrompt={!!styleConfig?.negativePrompt}
+      />
+
       {/* Prompt Variables Panel */}
       <PromptVariablesPanel
         isOpen={isVariablesPanelOpen}
@@ -3113,6 +3307,21 @@ export default function GeneratePage() {
         }}
       />
 
+      {/* Director's Viewfinder Modal - 3-Column Camera & Lens Selector */}
+      <DirectorViewfinderModal
+        isOpen={isViewfinderOpen}
+        onClose={() => setIsViewfinderOpen(false)}
+        selectedCamera={viewfinderCamera}
+        selectedLensFamily={viewfinderLensFamily}
+        selectedFocalLength={viewfinderFocalLength}
+        onApply={(camera, lensFamily, focalLength, modifier) => {
+          setViewfinderCamera(camera);
+          setViewfinderLensFamily(lensFamily);
+          setViewfinderFocalLength(focalLength);
+          setViewfinderModifier(modifier);
+        }}
+      />
+
       {/* Weight Hint Tooltip - Shows when text is selected in the prompt */}
       <WeightHintTooltip
         isVisible={hasTextSelection && isFocused}
@@ -3122,7 +3331,7 @@ export default function GeneratePage() {
 
       {/* Session Recovery Toast */}
       {showRecoveryToast && recoverableSession && (
-        <div className="fixed bottom-24 left-1/2 z-[100] -translate-x-1/2 animate-in slide-in-from-bottom-4 fade-in duration-300">
+        <div className="animate-in slide-in-from-bottom-4 fade-in fixed bottom-24 left-1/2 z-[100] -translate-x-1/2 duration-300">
           <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-zinc-900/95 px-4 py-3 shadow-2xl backdrop-blur-sm">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/20">
               <FilePlus className="h-5 w-5 text-amber-400" />

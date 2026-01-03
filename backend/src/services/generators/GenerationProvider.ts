@@ -21,6 +21,7 @@ export interface GenerationOptions {
     versionId?: string; // Civitai version ID (for AIR URN construction)
   }[];
   sourceImages?: string[];
+  imageUrl?: string; // Single source image URL for I2I operations
   maskUrl?: string; // Added for Inpainting/Retake
   sourceVideoUrl?: string; // URL of source video for video-to-video
   referenceCreativity?: number; // Strength of reference elements (0.1 - 1.0)
@@ -71,6 +72,8 @@ export interface GenerationResult {
   error?: string;
   provider?: string; // Added to track which provider was used
   seed?: number; // Added to track the seed used
+  repairedByMedic?: boolean; // True if RuntimeMedic successfully repaired a failed job
+  medicIntervention?: unknown; // RuntimeMedic intervention details if repair was attempted
 }
 
 export interface GenerationProvider {

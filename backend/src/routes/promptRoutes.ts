@@ -18,9 +18,16 @@ import {
 import { loraRegistry } from '../services/prompts/LoRARegistry';
 import { getModelGuide, MODEL_PROMPTING_GUIDES } from '../services/prompts/ModelPromptGuides';
 import { LLMService } from '../services/LLMService';
-import { withAuth, requireGenerationQuota } from '../middleware/auth';
+import { withAuth, withDevAuth, requireGenerationQuota } from '../middleware/auth';
 
 const router = Router();
+
+// Use dev auth in development, real auth in production
+const authMiddleware = process.env.NODE_ENV === 'production' ? withAuth : withDevAuth;
+const quotaMiddleware =
+  process.env.NODE_ENV === 'production'
+    ? requireGenerationQuota
+    : (_req: any, _res: any, next: any) => next();
 
 /**
  * POST /api/prompts/enhance
@@ -28,7 +35,7 @@ const router = Router();
  * Enhance a user prompt for a specific model with LoRA and element integration
  * EXPENSIVE: Uses LLM for prompt enhancement ($)
  */
-router.post('/enhance', withAuth, requireGenerationQuota, async (req: Request, res: Response) => {
+router.post('/enhance', authMiddleware, quotaMiddleware, async (req: Request, res: Response) => {
   try {
     const {
       prompt,
@@ -212,8 +219,8 @@ router.post('/enhance', withAuth, requireGenerationQuota, async (req: Request, r
  */
 router.post(
   '/quick-enhance',
-  withAuth,
-  requireGenerationQuota,
+  authMiddleware,
+  quotaMiddleware,
   async (req: Request, res: Response) => {
     try {
       const { prompt, modelId, loraIds = [] } = req.body;
@@ -653,7 +660,7 @@ function generateSuggestions(prompt: string, guide: any): string[] {
 
 // Parse Screenplay Script
 // EXPENSIVE: Uses LLM for script parsing ($)
-router.post('/parse-script', withAuth, requireGenerationQuota, async (req, res) => {
+router.post('/parse-script', authMiddleware, quotaMiddleware, async (req, res) => {
   try {
     const { script } = req.body;
     if (!script) {

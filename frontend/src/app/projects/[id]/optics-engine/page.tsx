@@ -13,50 +13,46 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-    Camera,
-    Image,
-    Layers,
-    Plus,
-    RefreshCw,
-    Save,
-    Trash2,
-    Upload,
-} from 'lucide-react';
+import { Camera, Image, Layers, Plus, RefreshCw, Save, Trash2, Upload } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { DirectorViewfinder } from '@/components/viewfinder';
+import {
+  DirectorViewfinder as CameraLensSelector,
+  ViewfinderTrigger,
+} from '@/components/optics/DirectorViewfinder';
+import { CameraSpec, LensFamily } from '@/data/CameraDatabase';
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 interface ViewfinderElement {
-    id: string;
-    name: string;
-    imageUrl: string;
-    x: number;
-    y: number;
-    scale: number;
-    rotation: number;
-    opacity: number;
-    locked?: boolean;
+  id: string;
+  name: string;
+  imageUrl: string;
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  opacity: number;
+  locked?: boolean;
 }
 
 interface Generation {
-    id: string;
-    inputPrompt: string;
-    outputs: string | { url?: string; type?: string }[] | null;
-    status: string;
+  id: string;
+  inputPrompt: string;
+  outputs: string | { url?: string; type?: string }[] | null;
+  status: string;
 }
 
 interface Element {
-    id: string;
-    name: string;
-    type: string;
-    url?: string;
-    fileUrl?: string;
-    thumbnail?: string;
+  id: string;
+  name: string;
+  type: string;
+  url?: string;
+  fileUrl?: string;
+  thumbnail?: string;
 }
 
 // ============================================================================
@@ -64,416 +60,478 @@ interface Element {
 // ============================================================================
 
 export default function ViewfinderPage() {
-    const params = useParams();
-    const router = useRouter();
-    const projectId = params.id as string;
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+  const params = useParams();
+  const router = useRouter();
+  const projectId = params.id as string;
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-    // State
-    const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
-    const [viewfinderElements, setViewfinderElements] = useState<ViewfinderElement[]>([]);
-    const [generations, setGenerations] = useState<Generation[]>([]);
-    const [elements, setElements] = useState<Element[]>([]);
-    const [captures, setCaptures] = useState<string[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isUploading, setIsUploading] = useState(false);
-    const [activePanel, setActivePanel] = useState<'reference' | 'elements' | 'captures'>('reference');
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // State
+  const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
+  const [viewfinderElements, setViewfinderElements] = useState<ViewfinderElement[]>([]);
+  const [generations, setGenerations] = useState<Generation[]>([]);
+  const [elements, setElements] = useState<Element[]>([]);
+  const [captures, setCaptures] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [activePanel, setActivePanel] = useState<'reference' | 'elements' | 'captures'>(
+    'reference'
+  );
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-    // Fetch generations for reference selection
-    const fetchGenerations = useCallback(async () => {
-        try {
-            const res = await fetch(`${apiUrl}/api/projects/${projectId}/generations?limit=50`);
-            const data = await res.json();
-            // API returns array directly, not {success, generations}
-            const generationsArray = Array.isArray(data) ? data : (data.generations || []);
-            setGenerations(generationsArray.filter((g: Generation) => g.status === 'succeeded'));
-        } catch (error) {
-            console.error('Failed to fetch generations:', error);
-        }
-    }, [apiUrl, projectId]);
+  // Camera/Lens Selector State
+  const [isCameraLensSelectorOpen, setIsCameraLensSelectorOpen] = useState(false);
+  const [selectedCamera, setSelectedCamera] = useState<CameraSpec | null>(null);
+  const [selectedLensFamily, setSelectedLensFamily] = useState<LensFamily | null>(null);
+  const [selectedFocalLength, setSelectedFocalLength] = useState<number | null>(null);
+  const [cameraModifier, setCameraModifier] = useState<string>('');
 
-    // Fetch project elements
-    const fetchElements = useCallback(async () => {
-        try {
-            const res = await fetch(`${apiUrl}/api/projects/${projectId}/elements`);
-            const data = await res.json();
-            // API returns array directly, not {success, elements}
-            const elementsArray = Array.isArray(data) ? data : (data.elements || []);
-            setElements(elementsArray);
-        } catch (error) {
-            console.error('Failed to fetch elements:', error);
-        }
-    }, [apiUrl, projectId]);
+  // Fetch generations for reference selection
+  const fetchGenerations = useCallback(async () => {
+    try {
+      const res = await fetch(`${apiUrl}/api/projects/${projectId}/generations?limit=50`);
+      const data = await res.json();
+      // API returns array directly, not {success, generations}
+      const generationsArray = Array.isArray(data) ? data : data.generations || [];
+      setGenerations(generationsArray.filter((g: Generation) => g.status === 'succeeded'));
+    } catch (error) {
+      console.error('Failed to fetch generations:', error);
+    }
+  }, [apiUrl, projectId]);
 
-    useEffect(() => {
-        fetchGenerations();
-        fetchElements();
-    }, [fetchGenerations, fetchElements]);
+  // Fetch project elements
+  const fetchElements = useCallback(async () => {
+    try {
+      const res = await fetch(`${apiUrl}/api/projects/${projectId}/elements`);
+      const data = await res.json();
+      // API returns array directly, not {success, elements}
+      const elementsArray = Array.isArray(data) ? data : data.elements || [];
+      setElements(elementsArray);
+    } catch (error) {
+      console.error('Failed to fetch elements:', error);
+    }
+  }, [apiUrl, projectId]);
 
-    // Get image URL from generation outputs
-    const getImageUrl = (gen: Generation): string | null => {
-        if (!gen.outputs) return null;
-        try {
-            const parsed = typeof gen.outputs === 'string' ? JSON.parse(gen.outputs) : gen.outputs;
-            if (Array.isArray(parsed) && parsed.length > 0) {
-                return parsed[0].url || null;
-            }
-        } catch {
-            return null;
-        }
-        return null;
+  useEffect(() => {
+    fetchGenerations();
+    fetchElements();
+  }, [fetchGenerations, fetchElements]);
+
+  // Get image URL from generation outputs
+  const getImageUrl = (gen: Generation): string | null => {
+    if (!gen.outputs) return null;
+    try {
+      const parsed = typeof gen.outputs === 'string' ? JSON.parse(gen.outputs) : gen.outputs;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed[0].url || null;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  };
+
+  // Add element to viewfinder
+  const addElementToViewfinder = (el: Element) => {
+    const newElement: ViewfinderElement = {
+      id: `vf-${el.id}-${Date.now()}`,
+      name: el.name,
+      imageUrl: el.url || el.fileUrl || el.thumbnail || '',
+      x: 0.5,
+      y: 0.5,
+      scale: 1,
+      rotation: 0,
+      opacity: 1,
     };
+    setViewfinderElements(prev => [...prev, newElement]);
+  };
 
-    // Add element to viewfinder
-    const addElementToViewfinder = (el: Element) => {
-        const newElement: ViewfinderElement = {
-            id: `vf-${el.id}-${Date.now()}`,
-            name: el.name,
-            imageUrl: el.url || el.fileUrl || el.thumbnail || '',
-            x: 0.5,
-            y: 0.5,
-            scale: 1,
-            rotation: 0,
-            opacity: 1,
-        };
-        setViewfinderElements(prev => [...prev, newElement]);
-    };
+  // Handle capture from viewfinder
+  const handleCapture = (imageUrl: string) => {
+    setCaptures(prev => [imageUrl, ...prev]);
+  };
 
-    // Handle capture from viewfinder
-    const handleCapture = (imageUrl: string) => {
-        setCaptures(prev => [imageUrl, ...prev]);
-    };
+  // Upload reference image
+  const handleUploadReference = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    // Upload reference image
-    const handleUploadReference = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
 
-        setIsUploading(true);
-        try {
-            const formData = new FormData();
-            formData.append('file', file);
+      // Use the processing temp upload endpoint
+      const res = await fetch(`${apiUrl}/api/process/upload-temp`, {
+        method: 'POST',
+        body: formData,
+      });
 
-            // Use the processing temp upload endpoint
-            const res = await fetch(`${apiUrl}/api/process/upload-temp`, {
-                method: 'POST',
-                body: formData,
-            });
-            const data = await res.json();
-
-            if (data.success && data.fileUrl) {
-                // fileUrl is relative, need to prefix with apiUrl for display
-                setReferenceImageUrl(`${apiUrl}${data.fileUrl}`);
-            }
-        } catch (error) {
-            console.error('Failed to upload reference:', error);
-        }
+      if (!res.ok) {
+        console.error('Upload failed with status:', res.status);
+        // Try alternative: create object URL for local preview
+        const objectUrl = URL.createObjectURL(file);
+        setReferenceImageUrl(objectUrl);
         setIsUploading(false);
-        // Reset input
         e.target.value = '';
-    };
+        return;
+      }
 
-    // Save capture as element
-    const saveCaptureAsElement = async (dataUrl: string) => {
-        setIsLoading(true);
-        try {
-            // Convert data URL to blob
-            const res = await fetch(dataUrl);
-            const blob = await res.blob();
+      const data = await res.json();
 
-            // Create form data
-            const formData = new FormData();
-            formData.append('file', blob, `viewfinder-capture-${Date.now()}.png`);
-            formData.append('name', `Viewfinder Capture ${new Date().toLocaleTimeString()}`);
-            formData.append('type', 'reference');
+      if (data.success && data.fileUrl) {
+        // fileUrl is relative, need to prefix with apiUrl for display
+        setReferenceImageUrl(`${apiUrl}${data.fileUrl}`);
+      } else {
+        // Fallback: use object URL for local preview
+        console.warn('Upload response missing fileUrl, using local preview');
+        const objectUrl = URL.createObjectURL(file);
+        setReferenceImageUrl(objectUrl);
+      }
+    } catch (error) {
+      console.error('Failed to upload reference:', error);
+      // Fallback: create object URL for local preview even if upload fails
+      const objectUrl = URL.createObjectURL(file);
+      setReferenceImageUrl(objectUrl);
+    }
+    setIsUploading(false);
+    // Reset input
+    e.target.value = '';
+  };
 
-            // Upload to backend
-            const uploadRes = await fetch(`${apiUrl}/api/projects/${projectId}/elements/upload`, {
-                method: 'POST',
-                body: formData,
-            });
-            const data = await uploadRes.json();
+  // Save capture as element
+  const saveCaptureAsElement = async (dataUrl: string) => {
+    setIsLoading(true);
+    try {
+      // Convert data URL to blob
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
 
-            if (data.success) {
-                fetchElements();
-            }
-        } catch (error) {
-            console.error('Failed to save capture:', error);
-        }
-        setIsLoading(false);
-    };
+      // Create form data
+      const formData = new FormData();
+      formData.append('file', blob, `viewfinder-capture-${Date.now()}.png`);
+      formData.append('name', `Viewfinder Capture ${new Date().toLocaleTimeString()}`);
+      formData.append('type', 'reference');
 
-    return (
-        <div className="flex h-screen bg-zinc-950">
-            {/* Left Sidebar - Reference/Elements/Captures */}
-            <AnimatePresence>
-                {!sidebarCollapsed && (
-                    <motion.div
-                        initial={{ width: 0, opacity: 0 }}
-                        animate={{ width: 280, opacity: 1 }}
-                        exit={{ width: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="flex w-70 shrink-0 flex-col overflow-hidden border-r border-white/5 bg-zinc-900/60 backdrop-blur-sm"
-                    >
-                        {/* Header - Compact */}
-                        <div className="flex items-center gap-3 border-b border-white/5 px-4 py-3">
-                            <Camera className="h-4 w-4 text-cyan-400" />
-                            <div className="flex-1">
-                                <h1 className="text-sm font-semibold text-white">Viewfinder</h1>
-                                <p className="text-[10px] text-zinc-600">Optics Engine</p>
-                            </div>
-                        </div>
+      // Upload to backend
+      const uploadRes = await fetch(`${apiUrl}/api/projects/${projectId}/elements/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await uploadRes.json();
 
-                {/* Panel Tabs */}
-                <div className="flex border-b border-white/5">
-                    {[
-                        { id: 'reference', icon: Image, label: 'Reference' },
-                        { id: 'elements', icon: Layers, label: 'Elements' },
-                        { id: 'captures', icon: Camera, label: 'Captures' },
-                    ].map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActivePanel(tab.id as typeof activePanel)}
-                            className={clsx(
-                                'flex flex-1 flex-col items-center gap-1 py-2.5 text-[9px] font-medium uppercase tracking-wider transition-colors',
-                                activePanel === tab.id
-                                    ? 'bg-cyan-500/10 text-cyan-400 border-b border-cyan-400/50'
-                                    : 'text-zinc-600 hover:bg-white/5 hover:text-zinc-300'
-                            )}
-                        >
-                            <tab.icon className="h-3.5 w-3.5" />
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
+      if (data.success) {
+        fetchElements();
+      }
+    } catch (error) {
+      console.error('Failed to save capture:', error);
+    }
+    setIsLoading(false);
+  };
 
-                {/* Panel Content */}
-                <div className="flex-1 overflow-y-auto p-3">
-                    {/* Reference Panel */}
-                    {activePanel === 'reference' && (
-                        <div className="space-y-3">
-                            {/* Upload Button - Compact */}
-                            <label
-                                className={clsx(
-                                    'flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-cyan-500/20 bg-cyan-500/5 p-3 transition-all hover:border-cyan-500/40 hover:bg-cyan-500/10',
-                                    isUploading && 'pointer-events-none opacity-50'
-                                )}
-                            >
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleUploadReference}
-                                    className="hidden"
-                                    disabled={isUploading}
-                                />
-                                {isUploading ? (
-                                    <>
-                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
-                                        <span className="text-xs font-medium text-cyan-400">Uploading...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Upload className="h-4 w-4 text-cyan-400" />
-                                        <span className="text-xs font-medium text-cyan-400">Upload Reference</span>
-                                    </>
-                                )}
-                            </label>
-
-                            {/* Current Reference Indicator */}
-                            {referenceImageUrl && (
-                                <div className="flex items-center gap-2 rounded-lg bg-green-500/10 p-2">
-                                    <div className="h-10 w-10 overflow-hidden rounded border border-green-500/30">
-                                        <img src={referenceImageUrl} alt="Current reference" className="h-full w-full object-cover" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-medium text-green-400">Reference Active</p>
-                                        <p className="truncate text-[10px] text-gray-500">Click below to change</p>
-                                    </div>
-                                    <button
-                                        onClick={() => setReferenceImageUrl(null)}
-                                        className="rounded p-1 text-gray-500 hover:bg-white/10 hover:text-red-400"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </button>
-                                </div>
-                            )}
-
-                            {/* Divider */}
-                            <div className="flex items-center gap-2">
-                                <div className="h-px flex-1 bg-white/10" />
-                                <span className="text-[10px] text-gray-600">or select from generations</span>
-                                <div className="h-px flex-1 bg-white/10" />
-                            </div>
-
-                            {generations.length === 0 ? (
-                                <div className="rounded-lg border border-dashed border-white/20 p-6 text-center">
-                                    <Image className="mx-auto h-8 w-8 text-gray-600" />
-                                    <p className="mt-2 text-xs text-gray-500">No generations yet</p>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-2 gap-2">
-                                    {generations.map(gen => {
-                                        const url = getImageUrl(gen);
-                                        if (!url) return null;
-                                        return (
-                                            <button
-                                                key={gen.id}
-                                                onClick={() => setReferenceImageUrl(url)}
-                                                className={clsx(
-                                                    'group relative aspect-square overflow-hidden rounded-lg border transition-all',
-                                                    referenceImageUrl === url
-                                                        ? 'border-cyan-400 ring-2 ring-cyan-400/50'
-                                                        : 'border-white/10 hover:border-white/30'
-                                                )}
-                                            >
-                                                <img
-                                                    src={url}
-                                                    alt={gen.inputPrompt}
-                                                    className="h-full w-full object-cover"
-                                                />
-                                                {referenceImageUrl === url && (
-                                                    <div className="absolute inset-0 flex items-center justify-center bg-cyan-500/20">
-                                                        <div className="rounded-full bg-cyan-500 p-1">
-                                                            <Camera className="h-4 w-4 text-white" />
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Elements Panel */}
-                    {activePanel === 'elements' && (
-                        <div className="space-y-2">
-                            <p className="mb-3 text-xs text-gray-500">Add elements to composite:</p>
-                            {elements.length === 0 ? (
-                                <div className="rounded-lg border border-dashed border-white/20 p-6 text-center">
-                                    <Layers className="mx-auto h-8 w-8 text-gray-600" />
-                                    <p className="mt-2 text-xs text-gray-500">No elements in project</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    {elements.map(el => (
-                                        <button
-                                            key={el.id}
-                                            onClick={() => addElementToViewfinder(el)}
-                                            className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-white/5 p-2 text-left transition-all hover:border-white/20 hover:bg-white/10"
-                                        >
-                                            {(el.url || el.fileUrl || el.thumbnail) && (
-                                                <img
-                                                    src={el.url || el.fileUrl || el.thumbnail}
-                                                    alt={el.name}
-                                                    className="h-10 w-10 rounded object-cover"
-                                                />
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                                <p className="truncate text-sm text-white">{el.name}</p>
-                                                <p className="text-[10px] text-gray-500">{el.type}</p>
-                                            </div>
-                                            <Plus className="h-4 w-4 text-gray-500" />
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Current Viewfinder Elements */}
-                            {viewfinderElements.length > 0 && (
-                                <div className="mt-4 border-t border-white/10 pt-4">
-                                    <p className="mb-2 text-xs font-medium text-gray-400">In Viewfinder:</p>
-                                    {viewfinderElements.map(el => (
-                                        <div
-                                            key={el.id}
-                                            className="flex items-center justify-between rounded-lg bg-white/5 p-2"
-                                        >
-                                            <span className="text-xs text-white">{el.name}</span>
-                                            <button
-                                                onClick={() =>
-                                                    setViewfinderElements(prev =>
-                                                        prev.filter(e => e.id !== el.id)
-                                                    )
-                                                }
-                                                className="rounded p-1 text-gray-500 hover:bg-white/10 hover:text-red-400"
-                                            >
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Captures Panel */}
-                    {activePanel === 'captures' && (
-                        <div className="space-y-2">
-                            <p className="mb-3 text-xs text-gray-500">Your viewfinder captures:</p>
-                            {captures.length === 0 ? (
-                                <div className="rounded-lg border border-dashed border-white/20 p-6 text-center">
-                                    <Camera className="mx-auto h-8 w-8 text-gray-600" />
-                                    <p className="mt-2 text-xs text-gray-500">No captures yet</p>
-                                    <p className="text-[10px] text-gray-600">Use the Capture button in the viewfinder</p>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-2 gap-2">
-                                    {captures.map((capture, i) => (
-                                        <div key={i} className="group relative aspect-video overflow-hidden rounded-lg border border-white/10">
-                                            <img
-                                                src={capture}
-                                                alt={`Capture ${i + 1}`}
-                                                className="h-full w-full object-cover"
-                                            />
-                                            <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
-                                                <Tooltip content="Save as Element" side="top">
-                                                    <button
-                                                        onClick={() => saveCaptureAsElement(capture)}
-                                                        disabled={isLoading}
-                                                        className="rounded-lg bg-green-500 p-2 text-white transition-colors hover:bg-green-400"
-                                                    >
-                                                        <Save className="h-4 w-4" />
-                                                    </button>
-                                                </Tooltip>
-                                                <Tooltip content="Delete" side="top">
-                                                    <button
-                                                        onClick={() =>
-                                                            setCaptures(prev => prev.filter((_, j) => j !== i))
-                                                        }
-                                                        className="rounded-lg bg-red-500 p-2 text-white transition-colors hover:bg-red-400"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </button>
-                                                </Tooltip>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* Main Content - Viewfinder (fills all available space) */}
-            <div className="relative flex-1">
-                <DirectorViewfinder
-                    projectId={projectId}
-                    referenceImageUrl={referenceImageUrl || undefined}
-                    elements={viewfinderElements}
-                    onElementsChange={setViewfinderElements}
-                    onCapture={handleCapture}
-                    embedded={true}
-                    isOpen={true}
-                    fullscreen={sidebarCollapsed}
-                    pageSidebarCollapsed={sidebarCollapsed}
-                    onTogglePageSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
-                />
+  return (
+    <div className="flex h-screen bg-zinc-950">
+      {/* Left Sidebar - Reference/Elements/Captures */}
+      <AnimatePresence>
+        {!sidebarCollapsed && (
+          <motion.div
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 280, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="flex w-70 shrink-0 flex-col overflow-hidden border-r border-white/5 bg-zinc-900/60 backdrop-blur-sm"
+          >
+            {/* Header - Compact */}
+            <div className="flex items-center gap-3 border-b border-white/5 px-4 py-3">
+              <Camera className="h-4 w-4 text-cyan-400" />
+              <div className="flex-1">
+                <h1 className="text-sm font-semibold text-white">Viewfinder</h1>
+                <p className="text-[10px] text-zinc-600">Optics Engine</p>
+              </div>
             </div>
-        </div>
-    );
+
+            {/* Panel Tabs */}
+            <div className="flex border-b border-white/5">
+              {[
+                { id: 'reference', icon: Image, label: 'Reference' },
+                { id: 'elements', icon: Layers, label: 'Elements' },
+                { id: 'captures', icon: Camera, label: 'Captures' },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActivePanel(tab.id as typeof activePanel)}
+                  className={clsx(
+                    'flex flex-1 flex-col items-center gap-1 py-2.5 text-[9px] font-medium tracking-wider uppercase transition-colors',
+                    activePanel === tab.id
+                      ? 'border-b border-cyan-400/50 bg-cyan-500/10 text-cyan-400'
+                      : 'text-zinc-600 hover:bg-white/5 hover:text-zinc-300'
+                  )}
+                >
+                  <tab.icon className="h-3.5 w-3.5" />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Panel Content */}
+            <div className="flex-1 overflow-y-auto p-3">
+              {/* Reference Panel */}
+              {activePanel === 'reference' && (
+                <div className="space-y-3">
+                  {/* Upload Button - Compact */}
+                  <label
+                    className={clsx(
+                      'flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-cyan-500/20 bg-cyan-500/5 p-3 transition-all hover:border-cyan-500/40 hover:bg-cyan-500/10',
+                      isUploading && 'pointer-events-none opacity-50'
+                    )}
+                  >
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleUploadReference}
+                      className="hidden"
+                      disabled={isUploading}
+                    />
+                    {isUploading ? (
+                      <>
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+                        <span className="text-xs font-medium text-cyan-400">Uploading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 text-cyan-400" />
+                        <span className="text-xs font-medium text-cyan-400">Upload Reference</span>
+                      </>
+                    )}
+                  </label>
+
+                  {/* Current Reference Indicator */}
+                  {referenceImageUrl && (
+                    <div className="flex items-center gap-2 rounded-lg bg-green-500/10 p-2">
+                      <div className="h-10 w-10 overflow-hidden rounded border border-green-500/30">
+                        <img
+                          src={referenceImageUrl}
+                          alt="Current reference"
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-green-400">Reference Active</p>
+                        <p className="truncate text-[10px] text-gray-500">Click below to change</p>
+                      </div>
+                      <button
+                        onClick={() => setReferenceImageUrl(null)}
+                        className="rounded p-1 text-gray-500 hover:bg-white/10 hover:text-red-400"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Divider */}
+                  <div className="flex items-center gap-2">
+                    <div className="h-px flex-1 bg-white/10" />
+                    <span className="text-[10px] text-gray-600">or select from generations</span>
+                    <div className="h-px flex-1 bg-white/10" />
+                  </div>
+
+                  {generations.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-white/20 p-6 text-center">
+                      <Image className="mx-auto h-8 w-8 text-gray-600" />
+                      <p className="mt-2 text-xs text-gray-500">No generations yet</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {generations.map(gen => {
+                        const url = getImageUrl(gen);
+                        if (!url) return null;
+                        return (
+                          <button
+                            key={gen.id}
+                            onClick={() => setReferenceImageUrl(url)}
+                            className={clsx(
+                              'group relative aspect-square overflow-hidden rounded-lg border transition-all',
+                              referenceImageUrl === url
+                                ? 'border-cyan-400 ring-2 ring-cyan-400/50'
+                                : 'border-white/10 hover:border-white/30'
+                            )}
+                          >
+                            <img
+                              src={url}
+                              alt={gen.inputPrompt}
+                              className="h-full w-full object-cover"
+                            />
+                            {referenceImageUrl === url && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-cyan-500/20">
+                                <div className="rounded-full bg-cyan-500 p-1">
+                                  <Camera className="h-4 w-4 text-white" />
+                                </div>
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Camera & Lens Selector */}
+                  <div className="mt-4 border-t border-white/10 pt-4">
+                    <p className="mb-2 text-[10px] font-medium tracking-wider text-gray-500 uppercase">
+                      Camera & Lens
+                    </p>
+                    <ViewfinderTrigger
+                      camera={selectedCamera}
+                      lensFamily={selectedLensFamily}
+                      focalLength={selectedFocalLength}
+                      onClick={() => setIsCameraLensSelectorOpen(true)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Elements Panel */}
+              {activePanel === 'elements' && (
+                <div className="space-y-2">
+                  <p className="mb-3 text-xs text-gray-500">Add elements to composite:</p>
+                  {elements.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-white/20 p-6 text-center">
+                      <Layers className="mx-auto h-8 w-8 text-gray-600" />
+                      <p className="mt-2 text-xs text-gray-500">No elements in project</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {elements.map(el => (
+                        <button
+                          key={el.id}
+                          onClick={() => addElementToViewfinder(el)}
+                          className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-white/5 p-2 text-left transition-all hover:border-white/20 hover:bg-white/10"
+                        >
+                          {(el.url || el.fileUrl || el.thumbnail) && (
+                            <img
+                              src={el.url || el.fileUrl || el.thumbnail}
+                              alt={el.name}
+                              className="h-10 w-10 rounded object-cover"
+                            />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm text-white">{el.name}</p>
+                            <p className="text-[10px] text-gray-500">{el.type}</p>
+                          </div>
+                          <Plus className="h-4 w-4 text-gray-500" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Current Viewfinder Elements */}
+                  {viewfinderElements.length > 0 && (
+                    <div className="mt-4 border-t border-white/10 pt-4">
+                      <p className="mb-2 text-xs font-medium text-gray-400">In Viewfinder:</p>
+                      {viewfinderElements.map(el => (
+                        <div
+                          key={el.id}
+                          className="flex items-center justify-between rounded-lg bg-white/5 p-2"
+                        >
+                          <span className="text-xs text-white">{el.name}</span>
+                          <button
+                            onClick={() =>
+                              setViewfinderElements(prev => prev.filter(e => e.id !== el.id))
+                            }
+                            className="rounded p-1 text-gray-500 hover:bg-white/10 hover:text-red-400"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Captures Panel */}
+              {activePanel === 'captures' && (
+                <div className="space-y-2">
+                  <p className="mb-3 text-xs text-gray-500">Your viewfinder captures:</p>
+                  {captures.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-white/20 p-6 text-center">
+                      <Camera className="mx-auto h-8 w-8 text-gray-600" />
+                      <p className="mt-2 text-xs text-gray-500">No captures yet</p>
+                      <p className="text-[10px] text-gray-600">
+                        Use the Capture button in the viewfinder
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {captures.map((capture, i) => (
+                        <div
+                          key={i}
+                          className="group relative aspect-video overflow-hidden rounded-lg border border-white/10"
+                        >
+                          <img
+                            src={capture}
+                            alt={`Capture ${i + 1}`}
+                            className="h-full w-full object-cover"
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
+                            <Tooltip content="Save as Element" side="top">
+                              <button
+                                onClick={() => saveCaptureAsElement(capture)}
+                                disabled={isLoading}
+                                className="rounded-lg bg-green-500 p-2 text-white transition-colors hover:bg-green-400"
+                              >
+                                <Save className="h-4 w-4" />
+                              </button>
+                            </Tooltip>
+                            <Tooltip content="Delete" side="top">
+                              <button
+                                onClick={() => setCaptures(prev => prev.filter((_, j) => j !== i))}
+                                className="rounded-lg bg-red-500 p-2 text-white transition-colors hover:bg-red-400"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </Tooltip>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Main Content - Viewfinder (fills all available space) */}
+      <div className="relative flex-1">
+        <DirectorViewfinder
+          projectId={projectId}
+          referenceImageUrl={referenceImageUrl || undefined}
+          elements={viewfinderElements}
+          onElementsChange={setViewfinderElements}
+          onCapture={handleCapture}
+          embedded={true}
+          isOpen={true}
+          fullscreen={sidebarCollapsed}
+          pageSidebarCollapsed={sidebarCollapsed}
+          onTogglePageSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+          camera={selectedCamera}
+        />
+      </div>
+
+      {/* Camera/Lens Selector Modal */}
+      <CameraLensSelector
+        isOpen={isCameraLensSelectorOpen}
+        onClose={() => setIsCameraLensSelectorOpen(false)}
+        selectedCamera={selectedCamera}
+        selectedLensFamily={selectedLensFamily}
+        selectedFocalLength={selectedFocalLength}
+        onApply={(camera, lensFamily, focalLength, modifier) => {
+          setSelectedCamera(camera);
+          setSelectedLensFamily(lensFamily);
+          setSelectedFocalLength(focalLength);
+          setCameraModifier(modifier);
+        }}
+      />
+    </div>
+  );
 }
