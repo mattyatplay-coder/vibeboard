@@ -287,230 +287,230 @@ export const ShotNavigator = forwardRef<ShotNavigatorRef, ShotNavigatorProps>(
 
     return (
       <TooltipProvider>
-      <div className="border-b border-white/10 bg-[#0a0a0a]">
-        {/* Header */}
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="flex w-full items-center justify-between px-8 py-3 transition-colors hover:bg-white/5"
-        >
-          <div className="flex items-center gap-2 text-sm font-medium text-gray-300">
-            <span>Shot Navigator</span>
-            {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </div>
-          <div className="flex items-center gap-4 text-xs text-gray-500">
-            <span>{shots.length} Shots</span>
-            <span>{totalDuration}s Total</span>
-          </div>
-        </button>
+        <div className="border-b border-white/10 bg-[#0a0a0a]">
+          {/* Header */}
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="flex w-full items-center justify-between px-8 py-3 transition-colors hover:bg-white/5"
+          >
+            <div className="flex items-center gap-2 text-sm font-medium text-gray-300">
+              <span>Shot Navigator</span>
+              {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </div>
+            <div className="flex items-center gap-4 text-xs text-gray-500">
+              <span>{shots.length} Shots</span>
+              <span>{totalDuration}s Total</span>
+            </div>
+          </button>
 
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden"
-            >
-              {/* Scene Chain Selector */}
-              <div className="flex items-center gap-3 border-b border-white/5 px-8 py-2">
-                <select
-                  value={selectedChainId || ''}
-                  onChange={e => setSelectedChainId(e.target.value || null)}
-                  className="rounded border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-gray-300 focus:border-blue-500/50 focus:outline-none"
-                >
-                  <option value="">Select Scene...</option>
-                  {sceneChains.map(chain => (
-                    <option key={chain.id} value={chain.id}>
-                      {chain.name}
-                    </option>
-                  ))}
-                </select>
-
-                {isCreatingChain ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={newChainName}
-                      onChange={e => setNewChainName(e.target.value)}
-                      placeholder="Scene name..."
-                      className="w-40 rounded border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-gray-300 focus:border-blue-500/50 focus:outline-none"
-                      autoFocus
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') handleCreateChain();
-                        if (e.key === 'Escape') setIsCreatingChain(false);
-                      }}
-                    />
-                    <button
-                      onClick={handleCreateChain}
-                      className="rounded bg-blue-500/20 px-3 py-1.5 text-sm text-blue-400 hover:bg-blue-500/30"
-                    >
-                      Create
-                    </button>
-                    <button
-                      onClick={() => setIsCreatingChain(false)}
-                      className="p-1.5 text-gray-500 hover:text-gray-300"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setIsCreatingChain(true)}
-                    className="flex items-center gap-1.5 rounded border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-gray-400 hover:bg-white/10 hover:text-gray-300"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    New Scene
-                  </button>
-                )}
-
-                {/* Continuity Check Toggle */}
-                <div className="ml-auto flex items-center gap-2">
-                  <button
-                    onClick={() => setContinuityEnabled(!continuityEnabled)}
-                    className={clsx(
-                      'flex items-center gap-2 rounded border px-3 py-1.5 text-sm transition-all',
-                      continuityEnabled
-                        ? 'border-amber-500/30 bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
-                        : 'border-white/10 bg-white/5 text-gray-500 hover:bg-white/10 hover:text-gray-300'
-                    )}
-                  >
-                    {continuityEnabled ? (
-                      <Eye className="h-3.5 w-3.5" />
-                    ) : (
-                      <EyeOff className="h-3.5 w-3.5" />
-                    )}
-                    Continuity Check
-                  </button>
-                </div>
-              </div>
-
-              {/* Shots Grid */}
-              <div
-                ref={setContainerRef}
-                id="shot-navigator-container"
-                className={clsx(
-                  'overflow-x-auto px-8 py-6 transition-colors',
-                  activeDragId && 'bg-white/[0.02]',
-                  isOverNavigator && 'bg-blue-500/5'
-                )}
+          <AnimatePresence>
+            {isOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
               >
-                {selectedChainId ? (
-                  <div className="flex min-w-max items-start gap-2">
-                    {shots.map((shot, index) => (
-                      <ShotCard
-                        key={shot.id}
-                        shot={shot}
-                        index={index}
-                        showInsertIndicator={showInsertIndicators}
-                        onRemove={handleRemoveShot}
-                        onFrameDrop={handleFrameDropInternal}
-                        onGenerate={handleGenerateShot}
-                        activeDragId={activeDragId}
-                        continuityEnabled={continuityEnabled}
-                        referenceImageUrl={shots[0]?.firstFrameUrl}
-                        onContinuityCheck={targetShot => {
-                          setContinuityTargetShot(targetShot);
-                          setContinuityReferenceUrl(shots[0]?.firstFrameUrl || null);
-                          setShowContinuityPanel(true);
+                {/* Scene Chain Selector */}
+                <div className="flex items-center gap-3 border-b border-white/5 px-8 py-2">
+                  <select
+                    value={selectedChainId || ''}
+                    onChange={e => setSelectedChainId(e.target.value || null)}
+                    className="rounded border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-gray-300 focus:border-blue-500/50 focus:outline-none"
+                  >
+                    <option value="">Select Scene...</option>
+                    {sceneChains.map(chain => (
+                      <option key={chain.id} value={chain.id}>
+                        {chain.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  {isCreatingChain ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={newChainName}
+                        onChange={e => setNewChainName(e.target.value)}
+                        placeholder="Scene name..."
+                        className="w-40 rounded border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-gray-300 focus:border-blue-500/50 focus:outline-none"
+                        autoFocus
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleCreateChain();
+                          if (e.key === 'Escape') setIsCreatingChain(false);
                         }}
                       />
-                    ))}
-
-                    {/* Add Shot Button */}
+                      <button
+                        onClick={handleCreateChain}
+                        className="rounded bg-blue-500/20 px-3 py-1.5 text-sm text-blue-400 hover:bg-blue-500/30"
+                      >
+                        Create
+                      </button>
+                      <button
+                        onClick={() => setIsCreatingChain(false)}
+                        className="p-1.5 text-gray-500 hover:text-gray-300"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
                     <button
-                      onClick={handleAddShot}
+                      onClick={() => setIsCreatingChain(true)}
+                      className="flex items-center gap-1.5 rounded border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-gray-400 hover:bg-white/10 hover:text-gray-300"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      New Scene
+                    </button>
+                  )}
+
+                  {/* Continuity Check Toggle */}
+                  <div className="ml-auto flex items-center gap-2">
+                    <button
+                      onClick={() => setContinuityEnabled(!continuityEnabled)}
                       className={clsx(
-                        'flex h-[160px] w-[280px] flex-col items-center justify-center rounded-lg border-2 border-dashed transition-all',
-                        shots.length === 0
-                          ? 'border-blue-500/30 bg-blue-500/5 text-blue-400'
-                          : 'border-white/10 text-gray-500 hover:border-white/20 hover:text-gray-400'
+                        'flex items-center gap-2 rounded border px-3 py-1.5 text-sm transition-all',
+                        continuityEnabled
+                          ? 'border-amber-500/30 bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
+                          : 'border-white/10 bg-white/5 text-gray-500 hover:bg-white/10 hover:text-gray-300'
                       )}
                     >
-                      <Plus className="mb-2 h-8 w-8" />
-                      <span className="text-sm font-medium">Add Shot</span>
-                      {shots.length === 0 && (
-                        <span className="mt-1 text-xs text-gray-500">
-                          or drag a generation here
-                        </span>
+                      {continuityEnabled ? (
+                        <Eye className="h-3.5 w-3.5" />
+                      ) : (
+                        <EyeOff className="h-3.5 w-3.5" />
                       )}
+                      Continuity Check
                     </button>
                   </div>
-                ) : (
-                  <div className="flex items-center justify-center py-8 text-sm text-gray-500">
-                    Select or create a scene to start building your storyboard
+                </div>
+
+                {/* Shots Grid */}
+                <div
+                  ref={setContainerRef}
+                  id="shot-navigator-container"
+                  className={clsx(
+                    'overflow-x-auto px-8 py-6 transition-colors',
+                    activeDragId && 'bg-white/[0.02]',
+                    isOverNavigator && 'bg-blue-500/5'
+                  )}
+                >
+                  {selectedChainId ? (
+                    <div className="flex min-w-max items-start gap-2">
+                      {shots.map((shot, index) => (
+                        <ShotCard
+                          key={shot.id}
+                          shot={shot}
+                          index={index}
+                          showInsertIndicator={showInsertIndicators}
+                          onRemove={handleRemoveShot}
+                          onFrameDrop={handleFrameDropInternal}
+                          onGenerate={handleGenerateShot}
+                          activeDragId={activeDragId}
+                          continuityEnabled={continuityEnabled}
+                          referenceImageUrl={shots[0]?.firstFrameUrl}
+                          onContinuityCheck={targetShot => {
+                            setContinuityTargetShot(targetShot);
+                            setContinuityReferenceUrl(shots[0]?.firstFrameUrl || null);
+                            setShowContinuityPanel(true);
+                          }}
+                        />
+                      ))}
+
+                      {/* Add Shot Button */}
+                      <button
+                        onClick={handleAddShot}
+                        className={clsx(
+                          'flex h-[160px] w-[280px] flex-col items-center justify-center rounded-lg border-2 border-dashed transition-all',
+                          shots.length === 0
+                            ? 'border-blue-500/30 bg-blue-500/5 text-blue-400'
+                            : 'border-white/10 text-gray-500 hover:border-white/20 hover:text-gray-400'
+                        )}
+                      >
+                        <Plus className="mb-2 h-8 w-8" />
+                        <span className="text-sm font-medium">Add Shot</span>
+                        {shots.length === 0 && (
+                          <span className="mt-1 text-xs text-gray-500">
+                            or drag a generation here
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center py-8 text-sm text-gray-500">
+                      Select or create a scene to start building your storyboard
+                    </div>
+                  )}
+                </div>
+
+                {/* Render Queue Panel */}
+                {selectedChainId && shots.length > 0 && (
+                  <div className="border-t border-white/10 px-8 py-3">
+                    <RenderQueuePanel
+                      projectId={projectId}
+                      sceneChainId={selectedChainId}
+                      shotCount={shots.length}
+                      onRenderComplete={(quality, outputs) => {
+                        console.log(`Render complete (${quality}):`, outputs);
+                        fetchChainShots();
+                      }}
+                    />
                   </div>
                 )}
-              </div>
 
-              {/* Render Queue Panel */}
-              {selectedChainId && shots.length > 0 && (
-                <div className="border-t border-white/10 px-8 py-3">
-                  <RenderQueuePanel
-                    projectId={projectId}
-                    sceneChainId={selectedChainId}
-                    shotCount={shots.length}
-                    onRenderComplete={(quality, outputs) => {
-                      console.log(`Render complete (${quality}):`, outputs);
-                      fetchChainShots();
-                    }}
-                  />
-                </div>
-              )}
-
-              {/* Continuity Heatmap Panel */}
-              <AnimatePresence>
-                {showContinuityPanel &&
-                  continuityReferenceUrl &&
-                  continuityTargetShot?.firstFrameUrl && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden border-t border-white/10"
-                    >
-                      <div className="px-8 py-4">
-                        <div className="mb-3 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <AlertTriangle className="h-4 w-4 text-amber-400" />
-                            <span className="text-sm font-medium text-gray-300">
-                              Continuity Check: Shot 1 → Shot{' '}
-                              {shots.findIndex(s => s.id === continuityTargetShot.id) + 1}
-                            </span>
+                {/* Continuity Heatmap Panel */}
+                <AnimatePresence>
+                  {showContinuityPanel &&
+                    continuityReferenceUrl &&
+                    continuityTargetShot?.firstFrameUrl && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden border-t border-white/10"
+                      >
+                        <div className="px-8 py-4">
+                          <div className="mb-3 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="h-4 w-4 text-amber-400" />
+                              <span className="text-sm font-medium text-gray-300">
+                                Continuity Check: Shot 1 → Shot{' '}
+                                {shots.findIndex(s => s.id === continuityTargetShot.id) + 1}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setShowContinuityPanel(false);
+                                setContinuityTargetShot(null);
+                              }}
+                              className="p-1 text-gray-500 transition-colors hover:text-white"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
                           </div>
-                          <button
-                            onClick={() => {
+                          <ContinuityHeatmap
+                            referenceImageUrl={
+                              continuityReferenceUrl.startsWith('http')
+                                ? continuityReferenceUrl
+                                : `${BACKEND_URL}${continuityReferenceUrl}`
+                            }
+                            generatedImageUrl={
+                              continuityTargetShot.firstFrameUrl.startsWith('http')
+                                ? continuityTargetShot.firstFrameUrl
+                                : `${BACKEND_URL}${continuityTargetShot.firstFrameUrl}`
+                            }
+                            onClose={() => {
                               setShowContinuityPanel(false);
                               setContinuityTargetShot(null);
                             }}
-                            className="p-1 text-gray-500 transition-colors hover:text-white"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
+                          />
                         </div>
-                        <ContinuityHeatmap
-                          referenceImageUrl={
-                            continuityReferenceUrl.startsWith('http')
-                              ? continuityReferenceUrl
-                              : `${BACKEND_URL}${continuityReferenceUrl}`
-                          }
-                          generatedImageUrl={
-                            continuityTargetShot.firstFrameUrl.startsWith('http')
-                              ? continuityTargetShot.firstFrameUrl
-                              : `${BACKEND_URL}${continuityTargetShot.firstFrameUrl}`
-                          }
-                          onClose={() => {
-                            setShowContinuityPanel(false);
-                            setContinuityTargetShot(null);
-                          }}
-                        />
-                      </div>
-                    </motion.div>
-                  )}
-              </AnimatePresence>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+                      </motion.div>
+                    )}
+                </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </TooltipProvider>
     );
   }

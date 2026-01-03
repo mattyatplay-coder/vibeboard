@@ -49,24 +49,27 @@ function LayerSlot({
   onUpload,
   onClear,
   onSelect,
-  onToggleVisibility
+  onToggleVisibility,
 }: LayerSlotProps) {
   return (
     <div
       onClick={onSelect}
       className={clsx(
-        "group relative h-16 w-full rounded-lg border transition-all duration-200 cursor-pointer flex items-center gap-3 px-3 overflow-hidden",
+        'group relative flex h-16 w-full cursor-pointer items-center gap-3 overflow-hidden rounded-lg border px-3 transition-all duration-200',
         isActive
-          ? "bg-violet-500/10 border-violet-500/50"
-          : "bg-zinc-900/40 border-white/5 hover:bg-zinc-900/80 hover:border-white/10"
+          ? 'border-violet-500/50 bg-violet-500/10'
+          : 'border-white/5 bg-zinc-900/40 hover:border-white/10 hover:bg-zinc-900/80'
       )}
     >
       {/* Visibility Toggle */}
       <button
-        onClick={(e) => { e.stopPropagation(); onToggleVisibility?.(); }}
+        onClick={e => {
+          e.stopPropagation();
+          onToggleVisibility?.();
+        }}
         className={clsx(
-          "transition-colors",
-          isVisible ? "text-zinc-400 hover:text-zinc-200" : "text-zinc-700 hover:text-zinc-500"
+          'transition-colors',
+          isVisible ? 'text-zinc-400 hover:text-zinc-200' : 'text-zinc-700 hover:text-zinc-500'
         )}
       >
         {isVisible ? <Eye size={14} /> : <EyeOff size={14} />}
@@ -74,45 +77,62 @@ function LayerSlot({
 
       {/* Thumbnail / Drop Zone */}
       <div
-        onClick={(e) => { e.stopPropagation(); if (!hasFile) onUpload?.(); }}
+        onClick={e => {
+          e.stopPropagation();
+          if (!hasFile) onUpload?.();
+        }}
         className={clsx(
-          "h-10 w-10 rounded border flex items-center justify-center transition-all shrink-0",
-          hasFile ? "border-white/10 bg-black" : "border-dashed border-zinc-700 hover:border-zinc-500 bg-zinc-950"
+          'flex h-10 w-10 shrink-0 items-center justify-center rounded border transition-all',
+          hasFile
+            ? 'border-white/10 bg-black'
+            : 'border-dashed border-zinc-700 bg-zinc-950 hover:border-zinc-500'
         )}
       >
         {hasFile && previewUrl ? (
-          <img src={previewUrl} alt={label} className="h-full w-full object-cover rounded-sm" />
+          <img src={previewUrl} alt={label} className="h-full w-full rounded-sm object-cover" />
         ) : (
           <Upload size={14} className="text-zinc-600" />
         )}
       </div>
 
       {/* Label & Status */}
-      <div className="flex-1 min-w-0 flex flex-col justify-center">
-        <span className={clsx("text-xs font-medium truncate", isActive ? "text-white" : "text-zinc-400")}>
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
+        <span
+          className={clsx(
+            'truncate text-xs font-medium',
+            isActive ? 'text-white' : 'text-zinc-400'
+          )}
+        >
           {label}
         </span>
-        <span className={clsx(
-          "text-[10px] font-mono",
-          hasFile ? "text-emerald-500/70" : "text-zinc-600"
-        )}>
-          {hasFile ? "Ready" : "Empty"}
+        <span
+          className={clsx(
+            'font-mono text-[10px]',
+            hasFile ? 'text-emerald-500/70' : 'text-zinc-600'
+          )}
+        >
+          {hasFile ? 'Ready' : 'Empty'}
         </span>
       </div>
 
       {/* Clear or Active Indicator */}
       {hasFile ? (
         <button
-          onClick={(e) => { e.stopPropagation(); onClear?.(); }}
-          className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-400 transition-all"
+          onClick={e => {
+            e.stopPropagation();
+            onClear?.();
+          }}
+          className="text-zinc-500 opacity-0 transition-all group-hover:opacity-100 hover:text-red-400"
         >
-           <X size={14} />
+          <X size={14} />
         </button>
       ) : (
-        <div className={clsx(
-          "w-1.5 h-1.5 rounded-full transition-all",
-          isActive ? "bg-violet-500 shadow-[0_0_8px_#8b5cf6]" : "bg-transparent"
-        )} />
+        <div
+          className={clsx(
+            'h-1.5 w-1.5 rounded-full transition-all',
+            isActive ? 'bg-violet-500 shadow-[0_0_8px_#8b5cf6]' : 'bg-transparent'
+          )}
+        />
       )}
     </div>
   );
@@ -752,11 +772,11 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
   const maskInputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex h-full flex-col">
       {/* ================================================================== */}
       {/* 1. COMPOSITOR TOOLBAR - Nuke/After Effects Style                  */}
       {/* ================================================================== */}
-      <header className="h-12 border-b border-white/5 bg-zinc-950/80 backdrop-blur-md px-4 flex items-center justify-between z-20 shrink-0">
+      <header className="z-20 flex h-12 shrink-0 items-center justify-between border-b border-white/5 bg-zinc-950/80 px-4 backdrop-blur-md">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-zinc-400">
             <ScanFace size={16} className="text-violet-500" />
@@ -767,7 +787,7 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
         </div>
 
         {/* Tool Palette (Center) */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1 bg-zinc-900/90 border border-white/10 p-1 rounded-lg">
+        <div className="absolute left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-white/10 bg-zinc-900/90 p-1">
           {[
             { icon: Move, id: 'move' as const, tooltip: 'Move' },
             { icon: Eraser, id: 'eraser' as const, tooltip: 'Eraser' },
@@ -778,10 +798,10 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
               onClick={() => setActiveTool(id)}
               title={tooltip}
               className={clsx(
-                'p-1.5 rounded-md transition-all',
+                'rounded-md p-1.5 transition-all',
                 activeTool === id
                   ? 'bg-violet-500/20 text-violet-300'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  : 'text-zinc-400 hover:bg-white/5 hover:text-white'
               )}
             >
               <Icon size={14} />
@@ -794,10 +814,10 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
             onClick={handleDownload}
             disabled={!previewUrl}
             className={clsx(
-              'flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded transition-all',
+              'flex items-center gap-2 rounded px-3 py-1.5 text-xs font-bold transition-all',
               previewUrl
-                ? 'bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_15px_rgba(139,92,246,0.4)]'
-                : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                ? 'bg-violet-600 text-white shadow-[0_0_15px_rgba(139,92,246,0.4)] hover:bg-violet-500'
+                : 'cursor-not-allowed bg-zinc-800 text-zinc-500'
             )}
           >
             <Download size={12} />
@@ -809,17 +829,37 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
       {/* ================================================================== */}
       {/* 2. MAIN WORKSPACE - 3-Column Layout                               */}
       {/* ================================================================== */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex flex-1 overflow-hidden">
         {/* ---------------------------------------------------------------- */}
         {/* LEFT PANEL: LAYERS                                               */}
         {/* ---------------------------------------------------------------- */}
-        <aside className="w-64 border-r border-white/5 bg-zinc-950/50 p-4 flex flex-col gap-4 shrink-0 overflow-y-auto">
-          <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest px-1">Source Layers</div>
+        <aside className="flex w-64 shrink-0 flex-col gap-4 overflow-y-auto border-r border-white/5 bg-zinc-950/50 p-4">
+          <div className="px-1 text-[10px] font-bold tracking-widest text-zinc-500 uppercase">
+            Source Layers
+          </div>
 
           {/* Hidden file inputs */}
-          <input ref={baseInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleFileSelect(e, 'base')} />
-          <input ref={tattooInputRef} type="file" accept="image/png,image/*" className="hidden" onChange={e => handleFileSelect(e, 'tattoo')} />
-          <input ref={maskInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleFileSelect(e, 'mask')} />
+          <input
+            ref={baseInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={e => handleFileSelect(e, 'base')}
+          />
+          <input
+            ref={tattooInputRef}
+            type="file"
+            accept="image/png,image/*"
+            className="hidden"
+            onChange={e => handleFileSelect(e, 'tattoo')}
+          />
+          <input
+            ref={maskInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={e => handleFileSelect(e, 'mask')}
+          />
 
           <div className="space-y-2">
             <LayerSlot
@@ -858,16 +898,16 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
           </div>
 
           {/* AI Generator Promo */}
-          <div className="mt-auto p-3 rounded-lg bg-violet-500/5 border border-violet-500/10">
+          <div className="mt-auto rounded-lg border border-violet-500/10 bg-violet-500/5 p-3">
             <button
               onClick={() => setShowAIPrompt(!showAIPrompt)}
-              className="flex items-center gap-2 w-full"
+              className="flex w-full items-center gap-2"
             >
               <Wand2 size={12} className="text-violet-400" />
               <span className="text-xs font-medium text-violet-200">AI Generator</span>
             </button>
             {!showAIPrompt && (
-              <p className="text-[10px] text-zinc-500 leading-relaxed mt-2">
+              <p className="mt-2 text-[10px] leading-relaxed text-zinc-500">
                 Don't have a design? Generate a tribal or geometric pattern instantly.
               </p>
             )}
@@ -886,9 +926,13 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
                   className="flex w-full items-center justify-center gap-1.5 rounded bg-violet-600 py-1.5 text-[10px] text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-zinc-700"
                 >
                   {isGeneratingAI ? (
-                    <><Loader2 className="h-3 w-3 animate-spin" /> Generating...</>
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin" /> Generating...
+                    </>
                   ) : (
-                    <><Sparkles className="h-3 w-3" /> Generate</>
+                    <>
+                      <Sparkles className="h-3 w-3" /> Generate
+                    </>
                   )}
                 </button>
               </div>
@@ -899,21 +943,22 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
         {/* ---------------------------------------------------------------- */}
         {/* CENTER PANEL: CANVAS (80% of screen)                            */}
         {/* ---------------------------------------------------------------- */}
-        <main className="flex-1 relative bg-zinc-900 flex items-center justify-center overflow-hidden">
+        <main className="relative flex flex-1 items-center justify-center overflow-hidden bg-zinc-900">
           {/* Checkerboard Background (Transparency Pattern) */}
           <div
             className="absolute inset-0 opacity-[0.03]"
             style={{
-              backgroundImage: 'linear-gradient(45deg, #808080 25%, transparent 25%), linear-gradient(-45deg, #808080 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #808080 75%), linear-gradient(-45deg, transparent 75%, #808080 75%)',
+              backgroundImage:
+                'linear-gradient(45deg, #808080 25%, transparent 25%), linear-gradient(-45deg, #808080 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #808080 75%), linear-gradient(-45deg, transparent 75%, #808080 75%)',
               backgroundSize: '20px 20px',
-              backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px'
+              backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
             }}
           />
 
           {/* The "Artboard" */}
           <div
             ref={containerRef}
-            className="relative w-full h-full max-w-4xl max-h-[80vh] m-8 bg-black shadow-2xl border border-white/5"
+            className="relative m-8 h-full max-h-[80vh] w-full max-w-4xl border border-white/5 bg-black shadow-2xl"
           >
             {!baseImage ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -924,7 +969,7 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
                   </div>
                 ) : (
                   <label className="cursor-pointer text-center">
-                    <div className="mb-3 mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/5">
+                    <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/5">
                       <Upload className="h-6 w-6 text-zinc-600" />
                     </div>
                     <p className="text-sm text-zinc-500">Drop image here or click to upload</p>
@@ -952,7 +997,7 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
 
                 {/* Overlay Controls */}
                 <div className="absolute top-4 right-4 flex gap-2">
-                  <button className="p-1.5 bg-black/60 backdrop-blur text-white rounded hover:bg-black/80">
+                  <button className="rounded bg-black/60 p-1.5 text-white backdrop-blur hover:bg-black/80">
                     <Maximize2 size={14} />
                   </button>
                 </div>
@@ -961,9 +1006,15 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
                 {tattooImage && (
                   <div className="absolute top-4 left-4 rounded-lg bg-black/60 px-2.5 py-1.5 text-[10px] text-zinc-400 backdrop-blur-sm">
                     {warpMode === 'mesh' ? (
-                      <><Grid3X3 className="mr-1 inline h-3 w-3 text-violet-400" /> Drag points to warp</>
+                      <>
+                        <Grid3X3 className="mr-1 inline h-3 w-3 text-violet-400" /> Drag points to
+                        warp
+                      </>
                     ) : (
-                      <><Move className="mr-1 inline h-3 w-3 text-violet-400" /> Drag to move · Scroll to scale</>
+                      <>
+                        <Move className="mr-1 inline h-3 w-3 text-violet-400" /> Drag to move ·
+                        Scroll to scale
+                      </>
                     )}
                   </div>
                 )}
@@ -978,24 +1029,31 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
           </div>
 
           {/* Bottom Floating Info */}
-          <div className="absolute bottom-6 px-4 py-1.5 rounded-full bg-zinc-950/90 border border-white/10 text-[10px] font-mono text-zinc-400 flex gap-4">
+          <div className="absolute bottom-6 flex gap-4 rounded-full border border-white/10 bg-zinc-950/90 px-4 py-1.5 font-mono text-[10px] text-zinc-400">
             <span>ZOOM: 100%</span>
-            <span>RES: {baseImageDimensions.width > 0 ? `${baseImageDimensions.width}×${baseImageDimensions.height}` : '—'}</span>
+            <span>
+              RES:{' '}
+              {baseImageDimensions.width > 0
+                ? `${baseImageDimensions.width}×${baseImageDimensions.height}`
+                : '—'}
+            </span>
           </div>
         </main>
 
         {/* ---------------------------------------------------------------- */}
         {/* RIGHT PANEL: PROPERTIES INSPECTOR                               */}
         {/* ---------------------------------------------------------------- */}
-        <aside className="w-72 border-l border-white/5 bg-zinc-950/50 p-0 flex flex-col shrink-0 overflow-y-auto">
-          <div className="p-4 border-b border-white/5">
+        <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-l border-white/5 bg-zinc-950/50 p-0">
+          <div className="border-b border-white/5 p-4">
             <span className="text-xs font-bold text-white">Properties</span>
           </div>
 
-          <div className="p-4 space-y-6">
+          <div className="space-y-6 p-4">
             {/* Projection/Warp Mode */}
             <div className="space-y-2">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Projection Mode</span>
+              <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase">
+                Projection Mode
+              </span>
               <SegmentedControl
                 options={[
                   { value: 'none', label: 'Flat' },
@@ -1003,14 +1061,14 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
                   { value: 'cylindrical', label: 'Cyl' },
                 ]}
                 value={warpMode}
-                onChange={(val) => setWarpMode(val as WarpMode)}
+                onChange={val => setWarpMode(val as WarpMode)}
               />
 
               {warpMode === 'cylindrical' && (
                 <div className="mt-2">
                   <ScrubbableInput
                     value={Math.round(cylindricalBend * 100)}
-                    onChange={(val) => setCylindricalBend(val / 100)}
+                    onChange={val => setCylindricalBend(val / 100)}
                     min={0}
                     max={100}
                     step={5}
@@ -1024,7 +1082,9 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
             {/* Transform Controls (Scrubbable) */}
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-white/5 pb-1">
-                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Transform</span>
+                <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase">
+                  Transform
+                </span>
                 <button
                   onClick={resetTransform}
                   className="text-[10px] text-violet-400 hover:underline"
@@ -1036,7 +1096,7 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
               <div className="space-y-2">
                 <ScrubbableInput
                   value={Math.round(opacity * 100)}
-                  onChange={(val) => setOpacity(val / 100)}
+                  onChange={val => setOpacity(val / 100)}
                   min={10}
                   max={100}
                   step={5}
@@ -1045,7 +1105,7 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
                 />
                 <ScrubbableInput
                   value={Math.round(tattooScale * 100)}
-                  onChange={(val) => setTattooScale(val / 100)}
+                  onChange={val => setTattooScale(val / 100)}
                   min={10}
                   max={150}
                   step={5}
@@ -1066,7 +1126,9 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
 
             {/* Blending */}
             <div className="space-y-2">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Blend Mode</span>
+              <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase">
+                Blend Mode
+              </span>
               <SelectMenu
                 value={blendMode}
                 onChange={setBlendMode}
@@ -1081,7 +1143,9 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
 
             {/* Options */}
             <div className="space-y-2">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Options</span>
+              <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase">
+                Options
+              </span>
               <label className="flex cursor-pointer items-center gap-2 text-[10px] text-zinc-400 transition-colors hover:text-zinc-200">
                 <input
                   type="checkbox"
@@ -1095,7 +1159,7 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
           </div>
 
           {/* Preview & Generate (Bottom of Inspector) */}
-          <div className="mt-auto p-4 border-t border-white/5 space-y-3">
+          <div className="mt-auto space-y-3 border-t border-white/5 p-4">
             {/* Mini Preview */}
             {previewUrl ? (
               <div className="relative aspect-[4/3] overflow-hidden rounded-lg border border-white/5 bg-black/40">
@@ -1106,7 +1170,7 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
                 />
               </div>
             ) : (
-              <div className="aspect-[4/3] flex items-center justify-center rounded-lg border border-dashed border-white/5 bg-black/20">
+              <div className="flex aspect-[4/3] items-center justify-center rounded-lg border border-dashed border-white/5 bg-black/20">
                 <span className="text-[10px] text-zinc-700">Preview</span>
               </div>
             )}
@@ -1118,14 +1182,18 @@ export function TattooPlacementPanel({ initialImageUrl, projectId }: TattooPlace
               className={clsx(
                 'flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-medium transition-all',
                 baseImage && tattooImage
-                  ? 'bg-violet-600 text-white hover:bg-violet-500 shadow-lg shadow-violet-500/20'
-                  : 'bg-zinc-800/50 text-zinc-600 cursor-not-allowed'
+                  ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/20 hover:bg-violet-500'
+                  : 'cursor-not-allowed bg-zinc-800/50 text-zinc-600'
               )}
             >
               {isProcessing ? (
-                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing...</>
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing...
+                </>
               ) : (
-                <><Sparkles className="h-3.5 w-3.5" /> Composite</>
+                <>
+                  <Sparkles className="h-3.5 w-3.5" /> Composite
+                </>
               )}
             </button>
 

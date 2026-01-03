@@ -120,9 +120,7 @@ export function LensKitSelector({
             {selectedLens ? selectedLens.focalLength : 'Lens'}
           </span>
           {isAnamorphic && (
-            <span className="rounded bg-blue-500/30 px-1 py-0.5 text-[9px] text-blue-300">
-              A
-            </span>
+            <span className="rounded bg-blue-500/30 px-1 py-0.5 text-[9px] text-blue-300">A</span>
           )}
           {selectedEffects.length > 0 && (
             <span className="rounded bg-cyan-500/30 px-1 py-0.5 text-[9px]">
@@ -154,7 +152,7 @@ export function LensKitSelector({
         </div>
         {(!embedded || onClose) && (
           <button
-            onClick={() => onClose ? onClose() : setIsOpen(false)}
+            onClick={() => (onClose ? onClose() : setIsOpen(false))}
             className="rounded-lg p-1.5 transition-colors hover:bg-white/10"
           >
             <X className="h-5 w-5 text-gray-400" />
@@ -245,14 +243,13 @@ export function LensKitSelector({
           {sortedLensPresets.map((lens, index) => {
             const isFavorite = favorites.includes(lens.id);
             // Show separator between favorites and non-favorites
-            const showSeparator = index > 0 &&
-              favorites.includes(sortedLensPresets[index - 1].id) &&
-              !isFavorite;
+            const showSeparator =
+              index > 0 && favorites.includes(sortedLensPresets[index - 1].id) && !isFavorite;
 
             return (
               <div key={lens.id}>
                 {showSeparator && (
-                  <div className="mb-2 mt-4 border-t border-white/10 pt-2 text-[10px] tracking-wider text-gray-500 uppercase">
+                  <div className="mt-4 mb-2 border-t border-white/10 pt-2 text-[10px] tracking-wider text-gray-500 uppercase">
                     All Lenses
                   </div>
                 )}
@@ -287,14 +284,17 @@ export function LensKitSelector({
                         >
                           {lens.category}
                         </span>
-                        {isFavorite && (
-                          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                        )}
+                        {isFavorite && <Star className="h-3 w-3 fill-amber-400 text-amber-400" />}
                       </div>
-                      <p className="mt-1 line-clamp-1 text-[11px] text-gray-400">{lens.description}</p>
+                      <p className="mt-1 line-clamp-1 text-[11px] text-gray-400">
+                        {lens.description}
+                      </p>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Tooltip content={isFavorite ? "Remove from favorites" : "Add to favorites"} side="left">
+                      <Tooltip
+                        content={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                        side="left"
+                      >
                         <button
                           onClick={e => {
                             e.stopPropagation();
@@ -336,19 +336,27 @@ export function LensKitSelector({
                           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px]">
                             <div className="flex justify-between">
                               <span className="text-gray-500">Distortion:</span>
-                              <span className="text-gray-300">{lens.characteristics.distortion}</span>
+                              <span className="text-gray-300">
+                                {lens.characteristics.distortion}
+                              </span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-gray-500">Compression:</span>
-                              <span className="text-gray-300">{lens.characteristics.compression}</span>
+                              <span className="text-gray-300">
+                                {lens.characteristics.compression}
+                              </span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-gray-500">DoF:</span>
-                              <span className="text-gray-300">{lens.characteristics.depthOfField}</span>
+                              <span className="text-gray-300">
+                                {lens.characteristics.depthOfField}
+                              </span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-gray-500">Perspective:</span>
-                              <span className="text-gray-300">{lens.characteristics.perspective}</span>
+                              <span className="text-gray-300">
+                                {lens.characteristics.perspective}
+                              </span>
                             </div>
                           </div>
                           {/* Use Cases */}

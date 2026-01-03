@@ -6,14 +6,14 @@
 
 import { Router } from 'express';
 import {
-    getComments,
-    createComment,
-    updateComment,
-    deleteComment,
-    toggleResolved,
-    getCommentStats,
-    getProjectComments,
-    getVersionStack,
+  getComments,
+  createComment,
+  updateComment,
+  deleteComment,
+  toggleResolved,
+  getCommentStats,
+  getProjectComments,
+  getVersionStack,
 } from '../controllers/commentController';
 
 const router = Router();

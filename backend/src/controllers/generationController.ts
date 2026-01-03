@@ -113,9 +113,13 @@ const processQueue = async () => {
 
       // Parse @ mentions from the prompt
       const mentionRegex = /@([a-zA-Z0-9_.-]+)/g;
-      const mentions = [...generation.inputPrompt.matchAll(mentionRegex)].map(match => match[1].toLowerCase());
+      const mentions = [...generation.inputPrompt.matchAll(mentionRegex)].map(match =>
+        match[1].toLowerCase()
+      );
 
-      console.log(`[DEBUG] sourceIds: ${JSON.stringify(sourceIds)}, @mentions: ${mentions.join(', ') || 'NONE'}`);
+      console.log(
+        `[DEBUG] sourceIds: ${JSON.stringify(sourceIds)}, @mentions: ${mentions.join(', ') || 'NONE'}`
+      );
 
       // Map to store URL -> Strength for the adapter
       const referenceStrengthsByUrl: Record<string, number> = {};
@@ -149,8 +153,8 @@ const processQueue = async () => {
 
         // Separate into sourceId elements and @mentioned elements
         const sourceIdElements = allElements.filter(e => sourceIds.includes(e.id));
-        const mentionedElements = allElements.filter(e =>
-          mentions.includes(e.name.toLowerCase()) && !sourceIds.includes(e.id)
+        const mentionedElements = allElements.filter(
+          e => mentions.includes(e.name.toLowerCase()) && !sourceIds.includes(e.id)
         );
 
         // Process sourceId elements (with strength from usedLoras)
@@ -517,8 +521,12 @@ export const createGeneration = async (req: Request, res: Response) => {
     } = req.body;
 
     console.log('\n========== CREATE GENERATION REQUEST ==========');
-    console.log(`[createGeneration] sourceElementIds from request: ${JSON.stringify(sourceElementIds)}`);
-    console.log(`[createGeneration] sourceImages from request: ${JSON.stringify(req.body.sourceImages)}`);
+    console.log(
+      `[createGeneration] sourceElementIds from request: ${JSON.stringify(sourceElementIds)}`
+    );
+    console.log(
+      `[createGeneration] sourceImages from request: ${JSON.stringify(req.body.sourceImages)}`
+    );
     console.log(`[createGeneration] inputPrompt: ${inputPrompt?.substring(0, 100)}...`);
     console.log(`[createGeneration] Full request body:`, JSON.stringify(req.body, null, 2));
     console.log('================================================\n');
@@ -539,6 +547,8 @@ export const createGeneration = async (req: Request, res: Response) => {
         prevGenerationId,
         sessionId,
         status: req.body.status || 'queued',
+        // If outputs are provided (e.g., from AI Reshoot), save them directly
+        outputs: req.body.outputs ? JSON.stringify(req.body.outputs) : undefined,
         engine: engine || 'fal',
         tags: JSON.stringify(req.body.tags || []),
         name: name || undefined,

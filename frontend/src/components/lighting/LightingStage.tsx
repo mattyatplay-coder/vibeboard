@@ -124,9 +124,45 @@ const QUICK_PRESETS: QuickPreset[] = [
     colors: ['#ff0055', '#00ccff'],
     description: 'Dual-tone hard rim lighting',
     lights: [
-      { type: 'key', name: 'Neon Pink Key', x: 0.25, y: 0.6, intensity: 0.8, colorTemp: 6500, softness: 0.3, enabled: true, useGel: true, gelColor: '#ff0055', distance: 0.5 },
-      { type: 'rim', name: 'Cyan Rim', x: 0.85, y: 0.2, intensity: 0.9, colorTemp: 8000, softness: 0.2, enabled: true, useGel: true, gelColor: '#00ccff', distance: 0.4 },
-      { type: 'ambient', name: 'Dark Ambient', x: 0.5, y: 0.5, intensity: 0.15, colorTemp: 4000, softness: 1.0, enabled: true, useGel: false, gelColor: '#ffffff', distance: 1.0 },
+      {
+        type: 'key',
+        name: 'Neon Pink Key',
+        x: 0.25,
+        y: 0.6,
+        intensity: 0.8,
+        colorTemp: 6500,
+        softness: 0.3,
+        enabled: true,
+        useGel: true,
+        gelColor: '#ff0055',
+        distance: 0.5,
+      },
+      {
+        type: 'rim',
+        name: 'Cyan Rim',
+        x: 0.85,
+        y: 0.2,
+        intensity: 0.9,
+        colorTemp: 8000,
+        softness: 0.2,
+        enabled: true,
+        useGel: true,
+        gelColor: '#00ccff',
+        distance: 0.4,
+      },
+      {
+        type: 'ambient',
+        name: 'Dark Ambient',
+        x: 0.5,
+        y: 0.5,
+        intensity: 0.15,
+        colorTemp: 4000,
+        softness: 1.0,
+        enabled: true,
+        useGel: false,
+        gelColor: '#ffffff',
+        distance: 1.0,
+      },
     ],
   },
   {
@@ -136,9 +172,45 @@ const QUICK_PRESETS: QuickPreset[] = [
     colors: ['#ffeedd', '#1a1a1a'],
     description: 'Classic 45° key with dark fill',
     lights: [
-      { type: 'key', name: 'Rembrandt Key', x: 0.3, y: 0.55, intensity: 0.85, colorTemp: 3200, softness: 0.5, enabled: true, useGel: false, gelColor: '#ffffff', distance: 0.5 },
-      { type: 'fill', name: 'Dark Fill', x: 0.75, y: 0.6, intensity: 0.2, colorTemp: 4500, softness: 0.8, enabled: true, useGel: false, gelColor: '#ffffff', distance: 0.7 },
-      { type: 'back', name: 'Hair Light', x: 0.5, y: 0.1, intensity: 0.5, colorTemp: 5600, softness: 0.3, enabled: true, useGel: false, gelColor: '#ffffff', distance: 0.3 },
+      {
+        type: 'key',
+        name: 'Rembrandt Key',
+        x: 0.3,
+        y: 0.55,
+        intensity: 0.85,
+        colorTemp: 3200,
+        softness: 0.5,
+        enabled: true,
+        useGel: false,
+        gelColor: '#ffffff',
+        distance: 0.5,
+      },
+      {
+        type: 'fill',
+        name: 'Dark Fill',
+        x: 0.75,
+        y: 0.6,
+        intensity: 0.2,
+        colorTemp: 4500,
+        softness: 0.8,
+        enabled: true,
+        useGel: false,
+        gelColor: '#ffffff',
+        distance: 0.7,
+      },
+      {
+        type: 'back',
+        name: 'Hair Light',
+        x: 0.5,
+        y: 0.1,
+        intensity: 0.5,
+        colorTemp: 5600,
+        softness: 0.3,
+        enabled: true,
+        useGel: false,
+        gelColor: '#ffffff',
+        distance: 0.3,
+      },
     ],
   },
   {
@@ -148,9 +220,45 @@ const QUICK_PRESETS: QuickPreset[] = [
     colors: ['#ffaa00', '#663399'],
     description: 'Warm soft key, cool ambient fill',
     lights: [
-      { type: 'key', name: 'Golden Hour Key', x: 0.15, y: 0.5, intensity: 0.9, colorTemp: 2700, softness: 0.7, enabled: true, useGel: true, gelColor: '#ffaa00', distance: 0.6 },
-      { type: 'fill', name: 'Twilight Fill', x: 0.8, y: 0.55, intensity: 0.35, colorTemp: 8500, softness: 0.9, enabled: true, useGel: true, gelColor: '#663399', distance: 0.8 },
-      { type: 'rim', name: 'Sun Rim', x: 0.1, y: 0.15, intensity: 0.7, colorTemp: 2200, softness: 0.2, enabled: true, useGel: true, gelColor: '#ff6600', distance: 0.3 },
+      {
+        type: 'key',
+        name: 'Golden Hour Key',
+        x: 0.15,
+        y: 0.5,
+        intensity: 0.9,
+        colorTemp: 2700,
+        softness: 0.7,
+        enabled: true,
+        useGel: true,
+        gelColor: '#ffaa00',
+        distance: 0.6,
+      },
+      {
+        type: 'fill',
+        name: 'Twilight Fill',
+        x: 0.8,
+        y: 0.55,
+        intensity: 0.35,
+        colorTemp: 8500,
+        softness: 0.9,
+        enabled: true,
+        useGel: true,
+        gelColor: '#663399',
+        distance: 0.8,
+      },
+      {
+        type: 'rim',
+        name: 'Sun Rim',
+        x: 0.1,
+        y: 0.15,
+        intensity: 0.7,
+        colorTemp: 2200,
+        softness: 0.2,
+        enabled: true,
+        useGel: true,
+        gelColor: '#ff6600',
+        distance: 0.3,
+      },
     ],
   },
   {
@@ -160,8 +268,32 @@ const QUICK_PRESETS: QuickPreset[] = [
     colors: ['#ffffff', '#000000'],
     description: 'High contrast, dramatic shadows',
     lights: [
-      { type: 'key', name: 'Hard Key', x: 0.2, y: 0.45, intensity: 1.0, colorTemp: 5600, softness: 0.1, enabled: true, useGel: false, gelColor: '#ffffff', distance: 0.4 },
-      { type: 'back', name: 'Edge Light', x: 0.85, y: 0.15, intensity: 0.6, colorTemp: 6000, softness: 0.1, enabled: true, useGel: false, gelColor: '#ffffff', distance: 0.3 },
+      {
+        type: 'key',
+        name: 'Hard Key',
+        x: 0.2,
+        y: 0.45,
+        intensity: 1.0,
+        colorTemp: 5600,
+        softness: 0.1,
+        enabled: true,
+        useGel: false,
+        gelColor: '#ffffff',
+        distance: 0.4,
+      },
+      {
+        type: 'back',
+        name: 'Edge Light',
+        x: 0.85,
+        y: 0.15,
+        intensity: 0.6,
+        colorTemp: 6000,
+        softness: 0.1,
+        enabled: true,
+        useGel: false,
+        gelColor: '#ffffff',
+        distance: 0.3,
+      },
     ],
   },
   {
@@ -171,9 +303,45 @@ const QUICK_PRESETS: QuickPreset[] = [
     colors: ['#00ff00', '#330000'],
     description: 'Under-lit with colored accents',
     lights: [
-      { type: 'key', name: 'Uplight Key', x: 0.5, y: 0.9, intensity: 0.6, colorTemp: 4000, softness: 0.3, enabled: true, useGel: true, gelColor: '#88ff88', distance: 0.3 },
-      { type: 'rim', name: 'Red Rim', x: 0.9, y: 0.2, intensity: 0.4, colorTemp: 3000, softness: 0.2, enabled: true, useGel: true, gelColor: '#ff0000', distance: 0.5 },
-      { type: 'ambient', name: 'Dread Ambient', x: 0.5, y: 0.5, intensity: 0.1, colorTemp: 5000, softness: 1.0, enabled: true, useGel: true, gelColor: '#220000', distance: 1.0 },
+      {
+        type: 'key',
+        name: 'Uplight Key',
+        x: 0.5,
+        y: 0.9,
+        intensity: 0.6,
+        colorTemp: 4000,
+        softness: 0.3,
+        enabled: true,
+        useGel: true,
+        gelColor: '#88ff88',
+        distance: 0.3,
+      },
+      {
+        type: 'rim',
+        name: 'Red Rim',
+        x: 0.9,
+        y: 0.2,
+        intensity: 0.4,
+        colorTemp: 3000,
+        softness: 0.2,
+        enabled: true,
+        useGel: true,
+        gelColor: '#ff0000',
+        distance: 0.5,
+      },
+      {
+        type: 'ambient',
+        name: 'Dread Ambient',
+        x: 0.5,
+        y: 0.5,
+        intensity: 0.1,
+        colorTemp: 5000,
+        softness: 1.0,
+        enabled: true,
+        useGel: true,
+        gelColor: '#220000',
+        distance: 1.0,
+      },
     ],
   },
 ];
@@ -246,7 +414,6 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
   const stageRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [showPresets, setShowPresets] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
 
   // Inverse Gaffing state
@@ -350,7 +517,6 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
           e.preventDefault();
           selectLight(null);
           setShowAddMenu(false);
-          setShowPresets(false);
           setShowShortcutGuide(false);
           setShowGelPicker(false);
           break;
@@ -612,6 +778,29 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Analyze Image - Primary Action in Header */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isAnalyzing}
+              className={clsx(
+                'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
+                isAnalyzing
+                  ? 'bg-purple-500/20 text-purple-300'
+                  : 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30'
+              )}
+            >
+              {isAnalyzing ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  {analysisStatus || 'Analyzing...'}
+                </>
+              ) : (
+                <>
+                  <ImageIcon className="h-3.5 w-3.5" />
+                  Analyze Image
+                </>
+              )}
+            </button>
             <button
               onClick={toggleEnabled}
               className={clsx(
@@ -627,51 +816,15 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
           </div>
         </div>
 
-        {/* Presets Bar */}
-        <div className="relative z-20 flex items-center gap-2 overflow-visible border-b border-white/5 px-4 py-2">
-          <div className="relative">
-            <button
-              onClick={() => setShowPresets(!showPresets)}
-              className="flex items-center gap-1.5 rounded bg-white/5 px-3 py-1.5 text-xs text-gray-300 transition-colors hover:bg-white/10"
-            >
-              Presets
-              <ChevronDown
-                className={clsx('h-3 w-3 transition-transform', showPresets && 'rotate-180')}
-              />
-            </button>
-            <AnimatePresence>
-              {showPresets && (
-                <motion.div
-                  initial={{ opacity: 0, y: -5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -5 }}
-                  className="absolute top-full left-0 z-50 mt-1 w-48 rounded-lg border border-white/10 bg-[#1a1a1a] shadow-xl"
-                >
-                  {LIGHTING_PRESETS.map(preset => (
-                    <button
-                      key={preset.id}
-                      onClick={() => {
-                        loadPreset(preset.id);
-                        setShowPresets(false);
-                      }}
-                      className="w-full px-3 py-2 text-left first:rounded-t-lg last:rounded-b-lg hover:bg-white/5"
-                    >
-                      <div className="text-xs text-gray-200">{preset.name}</div>
-                      <div className="text-[10px] text-gray-500">{preset.description}</div>
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* UX-010: Quick Presets - Intent-Driven Shortcuts */}
-          <div className="flex items-center gap-1 border-l border-white/10 pl-2">
+        {/* Presets Bar - Scrollable */}
+        <div className="scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10 relative z-20 flex items-center gap-2 overflow-x-auto border-b border-white/5 px-4 py-2">
+          {/* Quick Presets - Intent-Driven Shortcuts */}
+          <div className="flex flex-shrink-0 items-center gap-1">
             {QUICK_PRESETS.map(preset => (
               <Tooltip key={preset.id} content={`${preset.name}: ${preset.description}`} side="top">
                 <button
                   onClick={() => applyQuickPreset(preset)}
-                  className="group relative flex h-8 items-center gap-1 overflow-hidden rounded-lg border border-white/10 px-2 transition-all hover:border-white/20 hover:scale-105"
+                  className="group relative flex h-8 flex-shrink-0 items-center gap-1 overflow-hidden rounded-lg border border-white/10 px-2 transition-all hover:scale-105 hover:border-white/20"
                   style={{
                     background: `linear-gradient(135deg, ${preset.colors[0]}20, ${preset.colors[1]}20)`,
                   }}
@@ -684,7 +837,7 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
                     }}
                   />
                   <span className="text-sm">{preset.emoji}</span>
-                  <span className="text-[10px] font-medium text-gray-300 group-hover:text-white">
+                  <span className="text-[10px] font-medium whitespace-nowrap text-gray-300 group-hover:text-white">
                     {preset.name}
                   </span>
                 </button>
@@ -694,14 +847,14 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
 
           <button
             onClick={clearAll}
-            className="flex items-center gap-1.5 rounded bg-white/5 px-3 py-1.5 text-xs text-gray-400 transition-colors hover:bg-red-500/10 hover:text-red-400"
+            className="flex flex-shrink-0 items-center gap-1.5 rounded bg-white/5 px-3 py-1.5 text-xs text-gray-400 transition-colors hover:bg-red-500/10 hover:text-red-400"
           >
             <RotateCcw className="h-3 w-3" />
             Clear
           </button>
 
           {/* UX-009: Undo/Redo Buttons */}
-          <div className="flex items-center gap-1 border-l border-white/10 pl-2">
+          <div className="flex flex-shrink-0 items-center gap-1 border-l border-white/10 pl-2">
             <Tooltip content="Undo (⌘Z)" side="top">
               <button
                 onClick={undo}
@@ -733,12 +886,15 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
           </div>
 
           {/* Flip Map - horizontally mirror all lights when AI flips left/right */}
-          <Tooltip content="Flip all lights horizontally (fix left/right when AI gets it reversed)" side="top">
+          <Tooltip
+            content="Flip all lights horizontally (fix left/right when AI gets it reversed)"
+            side="top"
+          >
             <button
               onClick={handleFlipMap}
               disabled={lights.length === 0}
               className={clsx(
-                'flex items-center gap-1.5 rounded px-3 py-1.5 text-xs transition-colors',
+                'flex flex-shrink-0 items-center gap-1.5 rounded px-3 py-1.5 text-xs whitespace-nowrap transition-colors',
                 lights.length === 0
                   ? 'cursor-not-allowed bg-white/5 text-gray-600'
                   : 'bg-white/5 text-gray-400 hover:bg-cyan-500/10 hover:text-cyan-400'
@@ -749,29 +905,7 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
             </button>
           </Tooltip>
 
-          {/* Analyze Reference Button (Inverse Gaffing) */}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isAnalyzing}
-            className={clsx(
-              'flex items-center gap-1.5 rounded px-3 py-1.5 text-xs transition-colors',
-              isAnalyzing
-                ? 'bg-purple-500/20 text-purple-300'
-                : 'bg-purple-500/10 text-purple-400 hover:bg-purple-500/20'
-            )}
-          >
-            {isAnalyzing ? (
-              <>
-                <Loader2 className="h-3 w-3 animate-spin" />
-                {analysisStatus || 'Analyzing...'}
-              </>
-            ) : (
-              <>
-                <Wand2 className="h-3 w-3" />
-                Analyze Reference
-              </>
-            )}
-          </button>
+          {/* Hidden file input for Analyze Image (triggered from header button) */}
           <input
             ref={fileInputRef}
             type="file"
@@ -780,15 +914,19 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
             onChange={handleFileSelect}
           />
           {/* Error display */}
-          {analysisError && <span className="ml-2 text-xs text-red-400">{analysisError}</span>}
+          {analysisError && (
+            <span className="ml-2 flex-shrink-0 text-xs whitespace-nowrap text-red-400">
+              {analysisError}
+            </span>
+          )}
 
-          <div className="flex-1" />
+          <div className="min-w-4 flex-1" />
 
           {/* Add Light Menu */}
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             <button
               onClick={() => setShowAddMenu(!showAddMenu)}
-              className="flex items-center gap-1.5 rounded bg-blue-500/20 px-3 py-1.5 text-xs text-blue-400 transition-colors hover:bg-blue-500/30"
+              className="flex items-center gap-1.5 rounded bg-blue-500/20 px-3 py-1.5 text-xs whitespace-nowrap text-blue-400 transition-colors hover:bg-blue-500/30"
             >
               <Plus className="h-3 w-3" />
               Add Light
@@ -1216,7 +1354,7 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
                   <RotaryKnob
                     label="Elevation"
                     value={Math.round((1 - selectedLight.y) * 90)}
-                    onChange={val => updateLight(selectedLight.id, { y: 1 - (val / 90) })}
+                    onChange={val => updateLight(selectedLight.id, { y: 1 - val / 90 })}
                     min={0}
                     max={90}
                     wrap={false}
@@ -1339,7 +1477,8 @@ export function LightingStage({ isOpen, onClose, onApply, embedded = false }: Li
               onClick={() => setShowShortcutGuide(true)}
               className="text-[10px] text-gray-600 transition-colors hover:text-gray-400"
             >
-              Press <kbd className="rounded bg-white/10 px-1 py-0.5 font-mono">?</kbd> for keyboard shortcuts
+              Press <kbd className="rounded bg-white/10 px-1 py-0.5 font-mono">?</kbd> for keyboard
+              shortcuts
             </button>
           </div>
         </div>

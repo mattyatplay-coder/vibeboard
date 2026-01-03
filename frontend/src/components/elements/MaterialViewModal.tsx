@@ -66,10 +66,18 @@ const MAP_INFO = {
   },
 };
 
-export function MaterialViewModal({ isOpen, onClose, elementName, pbrMaps }: MaterialViewModalProps) {
+export function MaterialViewModal({
+  isOpen,
+  onClose,
+  elementName,
+  pbrMaps,
+}: MaterialViewModalProps) {
   const [selectedMap, setSelectedMap] = useState<keyof PBRMaps | null>(null);
 
-  const availableMaps = Object.entries(pbrMaps).filter(([_, url]) => url) as [keyof PBRMaps, string][];
+  const availableMaps = Object.entries(pbrMaps).filter(([_, url]) => url) as [
+    keyof PBRMaps,
+    string,
+  ][];
 
   const handleDownload = (mapType: keyof PBRMaps, url: string) => {
     const link = document.createElement('a');
@@ -191,7 +199,7 @@ export function MaterialViewModal({ isOpen, onClose, elementName, pbrMaps }: Mat
                   animate={{ opacity: 1, y: 0 }}
                   className="mt-4 rounded-xl border border-white/10 bg-black/50 p-4"
                 >
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="mb-3 flex items-center justify-between">
                     <h3 className="font-medium">{MAP_INFO[selectedMap].label} Preview</h3>
                     <button
                       onClick={() => handleDownload(selectedMap, pbrMaps[selectedMap]!)}

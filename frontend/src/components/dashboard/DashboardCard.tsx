@@ -69,12 +69,12 @@ export const DashboardCard = ({
 
       <Link
         href={`/projects/${id}/story-editor`}
-        className="block relative bg-zinc-900/40 backdrop-blur-md border border-white/5 hover:border-white/10 hover:bg-zinc-800/50 rounded-2xl overflow-hidden transition-all duration-300"
+        className="relative block overflow-hidden rounded-2xl border border-white/5 bg-zinc-900/40 backdrop-blur-md transition-all duration-300 hover:border-white/10 hover:bg-zinc-800/50"
       >
         {/* Mouse-following spotlight effect */}
         {isHovered && (
           <div
-            className="absolute inset-0 opacity-100 transition-opacity duration-300 pointer-events-none"
+            className="pointer-events-none absolute inset-0 opacity-100 transition-opacity duration-300"
             style={{
               background: `radial-gradient(300px circle at ${mousePosition.x}px ${mousePosition.y}px, rgba(139, 92, 246, 0.06), transparent 60%)`,
             }}
@@ -82,22 +82,22 @@ export const DashboardCard = ({
         )}
 
         {/* 1. Thumbnail Area */}
-        <div className="h-36 bg-zinc-900 relative overflow-hidden">
+        <div className="relative h-36 overflow-hidden bg-zinc-900">
           {/* Gradient placeholder or actual thumbnail */}
           {thumbnail ? (
             <img
               src={thumbnail}
               alt={title}
-              className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500"
+              className="absolute inset-0 h-full w-full object-cover opacity-80 transition-all duration-500 group-hover:scale-105 group-hover:opacity-100"
             />
           ) : (
             <>
               {/* Gradient Background */}
-              <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 via-zinc-900 to-zinc-950 group-hover:scale-105 transition-transform duration-500" />
+              <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 via-zinc-900 to-zinc-950 transition-transform duration-500 group-hover:scale-105" />
 
               {/* Subtle Grid Pattern */}
               <div
-                className="absolute inset-0 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity"
+                className="absolute inset-0 opacity-[0.03] transition-opacity group-hover:opacity-[0.05]"
                 style={{
                   backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)',
                   backgroundSize: '20px 20px',
@@ -108,7 +108,7 @@ export const DashboardCard = ({
 
           {/* Center Icon (The 'Lens') */}
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-12 h-12 rounded-xl bg-black/30 backdrop-blur-sm border border-white/10 flex items-center justify-center text-zinc-500 group-hover:text-violet-400 group-hover:border-violet-500/30 group-hover:bg-black/40 transition-all duration-300">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-zinc-500 backdrop-blur-sm transition-all duration-300 group-hover:border-violet-500/30 group-hover:bg-black/40 group-hover:text-violet-400">
               <Film size={20} />
             </div>
           </div>
@@ -129,12 +129,12 @@ export const DashboardCard = ({
           </div>
 
           {/* Actions Menu (top-right) */}
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100">
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
                 <button
-                  onClick={(e) => e.preventDefault()}
-                  className="p-1.5 rounded-lg bg-black/40 backdrop-blur-sm border border-white/5 text-zinc-400 hover:text-white hover:bg-black/60 transition-colors"
+                  onClick={e => e.preventDefault()}
+                  className="rounded-lg border border-white/5 bg-black/40 p-1.5 text-zinc-400 backdrop-blur-sm transition-colors hover:bg-black/60 hover:text-white"
                 >
                   <MoreHorizontal size={14} />
                 </button>
@@ -142,13 +142,13 @@ export const DashboardCard = ({
 
               <DropdownMenu.Portal>
                 <DropdownMenu.Content
-                  className="z-50 min-w-[140px] rounded-lg border border-white/10 bg-zinc-900/95 backdrop-blur-xl p-1 shadow-2xl"
+                  className="z-50 min-w-[140px] rounded-lg border border-white/10 bg-zinc-900/95 p-1 shadow-2xl backdrop-blur-xl"
                   sideOffset={4}
                   align="end"
                 >
                   <DropdownMenu.Item
-                    className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-zinc-300 outline-none cursor-pointer hover:bg-white/5 hover:text-white transition-colors"
-                    onClick={(e) => {
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-zinc-300 transition-colors outline-none hover:bg-white/5 hover:text-white"
+                    onClick={e => {
                       e.preventDefault();
                       window.open(`/projects/${id}/story-editor`, '_blank');
                     }}
@@ -159,8 +159,8 @@ export const DashboardCard = ({
 
                   {onDuplicate && (
                     <DropdownMenu.Item
-                      className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-zinc-300 outline-none cursor-pointer hover:bg-white/5 hover:text-white transition-colors"
-                      onClick={(e) => {
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-zinc-300 transition-colors outline-none hover:bg-white/5 hover:text-white"
+                      onClick={e => {
                         e.preventDefault();
                         onDuplicate();
                       }}
@@ -174,8 +174,8 @@ export const DashboardCard = ({
                     <>
                       <DropdownMenu.Separator className="my-1 h-px bg-white/5" />
                       <DropdownMenu.Item
-                        className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-red-400 outline-none cursor-pointer hover:bg-red-500/10 hover:text-red-300 transition-colors"
-                        onClick={(e) => {
+                        className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-red-400 transition-colors outline-none hover:bg-red-500/10 hover:text-red-300"
+                        onClick={e => {
                           e.preventDefault();
                           onDelete(e as unknown as React.MouseEvent);
                         }}
@@ -192,20 +192,20 @@ export const DashboardCard = ({
         </div>
 
         {/* 2. Metadata Area */}
-        <div className="p-4 relative">
-          <div className="flex justify-between items-start gap-2">
+        <div className="relative p-4">
+          <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-semibold text-zinc-100 group-hover:text-violet-200 transition-colors truncate">
+              <h3 className="truncate text-sm font-semibold text-zinc-100 transition-colors group-hover:text-violet-200">
                 {title}
               </h3>
-              <p className="text-xs text-zinc-500 mt-1 line-clamp-1">
+              <p className="mt-1 line-clamp-1 text-xs text-zinc-500">
                 {description || 'No description'}
               </p>
             </div>
           </div>
 
           {/* Footer */}
-          <div className="mt-4 flex items-center gap-2 pt-3 border-t border-white/5">
+          <div className="mt-4 flex items-center gap-2 border-t border-white/5 pt-3">
             {/* Shot count indicator */}
             {shotCount !== undefined && (
               <div className="flex items-center gap-1.5 text-[10px] text-zinc-500">
@@ -215,7 +215,7 @@ export const DashboardCard = ({
             )}
 
             {/* Timestamp */}
-            <span className="text-[10px] text-zinc-600 font-mono ml-auto flex items-center gap-1">
+            <span className="ml-auto flex items-center gap-1 font-mono text-[10px] text-zinc-600">
               <Clock size={10} />
               {date}
             </span>
@@ -223,7 +223,7 @@ export const DashboardCard = ({
         </div>
 
         {/* Hover border glow */}
-        <div className="absolute inset-0 rounded-2xl border border-violet-500/0 group-hover:border-violet-500/20 transition-colors pointer-events-none" />
+        <div className="pointer-events-none absolute inset-0 rounded-2xl border border-violet-500/0 transition-colors group-hover:border-violet-500/20" />
       </Link>
     </motion.div>
   );

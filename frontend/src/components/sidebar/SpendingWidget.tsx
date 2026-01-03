@@ -108,10 +108,12 @@ export function SpendingWidget({
   };
 
   return (
-    <div className={clsx(
-      "overflow-hidden rounded-xl border bg-white/5 transition-colors",
-      expanded ? "border-cyan-500/30" : "border-white/10"
-    )}>
+    <div
+      className={clsx(
+        'overflow-hidden rounded-xl border bg-white/5 transition-colors',
+        expanded ? 'border-cyan-500/30' : 'border-white/10'
+      )}
+    >
       {/* Header */}
       <button
         onClick={handleToggle}

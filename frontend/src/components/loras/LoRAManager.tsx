@@ -104,6 +104,8 @@ const BASE_MODEL_OPTIONS = [
   { value: 'SD 3.5 Large', label: 'SD 3.5 Large' },
   { value: 'Flux.1 D', label: 'Flux.1 Dev' },
   { value: 'Flux.1 S', label: 'Flux.1 Schnell' },
+  { value: 'Qwen2.5VL 2509', label: 'Qwen 2509' },
+  { value: 'Qwen2.5VL 2511', label: 'Qwen 2511' },
   { value: 'Pony', label: 'Pony' },
   { value: 'Illustrious', label: 'Illustrious' },
   { value: 'Wan Video 2.2 I2V-A14B', label: 'Wan 2.2 I2V-A14B' },
@@ -122,6 +124,8 @@ const BASE_MODEL_FILTER_GROUPS = [
     options: [
       { value: 'Flux.1 D', label: 'Flux Dev' },
       { value: 'Flux.1 S', label: 'Flux Schnell' },
+      { value: 'Qwen2.5VL 2509', label: 'Qwen 2509' },
+      { value: 'Qwen2.5VL 2511', label: 'Qwen 2511' },
       { value: 'SDXL 1.0', label: 'SDXL 1.0' },
       { value: 'SD 3.5 Large', label: 'SD 3.5 Large' },
       { value: 'SD 3', label: 'SD 3' },
@@ -378,13 +382,16 @@ export function LoRAManager({
   const [newStrength, setNewStrength] = useState(1.0);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [newCategory, setNewCategory] = useState('other');
+  const [newCustomCategory, setNewCustomCategory] = useState('');
   const [editCategory, setEditCategory] = useState('other');
+  const [editCustomCategory, setEditCustomCategory] = useState('');
   const [editName, setEditName] = useState('');
   const [editTrigger, setEditTrigger] = useState('');
   const [editAliases, setEditAliases] = useState(''); // Comma-separated aliases
   const [editBaseModel, setEditBaseModel] = useState('SDXL');
   const [editStrength, setEditStrength] = useState(1.0);
   const [newSettings, setNewSettings] = useState<any>(null);
+  const [addToGlobalLibrary, setAddToGlobalLibrary] = useState(false);
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
   const [fetchSuccess, setFetchSuccess] = useState<string | null>(null);
   useEffect(() => {
@@ -410,6 +417,10 @@ export function LoRAManager({
     if (!newName || !newUrl) return;
     setError(null);
 
+    // Use custom category if selected, otherwise use dropdown value
+    const finalCategory =
+      newCategory === '__custom__' ? newCustomCategory.toLowerCase().trim() : newCategory;
+
     try {
       await fetchAPI(`/projects/${projectId}/loras`, {
         method: 'POST',
@@ -419,10 +430,11 @@ export function LoRAManager({
           fileUrl: newUrl,
           baseModel: newBaseModel,
           type: newType,
-          category: newCategory,
+          category: finalCategory || 'other',
           strength: newStrength,
           imageUrl: newImageUrl,
           settings: newSettings,
+          addToGlobalLibrary,
         }),
       });
       setIsAdding(false);
@@ -456,7 +468,9 @@ export function LoRAManager({
     setNewStrength(1.0);
     setNewImageUrl('');
     setNewCategory('other');
+    setNewCustomCategory('');
     setNewSettings(null);
+    setAddToGlobalLibrary(false);
     setFetchSuccess(null);
   };
 
@@ -479,6 +493,7 @@ export function LoRAManager({
     setEditAliases('');
     setEditBaseModel('');
     setEditCategory('other');
+    setEditCustomCategory('');
     setEditStrength(1.0);
     setError(null);
   };
@@ -493,6 +508,10 @@ export function LoRAManager({
       .map(a => a.trim().toLowerCase())
       .filter(a => a.length > 0);
 
+    // Use custom category if selected, otherwise use dropdown value
+    const finalCategory =
+      editCategory === '__custom__' ? editCustomCategory.toLowerCase().trim() : editCategory;
+
     try {
       await fetchAPI(`/projects/${projectId}/loras/${editingLora.id}`, {
         method: 'PUT',
@@ -501,7 +520,7 @@ export function LoRAManager({
           triggerWord: editTrigger,
           aliasPatterns: aliasPatterns.length > 0 ? aliasPatterns : undefined,
           baseModel: editBaseModel,
-          category: editCategory,
+          category: finalCategory || 'other',
           strength: editStrength,
         }),
       });
@@ -843,7 +862,12 @@ export function LoRAManager({
                   <label className="mb-1 block text-xs text-gray-400">Category</label>
                   <select
                     value={editCategory}
-                    onChange={e => setEditCategory(e.target.value)}
+                    onChange={e => {
+                      setEditCategory(e.target.value);
+                      if (e.target.value !== '__custom__') {
+                        setEditCustomCategory('');
+                      }
+                    }}
                     className="w-full rounded-lg border border-white/10 bg-black/50 px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
                   >
                     {allCategoryOptions.map(cat => (
@@ -851,7 +875,18 @@ export function LoRAManager({
                         {cat.label}
                       </option>
                     ))}
+                    <option value="__custom__">+ Create New Category...</option>
                   </select>
+                  {editCategory === '__custom__' && (
+                    <input
+                      type="text"
+                      value={editCustomCategory}
+                      onChange={e => setEditCustomCategory(e.target.value)}
+                      placeholder="Enter custom category name"
+                      className="mt-2 w-full rounded-lg border border-white/10 bg-black/50 px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
+                      autoFocus
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -991,7 +1026,12 @@ export function LoRAManager({
                 <label className="mb-1 block text-xs text-gray-400">Category</label>
                 <select
                   value={newCategory}
-                  onChange={e => setNewCategory(e.target.value)}
+                  onChange={e => {
+                    setNewCategory(e.target.value);
+                    if (e.target.value !== '__custom__') {
+                      setNewCustomCategory('');
+                    }
+                  }}
                   className="w-full rounded-lg border border-white/10 bg-black/50 px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
                 >
                   {allCategoryOptions.map(cat => (
@@ -999,7 +1039,18 @@ export function LoRAManager({
                       {cat.label}
                     </option>
                   ))}
+                  <option value="__custom__">+ Create New Category...</option>
                 </select>
+                {newCategory === '__custom__' && (
+                  <input
+                    type="text"
+                    value={newCustomCategory}
+                    onChange={e => setNewCustomCategory(e.target.value)}
+                    placeholder="Enter custom category name"
+                    className="mt-2 w-full rounded-lg border border-white/10 bg-black/50 px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
+                    autoFocus
+                  />
+                )}
               </div>
             </div>
             <div>
@@ -1013,6 +1064,21 @@ export function LoRAManager({
                 onChange={e => setNewStrength(parseFloat(e.target.value))}
                 className="w-full rounded-lg border border-white/10 bg-black/50 px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
               />
+            </div>
+
+            {/* Save to Global Library Checkbox */}
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="addToGlobalLibrary"
+                checked={addToGlobalLibrary}
+                onChange={e => setAddToGlobalLibrary(e.target.checked)}
+                className="h-4 w-4 rounded border-white/20 bg-black/50 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+              />
+              <label htmlFor="addToGlobalLibrary" className="text-xs text-gray-400">
+                Save to Global Library
+                <span className="ml-1 text-gray-600">(share across all projects)</span>
+              </label>
             </div>
 
             {error && <div className="px-1 text-xs text-red-400">{error}</div>}

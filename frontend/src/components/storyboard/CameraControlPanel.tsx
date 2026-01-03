@@ -36,8 +36,8 @@ export function CameraControlPanel({
   useGlobalStore = false,
 }: CameraControlPanelProps) {
   // Global store access
-  const storeMovement = useViewfinderStore((state) => state.cameraMovement);
-  const setStoreMovement = useViewfinderStore((state) => state.setCameraMovement);
+  const storeMovement = useViewfinderStore(state => state.cameraMovement);
+  const setStoreMovement = useViewfinderStore(state => state.setCameraMovement);
 
   // Determine which value/onChange to use
   const value = useGlobalStore ? storeMovement : (propValue ?? { type: 'static' as const });

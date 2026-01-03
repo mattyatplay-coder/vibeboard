@@ -17,25 +17,25 @@ import { AuthenticatedRequest } from '../middleware/auth';
  * POST /api/teams
  */
 export const createTeam = async (req: Request, res: Response) => {
-    try {
-        const authReq = req as AuthenticatedRequest;
-        const userId = authReq.user?.id;
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id;
 
-        if (!userId) {
-            return res.status(401).json({ error: 'Authentication required' });
-        }
-
-        const { name, slug } = req.body;
-        if (!name) {
-            return res.status(400).json({ error: 'Team name is required' });
-        }
-
-        const team = await teamService.createTeam(userId, { name, slug });
-        res.status(201).json(team);
-    } catch (error: any) {
-        console.error('Create team error:', error);
-        res.status(400).json({ error: error.message || 'Failed to create team' });
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
+
+    const { name, slug } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Team name is required' });
+    }
+
+    const team = await teamService.createTeam(userId, { name, slug });
+    res.status(201).json(team);
+  } catch (error: any) {
+    console.error('Create team error:', error);
+    res.status(400).json({ error: error.message || 'Failed to create team' });
+  }
 };
 
 /**
@@ -43,20 +43,20 @@ export const createTeam = async (req: Request, res: Response) => {
  * GET /api/teams
  */
 export const getMyTeams = async (req: Request, res: Response) => {
-    try {
-        const authReq = req as AuthenticatedRequest;
-        const userId = authReq.user?.id;
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id;
 
-        if (!userId) {
-            return res.status(401).json({ error: 'Authentication required' });
-        }
-
-        const teams = await teamService.getUserTeams(userId);
-        res.json(teams);
-    } catch (error: any) {
-        console.error('Get teams error:', error);
-        res.status(500).json({ error: 'Failed to fetch teams' });
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
+
+    const teams = await teamService.getUserTeams(userId);
+    res.json(teams);
+  } catch (error: any) {
+    console.error('Get teams error:', error);
+    res.status(500).json({ error: 'Failed to fetch teams' });
+  }
 };
 
 /**
@@ -64,29 +64,29 @@ export const getMyTeams = async (req: Request, res: Response) => {
  * GET /api/teams/:teamId
  */
 export const getTeam = async (req: Request, res: Response) => {
-    try {
-        const { teamId } = req.params;
-        const authReq = req as AuthenticatedRequest;
-        const userId = authReq.user?.id;
+  try {
+    const { teamId } = req.params;
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id;
 
-        const team = await teamService.getTeam(teamId);
-        if (!team) {
-            return res.status(404).json({ error: 'Team not found' });
-        }
-
-        // Verify user is a member
-        if (userId) {
-            const canView = await teamService.canViewTeam(teamId, userId);
-            if (!canView) {
-                return res.status(403).json({ error: 'You are not a member of this team' });
-            }
-        }
-
-        res.json(team);
-    } catch (error: any) {
-        console.error('Get team error:', error);
-        res.status(500).json({ error: 'Failed to fetch team' });
+    const team = await teamService.getTeam(teamId);
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found' });
     }
+
+    // Verify user is a member
+    if (userId) {
+      const canView = await teamService.canViewTeam(teamId, userId);
+      if (!canView) {
+        return res.status(403).json({ error: 'You are not a member of this team' });
+      }
+    }
+
+    res.json(team);
+  } catch (error: any) {
+    console.error('Get team error:', error);
+    res.status(500).json({ error: 'Failed to fetch team' });
+  }
 };
 
 /**
@@ -94,29 +94,29 @@ export const getTeam = async (req: Request, res: Response) => {
  * GET /api/teams/slug/:slug
  */
 export const getTeamBySlug = async (req: Request, res: Response) => {
-    try {
-        const { slug } = req.params;
-        const authReq = req as AuthenticatedRequest;
-        const userId = authReq.user?.id;
+  try {
+    const { slug } = req.params;
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id;
 
-        const team = await teamService.getTeamBySlug(slug);
-        if (!team) {
-            return res.status(404).json({ error: 'Team not found' });
-        }
-
-        // Verify user is a member
-        if (userId) {
-            const canView = await teamService.canViewTeam(team.id, userId);
-            if (!canView) {
-                return res.status(403).json({ error: 'You are not a member of this team' });
-            }
-        }
-
-        res.json(team);
-    } catch (error: any) {
-        console.error('Get team by slug error:', error);
-        res.status(500).json({ error: 'Failed to fetch team' });
+    const team = await teamService.getTeamBySlug(slug);
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found' });
     }
+
+    // Verify user is a member
+    if (userId) {
+      const canView = await teamService.canViewTeam(team.id, userId);
+      if (!canView) {
+        return res.status(403).json({ error: 'You are not a member of this team' });
+      }
+    }
+
+    res.json(team);
+  } catch (error: any) {
+    console.error('Get team by slug error:', error);
+    res.status(500).json({ error: 'Failed to fetch team' });
+  }
 };
 
 /**
@@ -124,22 +124,22 @@ export const getTeamBySlug = async (req: Request, res: Response) => {
  * PATCH /api/teams/:teamId
  */
 export const updateTeam = async (req: Request, res: Response) => {
-    try {
-        const { teamId } = req.params;
-        const authReq = req as AuthenticatedRequest;
-        const userId = authReq.user?.id;
+  try {
+    const { teamId } = req.params;
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id;
 
-        if (!userId) {
-            return res.status(401).json({ error: 'Authentication required' });
-        }
-
-        const { name } = req.body;
-        const team = await teamService.updateTeam(teamId, userId, { name });
-        res.json(team);
-    } catch (error: any) {
-        console.error('Update team error:', error);
-        res.status(400).json({ error: error.message || 'Failed to update team' });
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
+
+    const { name } = req.body;
+    const team = await teamService.updateTeam(teamId, userId, { name });
+    res.json(team);
+  } catch (error: any) {
+    console.error('Update team error:', error);
+    res.status(400).json({ error: error.message || 'Failed to update team' });
+  }
 };
 
 /**
@@ -147,21 +147,21 @@ export const updateTeam = async (req: Request, res: Response) => {
  * DELETE /api/teams/:teamId
  */
 export const deleteTeam = async (req: Request, res: Response) => {
-    try {
-        const { teamId } = req.params;
-        const authReq = req as AuthenticatedRequest;
-        const userId = authReq.user?.id;
+  try {
+    const { teamId } = req.params;
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id;
 
-        if (!userId) {
-            return res.status(401).json({ error: 'Authentication required' });
-        }
-
-        await teamService.deleteTeam(teamId, userId);
-        res.status(204).send();
-    } catch (error: any) {
-        console.error('Delete team error:', error);
-        res.status(400).json({ error: error.message || 'Failed to delete team' });
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
+
+    await teamService.deleteTeam(teamId, userId);
+    res.status(204).send();
+  } catch (error: any) {
+    console.error('Delete team error:', error);
+    res.status(400).json({ error: error.message || 'Failed to delete team' });
+  }
 };
 
 // =============================================================================
@@ -173,26 +173,26 @@ export const deleteTeam = async (req: Request, res: Response) => {
  * POST /api/teams/:teamId/members
  */
 export const addMember = async (req: Request, res: Response) => {
-    try {
-        const { teamId } = req.params;
-        const authReq = req as AuthenticatedRequest;
-        const adminId = authReq.user?.id;
+  try {
+    const { teamId } = req.params;
+    const authReq = req as AuthenticatedRequest;
+    const adminId = authReq.user?.id;
 
-        if (!adminId) {
-            return res.status(401).json({ error: 'Authentication required' });
-        }
-
-        const { userId, role } = req.body;
-        if (!userId) {
-            return res.status(400).json({ error: 'userId is required' });
-        }
-
-        const member = await teamService.addMember(teamId, adminId, { userId, role });
-        res.status(201).json(member);
-    } catch (error: any) {
-        console.error('Add member error:', error);
-        res.status(400).json({ error: error.message || 'Failed to add member' });
+    if (!adminId) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
+
+    const { userId, role } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    const member = await teamService.addMember(teamId, adminId, { userId, role });
+    res.status(201).json(member);
+  } catch (error: any) {
+    console.error('Add member error:', error);
+    res.status(400).json({ error: error.message || 'Failed to add member' });
+  }
 };
 
 /**
@@ -200,26 +200,26 @@ export const addMember = async (req: Request, res: Response) => {
  * PATCH /api/teams/:teamId/members/:memberId
  */
 export const updateMemberRole = async (req: Request, res: Response) => {
-    try {
-        const { teamId, memberId } = req.params;
-        const authReq = req as AuthenticatedRequest;
-        const adminId = authReq.user?.id;
+  try {
+    const { teamId, memberId } = req.params;
+    const authReq = req as AuthenticatedRequest;
+    const adminId = authReq.user?.id;
 
-        if (!adminId) {
-            return res.status(401).json({ error: 'Authentication required' });
-        }
-
-        const { role } = req.body;
-        if (!role) {
-            return res.status(400).json({ error: 'role is required' });
-        }
-
-        const member = await teamService.updateMemberRole(teamId, adminId, memberId, role);
-        res.json(member);
-    } catch (error: any) {
-        console.error('Update member role error:', error);
-        res.status(400).json({ error: error.message || 'Failed to update member role' });
+    if (!adminId) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
+
+    const { role } = req.body;
+    if (!role) {
+      return res.status(400).json({ error: 'role is required' });
+    }
+
+    const member = await teamService.updateMemberRole(teamId, adminId, memberId, role);
+    res.json(member);
+  } catch (error: any) {
+    console.error('Update member role error:', error);
+    res.status(400).json({ error: error.message || 'Failed to update member role' });
+  }
 };
 
 /**
@@ -227,21 +227,21 @@ export const updateMemberRole = async (req: Request, res: Response) => {
  * DELETE /api/teams/:teamId/members/:memberId
  */
 export const removeMember = async (req: Request, res: Response) => {
-    try {
-        const { teamId, memberId } = req.params;
-        const authReq = req as AuthenticatedRequest;
-        const adminId = authReq.user?.id;
+  try {
+    const { teamId, memberId } = req.params;
+    const authReq = req as AuthenticatedRequest;
+    const adminId = authReq.user?.id;
 
-        if (!adminId) {
-            return res.status(401).json({ error: 'Authentication required' });
-        }
-
-        await teamService.removeMember(teamId, adminId, memberId);
-        res.status(204).send();
-    } catch (error: any) {
-        console.error('Remove member error:', error);
-        res.status(400).json({ error: error.message || 'Failed to remove member' });
+    if (!adminId) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
+
+    await teamService.removeMember(teamId, adminId, memberId);
+    res.status(204).send();
+  } catch (error: any) {
+    console.error('Remove member error:', error);
+    res.status(400).json({ error: error.message || 'Failed to remove member' });
+  }
 };
 
 /**
@@ -249,21 +249,21 @@ export const removeMember = async (req: Request, res: Response) => {
  * POST /api/teams/:teamId/leave
  */
 export const leaveTeam = async (req: Request, res: Response) => {
-    try {
-        const { teamId } = req.params;
-        const authReq = req as AuthenticatedRequest;
-        const userId = authReq.user?.id;
+  try {
+    const { teamId } = req.params;
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id;
 
-        if (!userId) {
-            return res.status(401).json({ error: 'Authentication required' });
-        }
-
-        await teamService.leaveTeam(teamId, userId);
-        res.status(204).send();
-    } catch (error: any) {
-        console.error('Leave team error:', error);
-        res.status(400).json({ error: error.message || 'Failed to leave team' });
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
+
+    await teamService.leaveTeam(teamId, userId);
+    res.status(204).send();
+  } catch (error: any) {
+    console.error('Leave team error:', error);
+    res.status(400).json({ error: error.message || 'Failed to leave team' });
+  }
 };
 
 // =============================================================================
@@ -275,31 +275,31 @@ export const leaveTeam = async (req: Request, res: Response) => {
  * GET /api/teams/:teamId/quota
  */
 export const getTeamQuota = async (req: Request, res: Response) => {
-    try {
-        const { teamId } = req.params;
-        const authReq = req as AuthenticatedRequest;
-        const userId = authReq.user?.id;
+  try {
+    const { teamId } = req.params;
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id;
 
-        if (userId) {
-            const canView = await teamService.canViewTeam(teamId, userId);
-            if (!canView) {
-                return res.status(403).json({ error: 'You are not a member of this team' });
-            }
-        }
-
-        const team = await teamService.getTeam(teamId);
-        if (!team) {
-            return res.status(404).json({ error: 'Team not found' });
-        }
-
-        res.json({
-            used: team.monthlyGenerations,
-            limit: team.monthlyGenerationsLimit,
-            remaining: Math.max(0, team.monthlyGenerationsLimit - team.monthlyGenerations),
-            percentage: Math.round((team.monthlyGenerations / team.monthlyGenerationsLimit) * 100),
-        });
-    } catch (error: any) {
-        console.error('Get team quota error:', error);
-        res.status(500).json({ error: 'Failed to fetch team quota' });
+    if (userId) {
+      const canView = await teamService.canViewTeam(teamId, userId);
+      if (!canView) {
+        return res.status(403).json({ error: 'You are not a member of this team' });
+      }
     }
+
+    const team = await teamService.getTeam(teamId);
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    res.json({
+      used: team.monthlyGenerations,
+      limit: team.monthlyGenerationsLimit,
+      remaining: Math.max(0, team.monthlyGenerationsLimit - team.monthlyGenerations),
+      percentage: Math.round((team.monthlyGenerations / team.monthlyGenerationsLimit) * 100),
+    });
+  } catch (error: any) {
+    console.error('Get team quota error:', error);
+    res.status(500).json({ error: 'Failed to fetch team quota' });
+  }
 };

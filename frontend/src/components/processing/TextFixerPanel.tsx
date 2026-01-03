@@ -25,9 +25,15 @@ interface TextFixerPanelProps {
 }
 
 const TEXT_PRESETS = [
-  { label: 'Fix Gibberish', prompt: 'Fix any gibberish or unreadable text, make it clean and legible' },
+  {
+    label: 'Fix Gibberish',
+    prompt: 'Fix any gibberish or unreadable text, make it clean and legible',
+  },
   { label: 'English', prompt: 'Translate all text to English while matching the original style' },
-  { label: 'Japanese', prompt: 'Translate all text to Japanese (kanji/hiragana) while matching the original style' },
+  {
+    label: 'Japanese',
+    prompt: 'Translate all text to Japanese (kanji/hiragana) while matching the original style',
+  },
   { label: 'Remove Text', prompt: 'Remove all text completely, fill with appropriate background' },
 ];
 
@@ -125,7 +131,7 @@ export function TextFixerPanel({ initialImageUrl }: TextFixerPanelProps) {
     }
   };
 
-  const handlePresetClick = (preset: typeof TEXT_PRESETS[0]) => {
+  const handlePresetClick = (preset: (typeof TEXT_PRESETS)[0]) => {
     setTextInstruction(preset.prompt);
   };
 
@@ -179,11 +185,7 @@ export function TextFixerPanel({ initialImageUrl }: TextFixerPanelProps) {
           >
             {baseImage ? (
               <div className="relative h-full w-full">
-                <img
-                  src={baseImage}
-                  alt="Source"
-                  className="h-full w-full object-contain"
-                />
+                <img src={baseImage} alt="Source" className="h-full w-full object-contain" />
                 <button
                   onClick={e => {
                     e.stopPropagation();
@@ -191,7 +193,7 @@ export function TextFixerPanel({ initialImageUrl }: TextFixerPanelProps) {
                     setBaseFile(null);
                     setResultImage(null);
                   }}
-                  className="absolute right-2 top-2 rounded-full bg-black/60 p-1 hover:bg-black/80"
+                  className="absolute top-2 right-2 rounded-full bg-black/60 p-1 hover:bg-black/80"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -304,10 +306,7 @@ export function TextFixerPanel({ initialImageUrl }: TextFixerPanelProps) {
                 <span className="text-sm font-medium text-emerald-300">Result</span>
                 <div className="flex gap-2">
                   <Tooltip content="Copy URL">
-                    <button
-                      onClick={handleCopyUrl}
-                      className="rounded p-1 hover:bg-white/10"
-                    >
+                    <button onClick={handleCopyUrl} className="rounded p-1 hover:bg-white/10">
                       {copied ? (
                         <Check className="h-4 w-4 text-green-400" />
                       ) : (
@@ -316,29 +315,19 @@ export function TextFixerPanel({ initialImageUrl }: TextFixerPanelProps) {
                     </button>
                   </Tooltip>
                   <Tooltip content="Download">
-                    <button
-                      onClick={handleDownload}
-                      className="rounded p-1 hover:bg-white/10"
-                    >
+                    <button onClick={handleDownload} className="rounded p-1 hover:bg-white/10">
                       <Download className="h-4 w-4" />
                     </button>
                   </Tooltip>
                   <Tooltip content="Use as new base">
-                    <button
-                      onClick={handleUseAsBase}
-                      className="rounded p-1 hover:bg-white/10"
-                    >
+                    <button onClick={handleUseAsBase} className="rounded p-1 hover:bg-white/10">
                       <Sparkles className="h-4 w-4" />
                     </button>
                   </Tooltip>
                 </div>
               </div>
               <div className="flex-1 overflow-hidden rounded-lg">
-                <img
-                  src={resultImage}
-                  alt="Fixed text"
-                  className="h-full w-full object-contain"
-                />
+                <img src={resultImage} alt="Fixed text" className="h-full w-full object-contain" />
               </div>
             </div>
           )}

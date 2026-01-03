@@ -52,7 +52,14 @@ export const MODEL_PRICING: Record<string, ModelPrice> = {
   'fal-ai/kling-image/o1': { perImage: 0.08 },
   'fal-ai/creative-upscaler': { perMegapixel: 0.02 },
   'fal-ai/clarity-upscaler': { perMegapixel: 0.015 },
-  'fal-ai/qwen-image/edit-plus': { perImage: 0.04 },
+  // === FAL.AI QWEN MODELS ===
+  'fal-ai/qwen-image': { perMegapixel: 0.02 },
+  'fal-ai/qwen-image-2512': { perMegapixel: 0.02 },
+  'fal-ai/qwen-image/image-to-image': { perMegapixel: 0.02 },
+  'fal-ai/qwen-image-edit': { perMegapixel: 0.03 },
+  'fal-ai/qwen-image-edit-2509': { perMegapixel: 0.03 },
+  'fal-ai/qwen-image-edit-2511': { perMegapixel: 0.03 },
+  'fal-ai/qwen-image-layered': { perImage: 0.05 },
 
   // === FAL.AI VIDEO MODELS (per second) ===
   'fal-ai/wan-t2v': { perSecond: 0.05 },
@@ -156,6 +163,9 @@ export const MODEL_PRICING: Record<string, ModelPrice> = {
   'ltx-video': { free: true },
   'wan-2.2': { free: true },
   'hunyuan-video': { free: true },
+
+  // === RUNPOD SELF-HOSTED (FREE - Just GPU compute costs) ===
+  'runpod/stable-video-infinity': { free: true }, // SVI - Long-form continuity
 
   // === TOGETHER AI ===
   'together/flux-schnell': { perImage: 0.003 },

@@ -23,24 +23,24 @@ const layerService = LayerExtractionService.getInstance();
  * Extract subject and background layers from an image using AI
  */
 router.post('/extract-layers', async (req: Request, res: Response) => {
-    try {
-        const { imageUrl, numLayers, prompt } = req.body;
+  try {
+    const { imageUrl, numLayers, prompt } = req.body;
 
-        if (!imageUrl) {
-            return res.status(400).json({ error: 'imageUrl is required' });
-        }
-
-        const result = await layerService.extractLayers({
-            imageUrl,
-            numLayers: numLayers || 3,
-            prompt,
-        });
-
-        return res.json(result);
-    } catch (error: any) {
-        console.error('Layer extraction error:', error);
-        return res.status(500).json({ error: error.message });
+    if (!imageUrl) {
+      return res.status(400).json({ error: 'imageUrl is required' });
     }
+
+    const result = await layerService.extractLayers({
+      imageUrl,
+      numLayers: numLayers || 3,
+      prompt,
+    });
+
+    return res.json(result);
+  } catch (error: any) {
+    console.error('Layer extraction error:', error);
+    return res.status(500).json({ error: error.message });
+  }
 });
 
 /**
@@ -48,25 +48,25 @@ router.post('/extract-layers', async (req: Request, res: Response) => {
  * Quick 2-layer extraction optimized for DOF simulation
  */
 router.post('/extract-subject', async (req: Request, res: Response) => {
-    try {
-        const { imageUrl } = req.body;
+  try {
+    const { imageUrl } = req.body;
 
-        if (!imageUrl) {
-            return res.status(400).json({ error: 'imageUrl is required' });
-        }
-
-        const result = await layerService.extractSubjectAndBackground(imageUrl);
-
-        return res.json({
-            success: !result.error,
-            subject: result.subject,
-            background: result.background,
-            error: result.error,
-        });
-    } catch (error: any) {
-        console.error('Subject extraction error:', error);
-        return res.status(500).json({ error: error.message });
+    if (!imageUrl) {
+      return res.status(400).json({ error: 'imageUrl is required' });
     }
+
+    const result = await layerService.extractSubjectAndBackground(imageUrl);
+
+    return res.json({
+      success: !result.error,
+      subject: result.subject,
+      background: result.background,
+      error: result.error,
+    });
+  } catch (error: any) {
+    console.error('Subject extraction error:', error);
+    return res.status(500).json({ error: error.message });
+  }
 });
 
 // ============================================================================
@@ -78,8 +78,8 @@ router.post('/extract-subject', async (req: Request, res: Response) => {
  * Get all available framing presets
  */
 router.get('/framing-presets', (_req: Request, res: Response) => {
-    const presets = layerService.getAllFramingPresets();
-    return res.json({ presets });
+  const presets = layerService.getAllFramingPresets();
+  return res.json({ presets });
 });
 
 /**
@@ -87,13 +87,13 @@ router.get('/framing-presets', (_req: Request, res: Response) => {
  * Get a specific framing preset
  */
 router.get('/framing-presets/:id', (req: Request, res: Response) => {
-    const preset = layerService.getFramingPreset(req.params.id);
+  const preset = layerService.getFramingPreset(req.params.id);
 
-    if (!preset) {
-        return res.status(404).json({ error: 'Framing preset not found' });
-    }
+  if (!preset) {
+    return res.status(404).json({ error: 'Framing preset not found' });
+  }
 
-    return res.json({ preset });
+  return res.json({ preset });
 });
 
 // ============================================================================
@@ -105,15 +105,15 @@ router.get('/framing-presets/:id', (req: Request, res: Response) => {
  * Get all cameras or filter by sensor size
  */
 router.get('/cameras', (req: Request, res: Response) => {
-    const { sensorSize, groupByBrand } = req.query;
+  const { sensorSize, groupByBrand } = req.query;
 
-    if (groupByBrand === 'true') {
-        const grouped = layerService.getCamerasByBrand();
-        return res.json({ cameras: grouped, grouped: true });
-    }
+  if (groupByBrand === 'true') {
+    const grouped = layerService.getCamerasByBrand();
+    return res.json({ cameras: grouped, grouped: true });
+  }
 
-    const cameras = layerService.getCameras(sensorSize as any);
-    return res.json({ cameras, count: cameras.length });
+  const cameras = layerService.getCameras(sensorSize as any);
+  return res.json({ cameras, count: cameras.length });
 });
 
 /**
@@ -121,13 +121,13 @@ router.get('/cameras', (req: Request, res: Response) => {
  * Get a specific camera model
  */
 router.get('/cameras/:id', (req: Request, res: Response) => {
-    const camera = layerService.getCameraModel(req.params.id);
+  const camera = layerService.getCameraModel(req.params.id);
 
-    if (!camera) {
-        return res.status(404).json({ error: 'Camera model not found' });
-    }
+  if (!camera) {
+    return res.status(404).json({ error: 'Camera model not found' });
+  }
 
-    return res.json({ camera });
+  return res.json({ camera });
 });
 
 // ============================================================================
@@ -139,8 +139,8 @@ router.get('/cameras/:id', (req: Request, res: Response) => {
  * Get all available stand-in model silhouettes
  */
 router.get('/stand-in-models', (_req: Request, res: Response) => {
-    const models = layerService.getAllStandInModels();
-    return res.json({ models });
+  const models = layerService.getAllStandInModels();
+  return res.json({ models });
 });
 
 /**
@@ -148,13 +148,13 @@ router.get('/stand-in-models', (_req: Request, res: Response) => {
  * Get a specific stand-in model
  */
 router.get('/stand-in-models/:id', (req: Request, res: Response) => {
-    const model = layerService.getStandInModel(req.params.id);
+  const model = layerService.getStandInModel(req.params.id);
 
-    if (!model) {
-        return res.status(404).json({ error: 'Stand-in model not found' });
-    }
+  if (!model) {
+    return res.status(404).json({ error: 'Stand-in model not found' });
+  }
 
-    return res.json({ model });
+  return res.json({ model });
 });
 
 // ============================================================================
@@ -166,31 +166,26 @@ router.get('/stand-in-models/:id', (req: Request, res: Response) => {
  * Calculate subject size in frame based on camera settings
  */
 router.post('/calculate-framing', (req: Request, res: Response) => {
-    try {
-        const {
-            subjectHeightCm,
-            distanceM,
-            focalLengthMm,
-            sensorHeightMm,
-        } = req.body;
+  try {
+    const { subjectHeightCm, distanceM, focalLengthMm, sensorHeightMm } = req.body;
 
-        if (!subjectHeightCm || !distanceM || !focalLengthMm || !sensorHeightMm) {
-            return res.status(400).json({
-                error: 'Required: subjectHeightCm, distanceM, focalLengthMm, sensorHeightMm'
-            });
-        }
-
-        const result = layerService.calculateSubjectSize(
-            subjectHeightCm,
-            distanceM,
-            focalLengthMm,
-            sensorHeightMm
-        );
-
-        return res.json(result);
-    } catch (error: any) {
-        return res.status(500).json({ error: error.message });
+    if (!subjectHeightCm || !distanceM || !focalLengthMm || !sensorHeightMm) {
+      return res.status(400).json({
+        error: 'Required: subjectHeightCm, distanceM, focalLengthMm, sensorHeightMm',
+      });
     }
+
+    const result = layerService.calculateSubjectSize(
+      subjectHeightCm,
+      distanceM,
+      focalLengthMm,
+      sensorHeightMm
+    );
+
+    return res.json(result);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
 });
 
 /**
@@ -198,31 +193,26 @@ router.post('/calculate-framing', (req: Request, res: Response) => {
  * Calculate distance needed for a target framing
  */
 router.post('/calculate-distance', (req: Request, res: Response) => {
-    try {
-        const {
-            subjectHeightCm,
-            targetSizeInFrame,
-            focalLengthMm,
-            sensorHeightMm,
-        } = req.body;
+  try {
+    const { subjectHeightCm, targetSizeInFrame, focalLengthMm, sensorHeightMm } = req.body;
 
-        if (!subjectHeightCm || !targetSizeInFrame || !focalLengthMm || !sensorHeightMm) {
-            return res.status(400).json({
-                error: 'Required: subjectHeightCm, targetSizeInFrame, focalLengthMm, sensorHeightMm'
-            });
-        }
-
-        const distance = layerService.calculateDistanceForFraming(
-            subjectHeightCm,
-            targetSizeInFrame,
-            focalLengthMm,
-            sensorHeightMm
-        );
-
-        return res.json({ distanceM: distance });
-    } catch (error: any) {
-        return res.status(500).json({ error: error.message });
+    if (!subjectHeightCm || !targetSizeInFrame || !focalLengthMm || !sensorHeightMm) {
+      return res.status(400).json({
+        error: 'Required: subjectHeightCm, targetSizeInFrame, focalLengthMm, sensorHeightMm',
+      });
     }
+
+    const distance = layerService.calculateDistanceForFraming(
+      subjectHeightCm,
+      targetSizeInFrame,
+      focalLengthMm,
+      sensorHeightMm
+    );
+
+    return res.json({ distanceM: distance });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
 });
 
 export default router;

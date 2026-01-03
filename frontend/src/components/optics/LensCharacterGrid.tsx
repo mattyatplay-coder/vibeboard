@@ -108,15 +108,21 @@ export function LensCharacterGrid({
   const [currentBokeh, setCurrentBokeh] = useState<BokehShape>(selectedBokeh);
   const [isApplying, setIsApplying] = useState(false);
 
-  const handleLensSelect = useCallback((lensType: LensType) => {
-    setCurrentLens(lensType);
-    onSelect?.(lensType, currentBokeh);
-  }, [currentBokeh, onSelect]);
+  const handleLensSelect = useCallback(
+    (lensType: LensType) => {
+      setCurrentLens(lensType);
+      onSelect?.(lensType, currentBokeh);
+    },
+    [currentBokeh, onSelect]
+  );
 
-  const handleBokehSelect = useCallback((bokehShape: BokehShape) => {
-    setCurrentBokeh(bokehShape);
-    onSelect?.(currentLens, bokehShape);
-  }, [currentLens, onSelect]);
+  const handleBokehSelect = useCallback(
+    (bokehShape: BokehShape) => {
+      setCurrentBokeh(bokehShape);
+      onSelect?.(currentLens, bokehShape);
+    },
+    [currentLens, onSelect]
+  );
 
   const handleApply = useCallback(async () => {
     if (!onApply) return;
@@ -166,7 +172,7 @@ export function LensCharacterGrid({
           Lens Character
         </h3>
         <div className="grid grid-cols-2 gap-3">
-          {LENS_TYPES.map((lens) => {
+          {LENS_TYPES.map(lens => {
             const isSelected = currentLens === lens.id;
             const colors = getColorClasses(lens.color, isSelected);
             const Icon = lens.icon;
@@ -212,7 +218,7 @@ export function LensCharacterGrid({
           Bokeh Shape
         </h3>
         <div className="flex gap-2">
-          {BOKEH_SHAPES.map((shape) => {
+          {BOKEH_SHAPES.map(shape => {
             const isSelected = currentBokeh === shape.id;
 
             return (

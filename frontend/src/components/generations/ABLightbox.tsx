@@ -535,407 +535,287 @@ export function ABLightbox({
 
   return (
     <TooltipProvider>
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm"
-        onClick={e => e.target === e.currentTarget && onClose()}
-      >
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 z-50 rounded-lg bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm"
+          onClick={e => e.target === e.currentTarget && onClose()}
         >
-          <X className="h-6 w-6" />
-        </button>
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 z-50 rounded-lg bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+          >
+            <X className="h-6 w-6" />
+          </button>
 
-        {/* Navigation Arrows */}
-        {availableShots.length > 1 && (
-          <>
-            <button
-              onClick={goToPrevShot}
-              className="absolute top-1/2 left-4 -translate-y-1/2 rounded-full bg-white/10 p-3 text-white transition-colors hover:bg-white/20"
-            >
-              <ChevronLeft className="h-8 w-8" />
-            </button>
-            <button
-              onClick={goToNextShot}
-              className="absolute top-1/2 right-4 -translate-y-1/2 rounded-full bg-white/10 p-3 text-white transition-colors hover:bg-white/20"
-            >
-              <ChevronRight className="h-8 w-8" />
-            </button>
-          </>
-        )}
-
-        {/* Main Content */}
-        <div className="w-full max-w-6xl px-16">
-          {/* Shot Name & Navigation */}
-          <div className="mb-2 flex items-center justify-center gap-4">
-            <h2 className="text-lg font-medium text-white/80">
-              {comparison?.shotName || currentShot?.shotName || 'A/B Comparison'}
-            </h2>
-            {availableShots.length > 1 && (
-              <span className="text-sm text-gray-500">
-                ({currentShotIndex + 1} / {availableShots.length})
-              </span>
-            )}
-          </div>
-
-          {/* Professional Metadata Header - DaVinci Resolve Style */}
-          {comparison?.passA && comparison?.passB && (
-            <div className="mb-3 flex items-stretch justify-between overflow-hidden rounded-lg border border-white/10 bg-black/40">
-              {/* Left Side (Quality A) Metadata */}
-              <div className="flex-1 border-r border-white/10 px-4 py-2">
-                <div className="flex items-center gap-3">
-                  <span
-                    className={clsx(
-                      'rounded px-2 py-0.5 text-xs font-bold tracking-wider uppercase',
-                      QUALITY_COLORS[qualityA]
-                    )}
-                  >
-                    {qualityA}
-                  </span>
-                  <span className="text-sm text-white/60">•</span>
-                  <span className="font-mono text-sm text-white/80">
-                    {getResolutionLabel(comparison.passA)}
-                  </span>
-                  <span className="text-sm text-white/60">•</span>
-                  <span className="max-w-[120px] truncate text-sm text-white/60">
-                    {comparison.passA.model.split('/').pop()}
-                  </span>
-                  <span className="text-sm text-white/60">•</span>
-                  <span className="font-mono text-sm text-green-400">
-                    ${comparison.passA.cost.toFixed(2)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Center Controls - Zoom */}
-              <div className="flex items-center gap-1 bg-white/5 px-3">
-                <Tooltip content="Zoom out (-)" side="top">
-                  <button
-                    onClick={handleZoomOut}
-                    disabled={zoom <= 1}
-                    className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-                  >
-                    <ZoomOut className="h-4 w-4" />
-                  </button>
-                </Tooltip>
-                <Tooltip content="Reset zoom (0)" side="top">
-                  <button
-                    onClick={resetZoom}
-                    disabled={zoom === 1}
-                    className="min-w-[48px] rounded px-2 py-1 font-mono text-xs text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-                  >
-                    {Math.round(zoom * 100)}%
-                  </button>
-                </Tooltip>
-                <Tooltip content="Zoom in (+)" side="top">
-                  <button
-                    onClick={handleZoomIn}
-                    disabled={zoom >= 8}
-                    className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-                  >
-                    <ZoomIn className="h-4 w-4" />
-                  </button>
-                </Tooltip>
-                <div className="mx-1 h-6 w-px bg-white/10" />
-                <Tooltip content="Flicker mode (F)" side="top">
-                  <button
-                    onClick={() => setFlickerMode(prev => !prev)}
-                    className={clsx(
-                      'rounded p-1.5 transition-colors',
-                      flickerMode
-                        ? 'bg-cyan-500/30 text-cyan-400'
-                        : 'text-gray-400 hover:bg-white/10 hover:text-white'
-                    )}
-                  >
-                    <Monitor className="h-4 w-4" />
-                  </button>
-                </Tooltip>
-                <Tooltip content="Magnifier lens (M)" side="top">
-                  <button
-                    onClick={() => setMagnifierEnabled(prev => !prev)}
-                    className={clsx(
-                      'rounded p-1.5 transition-colors',
-                      magnifierEnabled
-                        ? 'bg-purple-500/30 text-purple-400'
-                        : 'text-gray-400 hover:bg-white/10 hover:text-white'
-                    )}
-                  >
-                    <Search className="h-4 w-4" />
-                  </button>
-                </Tooltip>
-              </div>
-
-              {/* Right Side (Quality B) Metadata */}
-              <div className="flex-1 border-l border-white/10 px-4 py-2 text-right">
-                <div className="flex items-center justify-end gap-3">
-                  <span className="font-mono text-sm text-green-400">
-                    ${comparison.passB.cost.toFixed(2)}
-                  </span>
-                  <span className="text-sm text-white/60">•</span>
-                  <span className="max-w-[120px] truncate text-sm text-white/60">
-                    {comparison.passB.model.split('/').pop()}
-                  </span>
-                  <span className="text-sm text-white/60">•</span>
-                  <span className="font-mono text-sm text-white/80">
-                    {getResolutionLabel(comparison.passB)}
-                  </span>
-                  <span className="text-sm text-white/60">•</span>
-                  <span
-                    className={clsx(
-                      'rounded px-2 py-0.5 text-xs font-bold tracking-wider uppercase',
-                      QUALITY_COLORS[qualityB]
-                    )}
-                  >
-                    {qualityB}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Quality Selector - only if more than 2 qualities available */}
-          {currentShot && currentShot.availableQualities.length > 2 && (
-            <div className="mb-3 flex justify-center gap-4">
-              <div className="flex items-center gap-2 rounded-lg bg-black/30 px-3 py-1.5">
-                <span className="text-xs text-gray-500">Compare:</span>
-                <select
-                  value={qualityA}
-                  onChange={e => setQualityA(e.target.value as RenderQuality)}
-                  className="rounded border border-white/20 bg-white/10 px-2 py-0.5 text-sm text-white"
-                >
-                  {currentShot.availableQualities.map(q => (
-                    <option key={q} value={q} className="bg-gray-900">
-                      {q.charAt(0).toUpperCase() + q.slice(1)}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-gray-500">vs</span>
-                <select
-                  value={qualityB}
-                  onChange={e => setQualityB(e.target.value as RenderQuality)}
-                  className="rounded border border-white/20 bg-white/10 px-2 py-0.5 text-sm text-white"
-                >
-                  {currentShot.availableQualities.map(q => (
-                    <option key={q} value={q} className="bg-gray-900">
-                      {q.charAt(0).toUpperCase() + q.slice(1)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
-
-          {/* Split-Screen Comparison */}
-          {comparison?.passA && comparison?.passB ? (
-            <div
-              ref={containerRef}
-              className={clsx(
-                'relative aspect-video overflow-hidden rounded-lg bg-gray-900',
-                isPanning
-                  ? 'cursor-grabbing'
-                  : zoomMode && zoom > 1
-                    ? 'cursor-grab'
-                    : magnifierEnabled
-                      ? 'cursor-none'
-                      : 'cursor-col-resize'
-              )}
-              onMouseDown={e => {
-                if (magnifierEnabled) return; // Don't drag slider in magnifier mode
-                // Check if clicking on the slider handle area
-                const rect = containerRef.current?.getBoundingClientRect();
-                if (rect) {
-                  const x = e.clientX - rect.left;
-                  const sliderX = (sliderPosition / 100) * rect.width;
-                  const isNearSlider = Math.abs(x - sliderX) < 30;
-
-                  if (isNearSlider && !e.altKey && !zoomMode) {
-                    setIsDragging(true);
-                  } else if ((e.altKey || zoomMode) && zoom > 1) {
-                    handlePanStart(e);
-                  } else if (!e.altKey && !zoomMode) {
-                    setIsDragging(true);
-                  }
-                }
-              }}
-              onMouseMove={handleMagnifierMove}
-              onMouseLeave={handleMagnifierLeave}
-              onWheel={handleWheel}
-            >
-              {/* Synchronized transform wrapper for both sides */}
-              <div
-                className="absolute inset-0"
-                style={{
-                  transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
-                  transformOrigin: 'center center',
-                  transition: isPanning ? 'none' : 'transform 0.1s ease-out',
-                }}
+          {/* Navigation Arrows */}
+          {availableShots.length > 1 && (
+            <>
+              <button
+                onClick={goToPrevShot}
+                className="absolute top-1/2 left-4 -translate-y-1/2 rounded-full bg-white/10 p-3 text-white transition-colors hover:bg-white/20"
               >
-                {/* Left Side (Quality A) - Flicker mode or Split mode */}
-                <div
-                  className="absolute inset-0 overflow-hidden transition-opacity duration-75"
-                  style={{
-                    clipPath: flickerMode ? 'none' : `inset(0 ${100 - sliderPosition}% 0 0)`,
-                    opacity: flickerMode ? (flickerShowA ? 1 : 0) : 1,
-                  }}
-                >
-                  {comparison.passA.outputUrl.endsWith('.mp4') ||
-                  comparison.passA.outputUrl.includes('video') ? (
-                    <video
-                      ref={videoARef}
-                      src={comparison.passA.outputUrl}
-                      className="h-full w-full object-contain"
-                      autoPlay={isPlaying}
-                      loop={isLooping}
-                      muted
-                      playsInline
-                    />
-                  ) : (
-                    <img
-                      src={comparison.passA.outputUrl}
-                      alt={`${qualityA} quality`}
-                      className="h-full w-full object-contain"
-                      draggable={false}
-                    />
-                  )}
+                <ChevronLeft className="h-8 w-8" />
+              </button>
+              <button
+                onClick={goToNextShot}
+                className="absolute top-1/2 right-4 -translate-y-1/2 rounded-full bg-white/10 p-3 text-white transition-colors hover:bg-white/20"
+              >
+                <ChevronRight className="h-8 w-8" />
+              </button>
+            </>
+          )}
+
+          {/* Main Content */}
+          <div className="w-full max-w-6xl px-16">
+            {/* Shot Name & Navigation */}
+            <div className="mb-2 flex items-center justify-center gap-4">
+              <h2 className="text-lg font-medium text-white/80">
+                {comparison?.shotName || currentShot?.shotName || 'A/B Comparison'}
+              </h2>
+              {availableShots.length > 1 && (
+                <span className="text-sm text-gray-500">
+                  ({currentShotIndex + 1} / {availableShots.length})
+                </span>
+              )}
+            </div>
+
+            {/* Professional Metadata Header - DaVinci Resolve Style */}
+            {comparison?.passA && comparison?.passB && (
+              <div className="mb-3 flex items-stretch justify-between overflow-hidden rounded-lg border border-white/10 bg-black/40">
+                {/* Left Side (Quality A) Metadata */}
+                <div className="flex-1 border-r border-white/10 px-4 py-2">
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={clsx(
+                        'rounded px-2 py-0.5 text-xs font-bold tracking-wider uppercase',
+                        QUALITY_COLORS[qualityA]
+                      )}
+                    >
+                      {qualityA}
+                    </span>
+                    <span className="text-sm text-white/60">•</span>
+                    <span className="font-mono text-sm text-white/80">
+                      {getResolutionLabel(comparison.passA)}
+                    </span>
+                    <span className="text-sm text-white/60">•</span>
+                    <span className="max-w-[120px] truncate text-sm text-white/60">
+                      {comparison.passA.model.split('/').pop()}
+                    </span>
+                    <span className="text-sm text-white/60">•</span>
+                    <span className="font-mono text-sm text-green-400">
+                      ${comparison.passA.cost.toFixed(2)}
+                    </span>
+                  </div>
                 </div>
 
-                {/* Right Side (Quality B) - Flicker mode or Split mode */}
-                <div
-                  className="absolute inset-0 overflow-hidden transition-opacity duration-75"
-                  style={{
-                    clipPath: flickerMode ? 'none' : `inset(0 0 0 ${sliderPosition}%)`,
-                    opacity: flickerMode ? (flickerShowA ? 0 : 1) : 1,
-                  }}
-                >
-                  {comparison.passB.outputUrl.endsWith('.mp4') ||
-                  comparison.passB.outputUrl.includes('video') ? (
-                    <video
-                      ref={videoBRef}
-                      src={comparison.passB.outputUrl}
-                      className="h-full w-full object-contain"
-                      autoPlay={isPlaying}
-                      loop={isLooping}
-                      muted
-                      playsInline
-                    />
-                  ) : (
-                    <img
-                      src={comparison.passB.outputUrl}
-                      alt={`${qualityB} quality`}
-                      className="h-full w-full object-contain"
-                      draggable={false}
-                    />
-                  )}
+                {/* Center Controls - Zoom */}
+                <div className="flex items-center gap-1 bg-white/5 px-3">
+                  <Tooltip content="Zoom out (-)" side="top">
+                    <button
+                      onClick={handleZoomOut}
+                      disabled={zoom <= 1}
+                      className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                    >
+                      <ZoomOut className="h-4 w-4" />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Reset zoom (0)" side="top">
+                    <button
+                      onClick={resetZoom}
+                      disabled={zoom === 1}
+                      className="min-w-[48px] rounded px-2 py-1 font-mono text-xs text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                    >
+                      {Math.round(zoom * 100)}%
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Zoom in (+)" side="top">
+                    <button
+                      onClick={handleZoomIn}
+                      disabled={zoom >= 8}
+                      className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                    >
+                      <ZoomIn className="h-4 w-4" />
+                    </button>
+                  </Tooltip>
+                  <div className="mx-1 h-6 w-px bg-white/10" />
+                  <Tooltip content="Flicker mode (F)" side="top">
+                    <button
+                      onClick={() => setFlickerMode(prev => !prev)}
+                      className={clsx(
+                        'rounded p-1.5 transition-colors',
+                        flickerMode
+                          ? 'bg-cyan-500/30 text-cyan-400'
+                          : 'text-gray-400 hover:bg-white/10 hover:text-white'
+                      )}
+                    >
+                      <Monitor className="h-4 w-4" />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Magnifier lens (M)" side="top">
+                    <button
+                      onClick={() => setMagnifierEnabled(prev => !prev)}
+                      className={clsx(
+                        'rounded p-1.5 transition-colors',
+                        magnifierEnabled
+                          ? 'bg-purple-500/30 text-purple-400'
+                          : 'text-gray-400 hover:bg-white/10 hover:text-white'
+                      )}
+                    >
+                      <Search className="h-4 w-4" />
+                    </button>
+                  </Tooltip>
+                </div>
+
+                {/* Right Side (Quality B) Metadata */}
+                <div className="flex-1 border-l border-white/10 px-4 py-2 text-right">
+                  <div className="flex items-center justify-end gap-3">
+                    <span className="font-mono text-sm text-green-400">
+                      ${comparison.passB.cost.toFixed(2)}
+                    </span>
+                    <span className="text-sm text-white/60">•</span>
+                    <span className="max-w-[120px] truncate text-sm text-white/60">
+                      {comparison.passB.model.split('/').pop()}
+                    </span>
+                    <span className="text-sm text-white/60">•</span>
+                    <span className="font-mono text-sm text-white/80">
+                      {getResolutionLabel(comparison.passB)}
+                    </span>
+                    <span className="text-sm text-white/60">•</span>
+                    <span
+                      className={clsx(
+                        'rounded px-2 py-0.5 text-xs font-bold tracking-wider uppercase',
+                        QUALITY_COLORS[qualityB]
+                      )}
+                    >
+                      {qualityB}
+                    </span>
+                  </div>
                 </div>
               </div>
+            )}
 
-              {/* Flicker Mode Indicator */}
-              {flickerMode && (
-                <div
-                  className={clsx(
-                    'absolute top-4 left-1/2 z-20 -translate-x-1/2 rounded-lg px-4 py-2 text-sm font-bold tracking-wider uppercase transition-all duration-75',
-                    flickerShowA ? QUALITY_COLORS[qualityA] : QUALITY_COLORS[qualityB]
-                  )}
-                >
-                  {flickerShowA ? qualityA : qualityB}
-                </div>
-              )}
-
-              {/* Labels (outside transform to stay fixed) - hidden in flicker mode */}
-              {!flickerMode && (
-                <>
-                  <div
-                    className={clsx(
-                      'absolute top-4 left-4 z-10 flex items-center gap-2 rounded-lg px-3 py-1.5',
-                      QUALITY_COLORS[qualityA]
-                    )}
+            {/* Quality Selector - only if more than 2 qualities available */}
+            {currentShot && currentShot.availableQualities.length > 2 && (
+              <div className="mb-3 flex justify-center gap-4">
+                <div className="flex items-center gap-2 rounded-lg bg-black/30 px-3 py-1.5">
+                  <span className="text-xs text-gray-500">Compare:</span>
+                  <select
+                    value={qualityA}
+                    onChange={e => setQualityA(e.target.value as RenderQuality)}
+                    className="rounded border border-white/20 bg-white/10 px-2 py-0.5 text-sm text-white"
                   >
-                    {QUALITY_ICONS[qualityA]}
-                    <span className="text-sm font-medium uppercase">{qualityA}</span>
-                  </div>
-                  <div
-                    className={clsx(
-                      'absolute top-4 right-4 z-10 flex items-center gap-2 rounded-lg px-3 py-1.5',
-                      QUALITY_COLORS[qualityB]
-                    )}
+                    {currentShot.availableQualities.map(q => (
+                      <option key={q} value={q} className="bg-gray-900">
+                        {q.charAt(0).toUpperCase() + q.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-gray-500">vs</span>
+                  <select
+                    value={qualityB}
+                    onChange={e => setQualityB(e.target.value as RenderQuality)}
+                    className="rounded border border-white/20 bg-white/10 px-2 py-0.5 text-sm text-white"
                   >
-                    {QUALITY_ICONS[qualityB]}
-                    <span className="text-sm font-medium uppercase">{qualityB}</span>
-                  </div>
-                </>
-              )}
+                    {currentShot.availableQualities.map(q => (
+                      <option key={q} value={q} className="bg-gray-900">
+                        {q.charAt(0).toUpperCase() + q.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
 
-              {/* Slider Handle - hidden in flicker mode */}
-              {!flickerMode && (
+            {/* Split-Screen Comparison */}
+            {comparison?.passA && comparison?.passB ? (
+              <div
+                ref={containerRef}
+                className={clsx(
+                  'relative aspect-video overflow-hidden rounded-lg bg-gray-900',
+                  isPanning
+                    ? 'cursor-grabbing'
+                    : zoomMode && zoom > 1
+                      ? 'cursor-grab'
+                      : magnifierEnabled
+                        ? 'cursor-none'
+                        : 'cursor-col-resize'
+                )}
+                onMouseDown={e => {
+                  if (magnifierEnabled) return; // Don't drag slider in magnifier mode
+                  // Check if clicking on the slider handle area
+                  const rect = containerRef.current?.getBoundingClientRect();
+                  if (rect) {
+                    const x = e.clientX - rect.left;
+                    const sliderX = (sliderPosition / 100) * rect.width;
+                    const isNearSlider = Math.abs(x - sliderX) < 30;
+
+                    if (isNearSlider && !e.altKey && !zoomMode) {
+                      setIsDragging(true);
+                    } else if ((e.altKey || zoomMode) && zoom > 1) {
+                      handlePanStart(e);
+                    } else if (!e.altKey && !zoomMode) {
+                      setIsDragging(true);
+                    }
+                  }
+                }}
+                onMouseMove={handleMagnifierMove}
+                onMouseLeave={handleMagnifierLeave}
+                onWheel={handleWheel}
+              >
+                {/* Synchronized transform wrapper for both sides */}
                 <div
-                  className="absolute top-0 bottom-0 z-20 w-1 cursor-col-resize bg-white/80"
-                  style={{ left: `${sliderPosition}%`, transform: 'translateX(-50%)' }}
-                >
-                  <div className="absolute top-1/2 left-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 shadow-lg">
-                    <GripVertical className="h-5 w-5 text-gray-600" />
-                  </div>
-                </div>
-              )}
-
-              {/* Zoom indicator */}
-              {zoom > 1 && !flickerMode && (
-                <div className="absolute top-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-white/90">
-                  {Math.round(zoom * 100)}%
-                </div>
-              )}
-
-              {/* Help Hints */}
-              {!isDragging && !isPanning && !flickerMode && !magnifierEnabled && (
-                <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-2">
-                  <div className="rounded-full bg-black/60 px-3 py-1.5 text-xs text-white/70">
-                    Drag slider to compare
-                  </div>
-                  {zoom === 1 && (
-                    <div className="rounded-full bg-black/60 px-3 py-1.5 text-xs text-white/70">
-                      Scroll to zoom
-                    </div>
-                  )}
-                  {zoom > 1 && (
-                    <div className="rounded-full bg-black/60 px-3 py-1.5 text-xs text-white/70">
-                      Hold ⌥ + drag to pan
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Magnifier Lens - The "Pixel-Peeper" */}
-              {magnifierEnabled && showMagnifier && containerSize.width > 0 && (
-                <div
-                  className="pointer-events-none absolute z-30 overflow-hidden rounded-full border-2 border-purple-400/80 shadow-xl"
+                  className="absolute inset-0"
                   style={{
-                    width: MAGNIFIER_SIZE,
-                    height: MAGNIFIER_SIZE,
-                    left: magnifierPos.x - MAGNIFIER_SIZE / 2,
-                    top: magnifierPos.y - MAGNIFIER_SIZE / 2,
-                    boxShadow:
-                      '0 0 20px rgba(168, 85, 247, 0.4), inset 0 0 10px rgba(0, 0, 0, 0.5)',
+                    transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+                    transformOrigin: 'center center',
+                    transition: isPanning ? 'none' : 'transform 0.1s ease-out',
                   }}
                 >
-                  {/* Magnified Master (Right side - Quality B) content */}
+                  {/* Left Side (Quality A) - Flicker mode or Split mode */}
                   <div
-                    className="absolute"
+                    className="absolute inset-0 overflow-hidden transition-opacity duration-75"
                     style={{
-                      width: containerSize.width,
-                      height: containerSize.height,
-                      transform: `scale(${MAGNIFIER_ZOOM})`,
-                      transformOrigin: `${magnifierPos.x}px ${magnifierPos.y}px`,
-                      left: -magnifierPos.x + MAGNIFIER_SIZE / 2,
-                      top: -magnifierPos.y + MAGNIFIER_SIZE / 2,
+                      clipPath: flickerMode ? 'none' : `inset(0 ${100 - sliderPosition}% 0 0)`,
+                      opacity: flickerMode ? (flickerShowA ? 1 : 0) : 1,
+                    }}
+                  >
+                    {comparison.passA.outputUrl.endsWith('.mp4') ||
+                    comparison.passA.outputUrl.includes('video') ? (
+                      <video
+                        ref={videoARef}
+                        src={comparison.passA.outputUrl}
+                        className="h-full w-full object-contain"
+                        autoPlay={isPlaying}
+                        loop={isLooping}
+                        muted
+                        playsInline
+                      />
+                    ) : (
+                      <img
+                        src={comparison.passA.outputUrl}
+                        alt={`${qualityA} quality`}
+                        className="h-full w-full object-contain"
+                        draggable={false}
+                      />
+                    )}
+                  </div>
+
+                  {/* Right Side (Quality B) - Flicker mode or Split mode */}
+                  <div
+                    className="absolute inset-0 overflow-hidden transition-opacity duration-75"
+                    style={{
+                      clipPath: flickerMode ? 'none' : `inset(0 0 0 ${sliderPosition}%)`,
+                      opacity: flickerMode ? (flickerShowA ? 0 : 1) : 1,
                     }}
                   >
                     {comparison.passB.outputUrl.endsWith('.mp4') ||
                     comparison.passB.outputUrl.includes('video') ? (
                       <video
+                        ref={videoBRef}
                         src={comparison.passB.outputUrl}
                         className="h-full w-full object-contain"
                         autoPlay={isPlaying}
@@ -946,171 +826,291 @@ export function ABLightbox({
                     ) : (
                       <img
                         src={comparison.passB.outputUrl}
-                        alt="Magnified master"
+                        alt={`${qualityB} quality`}
                         className="h-full w-full object-contain"
                         draggable={false}
                       />
                     )}
                   </div>
-                  {/* Crosshair */}
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <div className="h-full w-px bg-purple-400/30" />
-                    <div className="absolute h-px w-full bg-purple-400/30" />
-                  </div>
-                  {/* Quality label */}
-                  <div className="absolute bottom-1 left-1/2 -translate-x-1/2 rounded bg-purple-500/80 px-2 py-0.5 text-[9px] font-bold tracking-wider text-white uppercase">
-                    {qualityB} @ {MAGNIFIER_ZOOM}×
-                  </div>
                 </div>
-              )}
 
-              {/* Magnifier Mode Hint */}
-              {magnifierEnabled && !showMagnifier && (
-                <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border border-purple-400/30 bg-purple-500/30 px-3 py-1.5 text-xs text-purple-300">
-                  Hover to inspect {qualityB} at {MAGNIFIER_ZOOM}× zoom
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex aspect-video items-center justify-center rounded-lg bg-gray-900 text-gray-500">
-              {availableShots.length === 0
-                ? 'No comparisons available. Render at multiple quality levels first.'
-                : 'Loading comparison...'}
-            </div>
-          )}
+                {/* Flicker Mode Indicator */}
+                {flickerMode && (
+                  <div
+                    className={clsx(
+                      'absolute top-4 left-1/2 z-20 -translate-x-1/2 rounded-lg px-4 py-2 text-sm font-bold tracking-wider uppercase transition-all duration-75',
+                      flickerShowA ? QUALITY_COLORS[qualityA] : QUALITY_COLORS[qualityB]
+                    )}
+                  >
+                    {flickerShowA ? qualityA : qualityB}
+                  </div>
+                )}
 
-          {/* Professional Footer - Video Transport & Actions */}
-          {comparison?.passA && comparison?.passB && (
-            <div className="mt-3 flex items-center justify-between overflow-hidden rounded-lg border border-white/10 bg-black/40">
-              {/* Left Side - Reject / Keep Draft */}
-              <div className="flex-1 px-4 py-2.5">
-                <button
-                  onClick={handleRejectMaster}
-                  disabled={!onRejectMaster}
-                  className={clsx(
-                    'flex items-center gap-2 rounded-lg px-4 py-2 transition-all',
-                    onRejectMaster
-                      ? 'border border-red-500/30 bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                      : 'cursor-not-allowed border border-white/10 bg-white/5 text-gray-500'
-                  )}
-                >
-                  <XCircle className="h-4 w-4" />
-                  <span className="text-sm font-medium">
-                    Keep {qualityA.charAt(0).toUpperCase() + qualityA.slice(1)} Only
-                  </span>
-                </button>
-              </div>
-
-              {/* Center - Video Transport Controls */}
-              <div className="flex items-center gap-1 bg-white/5 px-4 py-2.5">
-                {isVideoComparison ? (
+                {/* Labels (outside transform to stay fixed) - hidden in flicker mode */}
+                {!flickerMode && (
                   <>
-                    {/* Frame step backward */}
-                    <Tooltip content="Previous frame (Shift+←)" side="top">
-                      <button
-                        onClick={() => stepFrame('backward')}
-                        className="rounded p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-                      >
-                        <SkipBack className="h-4 w-4" />
-                      </button>
-                    </Tooltip>
-
-                    {/* Play/Pause */}
-                    <Tooltip content="Play/Pause (Space)" side="top">
-                      <button
-                        onClick={togglePlayPause}
-                        className="rounded-full bg-white/10 p-2.5 text-white transition-colors hover:bg-white/20"
-                      >
-                        {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-                      </button>
-                    </Tooltip>
-
-                    {/* Frame step forward */}
-                    <Tooltip content="Next frame (Shift+→)" side="top">
-                      <button
-                        onClick={() => stepFrame('forward')}
-                        className="rounded p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-                      >
-                        <SkipForward className="h-4 w-4" />
-                      </button>
-                    </Tooltip>
-
-                    {/* Loop toggle */}
-                    <Tooltip content="Toggle loop" side="top">
-                      <button
-                        onClick={() => setIsLooping(prev => !prev)}
-                        className={clsx(
-                          'rounded p-2 transition-colors',
-                          isLooping
-                            ? 'bg-blue-500/20 text-blue-400'
-                            : 'text-gray-400 hover:bg-white/10 hover:text-white'
-                        )}
-                      >
-                        <Repeat className="h-4 w-4" />
-                      </button>
-                    </Tooltip>
-
-                    {/* Timecode */}
-                    <div className="ml-2 rounded bg-black/40 px-2 py-1 font-mono text-xs text-white/70">
-                      {formatTime(currentTime)} / {formatTime(duration)}
+                    <div
+                      className={clsx(
+                        'absolute top-4 left-4 z-10 flex items-center gap-2 rounded-lg px-3 py-1.5',
+                        QUALITY_COLORS[qualityA]
+                      )}
+                    >
+                      {QUALITY_ICONS[qualityA]}
+                      <span className="text-sm font-medium uppercase">{qualityA}</span>
+                    </div>
+                    <div
+                      className={clsx(
+                        'absolute top-4 right-4 z-10 flex items-center gap-2 rounded-lg px-3 py-1.5',
+                        QUALITY_COLORS[qualityB]
+                      )}
+                    >
+                      {QUALITY_ICONS[qualityB]}
+                      <span className="text-sm font-medium uppercase">{qualityB}</span>
                     </div>
                   </>
-                ) : (
-                  /* Image mode - just show upgrade cost */
-                  <div className="px-4 text-sm text-gray-400">
-                    Upgrade cost:{' '}
-                    <span className="font-medium text-green-400">
-                      +${comparison.costDifference.toFixed(2)}
-                    </span>
+                )}
+
+                {/* Slider Handle - hidden in flicker mode */}
+                {!flickerMode && (
+                  <div
+                    className="absolute top-0 bottom-0 z-20 w-1 cursor-col-resize bg-white/80"
+                    style={{ left: `${sliderPosition}%`, transform: 'translateX(-50%)' }}
+                  >
+                    <div className="absolute top-1/2 left-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 shadow-lg">
+                      <GripVertical className="h-5 w-5 text-gray-600" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Zoom indicator */}
+                {zoom > 1 && !flickerMode && (
+                  <div className="absolute top-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-white/90">
+                    {Math.round(zoom * 100)}%
+                  </div>
+                )}
+
+                {/* Help Hints */}
+                {!isDragging && !isPanning && !flickerMode && !magnifierEnabled && (
+                  <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-2">
+                    <div className="rounded-full bg-black/60 px-3 py-1.5 text-xs text-white/70">
+                      Drag slider to compare
+                    </div>
+                    {zoom === 1 && (
+                      <div className="rounded-full bg-black/60 px-3 py-1.5 text-xs text-white/70">
+                        Scroll to zoom
+                      </div>
+                    )}
+                    {zoom > 1 && (
+                      <div className="rounded-full bg-black/60 px-3 py-1.5 text-xs text-white/70">
+                        Hold ⌥ + drag to pan
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Magnifier Lens - The "Pixel-Peeper" */}
+                {magnifierEnabled && showMagnifier && containerSize.width > 0 && (
+                  <div
+                    className="pointer-events-none absolute z-30 overflow-hidden rounded-full border-2 border-purple-400/80 shadow-xl"
+                    style={{
+                      width: MAGNIFIER_SIZE,
+                      height: MAGNIFIER_SIZE,
+                      left: magnifierPos.x - MAGNIFIER_SIZE / 2,
+                      top: magnifierPos.y - MAGNIFIER_SIZE / 2,
+                      boxShadow:
+                        '0 0 20px rgba(168, 85, 247, 0.4), inset 0 0 10px rgba(0, 0, 0, 0.5)',
+                    }}
+                  >
+                    {/* Magnified Master (Right side - Quality B) content */}
+                    <div
+                      className="absolute"
+                      style={{
+                        width: containerSize.width,
+                        height: containerSize.height,
+                        transform: `scale(${MAGNIFIER_ZOOM})`,
+                        transformOrigin: `${magnifierPos.x}px ${magnifierPos.y}px`,
+                        left: -magnifierPos.x + MAGNIFIER_SIZE / 2,
+                        top: -magnifierPos.y + MAGNIFIER_SIZE / 2,
+                      }}
+                    >
+                      {comparison.passB.outputUrl.endsWith('.mp4') ||
+                      comparison.passB.outputUrl.includes('video') ? (
+                        <video
+                          src={comparison.passB.outputUrl}
+                          className="h-full w-full object-contain"
+                          autoPlay={isPlaying}
+                          loop={isLooping}
+                          muted
+                          playsInline
+                        />
+                      ) : (
+                        <img
+                          src={comparison.passB.outputUrl}
+                          alt="Magnified master"
+                          className="h-full w-full object-contain"
+                          draggable={false}
+                        />
+                      )}
+                    </div>
+                    {/* Crosshair */}
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                      <div className="h-full w-px bg-purple-400/30" />
+                      <div className="absolute h-px w-full bg-purple-400/30" />
+                    </div>
+                    {/* Quality label */}
+                    <div className="absolute bottom-1 left-1/2 -translate-x-1/2 rounded bg-purple-500/80 px-2 py-0.5 text-[9px] font-bold tracking-wider text-white uppercase">
+                      {qualityB} @ {MAGNIFIER_ZOOM}×
+                    </div>
+                  </div>
+                )}
+
+                {/* Magnifier Mode Hint */}
+                {magnifierEnabled && !showMagnifier && (
+                  <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border border-purple-400/30 bg-purple-500/30 px-3 py-1.5 text-xs text-purple-300">
+                    Hover to inspect {qualityB} at {MAGNIFIER_ZOOM}× zoom
                   </div>
                 )}
               </div>
-
-              {/* Right Side - Accept Master */}
-              <div className="flex flex-1 justify-end px-4 py-2.5">
-                <button
-                  onClick={handleAcceptMaster}
-                  disabled={!onAcceptMaster}
-                  className={clsx(
-                    'flex items-center gap-2 rounded-lg px-4 py-2 transition-all',
-                    onAcceptMaster
-                      ? 'border border-green-500/30 bg-green-500/20 text-green-400 hover:bg-green-500/30'
-                      : 'cursor-not-allowed border border-white/10 bg-white/5 text-gray-500'
-                  )}
-                >
-                  <Check className="h-4 w-4" />
-                  <span className="text-sm font-medium">
-                    Approve {qualityB.charAt(0).toUpperCase() + qualityB.slice(1)}
-                  </span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Seed Info - Compact row below footer */}
-          {comparison?.passA &&
-            comparison?.passB &&
-            (comparison.passA.seed || comparison.passB.seed) && (
-              <div className="mt-2 flex items-center justify-center gap-6 text-xs text-gray-500">
-                {comparison.passA.seed && (
-                  <div className="flex items-center gap-1.5">
-                    <Hash className="h-3 w-3" />
-                    <span className="text-gray-400">{qualityA}:</span>
-                    <span className="font-mono">{comparison.passA.seed}</span>
-                  </div>
-                )}
-                {comparison.passB.seed && (
-                  <div className="flex items-center gap-1.5">
-                    <Hash className="h-3 w-3" />
-                    <span className="text-gray-400">{qualityB}:</span>
-                    <span className="font-mono">{comparison.passB.seed}</span>
-                  </div>
-                )}
+            ) : (
+              <div className="flex aspect-video items-center justify-center rounded-lg bg-gray-900 text-gray-500">
+                {availableShots.length === 0
+                  ? 'No comparisons available. Render at multiple quality levels first.'
+                  : 'Loading comparison...'}
               </div>
             )}
-        </div>
-      </motion.div>
-    </AnimatePresence>
+
+            {/* Professional Footer - Video Transport & Actions */}
+            {comparison?.passA && comparison?.passB && (
+              <div className="mt-3 flex items-center justify-between overflow-hidden rounded-lg border border-white/10 bg-black/40">
+                {/* Left Side - Reject / Keep Draft */}
+                <div className="flex-1 px-4 py-2.5">
+                  <button
+                    onClick={handleRejectMaster}
+                    disabled={!onRejectMaster}
+                    className={clsx(
+                      'flex items-center gap-2 rounded-lg px-4 py-2 transition-all',
+                      onRejectMaster
+                        ? 'border border-red-500/30 bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                        : 'cursor-not-allowed border border-white/10 bg-white/5 text-gray-500'
+                    )}
+                  >
+                    <XCircle className="h-4 w-4" />
+                    <span className="text-sm font-medium">
+                      Keep {qualityA.charAt(0).toUpperCase() + qualityA.slice(1)} Only
+                    </span>
+                  </button>
+                </div>
+
+                {/* Center - Video Transport Controls */}
+                <div className="flex items-center gap-1 bg-white/5 px-4 py-2.5">
+                  {isVideoComparison ? (
+                    <>
+                      {/* Frame step backward */}
+                      <Tooltip content="Previous frame (Shift+←)" side="top">
+                        <button
+                          onClick={() => stepFrame('backward')}
+                          className="rounded p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+                        >
+                          <SkipBack className="h-4 w-4" />
+                        </button>
+                      </Tooltip>
+
+                      {/* Play/Pause */}
+                      <Tooltip content="Play/Pause (Space)" side="top">
+                        <button
+                          onClick={togglePlayPause}
+                          className="rounded-full bg-white/10 p-2.5 text-white transition-colors hover:bg-white/20"
+                        >
+                          {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                        </button>
+                      </Tooltip>
+
+                      {/* Frame step forward */}
+                      <Tooltip content="Next frame (Shift+→)" side="top">
+                        <button
+                          onClick={() => stepFrame('forward')}
+                          className="rounded p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+                        >
+                          <SkipForward className="h-4 w-4" />
+                        </button>
+                      </Tooltip>
+
+                      {/* Loop toggle */}
+                      <Tooltip content="Toggle loop" side="top">
+                        <button
+                          onClick={() => setIsLooping(prev => !prev)}
+                          className={clsx(
+                            'rounded p-2 transition-colors',
+                            isLooping
+                              ? 'bg-blue-500/20 text-blue-400'
+                              : 'text-gray-400 hover:bg-white/10 hover:text-white'
+                          )}
+                        >
+                          <Repeat className="h-4 w-4" />
+                        </button>
+                      </Tooltip>
+
+                      {/* Timecode */}
+                      <div className="ml-2 rounded bg-black/40 px-2 py-1 font-mono text-xs text-white/70">
+                        {formatTime(currentTime)} / {formatTime(duration)}
+                      </div>
+                    </>
+                  ) : (
+                    /* Image mode - just show upgrade cost */
+                    <div className="px-4 text-sm text-gray-400">
+                      Upgrade cost:{' '}
+                      <span className="font-medium text-green-400">
+                        +${comparison.costDifference.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right Side - Accept Master */}
+                <div className="flex flex-1 justify-end px-4 py-2.5">
+                  <button
+                    onClick={handleAcceptMaster}
+                    disabled={!onAcceptMaster}
+                    className={clsx(
+                      'flex items-center gap-2 rounded-lg px-4 py-2 transition-all',
+                      onAcceptMaster
+                        ? 'border border-green-500/30 bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                        : 'cursor-not-allowed border border-white/10 bg-white/5 text-gray-500'
+                    )}
+                  >
+                    <Check className="h-4 w-4" />
+                    <span className="text-sm font-medium">
+                      Approve {qualityB.charAt(0).toUpperCase() + qualityB.slice(1)}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Seed Info - Compact row below footer */}
+            {comparison?.passA &&
+              comparison?.passB &&
+              (comparison.passA.seed || comparison.passB.seed) && (
+                <div className="mt-2 flex items-center justify-center gap-6 text-xs text-gray-500">
+                  {comparison.passA.seed && (
+                    <div className="flex items-center gap-1.5">
+                      <Hash className="h-3 w-3" />
+                      <span className="text-gray-400">{qualityA}:</span>
+                      <span className="font-mono">{comparison.passA.seed}</span>
+                    </div>
+                  )}
+                  {comparison.passB.seed && (
+                    <div className="flex items-center gap-1.5">
+                      <Hash className="h-3 w-3" />
+                      <span className="text-gray-400">{qualityB}:</span>
+                      <span className="font-mono">{comparison.passB.seed}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+          </div>
+        </motion.div>
+      </AnimatePresence>
     </TooltipProvider>
   );
 }
@@ -1297,199 +1297,199 @@ export function SimpleABLightbox({
 
   return (
     <TooltipProvider>
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm"
-        onClick={e => e.target === e.currentTarget && onClose()}
-      >
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 z-50 rounded-lg bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm"
+          onClick={e => e.target === e.currentTarget && onClose()}
         >
-          <X className="h-6 w-6" />
-        </button>
-
-        <div className="w-full max-w-5xl px-8">
-          {/* Header */}
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white">{title}</h2>
-
-            {/* Zoom Controls */}
-            <div className="flex items-center gap-1 rounded-lg bg-white/5 p-1">
-              <Tooltip content="Zoom out (-)" side="top">
-                <button
-                  onClick={handleZoomOut}
-                  disabled={zoom <= 1}
-                  className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  <ZoomOut className="h-4 w-4" />
-                </button>
-              </Tooltip>
-              <Tooltip content="Reset zoom (0)" side="top">
-                <button
-                  onClick={resetZoom}
-                  disabled={zoom === 1}
-                  className="min-w-[40px] rounded px-2 py-1 text-xs text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  {Math.round(zoom * 100)}%
-                </button>
-              </Tooltip>
-              <Tooltip content="Zoom in (+)" side="top">
-                <button
-                  onClick={handleZoomIn}
-                  disabled={zoom >= 8}
-                  className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  <ZoomIn className="h-4 w-4" />
-                </button>
-              </Tooltip>
-            </div>
-          </div>
-
-          {/* Split-Screen Comparison */}
-          <div
-            ref={containerRef}
-            className={clsx(
-              'relative aspect-video overflow-hidden rounded-lg bg-gray-900',
-              isPanning
-                ? 'cursor-grabbing'
-                : zoomMode && zoom > 1
-                  ? 'cursor-grab'
-                  : 'cursor-col-resize'
-            )}
-            onMouseDown={e => {
-              const rect = containerRef.current?.getBoundingClientRect();
-              if (rect) {
-                const x = e.clientX - rect.left;
-                const sliderX = (sliderPosition / 100) * rect.width;
-                const isNearSlider = Math.abs(x - sliderX) < 30;
-
-                if (isNearSlider && !e.altKey && !zoomMode) {
-                  setIsDragging(true);
-                } else if ((e.altKey || zoomMode) && zoom > 1) {
-                  handlePanStart(e);
-                } else if (!e.altKey && !zoomMode) {
-                  setIsDragging(true);
-                }
-              }
-            }}
-            onWheel={handleWheel}
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 z-50 rounded-lg bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
           >
-            {/* Synchronized transform wrapper */}
+            <X className="h-6 w-6" />
+          </button>
+
+          <div className="w-full max-w-5xl px-8">
+            {/* Header */}
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white">{title}</h2>
+
+              {/* Zoom Controls */}
+              <div className="flex items-center gap-1 rounded-lg bg-white/5 p-1">
+                <Tooltip content="Zoom out (-)" side="top">
+                  <button
+                    onClick={handleZoomOut}
+                    disabled={zoom <= 1}
+                    className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    <ZoomOut className="h-4 w-4" />
+                  </button>
+                </Tooltip>
+                <Tooltip content="Reset zoom (0)" side="top">
+                  <button
+                    onClick={resetZoom}
+                    disabled={zoom === 1}
+                    className="min-w-[40px] rounded px-2 py-1 text-xs text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    {Math.round(zoom * 100)}%
+                  </button>
+                </Tooltip>
+                <Tooltip content="Zoom in (+)" side="top">
+                  <button
+                    onClick={handleZoomIn}
+                    disabled={zoom >= 8}
+                    className="rounded p-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    <ZoomIn className="h-4 w-4" />
+                  </button>
+                </Tooltip>
+              </div>
+            </div>
+
+            {/* Split-Screen Comparison */}
             <div
-              className="absolute inset-0"
-              style={{
-                transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
-                transformOrigin: 'center center',
-                transition: isPanning ? 'none' : 'transform 0.1s ease-out',
+              ref={containerRef}
+              className={clsx(
+                'relative aspect-video overflow-hidden rounded-lg bg-gray-900',
+                isPanning
+                  ? 'cursor-grabbing'
+                  : zoomMode && zoom > 1
+                    ? 'cursor-grab'
+                    : 'cursor-col-resize'
+              )}
+              onMouseDown={e => {
+                const rect = containerRef.current?.getBoundingClientRect();
+                if (rect) {
+                  const x = e.clientX - rect.left;
+                  const sliderX = (sliderPosition / 100) * rect.width;
+                  const isNearSlider = Math.abs(x - sliderX) < 30;
+
+                  if (isNearSlider && !e.altKey && !zoomMode) {
+                    setIsDragging(true);
+                  } else if ((e.altKey || zoomMode) && zoom > 1) {
+                    handlePanStart(e);
+                  } else if (!e.altKey && !zoomMode) {
+                    setIsDragging(true);
+                  }
+                }
               }}
+              onWheel={handleWheel}
             >
-              {/* Left Side (A) */}
+              {/* Synchronized transform wrapper */}
               <div
-                className="absolute inset-0 overflow-hidden"
-                style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}
+                className="absolute inset-0"
+                style={{
+                  transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+                  transformOrigin: 'center center',
+                  transition: isPanning ? 'none' : 'transform 0.1s ease-out',
+                }}
               >
-                {isVideo(imageA.url) ? (
-                  <video
-                    src={imageA.url}
-                    className="h-full w-full object-contain"
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                  />
-                ) : (
-                  <img
-                    src={imageA.url}
-                    alt={imageA.label}
-                    className="h-full w-full object-contain"
-                    draggable={false}
-                  />
-                )}
-              </div>
-
-              {/* Right Side (B) */}
-              <div
-                className="absolute inset-0 overflow-hidden"
-                style={{ clipPath: `inset(0 0 0 ${sliderPosition}%)` }}
-              >
-                {isVideo(imageB.url) ? (
-                  <video
-                    src={imageB.url}
-                    className="h-full w-full object-contain"
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                  />
-                ) : (
-                  <img
-                    src={imageB.url}
-                    alt={imageB.label}
-                    className="h-full w-full object-contain"
-                    draggable={false}
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Labels */}
-            <div className="absolute top-4 left-4 z-10 flex flex-col rounded-lg bg-blue-500/20 px-3 py-1.5 text-blue-400">
-              <span className="text-sm font-medium">{imageA.label}</span>
-              {imageA.sublabel && (
-                <span className="text-xs text-blue-300/70">{imageA.sublabel}</span>
-              )}
-            </div>
-            <div className="absolute top-4 right-4 z-10 flex flex-col items-end rounded-lg bg-purple-500/20 px-3 py-1.5 text-purple-400">
-              <span className="text-sm font-medium">{imageB.label}</span>
-              {imageB.sublabel && (
-                <span className="text-xs text-purple-300/70">{imageB.sublabel}</span>
-              )}
-            </div>
-
-            {/* Slider Handle */}
-            <div
-              className="absolute top-0 bottom-0 z-20 w-1 cursor-col-resize bg-white/80"
-              style={{ left: `${sliderPosition}%`, transform: 'translateX(-50%)' }}
-            >
-              <div className="absolute top-1/2 left-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 shadow-lg">
-                <GripVertical className="h-5 w-5 text-gray-600" />
-              </div>
-            </div>
-
-            {/* Zoom indicator */}
-            {zoom > 1 && (
-              <div className="absolute top-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-white/90">
-                {Math.round(zoom * 100)}%
-              </div>
-            )}
-
-            {/* Help Hints */}
-            {!isDragging && !isPanning && (
-              <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-2">
-                <div className="rounded-full bg-black/60 px-3 py-1.5 text-xs text-white/70">
-                  Drag slider to compare
+                {/* Left Side (A) */}
+                <div
+                  className="absolute inset-0 overflow-hidden"
+                  style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}
+                >
+                  {isVideo(imageA.url) ? (
+                    <video
+                      src={imageA.url}
+                      className="h-full w-full object-contain"
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                    />
+                  ) : (
+                    <img
+                      src={imageA.url}
+                      alt={imageA.label}
+                      className="h-full w-full object-contain"
+                      draggable={false}
+                    />
+                  )}
                 </div>
-                {zoom === 1 && (
-                  <div className="rounded-full bg-black/60 px-3 py-1.5 text-xs text-white/70">
-                    Scroll to zoom
-                  </div>
-                )}
-                {zoom > 1 && (
-                  <div className="rounded-full bg-black/60 px-3 py-1.5 text-xs text-white/70">
-                    Hold ⌥ + drag to pan
-                  </div>
+
+                {/* Right Side (B) */}
+                <div
+                  className="absolute inset-0 overflow-hidden"
+                  style={{ clipPath: `inset(0 0 0 ${sliderPosition}%)` }}
+                >
+                  {isVideo(imageB.url) ? (
+                    <video
+                      src={imageB.url}
+                      className="h-full w-full object-contain"
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                    />
+                  ) : (
+                    <img
+                      src={imageB.url}
+                      alt={imageB.label}
+                      className="h-full w-full object-contain"
+                      draggable={false}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Labels */}
+              <div className="absolute top-4 left-4 z-10 flex flex-col rounded-lg bg-blue-500/20 px-3 py-1.5 text-blue-400">
+                <span className="text-sm font-medium">{imageA.label}</span>
+                {imageA.sublabel && (
+                  <span className="text-xs text-blue-300/70">{imageA.sublabel}</span>
                 )}
               </div>
-            )}
+              <div className="absolute top-4 right-4 z-10 flex flex-col items-end rounded-lg bg-purple-500/20 px-3 py-1.5 text-purple-400">
+                <span className="text-sm font-medium">{imageB.label}</span>
+                {imageB.sublabel && (
+                  <span className="text-xs text-purple-300/70">{imageB.sublabel}</span>
+                )}
+              </div>
+
+              {/* Slider Handle */}
+              <div
+                className="absolute top-0 bottom-0 z-20 w-1 cursor-col-resize bg-white/80"
+                style={{ left: `${sliderPosition}%`, transform: 'translateX(-50%)' }}
+              >
+                <div className="absolute top-1/2 left-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 shadow-lg">
+                  <GripVertical className="h-5 w-5 text-gray-600" />
+                </div>
+              </div>
+
+              {/* Zoom indicator */}
+              {zoom > 1 && (
+                <div className="absolute top-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-white/90">
+                  {Math.round(zoom * 100)}%
+                </div>
+              )}
+
+              {/* Help Hints */}
+              {!isDragging && !isPanning && (
+                <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-2">
+                  <div className="rounded-full bg-black/60 px-3 py-1.5 text-xs text-white/70">
+                    Drag slider to compare
+                  </div>
+                  {zoom === 1 && (
+                    <div className="rounded-full bg-black/60 px-3 py-1.5 text-xs text-white/70">
+                      Scroll to zoom
+                    </div>
+                  )}
+                  {zoom > 1 && (
+                    <div className="rounded-full bg-black/60 px-3 py-1.5 text-xs text-white/70">
+                      Hold ⌥ + drag to pan
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </motion.div>
-    </AnimatePresence>
+        </motion.div>
+      </AnimatePresence>
     </TooltipProvider>
   );
 }

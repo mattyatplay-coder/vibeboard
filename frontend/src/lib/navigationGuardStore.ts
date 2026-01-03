@@ -30,28 +30,30 @@ interface NavigationGuardState {
   setShowConfirmModal: (show: boolean) => void;
 }
 
-export const useNavigationGuardStore = create<NavigationGuardState>((set) => ({
+export const useNavigationGuardStore = create<NavigationGuardState>(set => ({
   isBlocked: false,
   blockMessage: 'You have unsaved work. Are you sure you want to leave?',
   blockingPage: null,
   pendingNavigation: null,
   showConfirmModal: false,
 
-  setBlocked: (blocked, message, page) => set({
-    isBlocked: blocked,
-    blockMessage: message || 'You have unsaved work. Are you sure you want to leave?',
-    blockingPage: page || null,
-  }),
+  setBlocked: (blocked, message, page) =>
+    set({
+      isBlocked: blocked,
+      blockMessage: message || 'You have unsaved work. Are you sure you want to leave?',
+      blockingPage: page || null,
+    }),
 
-  clearBlock: () => set({
-    isBlocked: false,
-    blockMessage: 'You have unsaved work. Are you sure you want to leave?',
-    blockingPage: null,
-  }),
+  clearBlock: () =>
+    set({
+      isBlocked: false,
+      blockMessage: 'You have unsaved work. Are you sure you want to leave?',
+      blockingPage: null,
+    }),
 
-  setPendingNavigation: (href) => set({ pendingNavigation: href }),
+  setPendingNavigation: href => set({ pendingNavigation: href }),
 
-  setShowConfirmModal: (show) => set({ showConfirmModal: show }),
+  setShowConfirmModal: show => set({ showConfirmModal: show }),
 }));
 
 /**

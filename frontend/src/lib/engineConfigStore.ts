@@ -5,7 +5,12 @@ interface EngineConfigState {
   currentDuration: string | null;
   currentAspectRatio: string | null;
   isVideo: boolean;
-  setCurrentConfig: (config: { modelId?: string; duration?: string; aspectRatio?: string; isVideo?: boolean }) => void;
+  setCurrentConfig: (config: {
+    modelId?: string;
+    duration?: string;
+    aspectRatio?: string;
+    isVideo?: boolean;
+  }) => void;
   clearConfig: () => void;
 }
 
@@ -21,5 +26,6 @@ export const useEngineConfigStore = create<EngineConfigState>(set => ({
       currentAspectRatio: aspectRatio ?? state.currentAspectRatio,
       isVideo: isVideo ?? state.isVideo,
     })),
-  clearConfig: () => set({ currentModelId: null, currentDuration: null, currentAspectRatio: null, isVideo: false }),
+  clearConfig: () =>
+    set({ currentModelId: null, currentDuration: null, currentAspectRatio: null, isVideo: false }),
 }));

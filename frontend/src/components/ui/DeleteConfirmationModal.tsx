@@ -43,7 +43,7 @@ export function DeleteConfirmationModal({
   };
 
   return (
-    <AlertDialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <AlertDialog.Root open={isOpen} onOpenChange={open => !open && onClose()}>
       <AnimatePresence>
         {isOpen && (
           <AlertDialog.Portal forceMount>
@@ -61,13 +61,15 @@ export function DeleteConfirmationModal({
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 10 }}
                 transition={{ duration: 0.2 }}
-                className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-white/10 bg-zinc-900 p-6 shadow-2xl"
+                className="fixed top-1/2 left-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-white/10 bg-zinc-900 p-6 shadow-2xl"
               >
                 {/* Icon and Title */}
                 <div className="mb-4 flex items-start gap-4">
-                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
-                    isDestructive ? 'bg-red-500/20' : 'bg-amber-500/20'
-                  }`}>
+                  <div
+                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
+                      isDestructive ? 'bg-red-500/20' : 'bg-amber-500/20'
+                    }`}
+                  >
                     {isDestructive ? (
                       <Trash2 className="h-6 w-6 text-red-400" />
                     ) : (
@@ -88,15 +90,14 @@ export function DeleteConfirmationModal({
 
                 {/* Description */}
                 <AlertDialog.Description className="mb-6 text-sm text-gray-400">
-                  {description || 'This action cannot be undone. Are you sure you want to continue?'}
+                  {description ||
+                    'This action cannot be undone. Are you sure you want to continue?'}
                 </AlertDialog.Description>
 
                 {/* Actions */}
                 <div className="flex justify-end gap-3">
                   <AlertDialog.Cancel asChild>
-                    <button
-                      className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-gray-300 transition-colors hover:bg-white/10"
-                    >
+                    <button className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-gray-300 transition-colors hover:bg-white/10">
                       {cancelLabel}
                     </button>
                   </AlertDialog.Cancel>

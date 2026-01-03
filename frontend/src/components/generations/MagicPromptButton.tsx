@@ -75,7 +75,11 @@ export function MagicPromptButton({
           className
         )}
       >
-        {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+        {isLoading ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : (
+          <Sparkles className="h-5 w-5" />
+        )}
       </button>
     </Tooltip>
   );

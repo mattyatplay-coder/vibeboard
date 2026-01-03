@@ -8,7 +8,8 @@ import { RotoscopePanel } from '@/components/processing/RotoscopePanel';
 import { SetExtensionPanel } from '@/components/processing/SetExtensionPanel';
 import { CastAssemblerPanel } from '@/components/processing/CastAssemblerPanel';
 import { TextFixerPanel } from '@/components/processing/TextFixerPanel';
-import { Layers, Eraser, Loader2, Film, Expand, Users, Type } from 'lucide-react';
+import { AIReshootPanel } from '@/components/processing/AIReshootPanel';
+import { Layers, Eraser, Loader2, Film, Expand, Users, Type, Clapperboard } from 'lucide-react';
 import { usePageAutoSave, ProcessSession, hasRecoverableContent } from '@/lib/pageSessionStore';
 import { RecoveryToast } from '@/components/ui/RecoveryToast';
 
@@ -18,30 +19,35 @@ function ProcessPageContent() {
   const searchParams = useSearchParams();
   const imageUrl = searchParams.get('url');
   const videoUrl = searchParams.get('video');
-  const tool = searchParams.get('tool'); // 'eraser', 'tattoo', 'rotoscope', or 'extend'
+  const tool = searchParams.get('tool'); // 'eraser', 'tattoo', 'rotoscope', 'extend', 'cast', 'text', or 'reshoot'
 
   // Compute initial tab based on URL param
-  const getInitialTab = (): 'tattoo' | 'eraser' | 'rotoscope' | 'extend' | 'cast' | 'text' => {
+  const getInitialTab = ():
+    | 'tattoo'
+    | 'eraser'
+    | 'rotoscope'
+    | 'extend'
+    | 'cast'
+    | 'text'
+    | 'reshoot' => {
     if (tool === 'eraser') return 'eraser';
     if (tool === 'extend') return 'extend';
     if (tool === 'cast') return 'cast';
     if (tool === 'text') return 'text';
+    if (tool === 'reshoot') return 'reshoot';
     if (tool === 'rotoscope' || videoUrl) return 'rotoscope';
     return 'tattoo';
   };
-  const [activeTab, setActiveTab] = useState<'tattoo' | 'eraser' | 'rotoscope' | 'extend' | 'cast' | 'text'>(getInitialTab());
+  const [activeTab, setActiveTab] = useState<
+    'tattoo' | 'eraser' | 'rotoscope' | 'extend' | 'cast' | 'text' | 'reshoot'
+  >(getInitialTab());
 
   // Session recovery
   const [hasMounted, setHasMounted] = useState(false);
   const [showRecoveryToast, setShowRecoveryToast] = useState(false);
   const [recoverableSession, setRecoverableSession] = useState<ProcessSession | null>(null);
-  const {
-    saveSession,
-    getSession,
-    clearSession,
-    dismissRecovery,
-    isRecoveryDismissed,
-  } = usePageAutoSave<ProcessSession>('process');
+  const { saveSession, getSession, clearSession, dismissRecovery, isRecoveryDismissed } =
+    usePageAutoSave<ProcessSession>('process');
 
   // Mount detection
   useEffect(() => {
@@ -65,10 +71,27 @@ function ProcessPageContent() {
     if (!currentImageUrl) return;
 
     const saveInterval = setInterval(() => {
+      type ActiveToolType =
+        | 'magic-eraser'
+        | 'roto'
+        | 'tattoo'
+        | 'set-extension'
+        | 'cast-assembler'
+        | 'text-fixer'
+        | 'ai-reshoot';
+      const toolMap: Record<string, ActiveToolType> = {
+        tattoo: 'tattoo',
+        eraser: 'magic-eraser',
+        rotoscope: 'roto',
+        extend: 'set-extension',
+        cast: 'cast-assembler',
+        text: 'text-fixer',
+        reshoot: 'ai-reshoot',
+      };
       saveSession({
         projectId,
         currentImageUrl,
-        activeTool: activeTab === 'tattoo' ? 'tattoo' : activeTab === 'eraser' ? 'magic-eraser' : activeTab === 'rotoscope' ? 'roto' : 'set-extension',
+        activeTool: toolMap[activeTab] || 'tattoo',
         toolSettings: {},
         historyIndex: 0,
         isDirty: true,
@@ -80,13 +103,17 @@ function ProcessPageContent() {
   const handleRestoreSession = () => {
     if (!recoverableSession) return;
     if (recoverableSession.activeTool) {
-      const toolMap: Record<string, 'tattoo' | 'eraser' | 'rotoscope' | 'extend' | 'cast' | 'text'> = {
-        'tattoo': 'tattoo',
+      const toolMap: Record<
+        string,
+        'tattoo' | 'eraser' | 'rotoscope' | 'extend' | 'cast' | 'text' | 'reshoot'
+      > = {
+        tattoo: 'tattoo',
         'magic-eraser': 'eraser',
-        'roto': 'rotoscope',
+        roto: 'rotoscope',
         'set-extension': 'extend',
         'cast-assembler': 'cast',
         'text-fixer': 'text',
+        'ai-reshoot': 'reshoot',
       };
       setActiveTab(toolMap[recoverableSession.activeTool] || 'tattoo');
     }
@@ -181,6 +208,16 @@ function ProcessPageContent() {
           >
             <Type className="h-4 w-4" /> Text Fixer
           </button>
+          <button
+            onClick={() => setActiveTab('reshoot')}
+            className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'reshoot'
+                ? 'bg-amber-600 text-white shadow-lg'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <Clapperboard className="h-4 w-4" /> AI Reshoot
+          </button>
         </div>
       </div>
 
@@ -191,6 +228,7 @@ function ProcessPageContent() {
         {activeTab === 'extend' && <SetExtensionPanel initialImageUrl={imageUrl || undefined} />}
         {activeTab === 'cast' && <CastAssemblerPanel projectId={projectId} />}
         {activeTab === 'text' && <TextFixerPanel initialImageUrl={imageUrl || undefined} />}
+        {activeTab === 'reshoot' && <AIReshootPanel initialImageUrl={imageUrl || undefined} />}
       </div>
     </div>
   );

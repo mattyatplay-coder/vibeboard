@@ -16,53 +16,53 @@ import { LLMService } from '../LLMService';
 // ═══════════════════════════════════════════════════════════════════════════
 
 export interface ArchetypeData {
-    label: string;
-    description: string;
-    styleHint: string;
-    recommendedLens?: string;
-    lightingPreset?: string;
-    audioPreset?: string;
+  label: string;
+  description: string;
+  styleHint: string;
+  recommendedLens?: string;
+  lightingPreset?: string;
+  audioPreset?: string;
 }
 
 export interface ContentScriptRequest {
-    genre: 'youtuber' | 'onlyfans';
-    archetype: string;
-    archetypeData: ArchetypeData;
-    hook: string;
-    concept: string;
-    platform?: 'youtube' | 'tiktok' | 'instagram' | 'onlyfans';
-    duration?: 'short' | 'medium' | 'long';  // <1min, 1-10min, 10min+
-    isAdult?: boolean;
+  genre: 'youtuber' | 'onlyfans';
+  archetype: string;
+  archetypeData: ArchetypeData;
+  hook: string;
+  concept: string;
+  platform?: 'youtube' | 'tiktok' | 'instagram' | 'onlyfans';
+  duration?: 'short' | 'medium' | 'long'; // <1min, 1-10min, 10min+
+  isAdult?: boolean;
 }
 
 export interface ContentScriptSection {
-    type: 'hook' | 'body' | 'cta' | 'payoff';
-    timestamp: string;  // e.g., "0:00-0:30"
-    duration: number;   // seconds
-    content: string;    // Script text
-    cameraDirection: string;
-    shotType: 'A-ROLL' | 'B-ROLL';
-    notes?: string;
+  type: 'hook' | 'body' | 'cta' | 'payoff';
+  timestamp: string; // e.g., "0:00-0:30"
+  duration: number; // seconds
+  content: string; // Script text
+  cameraDirection: string;
+  shotType: 'A-ROLL' | 'B-ROLL';
+  notes?: string;
 }
 
 export interface GeneratedContentScript {
-    title: string;
-    thumbnail: {
-        suggestion: string;
-        textOverlay?: string;
-    };
-    hook: ContentScriptSection;
-    body: ContentScriptSection[];
-    cta: ContentScriptSection;
-    payoff: ContentScriptSection;
-    metadata: {
-        estimatedDuration: number;
-        archetype: string;
-        styleHint: string;
-        platform: string;
-        hashtags?: string[];
-        seoKeywords?: string[];
-    };
+  title: string;
+  thumbnail: {
+    suggestion: string;
+    textOverlay?: string;
+  };
+  hook: ContentScriptSection;
+  body: ContentScriptSection[];
+  cta: ContentScriptSection;
+  payoff: ContentScriptSection;
+  metadata: {
+    estimatedDuration: number;
+    archetype: string;
+    styleHint: string;
+    platform: string;
+    hashtags?: string[];
+    seoKeywords?: string[];
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -114,34 +114,43 @@ Focus on the creative direction, mood, and aesthetic rather than explicit conten
 // ═══════════════════════════════════════════════════════════════════════════
 
 export class CreatorScriptService {
-    private static instance: CreatorScriptService;
+  private static instance: CreatorScriptService;
 
-    private constructor() {}
+  private constructor() {}
 
-    static getInstance(): CreatorScriptService {
-        if (!CreatorScriptService.instance) {
-            CreatorScriptService.instance = new CreatorScriptService();
-        }
-        return CreatorScriptService.instance;
+  static getInstance(): CreatorScriptService {
+    if (!CreatorScriptService.instance) {
+      CreatorScriptService.instance = new CreatorScriptService();
     }
+    return CreatorScriptService.instance;
+  }
 
-    /**
-     * Generate a content creator script based on archetype and hook
-     */
-    async generateContentScript(request: ContentScriptRequest): Promise<GeneratedContentScript> {
-        const { genre, archetype, archetypeData, hook, concept, platform = 'youtube', duration = 'medium', isAdult = false } = request;
+  /**
+   * Generate a content creator script based on archetype and hook
+   */
+  async generateContentScript(request: ContentScriptRequest): Promise<GeneratedContentScript> {
+    const {
+      genre,
+      archetype,
+      archetypeData,
+      hook,
+      concept,
+      platform = 'youtube',
+      duration = 'medium',
+      isAdult = false,
+    } = request;
 
-        // Select appropriate system prompt
-        const systemPrompt = isAdult ? ADULT_SYSTEM_PROMPT : YOUTUBE_SYSTEM_PROMPT;
+    // Select appropriate system prompt
+    const systemPrompt = isAdult ? ADULT_SYSTEM_PROMPT : YOUTUBE_SYSTEM_PROMPT;
 
-        // Build the generation prompt
-        const userPrompt = this.buildGenerationPrompt(request);
+    // Build the generation prompt
+    const userPrompt = this.buildGenerationPrompt(request);
 
-        // Call LLM - use Dolphin for mature content (uncensored), Grok otherwise
-        const llmService = new LLMService(isAdult ? 'dolphin' : 'grok');
-        const llmResponse = await llmService.generate({
-            prompt: userPrompt,
-            systemPrompt: `${systemPrompt}
+    // Call LLM - use Dolphin for mature content (uncensored), Grok otherwise
+    const llmService = new LLMService(isAdult ? 'dolphin' : 'grok');
+    const llmResponse = await llmService.generate({
+      prompt: userPrompt,
+      systemPrompt: `${systemPrompt}
 
 STYLE GUIDE FOR THIS VIDEO:
 - Archetype: ${archetypeData.label}
@@ -154,27 +163,27 @@ THE HOOK (CRITICAL - First 30 Seconds):
 ${hook}
 
 Respond in JSON format with the structure defined in the prompt.`,
-            temperature: 0.8,
-            maxTokens: 4000,
-        });
+      temperature: 0.8,
+      maxTokens: 4000,
+    });
 
-        // Parse response - extract content from LLMResponse
-        return this.parseScriptResponse(llmResponse.content, request);
-    }
+    // Parse response - extract content from LLMResponse
+    return this.parseScriptResponse(llmResponse.content, request);
+  }
 
-    /**
-     * Build the user prompt for script generation
-     */
-    private buildGenerationPrompt(request: ContentScriptRequest): string {
-        const { concept, duration, platform, isAdult } = request;
+  /**
+   * Build the user prompt for script generation
+   */
+  private buildGenerationPrompt(request: ContentScriptRequest): string {
+    const { concept, duration, platform, isAdult } = request;
 
-        const durationGuide = {
-            short: { total: 60, hook: 5, body: 45, cta: 10 },
-            medium: { total: 600, hook: 30, body: 520, cta: 50 },
-            long: { total: 1200, hook: 30, body: 1100, cta: 70 },
-        }[duration || 'medium'];
+    const durationGuide = {
+      short: { total: 60, hook: 5, body: 45, cta: 10 },
+      medium: { total: 600, hook: 30, body: 520, cta: 50 },
+      long: { total: 1200, hook: 30, body: 1100, cta: 70 },
+    }[duration || 'medium'];
 
-        return `Generate a ${isAdult ? 'exclusive content' : 'viral YouTube'} script for the following concept:
+    return `Generate a ${isAdult ? 'exclusive content' : 'viral YouTube'} script for the following concept:
 
 CONCEPT: ${concept}
 
@@ -241,118 +250,124 @@ IMPORTANT:
 3. Include specific camera directions that match the archetype's style
 4. The CTA should feel natural, not forced
 5. The payoff should deliver on promises made in the hook`;
+  }
+
+  /**
+   * Parse the LLM response into a structured script
+   */
+  private parseScriptResponse(
+    response: string,
+    request: ContentScriptRequest
+  ): GeneratedContentScript {
+    try {
+      // Try to extract JSON from the response
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return parsed as GeneratedContentScript;
+      }
+    } catch (error) {
+      console.error('Failed to parse script response as JSON:', error);
     }
 
-    /**
-     * Parse the LLM response into a structured script
-     */
-    private parseScriptResponse(response: string, request: ContentScriptRequest): GeneratedContentScript {
-        try {
-            // Try to extract JSON from the response
-            const jsonMatch = response.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                const parsed = JSON.parse(jsonMatch[0]);
-                return parsed as GeneratedContentScript;
-            }
-        } catch (error) {
-            console.error('Failed to parse script response as JSON:', error);
-        }
+    // Fallback: create a basic structure from the text response
+    return {
+      title: `${request.archetypeData.label} Style Video`,
+      thumbnail: {
+        suggestion: 'Thumbnail based on concept',
+      },
+      hook: {
+        type: 'hook',
+        timestamp: '0:00-0:30',
+        duration: 30,
+        content: request.hook || 'Opening hook...',
+        cameraDirection: request.archetypeData.styleHint,
+        shotType: 'A-ROLL',
+      },
+      body: [
+        {
+          type: 'body',
+          timestamp: '0:30-5:00',
+          duration: 270,
+          content: response,
+          cameraDirection: 'Match archetype style',
+          shotType: 'A-ROLL',
+        },
+      ],
+      cta: {
+        type: 'cta',
+        timestamp: '5:00-5:30',
+        duration: 30,
+        content: 'Remember to like and subscribe!',
+        cameraDirection: 'Direct address',
+        shotType: 'A-ROLL',
+      },
+      payoff: {
+        type: 'payoff',
+        timestamp: '5:30-6:00',
+        duration: 30,
+        content: 'Thanks for watching!',
+        cameraDirection: 'Wide shot, wave',
+        shotType: 'A-ROLL',
+      },
+      metadata: {
+        estimatedDuration: 360,
+        archetype: request.archetype,
+        styleHint: request.archetypeData.styleHint,
+        platform: request.platform || 'youtube',
+      },
+    };
+  }
 
-        // Fallback: create a basic structure from the text response
-        return {
-            title: `${request.archetypeData.label} Style Video`,
-            thumbnail: {
-                suggestion: 'Thumbnail based on concept',
-            },
-            hook: {
-                type: 'hook',
-                timestamp: '0:00-0:30',
-                duration: 30,
-                content: request.hook || 'Opening hook...',
-                cameraDirection: request.archetypeData.styleHint,
-                shotType: 'A-ROLL',
-            },
-            body: [{
-                type: 'body',
-                timestamp: '0:30-5:00',
-                duration: 270,
-                content: response,
-                cameraDirection: 'Match archetype style',
-                shotType: 'A-ROLL',
-            }],
-            cta: {
-                type: 'cta',
-                timestamp: '5:00-5:30',
-                duration: 30,
-                content: 'Remember to like and subscribe!',
-                cameraDirection: 'Direct address',
-                shotType: 'A-ROLL',
-            },
-            payoff: {
-                type: 'payoff',
-                timestamp: '5:30-6:00',
-                duration: 30,
-                content: 'Thanks for watching!',
-                cameraDirection: 'Wide shot, wave',
-                shotType: 'A-ROLL',
-            },
-            metadata: {
-                estimatedDuration: 360,
-                archetype: request.archetype,
-                styleHint: request.archetypeData.styleHint,
-                platform: request.platform || 'youtube',
-            },
-        };
-    }
+  /**
+   * Generate shot list from content script
+   */
+  generateShotList(script: GeneratedContentScript): string[] {
+    const shots: string[] = [];
 
-    /**
-     * Generate shot list from content script
-     */
-    generateShotList(script: GeneratedContentScript): string[] {
-        const shots: string[] = [];
+    // Hook shots
+    shots.push(`[HOOK] ${script.hook.shotType}: ${script.hook.cameraDirection}`);
 
-        // Hook shots
-        shots.push(`[HOOK] ${script.hook.shotType}: ${script.hook.cameraDirection}`);
+    // Body shots
+    script.body.forEach((section, index) => {
+      shots.push(`[BODY ${index + 1}] ${section.shotType}: ${section.cameraDirection}`);
+    });
 
-        // Body shots
-        script.body.forEach((section, index) => {
-            shots.push(`[BODY ${index + 1}] ${section.shotType}: ${section.cameraDirection}`);
-        });
+    // CTA
+    shots.push(`[CTA] ${script.cta.shotType}: ${script.cta.cameraDirection}`);
 
-        // CTA
-        shots.push(`[CTA] ${script.cta.shotType}: ${script.cta.cameraDirection}`);
+    // Payoff
+    shots.push(`[PAYOFF] ${script.payoff.shotType}: ${script.payoff.cameraDirection}`);
 
-        // Payoff
-        shots.push(`[PAYOFF] ${script.payoff.shotType}: ${script.payoff.cameraDirection}`);
+    return shots;
+  }
 
-        return shots;
-    }
+  /**
+   * Generate visual prompts for AI generation based on script sections
+   */
+  async generateVisualPrompts(script: GeneratedContentScript): Promise<Record<string, string>> {
+    const prompts: Record<string, string> = {};
 
-    /**
-     * Generate visual prompts for AI generation based on script sections
-     */
-    async generateVisualPrompts(script: GeneratedContentScript): Promise<Record<string, string>> {
-        const prompts: Record<string, string> = {};
+    // Build base style from metadata
+    const stylePrefix = script.metadata.styleHint;
 
-        // Build base style from metadata
-        const stylePrefix = script.metadata.styleHint;
+    // Hook visual
+    prompts.hook = `${stylePrefix}, ${script.hook.cameraDirection}, ${script.hook.shotType === 'A-ROLL' ? 'speaking to camera' : 'cinematic b-roll'}, high energy opening`;
 
-        // Hook visual
-        prompts.hook = `${stylePrefix}, ${script.hook.cameraDirection}, ${script.hook.shotType === 'A-ROLL' ? 'speaking to camera' : 'cinematic b-roll'}, high energy opening`;
+    // Body visuals
+    script.body.forEach((section, index) => {
+      prompts[`body_${index}`] =
+        `${stylePrefix}, ${section.cameraDirection}, ${section.shotType === 'A-ROLL' ? 'presenter' : 'atmospheric footage'}`;
+    });
 
-        // Body visuals
-        script.body.forEach((section, index) => {
-            prompts[`body_${index}`] = `${stylePrefix}, ${section.cameraDirection}, ${section.shotType === 'A-ROLL' ? 'presenter' : 'atmospheric footage'}`;
-        });
+    // CTA visual
+    prompts.cta = `${stylePrefix}, ${script.cta.cameraDirection}, engaging call to action, subscribe graphic overlay`;
 
-        // CTA visual
-        prompts.cta = `${stylePrefix}, ${script.cta.cameraDirection}, engaging call to action, subscribe graphic overlay`;
+    // Payoff visual
+    prompts.payoff = `${stylePrefix}, ${script.payoff.cameraDirection}, satisfying conclusion, end screen friendly`;
 
-        // Payoff visual
-        prompts.payoff = `${stylePrefix}, ${script.payoff.cameraDirection}, satisfying conclusion, end screen friendly`;
-
-        return prompts;
-    }
+    return prompts;
+  }
 }
 
 export default CreatorScriptService;

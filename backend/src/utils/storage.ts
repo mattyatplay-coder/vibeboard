@@ -67,9 +67,30 @@ const getCDNUrl = (): string | undefined => {
 // FILE VALIDATION
 // =============================================================================
 
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/tiff', 'image/bmp'];
-const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska'];
-const ALLOWED_AUDIO_TYPES = ['audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/mp3', 'audio/ogg', 'audio/aac', 'audio/flac'];
+const ALLOWED_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/tiff',
+  'image/bmp',
+];
+const ALLOWED_VIDEO_TYPES = [
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'video/x-msvideo',
+  'video/x-matroska',
+];
+const ALLOWED_AUDIO_TYPES = [
+  'audio/mpeg',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/mp3',
+  'audio/ogg',
+  'audio/aac',
+  'audio/flac',
+];
 const ALLOWED_3D_TYPES = ['model/gltf-binary', 'model/gltf+json', 'application/octet-stream']; // .glb, .gltf
 const ALLOWED_AI_TYPES = ['application/x-hdf', 'application/octet-stream']; // .safetensors, .ckpt, .pt
 const ALLOWED_DOCUMENT_TYPES = ['application/pdf', 'text/plain', 'application/json'];
@@ -81,10 +102,10 @@ const ALLOWED_FILE_TYPES = [
   ...ALLOWED_AI_TYPES,
   ...ALLOWED_DOCUMENT_TYPES,
 ];
-const MAX_IMAGE_SIZE = 20 * 1024 * 1024;       // 20MB (was 10MB)
-const MAX_VIDEO_SIZE = 500 * 1024 * 1024;      // 500MB (was 100MB)
-const MAX_AUDIO_SIZE = 100 * 1024 * 1024;      // 100MB
-const MAX_3D_SIZE = 200 * 1024 * 1024;         // 200MB for .glb files
+const MAX_IMAGE_SIZE = 20 * 1024 * 1024; // 20MB (was 10MB)
+const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500MB (was 100MB)
+const MAX_AUDIO_SIZE = 100 * 1024 * 1024; // 100MB
+const MAX_3D_SIZE = 200 * 1024 * 1024; // 200MB for .glb files
 const MAX_AI_MODEL_SIZE = 2 * 1024 * 1024 * 1024; // 2GB for .safetensors/.ckpt
 
 export const isVideoFile = (mimetype: string): boolean => {

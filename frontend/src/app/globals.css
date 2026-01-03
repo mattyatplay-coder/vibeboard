@@ -36,7 +36,7 @@ body {
   font-family: var(--font-inter), system-ui, sans-serif;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
-  font-feature-settings: "cv11", "ss01";
+  font-feature-settings: 'cv11', 'ss01';
 
   /* Dramatic background with visible gradients */
   background-image:
@@ -259,11 +259,15 @@ body {
    INPUT FIELDS - Neon Focus States
    ======================================== */
 
-input, textarea, select {
+input,
+textarea,
+select {
   transition: all 0.3s ease;
 }
 
-input:focus, textarea:focus, select:focus {
+input:focus,
+textarea:focus,
+select:focus {
   outline: none;
   border-color: var(--neon-violet) !important;
   box-shadow:
@@ -277,14 +281,25 @@ input:focus, textarea:focus, select:focus {
 
 /* Shimmer Animation */
 @keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 /* Pulse glow animation */
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px var(--glow-violet); }
-  50% { box-shadow: 0 0 40px var(--glow-violet), 0 0 60px var(--glow-fuchsia); }
+  0%,
+  100% {
+    box-shadow: 0 0 20px var(--glow-violet);
+  }
+  50% {
+    box-shadow:
+      0 0 40px var(--glow-violet),
+      0 0 60px var(--glow-fuchsia);
+  }
 }
 
 .animate-pulse-glow {
@@ -293,13 +308,22 @@ input:focus, textarea:focus, select:focus {
 
 /* Neon flicker */
 @keyframes neon-flicker {
-  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+  0%,
+  19%,
+  21%,
+  23%,
+  25%,
+  54%,
+  56%,
+  100% {
     text-shadow:
       0 0 5px var(--glow-violet),
       0 0 10px var(--glow-violet),
       0 0 20px var(--glow-violet);
   }
-  20%, 24%, 55% {
+  20%,
+  24%,
+  55% {
     text-shadow: none;
   }
 }
@@ -357,8 +381,12 @@ input:focus, textarea:focus, select:focus {
 }
 
 @keyframes skeleton-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 /* Skeleton variants */
@@ -409,7 +437,7 @@ input:focus, textarea:focus, select:focus {
 
 /* When user drags a file from OS desktop onto browser */
 body.dragging-file::after {
-  content: "DROP TO INGEST";
+  content: 'DROP TO INGEST';
   position: fixed;
   inset: 16px;
   border: 2px dashed var(--neon-violet);
@@ -429,10 +457,15 @@ body.dragging-file::after {
 }
 
 @keyframes drop-zone-pulse {
-  0%, 100% {
-    box-shadow: 0 0 30px rgba(139, 92, 246, 0.2), inset 0 0 30px rgba(139, 92, 246, 0.05);
+  0%,
+  100% {
+    box-shadow:
+      0 0 30px rgba(139, 92, 246, 0.2),
+      inset 0 0 30px rgba(139, 92, 246, 0.05);
   }
   50% {
-    box-shadow: 0 0 50px rgba(139, 92, 246, 0.4), inset 0 0 50px rgba(139, 92, 246, 0.1);
+    box-shadow:
+      0 0 50px rgba(139, 92, 246, 0.4),
+      inset 0 0 50px rgba(139, 92, 246, 0.1);
   }
 }

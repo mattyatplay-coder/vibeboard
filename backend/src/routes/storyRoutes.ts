@@ -6,11 +6,11 @@
 
 import { Router } from 'express';
 import {
-    getStories,
-    getStory,
-    createStory,
-    updateStory,
-    deleteStory
+  getStories,
+  getStory,
+  createStory,
+  updateStory,
+  deleteStory,
 } from '../controllers/storyController';
 
 const router = Router({ mergeParams: true });

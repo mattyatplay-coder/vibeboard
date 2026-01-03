@@ -12,14 +12,14 @@
 import { LLMService } from '../LLMService';
 import { embeddingService, VectorEmbeddingService } from '../llm/VectorEmbeddingService';
 import {
-    PIXAR_STORYTELLING_RULES,
-    GENRE_GUIDES,
-    DIRECTOR_STYLES,
-    CINEMATOGRAPHER_STYLES,
-    getGenreGuide,
-    getDirectorStyle,
-    buildStylePrefix,
-    getPixarRulesForSituation
+  PIXAR_STORYTELLING_RULES,
+  GENRE_GUIDES,
+  DIRECTOR_STYLES,
+  CINEMATOGRAPHER_STYLES,
+  getGenreGuide,
+  getDirectorStyle,
+  buildStylePrefix,
+  getPixarRulesForSituation,
 } from './GenreStyleGuide';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -32,120 +32,120 @@ const prisma = new PrismaClient();
 // ═══════════════════════════════════════════════════════════════════════════
 
 export interface ScriptAnalysis {
-    title: string;
-    genre: string;
-    subGenres: string[];
-    analyzedAt: string;
+  title: string;
+  genre: string;
+  subGenres: string[];
+  analyzedAt: string;
 
-    // Voice & Tone
-    narrativeVoice: {
-        perspective: string;  // First person, third limited, omniscient
-        tone: string[];       // Whimsical, dark, hopeful, etc.
-        pacing: string;       // Fast, slow, varied
-        dialogueStyle: string; // Witty, naturalistic, stylized, etc.
-    };
+  // Voice & Tone
+  narrativeVoice: {
+    perspective: string; // First person, third limited, omniscient
+    tone: string[]; // Whimsical, dark, hopeful, etc.
+    pacing: string; // Fast, slow, varied
+    dialogueStyle: string; // Witty, naturalistic, stylized, etc.
+  };
 
-    // Character Patterns
-    characterPatterns: {
-        archetypes: string[];
-        relationshipDynamics: string[];
-        growthPatterns: string[];
-        dialogueQuirks: string[];
-    };
+  // Character Patterns
+  characterPatterns: {
+    archetypes: string[];
+    relationshipDynamics: string[];
+    growthPatterns: string[];
+    dialogueQuirks: string[];
+  };
 
-    // Story Structure
-    storyStructure: {
-        actBreakdown: string[];
-        emotionalBeats: string[];
-        conflictTypes: string[];
-        resolutionStyle: string;
-    };
+  // Story Structure
+  storyStructure: {
+    actBreakdown: string[];
+    emotionalBeats: string[];
+    conflictTypes: string[];
+    resolutionStyle: string;
+  };
 
-    // Visual Suggestions
-    visualSuggestions: {
-        colorPalette: string[];
-        lightingMoods: string[];
-        cameraStyles: string[];
-        environmentTypes: string[];
-    };
+  // Visual Suggestions
+  visualSuggestions: {
+    colorPalette: string[];
+    lightingMoods: string[];
+    cameraStyles: string[];
+    environmentTypes: string[];
+  };
 
-    // Signature Elements
-    signatureElements: {
-        recurringThemes: string[];
-        symbolism: string[];
-        catchphrases: string[];
-        visualMotifs: string[];
-    };
+  // Signature Elements
+  signatureElements: {
+    recurringThemes: string[];
+    symbolism: string[];
+    catchphrases: string[];
+    visualMotifs: string[];
+  };
 
-    // Prompt Templates
-    promptTemplates: {
-        characterIntro: string;
-        actionSequence: string;
-        emotionalMoment: string;
-        comedyBeat: string;
-        climax: string;
-    };
+  // Prompt Templates
+  promptTemplates: {
+    characterIntro: string;
+    actionSequence: string;
+    emotionalMoment: string;
+    comedyBeat: string;
+    climax: string;
+  };
 
-    // Raw excerpts for reference
-    sampleExcerpts: string[];
+  // Raw excerpts for reference
+  sampleExcerpts: string[];
 }
 
 export interface StoryGenerationRequest {
-    concept: string;
-    targetGenre: string;
-    scriptStyleReference?: string;  // Script title to match style
-    directorStyle?: string;
-    cinematographerStyle?: string;
-    targetLength: 'short' | 'medium' | 'feature';
-    includePixarRules?: boolean;
-    customConstraints?: string[];
+  concept: string;
+  targetGenre: string;
+  scriptStyleReference?: string; // Script title to match style
+  directorStyle?: string;
+  cinematographerStyle?: string;
+  targetLength: 'short' | 'medium' | 'feature';
+  includePixarRules?: boolean;
+  customConstraints?: string[];
 }
 
 export interface GeneratedStoryOutline {
-    title: string;
-    logline: string;
-    genre: string;
-    styleInfluences: string[];
-    acts: ActOutline[];
-    characters: CharacterOutline[];
-    visualGuide: VisualGuide;
-    pixarRulesApplied: string[];
+  title: string;
+  logline: string;
+  genre: string;
+  styleInfluences: string[];
+  acts: ActOutline[];
+  characters: CharacterOutline[];
+  visualGuide: VisualGuide;
+  pixarRulesApplied: string[];
 }
 
 export interface ActOutline {
-    actNumber: number;
-    title: string;
-    emotionalTone: string;
-    scenes: SceneOutline[];
+  actNumber: number;
+  title: string;
+  emotionalTone: string;
+  scenes: SceneOutline[];
 }
 
 export interface SceneOutline {
-    sceneNumber: number;
-    location: string;
-    timeOfDay: string;
-    description: string;
-    emotionalBeat: string;
-    characters: string[];
-    visualStyle: string;
+  sceneNumber: number;
+  location: string;
+  timeOfDay: string;
+  description: string;
+  emotionalBeat: string;
+  characters: string[];
+  visualStyle: string;
 }
 
 export interface CharacterOutline {
-    name: string;
-    archetype: string;
-    description: string;
-    arc: string;
-    relationships: string[];
-    visualDescription: string;
-    dialogueStyle: string;
+  name: string;
+  archetype: string;
+  description: string;
+  arc: string;
+  relationships: string[];
+  visualDescription: string;
+  dialogueStyle: string;
 }
 
 export interface VisualGuide {
-    overallStyle: string;
-    colorPalette: string[];
-    lightingApproach: string;
-    cameraStyle: string;
-    promptPrefix: string;
-    negativePrompt: string;
+  overallStyle: string;
+  colorPalette: string[];
+  lightingApproach: string;
+  cameraStyle: string;
+  promptPrefix: string;
+  negativePrompt: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -153,148 +153,153 @@ export interface VisualGuide {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const SCRIPT_LIBRARY_BASE = '/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/Script Library';
-const ANALYSIS_CACHE_PATH = '/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/Script Library/_analyses';
+const ANALYSIS_CACHE_PATH =
+  '/Volumes/Samsung.SSD.990.PRO.2TB/vibeboard backup/Script Library/_analyses';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SERVICE CLASS
 // ═══════════════════════════════════════════════════════════════════════════
 
 export class ScriptAnalyzer {
-    private llmService: LLMService;
-    private analysisCache: Map<string, ScriptAnalysis> = new Map();
-    private matureContent: boolean;
+  private llmService: LLMService;
+  private analysisCache: Map<string, ScriptAnalysis> = new Map();
+  private matureContent: boolean;
 
-    /**
-     * @param matureContent - When true, uses Dolphin (uncensored) for mature/NSFW content.
-     *                        When false (default), uses Claude for family-friendly content.
-     */
-    constructor(matureContent: boolean = false) {
-        this.matureContent = matureContent;
+  /**
+   * @param matureContent - When true, uses Dolphin (uncensored) for mature/NSFW content.
+   *                        When false (default), uses Claude for family-friendly content.
+   */
+  constructor(matureContent: boolean = false) {
+    this.matureContent = matureContent;
 
-        // Claude for family-friendly, Dolphin for mature content
-        const provider = matureContent ? 'dolphin' : 'claude';
-        this.llmService = new LLMService(provider);
+    // Claude for family-friendly, Dolphin for mature content
+    const provider = matureContent ? 'dolphin' : 'claude';
+    this.llmService = new LLMService(provider);
 
-        console.log(`[ScriptAnalyzer] Initialized with ${provider} (matureContent: ${matureContent})`);
-        this.loadCachedAnalyses();
-    }
+    console.log(`[ScriptAnalyzer] Initialized with ${provider} (matureContent: ${matureContent})`);
+    this.loadCachedAnalyses();
+  }
 
-    /**
-     * Create a new instance with different content mode
-     */
-    static withMatureContent(mature: boolean): ScriptAnalyzer {
-        return new ScriptAnalyzer(mature);
-    }
+  /**
+   * Create a new instance with different content mode
+   */
+  static withMatureContent(mature: boolean): ScriptAnalyzer {
+    return new ScriptAnalyzer(mature);
+  }
 
-    /**
-     * Load previously cached script analyses
-     */
-    private loadCachedAnalyses(): void {
-        try {
-            if (fs.existsSync(ANALYSIS_CACHE_PATH)) {
-                const files = fs.readdirSync(ANALYSIS_CACHE_PATH);
-                for (const file of files) {
-                    if (file.endsWith('.json')) {
-                        const content = fs.readFileSync(path.join(ANALYSIS_CACHE_PATH, file), 'utf-8');
-                        const analysis = JSON.parse(content) as ScriptAnalysis;
-                        this.analysisCache.set(analysis.title.toLowerCase(), analysis);
-                    }
-                }
-                const provider = this.matureContent ? 'Dolphin' : 'Claude';
-                console.log(`[ScriptAnalyzer] Loaded ${this.analysisCache.size} cached analyses (using ${provider})`);
-            }
-        } catch (error) {
-            console.warn('[ScriptAnalyzer] Failed to load cached analyses:', error);
-        }
-    }
-
-    /**
-     * Save analysis to cache
-     */
-    private saveAnalysisToCache(analysis: ScriptAnalysis): void {
-        try {
-            if (!fs.existsSync(ANALYSIS_CACHE_PATH)) {
-                fs.mkdirSync(ANALYSIS_CACHE_PATH, { recursive: true });
-            }
-            const filename = analysis.title.toLowerCase().replace(/[^a-z0-9]/g, '_') + '.json';
-            fs.writeFileSync(
-                path.join(ANALYSIS_CACHE_PATH, filename),
-                JSON.stringify(analysis, null, 2)
-            );
+  /**
+   * Load previously cached script analyses
+   */
+  private loadCachedAnalyses(): void {
+    try {
+      if (fs.existsSync(ANALYSIS_CACHE_PATH)) {
+        const files = fs.readdirSync(ANALYSIS_CACHE_PATH);
+        for (const file of files) {
+          if (file.endsWith('.json')) {
+            const content = fs.readFileSync(path.join(ANALYSIS_CACHE_PATH, file), 'utf-8');
+            const analysis = JSON.parse(content) as ScriptAnalysis;
             this.analysisCache.set(analysis.title.toLowerCase(), analysis);
-            console.log(`[ScriptAnalyzer] Saved analysis for "${analysis.title}"`);
-        } catch (error) {
-            console.error('[ScriptAnalyzer] Failed to save analysis:', error);
+          }
         }
+        const provider = this.matureContent ? 'Dolphin' : 'Claude';
+        console.log(
+          `[ScriptAnalyzer] Loaded ${this.analysisCache.size} cached analyses (using ${provider})`
+        );
+      }
+    } catch (error) {
+      console.warn('[ScriptAnalyzer] Failed to load cached analyses:', error);
     }
+  }
 
-    /**
-     * Get cached analysis or return undefined
-     */
-    getAnalysis(title: string): ScriptAnalysis | undefined {
-        return this.analysisCache.get(title.toLowerCase());
+  /**
+   * Save analysis to cache
+   */
+  private saveAnalysisToCache(analysis: ScriptAnalysis): void {
+    try {
+      if (!fs.existsSync(ANALYSIS_CACHE_PATH)) {
+        fs.mkdirSync(ANALYSIS_CACHE_PATH, { recursive: true });
+      }
+      const filename = analysis.title.toLowerCase().replace(/[^a-z0-9]/g, '_') + '.json';
+      fs.writeFileSync(path.join(ANALYSIS_CACHE_PATH, filename), JSON.stringify(analysis, null, 2));
+      this.analysisCache.set(analysis.title.toLowerCase(), analysis);
+      console.log(`[ScriptAnalyzer] Saved analysis for "${analysis.title}"`);
+    } catch (error) {
+      console.error('[ScriptAnalyzer] Failed to save analysis:', error);
     }
+  }
 
-    /**
-     * List all available scripts in the library
-     */
-    async listAvailableScripts(): Promise<{ genre: string; scripts: string[] }[]> {
-        const results: { genre: string; scripts: string[] }[] = [];
+  /**
+   * Get cached analysis or return undefined
+   */
+  getAnalysis(title: string): ScriptAnalysis | undefined {
+    return this.analysisCache.get(title.toLowerCase());
+  }
 
-        try {
-            const genres = fs.readdirSync(SCRIPT_LIBRARY_BASE);
-            for (const genre of genres) {
-                if (genre.startsWith('_') || genre.startsWith('.')) continue;
+  /**
+   * List all available scripts in the library
+   */
+  async listAvailableScripts(): Promise<{ genre: string; scripts: string[] }[]> {
+    const results: { genre: string; scripts: string[] }[] = [];
 
-                const genrePath = path.join(SCRIPT_LIBRARY_BASE, genre);
-                if (fs.statSync(genrePath).isDirectory()) {
-                    const scripts = fs.readdirSync(genrePath)
-                        .filter(f => !f.startsWith('.') && (f.endsWith('.pdf') || f.endsWith('.txt') || f.endsWith('.rtf')));
-                    if (scripts.length > 0) {
-                        results.push({ genre, scripts });
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('[ScriptAnalyzer] Failed to list scripts:', error);
-        }
+    try {
+      const genres = fs.readdirSync(SCRIPT_LIBRARY_BASE);
+      for (const genre of genres) {
+        if (genre.startsWith('_') || genre.startsWith('.')) continue;
 
-        return results;
-    }
-
-    /**
-     * Analyze a script to extract voice, style, and patterns
-     * Note: For PDFs, content needs to be extracted first
-     */
-    async analyzeScript(
-        scriptContent: string,
-        title: string,
-        genre: string
-    ): Promise<ScriptAnalysis> {
-        console.log(`[ScriptAnalyzer] Analyzing script: ${title}`);
-
-        // Check cache first
-        const cached = this.getAnalysis(title);
-        if (cached) {
-            console.log(`[ScriptAnalyzer] Returning cached analysis for "${title}"`);
-            return cached;
-        }
-
-        // Truncate content if too long (keep beginning, middle sample, and end)
-        const maxLength = 30000;
-        let analysisContent = scriptContent;
-        if (scriptContent.length > maxLength) {
-            const third = Math.floor(maxLength / 3);
-            const start = scriptContent.slice(0, third);
-            const middle = scriptContent.slice(
-                Math.floor(scriptContent.length / 2) - third / 2,
-                Math.floor(scriptContent.length / 2) + third / 2
+        const genrePath = path.join(SCRIPT_LIBRARY_BASE, genre);
+        if (fs.statSync(genrePath).isDirectory()) {
+          const scripts = fs
+            .readdirSync(genrePath)
+            .filter(
+              f =>
+                !f.startsWith('.') &&
+                (f.endsWith('.pdf') || f.endsWith('.txt') || f.endsWith('.rtf'))
             );
-            const end = scriptContent.slice(-third);
-            analysisContent = `[START OF SCRIPT]\n${start}\n\n[MIDDLE OF SCRIPT]\n${middle}\n\n[END OF SCRIPT]\n${end}`;
+          if (scripts.length > 0) {
+            results.push({ genre, scripts });
+          }
         }
+      }
+    } catch (error) {
+      console.error('[ScriptAnalyzer] Failed to list scripts:', error);
+    }
 
-        const systemPrompt = `You are an expert screenplay analyst and story consultant. Analyze the provided script excerpt and extract detailed patterns about its storytelling voice, style, character archetypes, and visual suggestions.
+    return results;
+  }
+
+  /**
+   * Analyze a script to extract voice, style, and patterns
+   * Note: For PDFs, content needs to be extracted first
+   */
+  async analyzeScript(
+    scriptContent: string,
+    title: string,
+    genre: string
+  ): Promise<ScriptAnalysis> {
+    console.log(`[ScriptAnalyzer] Analyzing script: ${title}`);
+
+    // Check cache first
+    const cached = this.getAnalysis(title);
+    if (cached) {
+      console.log(`[ScriptAnalyzer] Returning cached analysis for "${title}"`);
+      return cached;
+    }
+
+    // Truncate content if too long (keep beginning, middle sample, and end)
+    const maxLength = 30000;
+    let analysisContent = scriptContent;
+    if (scriptContent.length > maxLength) {
+      const third = Math.floor(maxLength / 3);
+      const start = scriptContent.slice(0, third);
+      const middle = scriptContent.slice(
+        Math.floor(scriptContent.length / 2) - third / 2,
+        Math.floor(scriptContent.length / 2) + third / 2
+      );
+      const end = scriptContent.slice(-third);
+      analysisContent = `[START OF SCRIPT]\n${start}\n\n[MIDDLE OF SCRIPT]\n${middle}\n\n[END OF SCRIPT]\n${end}`;
+    }
+
+    const systemPrompt = `You are an expert screenplay analyst and story consultant. Analyze the provided script excerpt and extract detailed patterns about its storytelling voice, style, character archetypes, and visual suggestions.
 
 Return your analysis as a JSON object with this structure:
 {
@@ -338,104 +343,110 @@ Return your analysis as a JSON object with this structure:
     "sampleExcerpts": ["3-5 short representative excerpts from the script"]
 }`;
 
-        const response = await this.llmService.generate({
-            prompt: `Analyze this ${genre} screenplay titled "${title}":\n\n${analysisContent}`,
-            systemPrompt,
-            temperature: 0.3,
-            maxTokens: 4000
-        });
+    const response = await this.llmService.generate({
+      prompt: `Analyze this ${genre} screenplay titled "${title}":\n\n${analysisContent}`,
+      systemPrompt,
+      temperature: 0.3,
+      maxTokens: 4000,
+    });
 
-        try {
-            let jsonStr = response.content;
-            const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
-            if (jsonMatch) {
-                jsonStr = jsonMatch[1];
-            }
+    try {
+      let jsonStr = response.content;
+      const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[1];
+      }
 
-            const parsed = JSON.parse(jsonStr.trim());
+      const parsed = JSON.parse(jsonStr.trim());
 
-            const analysis: ScriptAnalysis = {
-                title,
-                genre,
-                subGenres: [], // Could be extracted from filename patterns
-                analyzedAt: new Date().toISOString(),
-                ...parsed
-            };
+      const analysis: ScriptAnalysis = {
+        title,
+        genre,
+        subGenres: [], // Could be extracted from filename patterns
+        analyzedAt: new Date().toISOString(),
+        ...parsed,
+      };
 
-            // Save to cache
-            this.saveAnalysisToCache(analysis);
+      // Save to cache
+      this.saveAnalysisToCache(analysis);
 
-            return analysis;
-        } catch (error) {
-            console.error('[ScriptAnalyzer] Failed to parse analysis:', error);
-            throw new Error('Failed to analyze script');
-        }
+      return analysis;
+    } catch (error) {
+      console.error('[ScriptAnalyzer] Failed to parse analysis:', error);
+      throw new Error('Failed to analyze script');
+    }
+  }
+
+  /**
+   * Generate a story outline using learned patterns
+   */
+  async generateStoryOutline(request: StoryGenerationRequest): Promise<GeneratedStoryOutline> {
+    console.log(`[ScriptAnalyzer] Generating story outline for: ${request.concept}`);
+
+    // Gather style influences
+    const styleContext: string[] = [];
+    let scriptAnalysis: ScriptAnalysis | undefined;
+
+    // Get script style reference if provided
+    if (request.scriptStyleReference) {
+      scriptAnalysis = this.getAnalysis(request.scriptStyleReference);
+      if (scriptAnalysis) {
+        styleContext.push(`\nSTYLE REFERENCE FROM "${scriptAnalysis.title}":`);
+        styleContext.push(`Tone: ${scriptAnalysis.narrativeVoice.tone.join(', ')}`);
+        styleContext.push(`Dialogue Style: ${scriptAnalysis.narrativeVoice.dialogueStyle}`);
+        styleContext.push(`Pacing: ${scriptAnalysis.narrativeVoice.pacing}`);
+        styleContext.push(
+          `Character Archetypes: ${scriptAnalysis.characterPatterns.archetypes.join(', ')}`
+        );
+        styleContext.push(`Themes: ${scriptAnalysis.signatureElements.recurringThemes.join(', ')}`);
+      }
     }
 
-    /**
-     * Generate a story outline using learned patterns
-     */
-    async generateStoryOutline(request: StoryGenerationRequest): Promise<GeneratedStoryOutline> {
-        console.log(`[ScriptAnalyzer] Generating story outline for: ${request.concept}`);
+    // Get genre guide
+    const genreGuide = getGenreGuide(request.targetGenre);
+    if (genreGuide) {
+      styleContext.push(`\nGENRE CONVENTIONS (${request.targetGenre}):`);
+      styleContext.push(
+        `Storytelling: ${genreGuide.storytellingConventions.slice(0, 3).join(', ')}`
+      );
+      styleContext.push(`Visual Tropes: ${genreGuide.visualTropes.slice(0, 3).join(', ')}`);
+      styleContext.push(`Archetypes: ${genreGuide.archetypes.join(', ')}`);
+    }
 
-        // Gather style influences
-        const styleContext: string[] = [];
-        let scriptAnalysis: ScriptAnalysis | undefined;
+    // Get director style
+    let directorStyle;
+    if (request.directorStyle) {
+      directorStyle = getDirectorStyle(request.directorStyle);
+      if (directorStyle) {
+        styleContext.push(`\nDIRECTOR STYLE (${directorStyle.name}):`);
+        styleContext.push(
+          `Visual Signature: ${directorStyle.visualSignature.slice(0, 3).join(', ')}`
+        );
+        styleContext.push(`Color Palette: ${directorStyle.colorPalette.slice(0, 5).join(', ')}`);
+        styleContext.push(`Mood: ${directorStyle.moodKeywords.join(', ')}`);
+      }
+    }
 
-        // Get script style reference if provided
-        if (request.scriptStyleReference) {
-            scriptAnalysis = this.getAnalysis(request.scriptStyleReference);
-            if (scriptAnalysis) {
-                styleContext.push(`\nSTYLE REFERENCE FROM "${scriptAnalysis.title}":`);
-                styleContext.push(`Tone: ${scriptAnalysis.narrativeVoice.tone.join(', ')}`);
-                styleContext.push(`Dialogue Style: ${scriptAnalysis.narrativeVoice.dialogueStyle}`);
-                styleContext.push(`Pacing: ${scriptAnalysis.narrativeVoice.pacing}`);
-                styleContext.push(`Character Archetypes: ${scriptAnalysis.characterPatterns.archetypes.join(', ')}`);
-                styleContext.push(`Themes: ${scriptAnalysis.signatureElements.recurringThemes.join(', ')}`);
-            }
-        }
+    // Build Pixar rules context if requested
+    let pixarContext = '';
+    const appliedRules: string[] = [];
+    if (request.includePixarRules !== false) {
+      const relevantRules = getPixarRulesForSituation(request.concept);
+      pixarContext = `\nPIXAR STORYTELLING RULES TO APPLY:`;
+      for (const rule of relevantRules.slice(0, 5)) {
+        pixarContext += `\n- Rule ${rule.rule}: ${rule.title} - ${rule.description}`;
+        appliedRules.push(`Rule ${rule.rule}: ${rule.title}`);
+      }
+    }
 
-        // Get genre guide
-        const genreGuide = getGenreGuide(request.targetGenre);
-        if (genreGuide) {
-            styleContext.push(`\nGENRE CONVENTIONS (${request.targetGenre}):`);
-            styleContext.push(`Storytelling: ${genreGuide.storytellingConventions.slice(0, 3).join(', ')}`);
-            styleContext.push(`Visual Tropes: ${genreGuide.visualTropes.slice(0, 3).join(', ')}`);
-            styleContext.push(`Archetypes: ${genreGuide.archetypes.join(', ')}`);
-        }
+    // Determine structure based on length
+    const lengthGuidance = {
+      short: '3 acts, 5-10 scenes total, ~10-15 minutes runtime',
+      medium: '3 acts, 15-25 scenes total, ~30-45 minutes runtime',
+      feature: '3 acts, 40-60 scenes total, ~90-120 minutes runtime',
+    }[request.targetLength];
 
-        // Get director style
-        let directorStyle;
-        if (request.directorStyle) {
-            directorStyle = getDirectorStyle(request.directorStyle);
-            if (directorStyle) {
-                styleContext.push(`\nDIRECTOR STYLE (${directorStyle.name}):`);
-                styleContext.push(`Visual Signature: ${directorStyle.visualSignature.slice(0, 3).join(', ')}`);
-                styleContext.push(`Color Palette: ${directorStyle.colorPalette.slice(0, 5).join(', ')}`);
-                styleContext.push(`Mood: ${directorStyle.moodKeywords.join(', ')}`);
-            }
-        }
-
-        // Build Pixar rules context if requested
-        let pixarContext = '';
-        const appliedRules: string[] = [];
-        if (request.includePixarRules !== false) {
-            const relevantRules = getPixarRulesForSituation(request.concept);
-            pixarContext = `\nPIXAR STORYTELLING RULES TO APPLY:`;
-            for (const rule of relevantRules.slice(0, 5)) {
-                pixarContext += `\n- Rule ${rule.rule}: ${rule.title} - ${rule.description}`;
-                appliedRules.push(`Rule ${rule.rule}: ${rule.title}`);
-            }
-        }
-
-        // Determine structure based on length
-        const lengthGuidance = {
-            'short': '3 acts, 5-10 scenes total, ~10-15 minutes runtime',
-            'medium': '3 acts, 15-25 scenes total, ~30-45 minutes runtime',
-            'feature': '3 acts, 40-60 scenes total, ~90-120 minutes runtime'
-        }[request.targetLength];
-
-        const systemPrompt = `You are a master storyteller combining the craft of Pixar with classic Hollywood structure.
+    const systemPrompt = `You are a master storyteller combining the craft of Pixar with classic Hollywood structure.
 Generate a detailed story outline that:
 1. Has a clear emotional through-line
 2. Features memorable, flawed characters
@@ -490,77 +501,78 @@ Return a JSON object with this structure:
     }
 }`;
 
-        const response = await this.llmService.generate({
-            prompt: `Create a ${request.targetLength} ${request.targetGenre} story outline for this concept:\n\n"${request.concept}"\n\nTarget structure: ${lengthGuidance}`,
-            systemPrompt,
-            temperature: 0.8,
-            maxTokens: 8000
-        });
+    const response = await this.llmService.generate({
+      prompt: `Create a ${request.targetLength} ${request.targetGenre} story outline for this concept:\n\n"${request.concept}"\n\nTarget structure: ${lengthGuidance}`,
+      systemPrompt,
+      temperature: 0.8,
+      maxTokens: 8000,
+    });
 
-        try {
-            let jsonStr = response.content;
-            const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
-            if (jsonMatch) {
-                jsonStr = jsonMatch[1];
-            }
+    try {
+      let jsonStr = response.content;
+      const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[1];
+      }
 
-            const parsed = JSON.parse(jsonStr.trim());
+      const parsed = JSON.parse(jsonStr.trim());
 
-            // Build style prefix from all influences
-            const styleInfluences: string[] = [];
-            if (scriptAnalysis) styleInfluences.push(scriptAnalysis.title);
-            if (directorStyle) styleInfluences.push(directorStyle.name);
-            if (genreGuide) styleInfluences.push(genreGuide.genre);
+      // Build style prefix from all influences
+      const styleInfluences: string[] = [];
+      if (scriptAnalysis) styleInfluences.push(scriptAnalysis.title);
+      if (directorStyle) styleInfluences.push(directorStyle.name);
+      if (genreGuide) styleInfluences.push(genreGuide.genre);
 
-            // Enhance visual guide with director/cinematographer styles
-            if (parsed.visualGuide) {
-                const stylePrefix = buildStylePrefix(
-                    request.targetGenre,
-                    request.directorStyle,
-                    request.cinematographerStyle
-                );
-                parsed.visualGuide.promptPrefix = stylePrefix + ' ' + (parsed.visualGuide.promptPrefix || '');
-            }
+      // Enhance visual guide with director/cinematographer styles
+      if (parsed.visualGuide) {
+        const stylePrefix = buildStylePrefix(
+          request.targetGenre,
+          request.directorStyle,
+          request.cinematographerStyle
+        );
+        parsed.visualGuide.promptPrefix =
+          stylePrefix + ' ' + (parsed.visualGuide.promptPrefix || '');
+      }
 
-            const outline: GeneratedStoryOutline = {
-                genre: request.targetGenre,
-                styleInfluences,
-                pixarRulesApplied: appliedRules,
-                ...parsed
-            };
+      const outline: GeneratedStoryOutline = {
+        genre: request.targetGenre,
+        styleInfluences,
+        pixarRulesApplied: appliedRules,
+        ...parsed,
+      };
 
-            return outline;
-        } catch (error) {
-            console.error('[ScriptAnalyzer] Failed to parse outline:', error);
-            throw new Error('Failed to generate story outline');
-        }
+      return outline;
+    } catch (error) {
+      console.error('[ScriptAnalyzer] Failed to parse outline:', error);
+      throw new Error('Failed to generate story outline');
     }
+  }
 
-    /**
-     * Generate prompts for a scene in the style of an analyzed script
-     */
-    async generateScenePrompts(
-        scene: SceneOutline,
-        visualGuide: VisualGuide,
-        scriptStyle?: string
-    ): Promise<{
-        firstFramePrompt: string;
-        lastFramePrompt: string;
-        videoPrompt: string;
-        negativePrompt: string;
-    }> {
-        let styleContext = '';
-        if (scriptStyle) {
-            const analysis = this.getAnalysis(scriptStyle);
-            if (analysis?.promptTemplates) {
-                styleContext = `\nMatch the visual style from "${analysis.title}":
+  /**
+   * Generate prompts for a scene in the style of an analyzed script
+   */
+  async generateScenePrompts(
+    scene: SceneOutline,
+    visualGuide: VisualGuide,
+    scriptStyle?: string
+  ): Promise<{
+    firstFramePrompt: string;
+    lastFramePrompt: string;
+    videoPrompt: string;
+    negativePrompt: string;
+  }> {
+    let styleContext = '';
+    if (scriptStyle) {
+      const analysis = this.getAnalysis(scriptStyle);
+      if (analysis?.promptTemplates) {
+        styleContext = `\nMatch the visual style from "${analysis.title}":
 - Colors: ${analysis.visualSuggestions.colorPalette.join(', ')}
 - Lighting: ${analysis.visualSuggestions.lightingMoods.join(', ')}
 - Camera: ${analysis.visualSuggestions.cameraStyles.join(', ')}`;
-            }
-        }
+      }
+    }
 
-        const systemPrompt = `You are a storyboard artist creating detailed prompts for AI image and video generation.
+    const systemPrompt = `You are a storyboard artist creating detailed prompts for AI image and video generation.
 
 For this scene, create:
 1. FIRST FRAME: The opening moment of the scene
@@ -581,129 +593,133 @@ Return JSON:
     "videoPrompt": "motion description for video generation"
 }`;
 
-        const response = await this.llmService.generate({
-            prompt: `Generate prompts for this scene:
+    const response = await this.llmService.generate({
+      prompt: `Generate prompts for this scene:
 Location: ${scene.location} - ${scene.timeOfDay}
 Description: ${scene.description}
 Emotional Beat: ${scene.emotionalBeat}
 Characters: ${scene.characters.join(', ')}
 Visual Style: ${scene.visualStyle}`,
-            systemPrompt,
-            temperature: 0.7,
-            maxTokens: 2000
-        });
+      systemPrompt,
+      temperature: 0.7,
+      maxTokens: 2000,
+    });
 
-        try {
-            let jsonStr = response.content;
-            const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
-            if (jsonMatch) {
-                jsonStr = jsonMatch[1];
-            }
+    try {
+      let jsonStr = response.content;
+      const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[1];
+      }
 
-            const parsed = JSON.parse(jsonStr.trim());
+      const parsed = JSON.parse(jsonStr.trim());
 
-            // Prepend style prefix
-            const prefix = visualGuide.promptPrefix || '';
+      // Prepend style prefix
+      const prefix = visualGuide.promptPrefix || '';
 
-            return {
-                firstFramePrompt: `${prefix} ${parsed.firstFramePrompt}`.trim(),
-                lastFramePrompt: `${prefix} ${parsed.lastFramePrompt}`.trim(),
-                videoPrompt: `${prefix} ${parsed.videoPrompt}`.trim(),
-                negativePrompt: visualGuide.negativePrompt || 'low quality, blurry, distorted'
-            };
-        } catch (error) {
-            console.error('[ScriptAnalyzer] Failed to generate scene prompts:', error);
-            throw new Error('Failed to generate scene prompts');
-        }
+      return {
+        firstFramePrompt: `${prefix} ${parsed.firstFramePrompt}`.trim(),
+        lastFramePrompt: `${prefix} ${parsed.lastFramePrompt}`.trim(),
+        videoPrompt: `${prefix} ${parsed.videoPrompt}`.trim(),
+        negativePrompt: visualGuide.negativePrompt || 'low quality, blurry, distorted',
+      };
+    } catch (error) {
+      console.error('[ScriptAnalyzer] Failed to generate scene prompts:', error);
+      throw new Error('Failed to generate scene prompts');
+    }
+  }
+
+  /**
+   * Get all cached analyses
+   */
+  getAllAnalyses(): ScriptAnalysis[] {
+    return Array.from(this.analysisCache.values());
+  }
+
+  /**
+   * Get visual style recommendation based on genre and preferences
+   */
+  getVisualStyleRecommendation(genre: string): {
+    directors: string[];
+    cinematographers: string[];
+    colorPalette: string[];
+    promptPrefix: string;
+  } {
+    const genreGuide = getGenreGuide(genre);
+    if (!genreGuide) {
+      return {
+        directors: [],
+        cinematographers: [],
+        colorPalette: [],
+        promptPrefix: '',
+      };
     }
 
-    /**
-     * Get all cached analyses
-     */
-    getAllAnalyses(): ScriptAnalysis[] {
-        return Array.from(this.analysisCache.values());
-    }
+    const directors = genreGuide.suggestedDirectors.map(d => {
+      const style = getDirectorStyle(d);
+      return style?.name || d;
+    });
 
-    /**
-     * Get visual style recommendation based on genre and preferences
-     */
-    getVisualStyleRecommendation(genre: string): {
-        directors: string[];
-        cinematographers: string[];
-        colorPalette: string[];
-        promptPrefix: string;
-    } {
-        const genreGuide = getGenreGuide(genre);
-        if (!genreGuide) {
-            return {
-                directors: [],
-                cinematographers: [],
-                colorPalette: [],
-                promptPrefix: ''
-            };
-        }
+    const cinematographers = genreGuide.suggestedCinematographers.map(c => {
+      const style = CINEMATOGRAPHER_STYLES[c];
+      return style?.name || c;
+    });
 
-        const directors = genreGuide.suggestedDirectors.map(d => {
-            const style = getDirectorStyle(d);
-            return style?.name || d;
-        });
+    return {
+      directors,
+      cinematographers,
+      colorPalette: genreGuide.colorPalette,
+      promptPrefix: genreGuide.promptPrefix,
+    };
+  }
 
-        const cinematographers = genreGuide.suggestedCinematographers.map(c => {
-            const style = CINEMATOGRAPHER_STYLES[c];
-            return style?.name || c;
-        });
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RAG RETRIEVAL METHODS
+  // ═══════════════════════════════════════════════════════════════════════════
 
-        return {
-            directors,
-            cinematographers,
-            colorPalette: genreGuide.colorPalette,
-            promptPrefix: genreGuide.promptPrefix
-        };
-    }
+  /**
+   * Find stylistically similar scripts using semantic search
+   * Uses pgvector for efficient similarity search
+   */
+  async findSimilarScripts(
+    query: string,
+    options: {
+      genre?: string;
+      limit?: number;
+      minSimilarity?: number;
+    } = {}
+  ): Promise<
+    {
+      script: {
+        id: string;
+        title: string;
+        genre: string;
+        synopsis: string;
+      };
+      similarity: number;
+      excerpts: string[];
+    }[]
+  > {
+    const { genre, limit = 5, minSimilarity = 0.6 } = options;
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // RAG RETRIEVAL METHODS
-    // ═══════════════════════════════════════════════════════════════════════════
+    console.log(`[ScriptAnalyzer] RAG search: "${query}" (genre: ${genre || 'any'})`);
 
-    /**
-     * Find stylistically similar scripts using semantic search
-     * Uses pgvector for efficient similarity search
-     */
-    async findSimilarScripts(
-        query: string,
-        options: {
-            genre?: string;
-            limit?: number;
-            minSimilarity?: number;
-        } = {}
-    ): Promise<{
-        script: {
-            id: string;
-            title: string;
-            genre: string;
-            synopsis: string;
-        };
-        similarity: number;
-        excerpts: string[];
-    }[]> {
-        const { genre, limit = 5, minSimilarity = 0.6 } = options;
+    try {
+      // Get query embedding
+      const queryEmbedding = await embeddingService.getQueryEmbedding(query);
 
-        console.log(`[ScriptAnalyzer] RAG search: "${query}" (genre: ${genre || 'any'})`);
-
-        try {
-            // Get query embedding
-            const queryEmbedding = await embeddingService.getQueryEmbedding(query);
-
-            // Build the similarity search query using pgvector
-            // Note: This requires the ScriptLibrary model with vector extension
-            const results = await prisma.$queryRaw<Array<{
-                id: string;
-                title: string;
-                genre: string;
-                synopsis: string;
-                sample_excerpts: string;
-                similarity: number;
-            }>>`
+      // Build the similarity search query using pgvector
+      // Note: This requires the ScriptLibrary model with vector extension
+      const results = await prisma.$queryRaw<
+        Array<{
+          id: string;
+          title: string;
+          genre: string;
+          synopsis: string;
+          sample_excerpts: string;
+          similarity: number;
+        }>
+      >`
                 SELECT
                     id,
                     title,
@@ -719,173 +735,178 @@ Visual Style: ${scene.visualStyle}`,
                 LIMIT ${limit}
             `;
 
-            return results
-                .filter(r => r.similarity >= minSimilarity)
-                .map(r => ({
-                    script: {
-                        id: r.id,
-                        title: r.title,
-                        genre: r.genre,
-                        synopsis: r.synopsis,
-                    },
-                    similarity: r.similarity,
-                    excerpts: JSON.parse(r.sample_excerpts || '[]'),
-                }));
-        } catch (error: any) {
-            console.error('[ScriptAnalyzer] RAG search failed:', error.message);
-            // Fallback to in-memory cache search if database fails
-            return this.fallbackSimilaritySearch(query, genre, limit);
-        }
+      return results
+        .filter(r => r.similarity >= minSimilarity)
+        .map(r => ({
+          script: {
+            id: r.id,
+            title: r.title,
+            genre: r.genre,
+            synopsis: r.synopsis,
+          },
+          similarity: r.similarity,
+          excerpts: JSON.parse(r.sample_excerpts || '[]'),
+        }));
+    } catch (error: any) {
+      console.error('[ScriptAnalyzer] RAG search failed:', error.message);
+      // Fallback to in-memory cache search if database fails
+      return this.fallbackSimilaritySearch(query, genre, limit);
     }
+  }
 
-    /**
-     * Fallback similarity search using in-memory cache
-     * Used when database vector search is unavailable
-     */
-    private async fallbackSimilaritySearch(
-        query: string,
-        genre?: string,
-        limit: number = 5
-    ): Promise<{
+  /**
+   * Fallback similarity search using in-memory cache
+   * Used when database vector search is unavailable
+   */
+  private async fallbackSimilaritySearch(
+    query: string,
+    genre?: string,
+    limit: number = 5
+  ): Promise<
+    {
+      script: {
+        id: string;
+        title: string;
+        genre: string;
+        synopsis: string;
+      };
+      similarity: number;
+      excerpts: string[];
+    }[]
+  > {
+    const queryEmbedding = await embeddingService.getQueryEmbedding(query);
+    const results: Array<{
+      script: { id: string; title: string; genre: string; synopsis: string };
+      similarity: number;
+      excerpts: string[];
+    }> = [];
+
+    for (const analysis of this.analysisCache.values()) {
+      if (genre && analysis.genre.toLowerCase() !== genre.toLowerCase()) {
+        continue;
+      }
+
+      // Create a combined text from analysis for embedding comparison
+      const analysisText = [
+        analysis.narrativeVoice.tone.join(' '),
+        analysis.narrativeVoice.dialogueStyle,
+        analysis.signatureElements.recurringThemes.join(' '),
+        analysis.characterPatterns.archetypes.join(' '),
+      ].join(' ');
+
+      const analysisEmbedding = await embeddingService.getEmbedding(analysisText);
+      const similarity = embeddingService.cosineSimilarity(queryEmbedding, analysisEmbedding);
+
+      results.push({
         script: {
-            id: string;
-            title: string;
-            genre: string;
-            synopsis: string;
-        };
-        similarity: number;
-        excerpts: string[];
-    }[]> {
-        const queryEmbedding = await embeddingService.getQueryEmbedding(query);
-        const results: Array<{
-            script: { id: string; title: string; genre: string; synopsis: string };
-            similarity: number;
-            excerpts: string[];
-        }> = [];
-
-        for (const analysis of this.analysisCache.values()) {
-            if (genre && analysis.genre.toLowerCase() !== genre.toLowerCase()) {
-                continue;
-            }
-
-            // Create a combined text from analysis for embedding comparison
-            const analysisText = [
-                analysis.narrativeVoice.tone.join(' '),
-                analysis.narrativeVoice.dialogueStyle,
-                analysis.signatureElements.recurringThemes.join(' '),
-                analysis.characterPatterns.archetypes.join(' '),
-            ].join(' ');
-
-            const analysisEmbedding = await embeddingService.getEmbedding(analysisText);
-            const similarity = embeddingService.cosineSimilarity(queryEmbedding, analysisEmbedding);
-
-            results.push({
-                script: {
-                    id: analysis.title.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-                    title: analysis.title,
-                    genre: analysis.genre,
-                    synopsis: analysis.narrativeVoice.tone.join(', '),
-                },
-                similarity,
-                excerpts: analysis.sampleExcerpts || [],
-            });
-        }
-
-        return results
-            .sort((a, b) => b.similarity - a.similarity)
-            .slice(0, limit);
+          id: analysis.title.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+          title: analysis.title,
+          genre: analysis.genre,
+          synopsis: analysis.narrativeVoice.tone.join(', '),
+        },
+        similarity,
+        excerpts: analysis.sampleExcerpts || [],
+      });
     }
 
-    /**
-     * RAG-enhanced story generation
-     * Retrieves similar scripts and uses them as context for generation
-     */
-    async generateStoryWithRAG(
-        request: StoryGenerationRequest & {
-            useRAG?: boolean;
-            ragTopK?: number;
+    return results.sort((a, b) => b.similarity - a.similarity).slice(0, limit);
+  }
+
+  /**
+   * RAG-enhanced story generation
+   * Retrieves similar scripts and uses them as context for generation
+   */
+  async generateStoryWithRAG(
+    request: StoryGenerationRequest & {
+      useRAG?: boolean;
+      ragTopK?: number;
+    }
+  ): Promise<GeneratedStoryOutline> {
+    console.log(`[ScriptAnalyzer] Generating story with RAG: "${request.concept}"`);
+
+    let ragContext = '';
+
+    if (request.useRAG !== false) {
+      // Find similar scripts for context
+      const similarScripts = await this.findSimilarScripts(request.concept, {
+        genre: request.targetGenre,
+        limit: request.ragTopK || 3,
+      });
+
+      if (similarScripts.length > 0) {
+        ragContext = '\n\n=== SIMILAR SCRIPT REFERENCES (for style inspiration) ===';
+        for (const result of similarScripts) {
+          ragContext += `\n\nScript: "${result.script.title}" (${result.script.genre})`;
+          ragContext += `\nSimilarity: ${(result.similarity * 100).toFixed(1)}%`;
+          if (result.excerpts.length > 0) {
+            ragContext += `\nStyle Excerpts:\n${result.excerpts
+              .slice(0, 2)
+              .map(e => `  "${e}"`)
+              .join('\n')}`;
+          }
         }
-    ): Promise<GeneratedStoryOutline> {
-        console.log(`[ScriptAnalyzer] Generating story with RAG: "${request.concept}"`);
+        ragContext += '\n\n=== END REFERENCES ===\n';
 
-        let ragContext = '';
-
-        if (request.useRAG !== false) {
-            // Find similar scripts for context
-            const similarScripts = await this.findSimilarScripts(request.concept, {
-                genre: request.targetGenre,
-                limit: request.ragTopK || 3,
-            });
-
-            if (similarScripts.length > 0) {
-                ragContext = '\n\n=== SIMILAR SCRIPT REFERENCES (for style inspiration) ===';
-                for (const result of similarScripts) {
-                    ragContext += `\n\nScript: "${result.script.title}" (${result.script.genre})`;
-                    ragContext += `\nSimilarity: ${(result.similarity * 100).toFixed(1)}%`;
-                    if (result.excerpts.length > 0) {
-                        ragContext += `\nStyle Excerpts:\n${result.excerpts.slice(0, 2).map(e => `  "${e}"`).join('\n')}`;
-                    }
-                }
-                ragContext += '\n\n=== END REFERENCES ===\n';
-
-                console.log(`[ScriptAnalyzer] Found ${similarScripts.length} similar scripts for RAG context`);
-            }
-        }
-
-        // Modify the request to include RAG context
-        const enhancedRequest = {
-            ...request,
-            customConstraints: [
-                ...(request.customConstraints || []),
-                ...(ragContext ? [`Use these similar scripts as style references:${ragContext}`] : []),
-            ],
-        };
-
-        // Use the existing story generation with enhanced context
-        return this.generateStoryOutline(enhancedRequest);
+        console.log(
+          `[ScriptAnalyzer] Found ${similarScripts.length} similar scripts for RAG context`
+        );
+      }
     }
 
-    /**
-     * Ingest a script into the vector database for RAG retrieval
-     */
-    async ingestScriptForRAG(
-        scriptContent: string,
-        metadata: {
-            title: string;
-            genre: string;
-            subGenres?: string[];
-            writer?: string;
-            year?: number;
-        }
-    ): Promise<{ id: string; chunksCreated: number }> {
-        console.log(`[ScriptAnalyzer] Ingesting script for RAG: "${metadata.title}"`);
+    // Modify the request to include RAG context
+    const enhancedRequest = {
+      ...request,
+      customConstraints: [
+        ...(request.customConstraints || []),
+        ...(ragContext ? [`Use these similar scripts as style references:${ragContext}`] : []),
+      ],
+    };
 
-        // First, analyze the script to extract patterns
-        const analysis = await this.analyzeScript(scriptContent, metadata.title, metadata.genre);
+    // Use the existing story generation with enhanced context
+    return this.generateStoryOutline(enhancedRequest);
+  }
 
-        // Create synopsis from analysis
-        const synopsis = [
-            `${analysis.narrativeVoice.tone.join(', ')} ${metadata.genre}`,
-            `featuring ${analysis.characterPatterns.archetypes.slice(0, 3).join(', ')}`,
-            `with themes of ${analysis.signatureElements.recurringThemes.slice(0, 3).join(', ')}`,
-        ].join(' ');
+  /**
+   * Ingest a script into the vector database for RAG retrieval
+   */
+  async ingestScriptForRAG(
+    scriptContent: string,
+    metadata: {
+      title: string;
+      genre: string;
+      subGenres?: string[];
+      writer?: string;
+      year?: number;
+    }
+  ): Promise<{ id: string; chunksCreated: number }> {
+    console.log(`[ScriptAnalyzer] Ingesting script for RAG: "${metadata.title}"`);
 
-        // Create embedding from combined analysis
-        const embeddingText = [
-            metadata.title,
-            metadata.genre,
-            synopsis,
-            analysis.narrativeVoice.dialogueStyle,
-            analysis.signatureElements.recurringThemes.join(' '),
-            analysis.characterPatterns.archetypes.join(' '),
-            analysis.visualSuggestions.colorPalette.join(' '),
-        ].join(' | ');
+    // First, analyze the script to extract patterns
+    const analysis = await this.analyzeScript(scriptContent, metadata.title, metadata.genre);
 
-        const embedding = await embeddingService.getEmbedding(embeddingText);
+    // Create synopsis from analysis
+    const synopsis = [
+      `${analysis.narrativeVoice.tone.join(', ')} ${metadata.genre}`,
+      `featuring ${analysis.characterPatterns.archetypes.slice(0, 3).join(', ')}`,
+      `with themes of ${analysis.signatureElements.recurringThemes.slice(0, 3).join(', ')}`,
+    ].join(' ');
 
-        // Store in database
-        try {
-            const script = await prisma.$executeRaw`
+    // Create embedding from combined analysis
+    const embeddingText = [
+      metadata.title,
+      metadata.genre,
+      synopsis,
+      analysis.narrativeVoice.dialogueStyle,
+      analysis.signatureElements.recurringThemes.join(' '),
+      analysis.characterPatterns.archetypes.join(' '),
+      analysis.visualSuggestions.colorPalette.join(' '),
+    ].join(' | ');
+
+    const embedding = await embeddingService.getEmbedding(embeddingText);
+
+    // Store in database
+    try {
+      const script = await prisma.$executeRaw`
                 INSERT INTO "ScriptLibrary" (
                     id, title, genre, "subGenres", writer, year, synopsis,
                     "narrativeVoice", "characterPatterns", "visualStyle",
@@ -914,56 +935,56 @@ Visual Style: ${scene.visualStyle}`,
                     "updatedAt" = NOW()
             `;
 
-            console.log(`[ScriptAnalyzer] Script ingested: "${metadata.title}"`);
+      console.log(`[ScriptAnalyzer] Script ingested: "${metadata.title}"`);
 
-            return {
-                id: metadata.title.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-                chunksCreated: 1,
-            };
-        } catch (error: any) {
-            console.error('[ScriptAnalyzer] Failed to ingest script:', error.message);
-            throw new Error(`Failed to ingest script: ${error.message}`);
-        }
+      return {
+        id: metadata.title.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+        chunksCreated: 1,
+      };
+    } catch (error: any) {
+      console.error('[ScriptAnalyzer] Failed to ingest script:', error.message);
+      throw new Error(`Failed to ingest script: ${error.message}`);
     }
+  }
 
-    /**
-     * Get RAG stats for monitoring
-     */
-    async getRAGStats(): Promise<{
-        totalScripts: number;
-        indexedScripts: number;
-        genreBreakdown: Record<string, number>;
-    }> {
-        try {
-            const total = await prisma.$queryRaw<[{ count: bigint }]>`
+  /**
+   * Get RAG stats for monitoring
+   */
+  async getRAGStats(): Promise<{
+    totalScripts: number;
+    indexedScripts: number;
+    genreBreakdown: Record<string, number>;
+  }> {
+    try {
+      const total = await prisma.$queryRaw<[{ count: bigint }]>`
                 SELECT COUNT(*) as count FROM "ScriptLibrary"
             `;
-            const indexed = await prisma.$queryRaw<[{ count: bigint }]>`
+      const indexed = await prisma.$queryRaw<[{ count: bigint }]>`
                 SELECT COUNT(*) as count FROM "ScriptLibrary" WHERE embedding IS NOT NULL
             `;
-            const genres = await prisma.$queryRaw<Array<{ genre: string; count: bigint }>>`
+      const genres = await prisma.$queryRaw<Array<{ genre: string; count: bigint }>>`
                 SELECT genre, COUNT(*) as count FROM "ScriptLibrary" GROUP BY genre
             `;
 
-            const genreBreakdown: Record<string, number> = {};
-            for (const g of genres) {
-                genreBreakdown[g.genre] = Number(g.count);
-            }
+      const genreBreakdown: Record<string, number> = {};
+      for (const g of genres) {
+        genreBreakdown[g.genre] = Number(g.count);
+      }
 
-            return {
-                totalScripts: Number(total[0]?.count || 0),
-                indexedScripts: Number(indexed[0]?.count || 0),
-                genreBreakdown,
-            };
-        } catch (error) {
-            console.warn('[ScriptAnalyzer] Failed to get RAG stats:', error);
-            return {
-                totalScripts: this.analysisCache.size,
-                indexedScripts: this.analysisCache.size,
-                genreBreakdown: {},
-            };
-        }
+      return {
+        totalScripts: Number(total[0]?.count || 0),
+        indexedScripts: Number(indexed[0]?.count || 0),
+        genreBreakdown,
+      };
+    } catch (error) {
+      console.warn('[ScriptAnalyzer] Failed to get RAG stats:', error);
+      return {
+        totalScripts: this.analysisCache.size,
+        indexedScripts: this.analysisCache.size,
+        genreBreakdown: {},
+      };
     }
+  }
 }
 
 // Singleton instances (one for each content mode)
@@ -976,17 +997,17 @@ let matureContentInstance: ScriptAnalyzer | null = null;
  *                        When false (default), returns instance using Claude.
  */
 export function getScriptAnalyzer(matureContent: boolean = false): ScriptAnalyzer {
-    if (matureContent) {
-        if (!matureContentInstance) {
-            matureContentInstance = new ScriptAnalyzer(true);
-        }
-        return matureContentInstance;
-    } else {
-        if (!familyFriendlyInstance) {
-            familyFriendlyInstance = new ScriptAnalyzer(false);
-        }
-        return familyFriendlyInstance;
+  if (matureContent) {
+    if (!matureContentInstance) {
+      matureContentInstance = new ScriptAnalyzer(true);
     }
+    return matureContentInstance;
+  } else {
+    if (!familyFriendlyInstance) {
+      familyFriendlyInstance = new ScriptAnalyzer(false);
+    }
+    return familyFriendlyInstance;
+  }
 }
 
 export default ScriptAnalyzer;

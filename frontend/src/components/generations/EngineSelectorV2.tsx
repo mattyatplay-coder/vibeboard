@@ -83,57 +83,59 @@ export function EngineSelectorV2({
                 variant === 'compact' ? 'h-10 px-2' : 'p-3'
               )}
             >
-            <div className="flex min-w-0 flex-1 items-center gap-3">
-              {/* Icon */}
-              <div
-                className={clsx(
-                  'flex flex-shrink-0 items-center justify-center rounded-lg transition-colors',
-                  providerDef?.bgColor || 'bg-gray-800',
-                  variant === 'compact' ? 'h-6 w-6' : 'h-10 w-10'
-                )}
-              >
-                {providerDef?.icon && (
-                  <providerDef.icon
-                    className={clsx(
-                      variant === 'compact' ? 'h-3.5 w-3.5' : 'h-5 w-5',
-                      providerDef.color
-                    )}
-                  />
-                )}
-              </div>
-
-              {/* Text */}
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={clsx(
-                      'block truncate font-bold text-white transition-colors group-hover:text-blue-400',
-                      variant === 'compact' ? 'max-w-[120px] text-xs' : 'max-w-[100px] sm:max-w-none text-sm'
-                    )}
-                  >
-                    {currentModel?.name || 'Select Model'}
-                  </span>
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                {/* Icon */}
+                <div
+                  className={clsx(
+                    'flex flex-shrink-0 items-center justify-center rounded-lg transition-colors',
+                    providerDef?.bgColor || 'bg-gray-800',
+                    variant === 'compact' ? 'h-6 w-6' : 'h-10 w-10'
+                  )}
+                >
+                  {providerDef?.icon && (
+                    <providerDef.icon
+                      className={clsx(
+                        variant === 'compact' ? 'h-3.5 w-3.5' : 'h-5 w-5',
+                        providerDef.color
+                      )}
+                    />
+                  )}
                 </div>
-                {variant === 'default' && (
-                  <div className="mt-0.5 flex items-center gap-2">
-                    <span className={clsx('text-xs', providerDef?.color || 'text-gray-400')}>
-                      {providerDef?.name || 'Unknown Provider'}
-                    </span>
-                    <span className="text-xs text-gray-600">•</span>
-                    <span className="line-clamp-1 w-32 text-xs text-gray-500 md:w-auto">
-                      {currentModel?.desc || 'AI Generation Model'}
+
+                {/* Text */}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={clsx(
+                        'block truncate font-bold text-white transition-colors group-hover:text-blue-400',
+                        variant === 'compact'
+                          ? 'max-w-[120px] text-xs'
+                          : 'max-w-[100px] text-sm sm:max-w-none'
+                      )}
+                    >
+                      {currentModel?.name || 'Select Model'}
                     </span>
                   </div>
-                )}
+                  {variant === 'default' && (
+                    <div className="mt-0.5 flex items-center gap-2">
+                      <span className={clsx('text-xs', providerDef?.color || 'text-gray-400')}>
+                        {providerDef?.name || 'Unknown Provider'}
+                      </span>
+                      <span className="text-xs text-gray-600">•</span>
+                      <span className="line-clamp-1 w-32 text-xs text-gray-500 md:w-auto">
+                        {currentModel?.desc || 'AI Generation Model'}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
 
-            <ChevronDown
-              className={clsx(
-                'ml-2 flex-shrink-0 text-gray-500 transition-colors group-hover:text-white',
-                variant === 'compact' ? 'h-4 w-4' : 'h-5 w-5'
-              )}
-            />
+              <ChevronDown
+                className={clsx(
+                  'ml-2 flex-shrink-0 text-gray-500 transition-colors group-hover:text-white',
+                  variant === 'compact' ? 'h-4 w-4' : 'h-5 w-5'
+                )}
+              />
             </button>
           </Tooltip>
         </div>

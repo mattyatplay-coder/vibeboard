@@ -703,7 +703,9 @@ router.post('/snapshots/:snapshotId/restore', withAuth, async (req: Request, res
       });
     }
 
-    console.log(`[Sequencer] Restored snapshot "${snapshot.versionName}" to scene chain ${sceneChainId}`);
+    console.log(
+      `[Sequencer] Restored snapshot "${snapshot.versionName}" to scene chain ${sceneChainId}`
+    );
 
     return res.json({
       success: true,

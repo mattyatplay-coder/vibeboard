@@ -135,13 +135,8 @@ export default function TrainingPage() {
   const [hasMounted, setHasMounted] = useState(false);
   const [showRecoveryToast, setShowRecoveryToast] = useState(false);
   const [recoverableSession, setRecoverableSession] = useState<TrainSession | null>(null);
-  const {
-    saveSession,
-    getSession,
-    clearSession,
-    dismissRecovery,
-    isRecoveryDismissed,
-  } = usePageAutoSave<TrainSession>('train');
+  const { saveSession, getSession, clearSession, dismissRecovery, isRecoveryDismissed } =
+    usePageAutoSave<TrainSession>('train');
 
   // Mount detection
   useEffect(() => {
@@ -182,20 +177,39 @@ export default function TrainingPage() {
       });
     }, 500);
     return () => clearInterval(saveInterval);
-  }, [projectId, hasMounted, newJobName, triggerWord, trainingType, provider, baseModel, steps, learningRate, datasetPath, isFoundryMode, foundryPrompt, selectedPreset, saveSession]);
+  }, [
+    projectId,
+    hasMounted,
+    newJobName,
+    triggerWord,
+    trainingType,
+    provider,
+    baseModel,
+    steps,
+    learningRate,
+    datasetPath,
+    isFoundryMode,
+    foundryPrompt,
+    selectedPreset,
+    saveSession,
+  ]);
 
   const handleRestoreSession = () => {
     if (!recoverableSession) return;
     // Restore form state
     if (recoverableSession.jobName) setNewJobName(recoverableSession.jobName);
     if (recoverableSession.triggerWord) setTriggerWord(recoverableSession.triggerWord);
-    if (recoverableSession.trainingType) setTrainingType(recoverableSession.trainingType as 'style' | 'character');
-    if (recoverableSession.provider) setProvider(recoverableSession.provider as 'fal' | 'replicate');
-    if (recoverableSession.baseModel) setBaseModel(recoverableSession.baseModel as 'fast' | 'dev' | 'wan-video');
+    if (recoverableSession.trainingType)
+      setTrainingType(recoverableSession.trainingType as 'style' | 'character');
+    if (recoverableSession.provider)
+      setProvider(recoverableSession.provider as 'fal' | 'replicate');
+    if (recoverableSession.baseModel)
+      setBaseModel(recoverableSession.baseModel as 'fast' | 'dev' | 'wan-video');
     if (recoverableSession.steps) setSteps(recoverableSession.steps);
     if (recoverableSession.learningRate) setLearningRate(recoverableSession.learningRate);
     if (recoverableSession.datasetPath) setDatasetPath(recoverableSession.datasetPath);
-    if (recoverableSession.isFoundryMode !== undefined) setIsFoundryMode(recoverableSession.isFoundryMode);
+    if (recoverableSession.isFoundryMode !== undefined)
+      setIsFoundryMode(recoverableSession.isFoundryMode);
     if (recoverableSession.foundryPrompt) setFoundryPrompt(recoverableSession.foundryPrompt);
     if (recoverableSession.selectedPreset) setSelectedPreset(recoverableSession.selectedPreset);
     // Open the form if restoring
@@ -988,11 +1002,18 @@ export default function TrainingPage() {
                           'flex items-center justify-between rounded-lg p-3 text-left transition-all duration-200',
                           'border bg-zinc-900/40',
                           provider === 'fal'
-                            ? 'border-violet-500/50 ring-1 ring-violet-500/20 shadow-[0_0_15px_-5px_rgba(139,92,246,0.3)] bg-violet-500/5'
+                            ? 'border-violet-500/50 bg-violet-500/5 shadow-[0_0_15px_-5px_rgba(139,92,246,0.3)] ring-1 ring-violet-500/20'
                             : 'border-white/5 hover:border-white/10'
                         )}
                       >
-                        <span className={clsx('font-medium', provider === 'fal' ? 'text-white' : 'text-zinc-300')}>Fal.ai</span>
+                        <span
+                          className={clsx(
+                            'font-medium',
+                            provider === 'fal' ? 'text-white' : 'text-zinc-300'
+                          )}
+                        >
+                          Fal.ai
+                        </span>
                         {provider === 'fal' && <Check className="h-4 w-4 text-violet-400" />}
                       </button>
                       <button
@@ -1001,11 +1022,18 @@ export default function TrainingPage() {
                           'flex items-center justify-between rounded-lg p-3 text-left transition-all duration-200',
                           'border bg-zinc-900/40',
                           provider === 'replicate'
-                            ? 'border-violet-500/50 ring-1 ring-violet-500/20 shadow-[0_0_15px_-5px_rgba(139,92,246,0.3)] bg-violet-500/5'
+                            ? 'border-violet-500/50 bg-violet-500/5 shadow-[0_0_15px_-5px_rgba(139,92,246,0.3)] ring-1 ring-violet-500/20'
                             : 'border-white/5 hover:border-white/10'
                         )}
                       >
-                        <span className={clsx('font-medium', provider === 'replicate' ? 'text-white' : 'text-zinc-300')}>Replicate</span>
+                        <span
+                          className={clsx(
+                            'font-medium',
+                            provider === 'replicate' ? 'text-white' : 'text-zinc-300'
+                          )}
+                        >
+                          Replicate
+                        </span>
                         {provider === 'replicate' && <Check className="h-4 w-4 text-violet-400" />}
                       </button>
                     </div>
@@ -1085,29 +1113,35 @@ export default function TrainingPage() {
                           'relative rounded-xl p-4 text-left transition-all duration-300',
                           'border bg-zinc-900/40',
                           trainingType === 'style'
-                            ? 'border-violet-500/50 ring-1 ring-violet-500/30 shadow-[0_0_25px_-5px_rgba(139,92,246,0.4)] bg-violet-500/5'
+                            ? 'border-violet-500/50 bg-violet-500/5 shadow-[0_0_25px_-5px_rgba(139,92,246,0.4)] ring-1 ring-violet-500/30'
                             : 'border-white/5 hover:border-white/10 hover:bg-zinc-900/60'
                         )}
                       >
                         {trainingType === 'style' && (
                           <div className="absolute top-3 right-3">
-                            <div className="w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center shadow-[0_0_10px_rgba(139,92,246,0.5)]">
+                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-500 shadow-[0_0_10px_rgba(139,92,246,0.5)]">
                               <Check size={12} className="text-white" strokeWidth={3} />
                             </div>
                           </div>
                         )}
-                        <div className={clsx(
-                          'w-10 h-10 rounded-lg flex items-center justify-center mb-3 transition-colors',
-                          trainingType === 'style'
-                            ? 'bg-violet-500/20 text-violet-400'
-                            : 'bg-zinc-800/50 text-zinc-500'
-                        )}>
+                        <div
+                          className={clsx(
+                            'mb-3 flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
+                            trainingType === 'style'
+                              ? 'bg-violet-500/20 text-violet-400'
+                              : 'bg-zinc-800/50 text-zinc-500'
+                          )}
+                        >
                           <Palette className="h-5 w-5" />
                         </div>
-                        <div className={clsx(
-                          'font-medium transition-colors',
-                          trainingType === 'style' ? 'text-white' : 'text-zinc-300'
-                        )}>Style LoRA</div>
+                        <div
+                          className={clsx(
+                            'font-medium transition-colors',
+                            trainingType === 'style' ? 'text-white' : 'text-zinc-300'
+                          )}
+                        >
+                          Style LoRA
+                        </div>
                         <p className="mt-1 text-xs text-zinc-500">
                           Train artistic styles, aesthetics, color grading
                         </p>
@@ -1118,29 +1152,35 @@ export default function TrainingPage() {
                           'relative rounded-xl p-4 text-left transition-all duration-300',
                           'border bg-zinc-900/40',
                           trainingType === 'character'
-                            ? 'border-violet-500/50 ring-1 ring-violet-500/30 shadow-[0_0_25px_-5px_rgba(139,92,246,0.4)] bg-violet-500/5'
+                            ? 'border-violet-500/50 bg-violet-500/5 shadow-[0_0_25px_-5px_rgba(139,92,246,0.4)] ring-1 ring-violet-500/30'
                             : 'border-white/5 hover:border-white/10 hover:bg-zinc-900/60'
                         )}
                       >
                         {trainingType === 'character' && (
                           <div className="absolute top-3 right-3">
-                            <div className="w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center shadow-[0_0_10px_rgba(139,92,246,0.5)]">
+                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-500 shadow-[0_0_10px_rgba(139,92,246,0.5)]">
                               <Check size={12} className="text-white" strokeWidth={3} />
                             </div>
                           </div>
                         )}
-                        <div className={clsx(
-                          'w-10 h-10 rounded-lg flex items-center justify-center mb-3 transition-colors',
-                          trainingType === 'character'
-                            ? 'bg-violet-500/20 text-violet-400'
-                            : 'bg-zinc-800/50 text-zinc-500'
-                        )}>
+                        <div
+                          className={clsx(
+                            'mb-3 flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
+                            trainingType === 'character'
+                              ? 'bg-violet-500/20 text-violet-400'
+                              : 'bg-zinc-800/50 text-zinc-500'
+                          )}
+                        >
                           <User className="h-5 w-5" />
                         </div>
-                        <div className={clsx(
-                          'font-medium transition-colors',
-                          trainingType === 'character' ? 'text-white' : 'text-zinc-300'
-                        )}>Character LoRA</div>
+                        <div
+                          className={clsx(
+                            'font-medium transition-colors',
+                            trainingType === 'character' ? 'text-white' : 'text-zinc-300'
+                          )}
+                        >
+                          Character LoRA
+                        </div>
                         <p className="mt-1 text-xs text-zinc-500">
                           Train consistent faces, characters, objects
                         </p>

@@ -64,9 +64,7 @@ export default function Dashboard() {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(
-        (p) =>
-          p.name.toLowerCase().includes(query) ||
-          p.description?.toLowerCase().includes(query)
+        p => p.name.toLowerCase().includes(query) || p.description?.toLowerCase().includes(query)
       );
     }
 
@@ -111,7 +109,7 @@ export default function Dashboard() {
               <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
               <div className="absolute inset-0 h-8 w-8 animate-ping rounded-full bg-violet-500/20" />
             </div>
-            <span className="text-xs text-zinc-600 font-mono uppercase tracking-wider">
+            <span className="font-mono text-xs tracking-wider text-zinc-600 uppercase">
               Loading projects...
             </span>
           </div>
@@ -128,9 +126,9 @@ export default function Dashboard() {
         onSearchChange={setSearchQuery}
       />
 
-      <main className="px-8 py-10 max-w-[1400px] mx-auto">
+      <main className="mx-auto max-w-[1400px] px-8 py-10">
         {/* Section Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="mb-8 flex items-center justify-between">
           <h2 className="text-sm font-medium text-zinc-400">
             {searchQuery ? 'Search Results' : 'Recent Projects'}
           </h2>
@@ -139,20 +137,24 @@ export default function Dashboard() {
           <div className="flex items-center gap-2">
             {/* Sort Dropdown */}
             <button
-              onClick={() => setSortMode((prev) => (prev === 'recent' ? 'name' : prev === 'name' ? 'created' : 'recent'))}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium text-zinc-500 hover:text-zinc-300 bg-zinc-900/50 border border-white/5 rounded-lg transition-colors"
+              onClick={() =>
+                setSortMode(prev =>
+                  prev === 'recent' ? 'name' : prev === 'name' ? 'created' : 'recent'
+                )
+              }
+              className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-zinc-900/50 px-2.5 py-1.5 text-[10px] font-medium text-zinc-500 transition-colors hover:text-zinc-300"
             >
               <SlidersHorizontal size={12} />
               <span className="capitalize">{sortMode}</span>
             </button>
 
             {/* View Toggle */}
-            <div className="flex items-center bg-zinc-900/50 border border-white/5 rounded-lg p-0.5">
+            <div className="flex items-center rounded-lg border border-white/5 bg-zinc-900/50 p-0.5">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded transition-colors ${
+                className={`rounded p-1.5 transition-colors ${
                   viewMode === 'grid'
-                    ? 'text-violet-400 bg-violet-500/10'
+                    ? 'bg-violet-500/10 text-violet-400'
                     : 'text-zinc-500 hover:text-zinc-300'
                 }`}
               >
@@ -160,9 +162,9 @@ export default function Dashboard() {
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-1.5 rounded transition-colors ${
+                className={`rounded p-1.5 transition-colors ${
                   viewMode === 'list'
-                    ? 'text-violet-400 bg-violet-500/10'
+                    ? 'bg-violet-500/10 text-violet-400'
                     : 'text-zinc-500 hover:text-zinc-300'
                 }`}
               >
@@ -177,7 +179,7 @@ export default function Dashboard() {
           layout
           className={
             viewMode === 'grid'
-              ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
+              ? 'grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
               : 'flex flex-col gap-3'
           }
         >
@@ -221,20 +223,20 @@ export default function Dashboard() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center justify-center py-20"
           >
-            <div className="w-20 h-20 rounded-2xl bg-zinc-900/50 border border-white/5 flex items-center justify-center mb-6">
-              <div className="w-12 h-12 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
+            <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl border border-white/5 bg-zinc-900/50">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-violet-500/20 bg-violet-500/10 text-violet-400">
                 <span className="text-2xl">🎬</span>
               </div>
             </div>
-            <h3 className="text-lg font-semibold text-white mb-2">No projects yet</h3>
-            <p className="text-sm text-zinc-500 mb-6 text-center max-w-xs">
+            <h3 className="mb-2 text-lg font-semibold text-white">No projects yet</h3>
+            <p className="mb-6 max-w-xs text-center text-sm text-zinc-500">
               Create your first project to start building AI-generated productions.
             </p>
             <motion.button
               onClick={() => setIsCreating(true)}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="px-6 py-2.5 bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold rounded-lg shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all"
+              className="rounded-lg bg-violet-600 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all hover:bg-violet-500"
             >
               Create First Project
             </motion.button>
@@ -248,12 +250,10 @@ export default function Dashboard() {
             animate={{ opacity: 1 }}
             className="flex flex-col items-center justify-center py-20"
           >
-            <p className="text-sm text-zinc-500">
-              No projects matching "{searchQuery}"
-            </p>
+            <p className="text-sm text-zinc-500">No projects matching "{searchQuery}"</p>
             <button
               onClick={() => setSearchQuery('')}
-              className="mt-3 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+              className="mt-3 text-xs text-violet-400 transition-colors hover:text-violet-300"
             >
               Clear search
             </button>

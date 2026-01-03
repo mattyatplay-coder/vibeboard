@@ -48,18 +48,18 @@ export const SelectionCard = ({
       whileHover={{ scale: disabled ? 1 : 1.01 }}
       whileTap={{ scale: disabled ? 1 : 0.99 }}
       className={clsx(
-        'relative w-full text-left rounded-xl p-4 transition-all duration-300',
+        'relative w-full rounded-xl p-4 text-left transition-all duration-300',
         'border bg-zinc-900/40',
-        disabled && 'opacity-50 cursor-not-allowed',
+        disabled && 'cursor-not-allowed opacity-50',
         selected
-          ? 'border-violet-500/50 ring-1 ring-violet-500/30 shadow-[0_0_25px_-5px_rgba(139,92,246,0.4)] bg-violet-500/5'
+          ? 'border-violet-500/50 bg-violet-500/5 shadow-[0_0_25px_-5px_rgba(139,92,246,0.4)] ring-1 ring-violet-500/30'
           : 'border-white/5 hover:border-white/10 hover:bg-zinc-900/60'
       )}
     >
       {/* Selection Indicator */}
       {selected && (
         <div className="absolute top-3 right-3">
-          <div className="w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center shadow-[0_0_10px_rgba(139,92,246,0.5)]">
+          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-500 shadow-[0_0_10px_rgba(139,92,246,0.5)]">
             <Check size={12} className="text-white" strokeWidth={3} />
           </div>
         </div>
@@ -68,7 +68,7 @@ export const SelectionCard = ({
       {/* Badge */}
       {badge && (
         <div className="absolute top-3 left-3">
-          <span className="text-[9px] font-mono uppercase tracking-wider text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-full border border-violet-500/20">
+          <span className="rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 font-mono text-[9px] tracking-wider text-violet-400 uppercase">
             {badge}
           </span>
         </div>
@@ -80,10 +80,8 @@ export const SelectionCard = ({
         {icon && (
           <div
             className={clsx(
-              'w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-colors',
-              selected
-                ? 'bg-violet-500/20 text-violet-400'
-                : 'bg-zinc-800/50 text-zinc-500'
+              'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition-colors',
+              selected ? 'bg-violet-500/20 text-violet-400' : 'bg-zinc-800/50 text-zinc-500'
             )}
           >
             {icon}
@@ -91,7 +89,7 @@ export const SelectionCard = ({
         )}
 
         {/* Text */}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <h3
             className={clsx(
               'text-sm font-semibold transition-colors',
@@ -100,11 +98,7 @@ export const SelectionCard = ({
           >
             {title}
           </h3>
-          {description && (
-            <p className="text-xs text-zinc-500 mt-1 line-clamp-2">
-              {description}
-            </p>
-          )}
+          {description && <p className="mt-1 line-clamp-2 text-xs text-zinc-500">{description}</p>}
           {children && <div className="mt-3">{children}</div>}
         </div>
       </div>
@@ -112,7 +106,7 @@ export const SelectionCard = ({
       {/* Hover glow effect */}
       <div
         className={clsx(
-          'absolute inset-0 rounded-xl transition-opacity pointer-events-none',
+          'pointer-events-none absolute inset-0 rounded-xl transition-opacity',
           selected ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'
         )}
         style={{

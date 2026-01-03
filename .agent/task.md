@@ -1,9 +1,48 @@
 # 🔴 ACTIVE SESSION TASKS - CHECK FIRST!
 
-> **Last Updated**: Jan 1, 2026
+> **Last Updated**: Jan 3, 2026
 > **Purpose**: Prevents Claude from forgetting mid-session items
 
-## Current Session (Jan 1, 2026) - Cloudflare Tunnel Setup & API Connectivity
+## Current Session (Jan 3, 2026) - RunPod GPU Worker Troubleshooting
+
+### 🔴 CRITICAL: RunPod Workers Not Scaling
+
+**Problem**: All 3 RunPod serverless endpoints have workers stuck at 0, jobs remain IN_QUEUE indefinitely.
+
+**Last Test**: Jan 3, 2026 09:45 EST
+
+**Endpoints Tested**:
+| Endpoint ID | Name | GPU | Template | Result |
+|-------------|------|-----|----------|--------|
+| `6rg1i2nzxxugti` | vibeboard-gpu-v2 | L40 | ejuyp43ar5 | ❌ No workers after 2min |
+| `8tqucjc03o2duo` | vibeboard-gpu-worker-prod | L40 | ejuyp43ar5 | ❌ No workers |
+| `2sziwt3f5gzsob` | vibeboard-gpu-l40 | A40 | sej9xaf8h4 | ❌ No workers after 2min |
+
+**Verified (Not the Issue)**:
+
+- ✅ API endpoints respond (HTTP 200)
+- ✅ Jobs queue successfully (IN_QUEUE status)
+- ✅ Docker images exist on Docker Hub
+- ✅ Account balance sufficient ($148)
+- ✅ GPU types have availability (A40 at $0.24/hr, RTX 4090 at $0.20/hr)
+- ✅ Workers quota not exceeded
+
+**Likely Causes**:
+
+1. **Docker image startup crash** - Container crashing before RunPod detects it
+2. **Template misconfiguration** - Missing env vars or start command
+3. **Account-level restriction**
+
+**Recommended Actions**:
+
+1. Check RunPod Dashboard → Serverless → Logs for container errors
+2. Test locally: `docker run -it mattydc/vibeboard-gpu-worker:latest`
+3. Contact RunPod support if issue persists
+4. Use FAL AI as fallback (already integrated)
+
+---
+
+## Previous Session (Jan 1, 2026) - Cloudflare Tunnel Setup & API Connectivity
 
 ### Cloudflare Tunnel Status ✅ COMPLETE
 
@@ -21,6 +60,7 @@
 **Error**: `Can't reach database server at dpg-d4n6di4hg0os73ceitu0-a:5432`
 
 **Required Action** (User Must Complete):
+
 1. Go to: https://dashboard.render.com/d/dpg-d4n6di4hg0os73ceitu0-a
 2. Upgrade to paid PostgreSQL tier ($7/month minimum)
 3. Once active, api.vibeboard.studio will work properly
@@ -42,10 +82,10 @@ ingress:
 
 ### Related Tunnels
 
-| Tunnel | ID | Purpose | Location |
-|--------|-----|---------|----------|
-| vibeboard-api | fecbcaa1-fdc4... | API routing | MacBook (this machine) |
-| vibeboard | 15aeb0b6-8847... | Frontend | Mac Mini (76.104.115.87) |
+| Tunnel        | ID               | Purpose     | Location                 |
+| ------------- | ---------------- | ----------- | ------------------------ |
+| vibeboard-api | fecbcaa1-fdc4... | API routing | MacBook (this machine)   |
+| vibeboard     | 15aeb0b6-8847... | Frontend    | Mac Mini (76.104.115.87) |
 
 ---
 
@@ -1305,16 +1345,17 @@ Completed GitHub repository security audit following P0 Security Hardening. Veri
 
 ## GitHub Settings Applied
 
-| Setting | Status | Notes |
-|---------|--------|-------|
-| **Dependabot Alerts** | ✅ Enabled | Scans dependencies for vulnerabilities |
-| **Disable Forking** | ❌ N/A | Only available for organization-owned repos |
-| **Secret Scanning** | ❌ N/A | Requires GitHub Advanced Security (paid) |
-| **Branch Protection** | ⚠️ Manual | Must configure via GitHub web UI |
+| Setting               | Status     | Notes                                       |
+| --------------------- | ---------- | ------------------------------------------- |
+| **Dependabot Alerts** | ✅ Enabled | Scans dependencies for vulnerabilities      |
+| **Disable Forking**   | ❌ N/A     | Only available for organization-owned repos |
+| **Secret Scanning**   | ❌ N/A     | Requires GitHub Advanced Security (paid)    |
+| **Branch Protection** | ⚠️ Manual  | Must configure via GitHub web UI            |
 
 ## Manual Setup Required
 
 **Branch Protection for `main`** (recommended):
+
 1. Go to: https://github.com/mattyatplay-coder/vibeboard/settings/branches
 2. Click "Add rule"
 3. Branch name pattern: `main`
@@ -1326,13 +1367,13 @@ Completed GitHub repository security audit following P0 Security Hardening. Veri
 
 ## Security Summary
 
-| Category | Status |
-|----------|--------|
-| No secrets in git | ✅ Verified |
-| `.env` in `.gitignore` | ✅ Verified |
-| Test scripts use env vars | ✅ Verified |
-| Dependabot enabled | ✅ Enabled |
-| P0 Auth middleware | ✅ 48 endpoints protected |
+| Category                  | Status                    |
+| ------------------------- | ------------------------- |
+| No secrets in git         | ✅ Verified               |
+| `.env` in `.gitignore`    | ✅ Verified               |
+| Test scripts use env vars | ✅ Verified               |
+| Dependabot enabled        | ✅ Enabled                |
+| P0 Auth middleware        | ✅ 48 endpoints protected |
 
 **GitHub Security Audit: ✅ COMPLETE**
 
@@ -1347,59 +1388,111 @@ Completed GitHub repository security audit following P0 Security Hardening. Veri
 ## Security Documentation (Placeholder Files to Complete)
 
 - [ ] **SECURITY_P1_ROADMAP.md** <!-- id: 4000 -->
-    - [ ] Define P1 security improvements for post-launch <!-- id: 4001 -->
-    - [ ] Rate limiting strategy <!-- id: 4002 -->
-    - [ ] CSRF protection <!-- id: 4003 -->
-    - [ ] Input sanitization audit <!-- id: 4004 -->
-    - [ ] SQL injection prevention verification <!-- id: 4005 -->
-    - [ ] XSS prevention audit <!-- id: 4006 -->
+  - [ ] Define P1 security improvements for post-launch <!-- id: 4001 -->
+  - [ ] Rate limiting strategy <!-- id: 4002 -->
+  - [ ] CSRF protection <!-- id: 4003 -->
+  - [ ] Input sanitization audit <!-- id: 4004 -->
+  - [ ] SQL injection prevention verification <!-- id: 4005 -->
+  - [ ] XSS prevention audit <!-- id: 4006 -->
 
 - [ ] **LAUNCH_READINESS_CHECKLIST.md** <!-- id: 4010 -->
-    - [ ] Environment variable documentation <!-- id: 4011 -->
-    - [ ] Database migration checklist <!-- id: 4012 -->
-    - [ ] SSL/TLS configuration <!-- id: 4013 -->
-    - [ ] Backup and recovery procedures <!-- id: 4014 -->
-    - [ ] Monitoring and alerting setup <!-- id: 4015 -->
-    - [ ] Load testing results <!-- id: 4016 -->
+  - [ ] Environment variable documentation <!-- id: 4011 -->
+  - [ ] Database migration checklist <!-- id: 4012 -->
+  - [ ] SSL/TLS configuration <!-- id: 4013 -->
+  - [ ] Backup and recovery procedures <!-- id: 4014 -->
+  - [ ] Monitoring and alerting setup <!-- id: 4015 -->
+  - [ ] Load testing results <!-- id: 4016 -->
 
 - [ ] **BILLING_AND_QUOTA_SCHEMAS.md** <!-- id: 4020 -->
-    - [ ] Define billing tiers (Free, Pro, Enterprise) <!-- id: 4021 -->
-    - [ ] Monthly generation quotas per tier <!-- id: 4022 -->
-    - [ ] API rate limits per tier <!-- id: 4023 -->
-    - [ ] Overage pricing model <!-- id: 4024 -->
-    - [ ] Usage tracking implementation <!-- id: 4025 -->
+  - [ ] Define billing tiers (Free, Pro, Enterprise) <!-- id: 4021 -->
+  - [ ] Monthly generation quotas per tier <!-- id: 4022 -->
+  - [ ] API rate limits per tier <!-- id: 4023 -->
+  - [ ] Overage pricing model <!-- id: 4024 -->
+  - [ ] Usage tracking implementation <!-- id: 4025 -->
 
 - [ ] **SECURITY_README.md** <!-- id: 4030 -->
-    - [ ] Authentication architecture overview <!-- id: 4031 -->
-    - [ ] JWT token lifecycle documentation <!-- id: 4032 -->
-    - [ ] Protected route patterns <!-- id: 4033 -->
-    - [ ] Tenant isolation guidelines <!-- id: 4034 -->
-    - [ ] Security incident response procedures <!-- id: 4035 -->
+  - [ ] Authentication architecture overview <!-- id: 4031 -->
+  - [ ] JWT token lifecycle documentation <!-- id: 4032 -->
+  - [ ] Protected route patterns <!-- id: 4033 -->
+  - [ ] Tenant isolation guidelines <!-- id: 4034 -->
+  - [ ] Security incident response procedures <!-- id: 4035 -->
 
 ## Production Infrastructure
 
 - [ ] **Replace mockAuth.ts with Real Auth** <!-- id: 4040 -->
-    - [ ] Implement production JWT verification <!-- id: 4041 -->
-    - [ ] Token refresh flow <!-- id: 4042 -->
-    - [ ] Session management <!-- id: 4043 -->
+  - [ ] Implement production JWT verification <!-- id: 4041 -->
+  - [ ] Token refresh flow <!-- id: 4042 -->
+  - [ ] Session management <!-- id: 4043 -->
 
 - [ ] **CI/CD Pipeline** <!-- id: 4050 -->
-    - [ ] Deploy `github-workflows/ci.yml` to main repo <!-- id: 4051 -->
-    - [ ] Configure GitHub Actions secrets <!-- id: 4052 -->
-    - [ ] Set up staging environment <!-- id: 4053 -->
+  - [ ] Deploy `github-workflows/ci.yml` to main repo <!-- id: 4051 -->
+  - [ ] Configure GitHub Actions secrets <!-- id: 4052 -->
+  - [ ] Set up staging environment <!-- id: 4053 -->
 
 - [ ] **Database Production Setup** <!-- id: 4060 -->
-    - [ ] PostgreSQL on Render configured <!-- id: 4061 -->
-    - [ ] Prisma migrations applied <!-- id: 4062 -->
-    - [ ] Backup schedule configured <!-- id: 4063 -->
+  - [ ] PostgreSQL on Render configured <!-- id: 4061 -->
+  - [ ] Prisma migrations applied <!-- id: 4062 -->
+  - [ ] Backup schedule configured <!-- id: 4063 -->
 
 ## Launch Blockers Summary
 
-| Item | Status | Priority |
-|------|--------|----------|
-| P1 Security Roadmap | ❌ Stub only | HIGH |
-| Launch Checklist | ❌ Stub only | HIGH |
-| Billing Schemas | ❌ Stub only | MEDIUM |
-| Security Guidelines | ❌ Stub only | MEDIUM |
-| Real Auth (replace mock) | ❌ Not started | HIGH |
-| CI/CD Pipeline | ✅ Ready (in security-audit/) | LOW |
+| Item                     | Status                        | Priority |
+| ------------------------ | ----------------------------- | -------- |
+| P1 Security Roadmap      | ❌ Stub only                  | HIGH     |
+| Launch Checklist         | ❌ Stub only                  | HIGH     |
+| Billing Schemas          | ❌ Stub only                  | MEDIUM   |
+| Security Guidelines      | ❌ Stub only                  | MEDIUM   |
+| Real Auth (replace mock) | ❌ Not started                | HIGH     |
+| CI/CD Pipeline           | ✅ Ready (in security-audit/) | LOW      |
+
+---
+
+# Session Summary (Jan 2, 2026) - Generate Page UI Polish & Deployment Fix
+
+## Generate Page Toolbar Improvements ✅ COMPLETE
+
+- [x] **Cost Breakdown Toast Positioning** <!-- id: 5000 -->
+  - [x] Fixed toast positioning for large screens (≥1900px): `-right-4 bottom-full mb-[4.5rem]` <!-- id: 5001 -->
+  - [x] Fixed toast positioning for small screens (<1900px double toolbar): `-right-4 bottom-full mb-[7.5rem]` <!-- id: 5002 -->
+  - [x] Toast aligns with top-right of toolbar border on both layouts <!-- id: 5003 -->
+
+- [x] **ESLint Error Fix** <!-- id: 5010 -->
+  - [x] Fixed `useTimelineShortcuts.ts` - cannot access refs during render <!-- id: 5011 -->
+  - [x] Changed from ref-only to ref+state pattern for `shuttleSpeed` <!-- id: 5012 -->
+  - [x] State value returned for render, ref used for event handlers <!-- id: 5013 -->
+
+## Vercel Deployment Fix ✅ COMPLETE
+
+- [x] **Correct Project Identification** <!-- id: 5020 -->
+  - [x] Identified `frontend` project as correct deployment target (not `vibeboard`) <!-- id: 5021 -->
+  - [x] `frontend` project has domain `vibeboard.studio` assigned <!-- id: 5022 -->
+
+- [x] **Root Directory Configuration** <!-- id: 5030 -->
+  - [x] Verified Root Directory setting is `frontend` in Build and Deployment settings <!-- id: 5031 -->
+  - [x] GitHub auto-deploy working via GitHub integration <!-- id: 5032 -->
+  - [x] Latest commit `608fa74` deployed successfully <!-- id: 5033 -->
+
+- [x] **Gitignore Updates** <!-- id: 5040 -->
+  - [x] Added `.vercel` to root `.gitignore` <!-- id: 5041 -->
+  - [x] Added `.env*.local` to both root and frontend `.gitignore` <!-- id: 5042 -->
+
+### Deployment Architecture
+
+| Project     | Domain                    | Purpose                       |
+| ----------- | ------------------------- | ----------------------------- |
+| `frontend`  | vibeboard.studio          | Production frontend (CORRECT) |
+| `vibeboard` | vibeboard-inky.vercel.app | Legacy/unused                 |
+
+### Files Modified
+
+| File                                            | Changes                                        |
+| ----------------------------------------------- | ---------------------------------------------- |
+| `frontend/src/components/ui/ProducerWidget.tsx` | Toast positioning with `isCompactToolbar` prop |
+| `frontend/src/hooks/useTimelineShortcuts.ts`    | ESLint fix: ref+state pattern for shuttleSpeed |
+| `.gitignore`                                    | Added `.vercel`, `.env*.local`                 |
+| `frontend/.gitignore`                           | Added `.env*.local`                            |
+
+### Build Verification
+
+- ✅ Frontend: `npm run build` PASS
+- ✅ Vercel deployment: Ready on vibeboard.studio

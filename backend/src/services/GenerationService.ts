@@ -9,6 +9,7 @@ import { BananaAdapter } from './generators/BananaAdapter';
 import { GoogleVeoAdapter } from './generators/GoogleVeoAdapter';
 import { WanVideoAdapter } from './generators/WanVideoAdapter';
 import { GPUWorkerClient } from './gpu/GPUWorkerClient';
+import { runtimeMedic, FailedJob } from './RuntimeMedicService';
 import {
   GenerationProvider,
   GenerationOptions,
@@ -511,23 +512,27 @@ export class GenerationService {
   }
 
   /**
-   * Generate image with automatic fallback
+   * Generate image with COST-OPTIMIZED ROUTING
+   *
+   * Priority Order:
+   * - P0: RunPod (Self-Hosted) - For GPU operations (lens, focus, edit)
+   * - P1: Fal.ai (Managed) - Primary for standard image gen (Flux)
+   * - P2: Model-specific routing / Replicate (LoRAs, inpainting)
+   * - P3: Other providers or Fail
+   *
+   * Note: For images, Fal.ai is often P0 for Flux since RunPod is
+   * optimized for video/VFX operations. RunPod is P0 for GPU operations.
    */
   async generateImage(options: GenerationOptions): Promise<GenerationResult> {
     const errors: string[] = [];
+    const model = options.model || '';
     let providersToTry = [...this.availableProviders];
 
     // CRITICAL: If LoRAs are present, restrict to providers that support them
-    // Supported providers:
-    // - fal: fal-ai/flux-lora endpoint with uploaded safetensors
-    // - comfy: Local ComfyUI with LoRA nodes
-    // - civitai: LoRA syntax in prompt (<lora:name:strength>)
-    // - replicate: Custom trained Flux LoRA models (mattyatplay-coder/*)
-    if (options.loras && options.loras.length > 0) {
+    const hasLoras = options.loras && options.loras.length > 0;
+    if (hasLoras) {
       const loraProviders: ProviderType[] = ['fal', 'comfy', 'civitai', 'replicate'];
-      console.log(
-        `LoRAs detected. Restricting to providers with LoRA support: ${loraProviders.join(', ')}`
-      );
+      console.log(`[ROUTE] LoRAs detected. Restricting to: ${loraProviders.join(', ')}`);
       providersToTry = providersToTry.filter(p => loraProviders.includes(p));
 
       if (providersToTry.length === 0) {
@@ -535,16 +540,15 @@ export class GenerationService {
           id: Date.now().toString(),
           status: 'failed',
           error:
-            'LoRAs are supported by Fal.ai, ComfyUI, Civitai, and Replicate, but none are available. Please check your configuration.',
+            'LoRAs are supported by Fal.ai, ComfyUI, Civitai, and Replicate, but none are available.',
         };
       }
     }
 
     // RESPECT EXPLICIT ENGINE SELECTION: If user chose 'comfy', use ComfyUI directly
-    // This check comes BEFORE model routing to honor user's explicit choice
     const explicitEngine = (options as any).engine;
     if (explicitEngine === 'comfy' && this.providers.has('comfy')) {
-      console.log(`User explicitly selected ComfyUI engine. Using ComfyUI directly...`);
+      console.log(`[ROUTE] User explicitly selected ComfyUI engine.`);
       const provider = this.providers.get('comfy')!;
       try {
         const result = await provider.generateImage(options);
@@ -552,164 +556,176 @@ export class GenerationService {
           console.log(`✓ ComfyUI succeeded`);
           return { ...result, provider: 'comfy' };
         }
-        return {
-          id: Date.now().toString(),
-          status: 'failed',
-          error: `comfy: ${result.error}`,
-        };
+        return { id: Date.now().toString(), status: 'failed', error: `comfy: ${result.error}` };
       } catch (err: any) {
-        return {
-          id: Date.now().toString(),
-          status: 'failed',
-          error: `comfy: ${err.message}`,
-        };
+        return { id: Date.now().toString(), status: 'failed', error: `comfy: ${err.message}` };
       }
     }
 
-    // RESPECT EXPLICIT ENGINE SELECTION: If user chose 'runpod', use GPUWorkerClient directly
-    if (explicitEngine === 'runpod') {
-      console.log(`User explicitly selected RunPod engine. Using GPUWorkerClient directly...`);
+    // ==========================================================================
+    // P0: RUNPOD (SELF-HOSTED) - For GPU-specific operations
+    // RunPod excels at: lens effects, focus rescue, director edits, VFX
+    // ==========================================================================
+    const gpuOperation = (options as any).gpuOperation;
+    const isGpuOperation = gpuOperation || explicitEngine === 'runpod';
+
+    if (isGpuOperation) {
+      console.log(`[ROUTE] P0 RunPod (GPU Operation: ${gpuOperation || 'director_edit'})`);
       const gpuClient = GPUWorkerClient.getInstance();
-      try {
-        // Determine which GPU operation to use based on the request
-        // For image generation, we support: lens_character, rescue_focus, director_edit
-        const operation = (options as any).gpuOperation || 'director_edit';
-        const inputImageUrl = (options as any).image || options.sourceImages?.[0] || '';
-        let result;
+      const isHealthy = await this.checkRunPodHealth(gpuClient);
 
-        if (operation === 'lens_character') {
-          result = await gpuClient.lensCharacter({
-            imageUrl: inputImageUrl,
-            lensType: (options as any).lensType,
-            bokehShape: (options as any).bokehShape,
-            aberrationStrength: (options as any).aberrationStrength,
-            flareIntensity: (options as any).flareIntensity,
-            vignetteStrength: (options as any).vignetteStrength,
-          });
-        } else if (operation === 'rescue_focus') {
-          result = await gpuClient.rescueFocus({
-            imageUrl: inputImageUrl,
-            sharpnessTarget: (options as any).sharpnessTarget,
-            preserveBokeh: (options as any).preserveBokeh,
-          });
-        } else {
-          // Default: director_edit (AI-powered natural language editing)
-          result = await gpuClient.directorEdit({
-            imageUrl: inputImageUrl,
-            instruction: options.prompt,
-            preserveIdentity: (options as any).preserveIdentity ?? true,
-            strength: options.strength ?? 0.7,
-          });
-        }
+      if (isHealthy || explicitEngine === 'runpod') {
+        try {
+          const operation = gpuOperation || 'director_edit';
+          const inputImageUrl = (options as any).image || options.sourceImages?.[0] || '';
+          let result;
 
-        if (result.success) {
-          console.log(`✓ RunPod GPU succeeded`);
-          return {
-            id: Date.now().toString(),
-            status: 'succeeded',
-            outputs: result.outputUrl ? [result.outputUrl] : undefined,
-            provider: 'runpod',
-          };
+          if (operation === 'lens_character') {
+            result = await gpuClient.lensCharacter({
+              imageUrl: inputImageUrl,
+              lensType: (options as any).lensType,
+              bokehShape: (options as any).bokehShape,
+              aberrationStrength: (options as any).aberrationStrength,
+              flareIntensity: (options as any).flareIntensity,
+              vignetteStrength: (options as any).vignetteStrength,
+            });
+          } else if (operation === 'rescue_focus') {
+            result = await gpuClient.rescueFocus({
+              imageUrl: inputImageUrl,
+              sharpnessTarget: (options as any).sharpnessTarget,
+              preserveBokeh: (options as any).preserveBokeh,
+            });
+          } else {
+            result = await gpuClient.directorEdit({
+              imageUrl: inputImageUrl,
+              instruction: options.prompt,
+              preserveIdentity: (options as any).preserveIdentity ?? true,
+              strength: options.strength ?? 0.7,
+            });
+          }
+
+          if (result.success) {
+            console.log(`✓ [P0] RunPod GPU succeeded`);
+            return {
+              id: Date.now().toString(),
+              status: 'succeeded',
+              outputs: result.outputUrl ? [result.outputUrl] : undefined,
+              provider: 'runpod',
+            };
+          }
+
+          errors.push(`RunPod: ${result.error}`);
+          console.warn(`[P0] RunPod failed: ${result.error}. Falling back...`);
+        } catch (err: any) {
+          errors.push(`RunPod: ${err.message}`);
+          console.warn(`[P0] RunPod crashed: ${err.message}. Falling back...`);
         }
-        return {
-          id: Date.now().toString(),
-          status: 'failed',
-          error: `runpod: ${result.error}`,
-        };
-      } catch (err: any) {
-        return {
-          id: Date.now().toString(),
-          status: 'failed',
-          error: `runpod: ${err.message}`,
-        };
       }
     }
 
-    // If a specific model is requested, route to the correct provider
-    if (options.model) {
-      // FORCE Replicate for Ideogram V2 and other inpainting models
-      if (
-        options.model === 'ideogram-ai/ideogram-v2' ||
-        options.model === 'black-forest-labs/flux-fill-dev' ||
-        options.model === 'lucataco/sdxl-inpainting'
-      ) {
-        console.log(`🎯 Forcing Replicate for ${options.model}`);
-        const provider = this.providers.get('replicate');
-        if (provider) {
-          const result = await provider.generateImage(options);
+    // ==========================================================================
+    // P1: FAL.AI (MANAGED) - Primary for standard Flux image generation
+    // ==========================================================================
+    const falProvider = this.providers.get('fal');
+    const isFalAllowed = providersToTry.includes('fal');
+
+    // Skip Fal for inpainting models that require Replicate
+    const forceReplicate =
+      model === 'ideogram-ai/ideogram-v2' ||
+      model === 'black-forest-labs/flux-fill-dev' ||
+      model === 'lucataco/sdxl-inpainting';
+
+    if (falProvider && isFalAllowed && !forceReplicate) {
+      console.log(`[ROUTE] P1 Fal.ai (Managed) - Attempting image generation...`);
+      try {
+        // Map to Fal's best model if not specified
+        let falModel = model;
+        if (!model || (!model.startsWith('fal-ai/') && !model.includes('flux'))) {
+          falModel = hasLoras ? 'fal-ai/flux-lora' : 'fal-ai/flux/dev';
+        }
+
+        const falOptions = { ...options, model: falModel };
+        const result = await falProvider.generateImage(falOptions);
+
+        if (result.status === 'succeeded') {
+          console.log(`✓ [P1] Fal.ai succeeded`);
+          return { ...result, provider: 'fal' };
+        }
+
+        errors.push(`Fal.ai: ${result.error}`);
+        console.warn(`[P1] Fal.ai failed: ${result.error}. Trying P2...`);
+      } catch (err: any) {
+        errors.push(`Fal.ai: ${err.message}`);
+        console.warn(`[P1] Fal.ai crashed: ${err.message}. Trying P2...`);
+      }
+    }
+
+    // ==========================================================================
+    // P2: REPLICATE - For inpainting, custom LoRAs, specific models
+    // ==========================================================================
+    if (forceReplicate || model.includes('replicate') || model.startsWith('mattyatplay-coder/')) {
+      console.log(`[ROUTE] P2 Replicate (Specialized) - ${model}`);
+      const replicateProvider = this.providers.get('replicate');
+      if (replicateProvider) {
+        try {
+          const result = await replicateProvider.generateImage(options);
           if (result.status === 'succeeded') {
-            console.log(`✓ Replicate succeeded`);
+            console.log(`✓ [P2] Replicate succeeded`);
             return { ...result, provider: 'replicate' };
           }
+          errors.push(`Replicate: ${result.error}`);
+        } catch (err: any) {
+          errors.push(`Replicate: ${err.message}`);
         }
       }
+    }
 
-      let targetProvider = this.getProviderForModel(options.model, 'image');
+    // ==========================================================================
+    // P2B: MODEL-SPECIFIC ROUTING
+    // ==========================================================================
+    if (model) {
+      let targetProvider = this.getProviderForModel(model, 'image');
 
-      // Ensure target provider is allowed (e.g. supports LoRAs if needed)
       if (targetProvider && !providersToTry.includes(targetProvider)) {
-        console.warn(
-          `Model ${options.model} targets ${targetProvider}, but that provider is excluded (likely due to LoRA constraint). Falling back to allowed providers.`
-        );
+        console.warn(`[ROUTE] Model ${model} targets ${targetProvider}, but excluded. Skipping...`);
         targetProvider = null;
       }
 
-      if (targetProvider) {
+      if (targetProvider && targetProvider !== 'fal' && targetProvider !== 'replicate') {
         const provider = this.providers.get(targetProvider);
         if (provider) {
+          console.log(`[ROUTE] P2B Model-specific: "${model}" → ${targetProvider}`);
           try {
-            console.log(`Routing model "${options.model}" to ${targetProvider}...`);
             const result = await provider.generateImage(options);
-
             if (result.status === 'succeeded') {
-              console.log(`✓ ${targetProvider} succeeded`);
+              console.log(`✓ [P2B] ${targetProvider} succeeded`);
               return { ...result, provider: targetProvider };
             }
-
-            return {
-              id: Date.now().toString(),
-              status: 'failed',
-              error: `${targetProvider}: ${result.error}`,
-            };
+            errors.push(`${targetProvider}: ${result.error}`);
           } catch (err: any) {
-            return {
-              id: Date.now().toString(),
-              status: 'failed',
-              error: `${targetProvider}: ${err.message}`,
-            };
+            errors.push(`${targetProvider}: ${err.message}`);
           }
         }
-      } else {
-        console.warn(
-          `No provider found for model "${options.model}" (or provider excluded), trying allowed providers...`
-        );
       }
     }
 
-    // Fallback: Try allowed providers
-    for (const providerType of providersToTry) {
+    // ==========================================================================
+    // P3: FINAL FALLBACK - Try remaining providers
+    // ==========================================================================
+    const remainingProviders = providersToTry.filter(p => p !== 'fal' && p !== 'replicate');
+
+    for (const providerType of remainingProviders) {
       const provider = this.providers.get(providerType);
       if (!provider) continue;
 
       try {
-        console.log(`Trying ${providerType} for image generation...`);
-
-        // Map model to something the provider understands
-        const mappedModel = this.mapModelToProvider(options.model || '', providerType, 'image');
+        console.log(`[ROUTE] P3 Fallback: Trying ${providerType}...`);
+        const mappedModel = this.mapModelToProvider(model, providerType, 'image');
         const providerOptions = { ...options, model: mappedModel };
-
-        if (options.model && !mappedModel) {
-          console.log(
-            `   > No direct mapping for ${options.model} on ${providerType}, using provider default.`
-          );
-        } else if (mappedModel && mappedModel !== options.model) {
-          console.log(`   > Mapped ${options.model} -> ${mappedModel}`);
-        }
-
         const result = await provider.generateImage(providerOptions);
 
         if (result.status === 'succeeded') {
-          console.log(`✓ ${providerType} succeeded`);
+          console.log(`✓ [P3] ${providerType} succeeded`);
           return { ...result, provider: providerType };
         }
 
@@ -719,26 +735,90 @@ export class GenerationService {
       }
     }
 
+    // ==========================================================================
+    // RUNTIME MEDIC - Self-healing attempt before final failure
+    // ==========================================================================
+    const combinedError = errors.join('\n');
+    const failedJob: FailedJob = {
+      id: Date.now().toString(),
+      model: model,
+      prompt: options.prompt,
+      negativePrompt: options.negativePrompt,
+      imageUrl: options.imageUrl,
+      error: combinedError,
+      params: options as unknown as Record<string, unknown>,
+      attemptCount: 0,
+      timestamp: new Date(),
+    };
+
+    const medicResult = await runtimeMedic.processFailure(failedJob);
+
+    if (medicResult.shouldRetry && medicResult.repairedJob) {
+      console.log(
+        `[RuntimeMedic] Attempting repair: ${medicResult.intervention.repair.repairType}`
+      );
+
+      // Apply retry delay if needed (for rate limits)
+      if (medicResult.retryDelay) {
+        await new Promise(resolve => setTimeout(resolve, medicResult.retryDelay));
+      }
+
+      // Retry with repaired options
+      const repairedOptions: GenerationOptions = {
+        ...options,
+        prompt: medicResult.repairedJob.prompt,
+        negativePrompt: medicResult.repairedJob.negativePrompt,
+        model: medicResult.repairedJob.model,
+      };
+
+      // Try fal.ai with repaired options (most reliable fallback)
+      const falProvider = this.providers.get('fal');
+      if (falProvider) {
+        try {
+          const repairedResult = await falProvider.generateImage(repairedOptions);
+          if (repairedResult.status === 'succeeded') {
+            console.log(`✓ [RuntimeMedic] Repair succeeded!`);
+            medicResult.intervention.outcome = 'success';
+            return { ...repairedResult, provider: 'fal', repairedByMedic: true };
+          }
+        } catch {
+          console.log(`[RuntimeMedic] Repair attempt failed`);
+        }
+      }
+    }
+
+    // ==========================================================================
+    // FINAL FAIL - All providers and medic exhausted
+    // ==========================================================================
     return {
       id: Date.now().toString(),
       status: 'failed',
-      error: `All providers failed:\n${errors.join('\n')}`,
+      error: `Image generation failed after all attempts:\n${combinedError}`,
+      medicIntervention: medicResult.intervention,
     };
   }
 
   /**
-   * Generate video with automatic fallback
+   * Generate video with COST-OPTIMIZED ROUTING
+   *
+   * Priority Order (RunPod-First / Fail-Over):
+   * - P0: RunPod (Self-Hosted) - Cheapest, full feature parity
+   * - P1: Fal.ai (Managed) - Reliable fallback
+   * - P2: Other providers or Fail
+   *
+   * Explicit engine selection always respected.
    */
   async generateVideo(
     image: string | undefined,
     options: GenerationOptions
   ): Promise<GenerationResult> {
     const errors: string[] = [];
+    const model = options.model || '';
 
     // RESPECT EXPLICIT ENGINE SELECTION: If user chose 'comfy', use ComfyUI directly
     const explicitEngine = (options as any).engine;
     if (explicitEngine === 'comfy' && this.providers.has('comfy')) {
-      console.log(`User explicitly selected ComfyUI engine for video. Using ComfyUI directly...`);
+      console.log(`[ROUTE] User explicitly selected ComfyUI engine for video.`);
       const provider = this.providers.get('comfy')!;
       try {
         const result = await provider.generateVideo(image, options);
@@ -760,15 +840,17 @@ export class GenerationService {
       }
     }
 
-    // RESPECT EXPLICIT ENGINE SELECTION: If user chose 'runpod', use GPUWorkerClient directly
-    if (explicitEngine === 'runpod') {
-      console.log(`User explicitly selected RunPod engine for video. Using GPUWorkerClient directly...`);
-      const gpuClient = GPUWorkerClient.getInstance();
+    // ==========================================================================
+    // P0: RUNPOD (SELF-HOSTED) - Highest Priority for Cost & Feature Parity
+    // Try RunPod first for ALL video generation (unless explicit engine override)
+    // ==========================================================================
+    const gpuClient = GPUWorkerClient.getInstance();
+    const isRunPodHealthy = await this.checkRunPodHealth(gpuClient);
+
+    if (isRunPodHealthy || explicitEngine === 'runpod') {
+      console.log(`[ROUTE] P0 RunPod (Self-Hosted) - Attempting video generation...`);
       try {
-        // Determine which GPU operation to use based on the request
-        // For video generation, we support: rack_focus, video_generate (Wan 2.1 T2V/I2V)
         const operation = (options as any).gpuOperation || 'video_generate';
-        // Parse duration from string to number (e.g., "5" -> 5)
         const durationSeconds = options.duration ? parseFloat(options.duration) : 4.0;
         let result;
 
@@ -781,11 +863,57 @@ export class GenerationService {
             fps: (options as any).fps || 24,
             blurStrength: (options as any).blurStrength || 1.0,
           });
+        } else if (operation === 'infcam_reshoot') {
+          result = await gpuClient.virtualReshoot({
+            videoUrl: image || '',
+            cameraPath: (options as any).cameraPath || [],
+            preserveSubject: (options as any).preserveSubject ?? true,
+            motionBlur: (options as any).motionBlur ?? true,
+          });
+        } else if (
+          operation === 'svi_generate' ||
+          model.includes('svi') ||
+          model.includes('stable-video-infinity')
+        ) {
+          // SVI - Stable Video Infinity: Premium long-form continuity
+          // Replaces StoryMem + Spatia + InfCam with unified model
+          // Note: SVI requires an input image (I2V only)
+          if (!image) {
+            console.warn(
+              `[SVI] No image provided - SVI requires a seed image. Falling back to Wan...`
+            );
+            result = await gpuClient.generateVideo({
+              prompt: options.prompt,
+              imageUrl: undefined,
+              durationSeconds: durationSeconds,
+              fps: (options as any).fps || 24,
+              width: options.width || 1280,
+              height: options.height || 720,
+              guidanceScale: options.guidanceScale || 7.5,
+              numInferenceSteps: options.steps || 50,
+              seed: options.seed,
+            });
+          } else {
+            console.log(`[SVI] Using Stable Video Infinity for premium continuity...`);
+            result = await gpuClient.generateSVI({
+              prompt: options.prompt,
+              imageUrl: image,
+              numFrames: Math.floor(durationSeconds * ((options as any).fps || 24)),
+              fps: (options as any).fps || 24,
+              width: options.width || 1024,
+              height: options.height || 576,
+              motionBucketId: (options as any).motionBucketId || 127,
+              noiseAugStrength: (options as any).noiseAugStrength || 0.02,
+              numInferenceSteps: options.steps || 25,
+              seed: options.seed,
+              decodeChunkSize: (options as any).decodeChunkSize || 8,
+            });
+          }
         } else {
           // Default: video_generate (Wan 2.1 Text-to-Video or Image-to-Video)
           result = await gpuClient.generateVideo({
             prompt: options.prompt,
-            imageUrl: image, // If provided, uses I2V mode
+            imageUrl: image,
             durationSeconds: durationSeconds,
             fps: (options as any).fps || 24,
             width: options.width || 1280,
@@ -797,7 +925,7 @@ export class GenerationService {
         }
 
         if (result.success) {
-          console.log(`✓ RunPod GPU video succeeded`);
+          console.log(`✓ [P0] RunPod GPU video succeeded`);
           return {
             id: Date.now().toString(),
             status: 'succeeded',
@@ -805,92 +933,94 @@ export class GenerationService {
             provider: 'runpod',
           };
         }
-        return {
-          id: Date.now().toString(),
-          status: 'failed',
-          error: `runpod: ${result.error}`,
-        };
+
+        // RunPod failed - record error and fall through to P1
+        errors.push(`RunPod: ${result.error}`);
+        console.warn(`[P0] RunPod failed: ${result.error}. Falling back to P1 (Fal.ai)...`);
       } catch (err: any) {
-        return {
-          id: Date.now().toString(),
-          status: 'failed',
-          error: `runpod: ${err.message}`,
-        };
+        errors.push(`RunPod: ${err.message}`);
+        console.warn(`[P0] RunPod crashed: ${err.message}. Falling back to P1 (Fal.ai)...`);
+      }
+    } else {
+      console.log(`[ROUTE] P0 RunPod skipped (not healthy). Proceeding to P1...`);
+    }
+
+    // ==========================================================================
+    // P1: FAL.AI (MANAGED FALLBACK) - Reliable, trusted provider
+    // ==========================================================================
+    const falProvider = this.providers.get('fal');
+    if (falProvider) {
+      console.log(`[ROUTE] P1 Fal.ai (Managed Fallback) - Attempting video generation...`);
+      try {
+        // Map model to Fal's most reliable video model if not specified
+        let falModel = model;
+        if (!model || !model.startsWith('fal-ai/')) {
+          // Default to Wan 2.1 I2V for image input, T2V otherwise
+          falModel = image ? 'fal-ai/wan/v2.1/1.3b/image-to-video' : 'fal-ai/wan-t2v';
+        }
+
+        const falOptions = { ...options, model: falModel };
+        const result = await falProvider.generateVideo(image, falOptions);
+
+        if (result.status === 'succeeded') {
+          console.log(`✓ [P1] Fal.ai video succeeded`);
+          return { ...result, provider: 'fal' };
+        }
+
+        errors.push(`Fal.ai: ${result.error}`);
+        console.warn(`[P1] Fal.ai failed: ${result.error}. Trying P2 fallback...`);
+      } catch (err: any) {
+        errors.push(`Fal.ai: ${err.message}`);
+        console.warn(`[P1] Fal.ai crashed: ${err.message}. Trying P2 fallback...`);
       }
     }
 
-    // If a specific model is requested, route to the correct provider
-    if (options.model) {
-      const targetProvider = this.getProviderForModel(options.model, 'video');
+    // ==========================================================================
+    // P2: MODEL-SPECIFIC ROUTING (if explicit model requested)
+    // Only try if model was explicitly specified and matches a specific provider
+    // ==========================================================================
+    if (model) {
+      const targetProvider = this.getProviderForModel(model, 'video');
 
-      if (targetProvider) {
+      if (targetProvider && targetProvider !== 'fal') {
         const provider = this.providers.get(targetProvider);
         if (provider) {
+          console.log(`[ROUTE] P2 Model-specific routing: "${model}" → ${targetProvider}`);
           try {
-            console.log(`Routing model "${options.model}" to ${targetProvider}...`);
             const result = await provider.generateVideo(image, options);
 
             if (result.status === 'succeeded') {
-              console.log(`✓ ${targetProvider} succeeded`);
+              console.log(`✓ [P2] ${targetProvider} succeeded`);
               return { ...result, provider: targetProvider };
             }
 
-            return {
-              id: Date.now().toString(),
-              status: 'failed',
-              error: `${targetProvider}: ${result.error}`,
-            };
+            errors.push(`${targetProvider}: ${result.error}`);
           } catch (err: any) {
-            return {
-              id: Date.now().toString(),
-              status: 'failed',
-              error: `${targetProvider}: ${err.message}`,
-            };
-          }
-        }
-      } else {
-        console.warn(
-          `No provider found for model "${options.model}", checking for provider-specific prefixes...`
-        );
-
-        // Check for provider-specific prefixes to avoid blind fallback
-        if (options.model.startsWith('fal-ai/')) {
-          console.log(`Model "${options.model}" is a Fal.ai model. Routing to Fal...`);
-          const provider = this.providers.get('fal');
-          if (provider) {
-            try {
-              const result = await provider.generateVideo(image, options);
-              if (result.status === 'succeeded') return { ...result, provider: 'fal' };
-              return { id: Date.now().toString(), status: 'failed', error: `fal: ${result.error}` };
-            } catch (err: any) {
-              return { id: Date.now().toString(), status: 'failed', error: `fal: ${err.message}` };
-            }
+            errors.push(`${targetProvider}: ${err.message}`);
           }
         }
       }
     }
 
-    // Fallback: Filter to video-capable providers
-    // CRITICAL: Do NOT try all providers if the model was clearly meant for a specific one (e.g. fal-ai/...)
-    // UNLESS we can map it.
-
-    const videoProviders = this.availableProviders.filter(p => PROVIDER_CONFIGS[p].supportsVideo);
+    // ==========================================================================
+    // P3: FINAL FALLBACK - Try remaining video providers
+    // ==========================================================================
+    const videoProviders = this.availableProviders.filter(
+      p => PROVIDER_CONFIGS[p].supportsVideo && p !== 'fal' && p !== 'runpod'
+    );
 
     for (const providerType of videoProviders) {
       const provider = this.providers.get(providerType);
       if (!provider) continue;
 
       try {
-        console.log(`Trying ${providerType} for video generation...`);
-
-        // Map model to something the provider understands
-        const mappedModel = this.mapModelToProvider(options.model || '', providerType, 'video');
+        console.log(`[ROUTE] P3 Fallback: Trying ${providerType}...`);
+        const mappedModel = this.mapModelToProvider(model, providerType, 'video');
         const providerOptions = { ...options, model: mappedModel };
-
         const result = await provider.generateVideo(image, providerOptions);
 
         if (result.status === 'succeeded') {
-          console.log(`✓ ${providerType} succeeded`);
+          console.log(`✓ [P3] ${providerType} succeeded`);
           return { ...result, provider: providerType };
         }
 
@@ -900,11 +1030,82 @@ export class GenerationService {
       }
     }
 
+    // ==========================================================================
+    // RUNTIME MEDIC - Self-healing attempt before final failure (video)
+    // ==========================================================================
+    const combinedVideoError = errors.join('\n');
+    const failedVideoJob: FailedJob = {
+      id: Date.now().toString(),
+      model: model,
+      prompt: options.prompt,
+      negativePrompt: options.negativePrompt,
+      imageUrl: image,
+      error: combinedVideoError,
+      params: options as unknown as Record<string, unknown>,
+      attemptCount: 0,
+      timestamp: new Date(),
+    };
+
+    const videoMedicResult = await runtimeMedic.processFailure(failedVideoJob);
+
+    if (videoMedicResult.shouldRetry && videoMedicResult.repairedJob) {
+      console.log(
+        `[RuntimeMedic] Attempting video repair: ${videoMedicResult.intervention.repair.repairType}`
+      );
+
+      // Apply retry delay if needed
+      if (videoMedicResult.retryDelay) {
+        await new Promise(resolve => setTimeout(resolve, videoMedicResult.retryDelay));
+      }
+
+      // Retry with repaired options
+      const repairedVideoOptions: GenerationOptions = {
+        ...options,
+        prompt: videoMedicResult.repairedJob.prompt,
+        negativePrompt: videoMedicResult.repairedJob.negativePrompt,
+        model: videoMedicResult.repairedJob.model,
+      };
+
+      // Try fal.ai with repaired options
+      const falVideoProvider = this.providers.get('fal');
+      if (falVideoProvider) {
+        try {
+          const repairedVideoResult = await falVideoProvider.generateVideo(
+            image,
+            repairedVideoOptions
+          );
+          if (repairedVideoResult.status === 'succeeded') {
+            console.log(`✓ [RuntimeMedic] Video repair succeeded!`);
+            videoMedicResult.intervention.outcome = 'success';
+            return { ...repairedVideoResult, provider: 'fal', repairedByMedic: true };
+          }
+        } catch {
+          console.log(`[RuntimeMedic] Video repair attempt failed`);
+        }
+      }
+    }
+
+    // ==========================================================================
+    // FINAL FAIL - All providers and medic exhausted
+    // ==========================================================================
     return {
       id: Date.now().toString(),
       status: 'failed',
-      error: `All video providers failed:\n${errors.join('\n')}`,
+      error: `Video generation failed after all attempts:\n${combinedVideoError}`,
+      medicIntervention: videoMedicResult.intervention,
     };
+  }
+
+  /**
+   * Check if RunPod GPU worker is healthy and available
+   */
+  private async checkRunPodHealth(gpuClient: GPUWorkerClient): Promise<boolean> {
+    try {
+      const health = await gpuClient.getHealth();
+      return health.status === 'healthy' || health.status === 'ok';
+    } catch {
+      return false;
+    }
   }
 
   private mapModelToProvider(

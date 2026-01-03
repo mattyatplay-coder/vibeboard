@@ -1,5 +1,5 @@
 import type { Config } from "tailwindcss";
-const { fontFamily } = require("tailwindcss/defaultTheme");
+import defaultTheme from "tailwindcss/defaultTheme";
 
 const config: Config = {
     darkMode: "class",
@@ -41,8 +41,8 @@ const config: Config = {
                 },
             },
             fontFamily: {
-                sans: ["var(--font-inter)", ...fontFamily.sans],
-                mono: ["var(--font-jetbrains-mono)", ...fontFamily.mono],
+                sans: ["var(--font-inter)", ...defaultTheme.fontFamily.sans],
+                mono: ["var(--font-jetbrains-mono)", ...defaultTheme.fontFamily.mono],
             },
             boxShadow: {
                 'neon-violet': '0 0 20px -5px rgba(139, 92, 246, 0.4)',

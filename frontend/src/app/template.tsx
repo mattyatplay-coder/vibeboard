@@ -16,12 +16,12 @@ export default function Template({ children }: { children: React.ReactNode }) {
       animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
       exit={{ opacity: 0, y: -10, filter: 'blur(10px)' }}
       transition={{
-        type: "spring",
+        type: 'spring',
         stiffness: 260,
         damping: 20,
-        mass: 0.5
+        mass: 0.5,
       }}
-      className="flex-1 w-full h-full min-h-0"
+      className="h-full min-h-0 w-full flex-1"
     >
       {children}
     </motion.div>

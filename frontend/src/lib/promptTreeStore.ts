@@ -13,6 +13,9 @@ export interface PromptNode {
     model?: string;
     aspectRatio?: string;
     lensPreset?: string;
+    camera?: string;
+    lensFamily?: string;
+    focalLength?: number;
     selectedElements?: string[];
   };
 }

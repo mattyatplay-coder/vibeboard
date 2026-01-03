@@ -26,7 +26,11 @@ const WEIGHT_MAPPING = [
   { range: '1.6+', repetitions: '3', note: '' },
 ];
 
-export function WeightHintTooltip({ isVisible, selectedText, promptContainerRef }: WeightHintTooltipProps) {
+export function WeightHintTooltip({
+  isVisible,
+  selectedText,
+  promptContainerRef,
+}: WeightHintTooltipProps) {
   const [isMac, setIsMac] = useState(true);
   const [position, setPosition] = useState({ top: 0, left: 0 });
 
@@ -47,9 +51,8 @@ export function WeightHintTooltip({ isVisible, selectedText, promptContainerRef 
   }, [isVisible, promptContainerRef]);
 
   const modKey = isMac ? '⌘' : 'Ctrl';
-  const displayText = selectedText && selectedText.length > 25
-    ? selectedText.slice(0, 25) + '...'
-    : selectedText;
+  const displayText =
+    selectedText && selectedText.length > 25 ? selectedText.slice(0, 25) + '...' : selectedText;
 
   return (
     <AnimatePresence>
@@ -75,9 +78,7 @@ export function WeightHintTooltip({ isVisible, selectedText, promptContainerRef 
             {selectedText && (
               <div className="mb-3 flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/10 px-2 py-1.5">
                 <Highlighter className="h-3.5 w-3.5 text-blue-400" />
-                <code className="truncate text-xs text-blue-300">
-                  {displayText}
-                </code>
+                <code className="truncate text-xs text-blue-300">{displayText}</code>
               </div>
             )}
 

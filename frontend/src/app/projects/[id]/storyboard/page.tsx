@@ -6,7 +6,12 @@ import dynamic from 'next/dynamic';
 import { Plus, Play, Film, Clock, Loader2, Settings, X } from 'lucide-react';
 import { ContextualBackButton } from '@/components/layout/ContextualBackButton';
 import { BACKEND_URL } from '@/lib/api';
-import StoryboardShot, { ShotData, calculateImageCost, calculateVideoCost, calculateTotalShotCost } from '@/components/storyboard/StoryboardShot';
+import StoryboardShot, {
+  ShotData,
+  calculateImageCost,
+  calculateVideoCost,
+  calculateTotalShotCost,
+} from '@/components/storyboard/StoryboardShot';
 import { formatCost } from '@/lib/ModelPricing';
 import { clsx } from 'clsx';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -54,10 +59,14 @@ export default function StoryboardPage() {
 
   // Settings
   const [aspectRatio, setAspectRatio] = useState('16:9');
-  const [frameModel, setFrameModel] = useState('fal-ai/flux/dev');
+  const [frameModel, setFrameModel] = useState('fal-ai/qwen-image-edit-2511');
 
   // Popular image generation models for frame generation
+  // Qwen-2511 is the strategic default for I2I surgical editing
   const frameModels = [
+    { id: 'fal-ai/qwen-image-edit-2511', name: 'Qwen 2511 (I2I)', provider: 'Fal' },
+    { id: 'fal-ai/flux-kontext/dev', name: 'Flux Kontext Dev', provider: 'Fal' },
+    { id: 'fal-ai/flux-kontext/pro', name: 'Flux Kontext Pro', provider: 'Fal' },
     { id: 'fal-ai/flux/dev', name: 'FLUX.1 Dev', provider: 'Fal' },
     { id: 'fal-ai/flux/schnell', name: 'FLUX.1 Schnell', provider: 'Fal' },
     { id: 'fal-ai/flux-pro', name: 'FLUX.1 Pro', provider: 'Fal' },
@@ -74,41 +83,45 @@ export default function StoryboardPage() {
   // Video resolution options by model family
   // Maps model ID patterns to available resolutions
   const VIDEO_RESOLUTION_MAP: Record<string, { id: string; label: string; pixels: string }[]> = {
-    'kling': [
+    'stable-video-infinity': [
+      { id: '720p', label: '720p', pixels: '1280×720' },
+      { id: '1080p', label: '1080p', pixels: '1920×1080' },
+    ],
+    kling: [
       { id: '480p', label: '480p', pixels: '854×480' },
       { id: '720p', label: '720p', pixels: '1280×720' },
       { id: '1080p', label: '1080p', pixels: '1920×1080' },
     ],
-    'wan': [
+    wan: [
       { id: '480p', label: '480p', pixels: '854×480' },
       { id: '720p', label: '720p', pixels: '1280×720' },
       { id: '1080p', label: '1080p', pixels: '1920×1080' },
     ],
-    'luma': [
+    luma: [
       { id: '540p', label: '540p', pixels: '960×540' },
       { id: '720p', label: '720p', pixels: '1280×720' },
     ],
-    'minimax': [
+    minimax: [
       { id: '720p', label: '720p', pixels: '1280×720' },
       { id: '1080p', label: '1080p', pixels: '1920×1080' },
     ],
-    'vidu': [
+    vidu: [
       { id: '720p', label: '720p', pixels: '1280×720' },
       { id: '1080p', label: '1080p', pixels: '1920×1080' },
     ],
-    'ltx': [
+    ltx: [
       { id: '480p', label: '480p', pixels: '768×512' },
       { id: '720p', label: '720p', pixels: '1280×720' },
     ],
-    'hunyuan': [
+    hunyuan: [
       { id: '720p', label: '720p', pixels: '1280×720' },
       { id: '1080p', label: '1080p', pixels: '1920×1080' },
     ],
-    'pixverse': [
+    pixverse: [
       { id: '720p', label: '720p', pixels: '1280×720' },
       { id: '1080p', label: '1080p', pixels: '1920×1080' },
     ],
-    'default': [
+    default: [
       { id: '480p', label: '480p', pixels: '854×480' },
       { id: '720p', label: '720p', pixels: '1280×720' },
       { id: '1080p', label: '1080p', pixels: '1920×1080' },
@@ -121,15 +134,17 @@ export default function StoryboardPage() {
   const [generatingLastFrames, setGeneratingLastFrames] = useState<Set<string>>(new Set());
 
   // Elements for @reference autocomplete
-  const [elements, setElements] = useState<Array<{
-    id: string;
-    name: string;
-    type?: string;
-    url?: string;
-    fileUrl?: string;
-    thumbnail?: string;
-    projectId?: string;
-  }>>([]);
+  const [elements, setElements] = useState<
+    Array<{
+      id: string;
+      name: string;
+      type?: string;
+      url?: string;
+      fileUrl?: string;
+      thumbnail?: string;
+      projectId?: string;
+    }>
+  >([]);
 
   // Smart Prompt Builder state
   const [isPromptBuilderOpen, setIsPromptBuilderOpen] = useState(false);
@@ -144,13 +159,8 @@ export default function StoryboardPage() {
   const [hasMounted, setHasMounted] = useState(false);
   const [showRecoveryToast, setShowRecoveryToast] = useState(false);
   const [recoverableSession, setRecoverableSession] = useState<StoryboardSession | null>(null);
-  const {
-    saveSession,
-    getSession,
-    clearSession,
-    dismissRecovery,
-    isRecoveryDismissed,
-  } = usePageAutoSave<StoryboardSession>('storyboard');
+  const { saveSession, getSession, clearSession, dismissRecovery, isRecoveryDismissed } =
+    usePageAutoSave<StoryboardSession>('storyboard');
 
   // Mount detection
   useEffect(() => {
@@ -274,7 +284,8 @@ export default function StoryboardPage() {
 
   // Get available resolutions based on the selected chain's video model
   const getAvailableResolutions = () => {
-    const defaultVideoModel = selectedChain?.segments?.[0]?.videoModel || 'fal-ai/kling-video/v2.1/master/image-to-video';
+    const defaultVideoModel =
+      selectedChain?.segments?.[0]?.videoModel || 'runpod/stable-video-infinity';
     const modelLower = defaultVideoModel.toLowerCase();
 
     for (const [key, resolutions] of Object.entries(VIDEO_RESOLUTION_MAP)) {
@@ -306,14 +317,16 @@ export default function StoryboardPage() {
   ) || { imageCost: 0, videoCost: 0, imageIterations: 0, videoIterations: 0 };
 
   // Calculate ESTIMATED cost for next run (1 iteration of each)
-  const estimatedImageCost = selectedChain?.segments?.reduce((acc, seg) => {
-    const costPerFrame = calculateImageCost(seg.imageModel, seg.imageResolution);
-    return acc + (costPerFrame * 2); // First frame + Last frame
-  }, 0) || 0;
+  const estimatedImageCost =
+    selectedChain?.segments?.reduce((acc, seg) => {
+      const costPerFrame = calculateImageCost(seg.imageModel, seg.imageResolution);
+      return acc + costPerFrame * 2; // First frame + Last frame
+    }, 0) || 0;
 
-  const estimatedVideoCost = selectedChain?.segments?.reduce((acc, seg) => {
-    return acc + calculateVideoCost(seg.videoModel, seg.videoResolution, seg.duration || 5);
-  }, 0) || 0;
+  const estimatedVideoCost =
+    selectedChain?.segments?.reduce((acc, seg) => {
+      return acc + calculateVideoCost(seg.videoModel, seg.videoResolution, seg.duration || 5);
+    }, 0) || 0;
 
   // Use spent costs if any iterations exist, otherwise show estimates
   const hasIterations = spentCosts.imageIterations > 0 || spentCosts.videoIterations > 0;
@@ -624,9 +637,10 @@ export default function StoryboardPage() {
         let match;
         while ((match = mentionPattern.exec(prompt)) !== null) {
           const elementName = match[1];
-          const element = elements.find(e =>
-            e.name.toLowerCase() === elementName.toLowerCase() ||
-            e.name.replace(/\s+/g, '').toLowerCase() === elementName.toLowerCase()
+          const element = elements.find(
+            e =>
+              e.name.toLowerCase() === elementName.toLowerCase() ||
+              e.name.replace(/\s+/g, '').toLowerCase() === elementName.toLowerCase()
           );
           if (element) {
             const imageUrl = element.url || element.fileUrl || element.thumbnail;
@@ -637,6 +651,9 @@ export default function StoryboardPage() {
         }
       }
 
+      // Use shot's imageModel if set, otherwise fall back to global frameModel
+      const modelToUse = shot?.imageModel || frameModel;
+
       const res = await fetch(
         `${BACKEND_URL}/api/projects/${projectId}/scene-chains/${selectedChainId}/segments/${shotId}/generate-frame`,
         {
@@ -644,7 +661,7 @@ export default function StoryboardPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             frameType,
-            model: frameModel,
+            model: modelToUse,
             elementReferences: elementReferences.length > 0 ? elementReferences : undefined,
           }),
         }
@@ -718,7 +735,7 @@ export default function StoryboardPage() {
     setPromptBuilderTarget({
       shotId,
       frameType: 'video',
-      videoModelId: shot?.videoModel || 'fal-ai/kling-video/v2.1/master/image-to-video',
+      videoModelId: shot?.videoModel || 'runpod/stable-video-infinity',
     });
     setIsPromptBuilderOpen(true);
   };
@@ -731,7 +748,8 @@ export default function StoryboardPage() {
     if (promptBuilderTarget.frameType === 'video') {
       return shot.prompt || '';
     }
-    const field = promptBuilderTarget.frameType === 'first' ? 'firstFramePrompt' : 'lastFramePrompt';
+    const field =
+      promptBuilderTarget.frameType === 'first' ? 'firstFramePrompt' : 'lastFramePrompt';
     return shot[field] || '';
   };
 
@@ -741,7 +759,8 @@ export default function StoryboardPage() {
     if (promptBuilderTarget.frameType === 'video') {
       handleUpdateShot(promptBuilderTarget.shotId, { prompt: newPrompt });
     } else {
-      const field = promptBuilderTarget.frameType === 'first' ? 'firstFramePrompt' : 'lastFramePrompt';
+      const field =
+        promptBuilderTarget.frameType === 'first' ? 'firstFramePrompt' : 'lastFramePrompt';
       handleUpdateShot(promptBuilderTarget.shotId, { [field]: newPrompt });
     }
     setIsPromptBuilderOpen(false);
@@ -809,17 +828,20 @@ export default function StoryboardPage() {
               {/* Cost summary */}
               {selectedChain && selectedChain.segments && selectedChain.segments.length > 0 && (
                 <Tooltip
-                  content={hasIterations
-                    ? `Spent: ${spentCosts.imageIterations} frames (${formatCost(spentCosts.imageCost)}) + ${spentCosts.videoIterations} videos (${formatCost(spentCosts.videoCost)})`
-                    : `Estimate: ${selectedChain.segments.length * 2} frames + ${selectedChain.segments.length} videos`
+                  content={
+                    hasIterations
+                      ? `Spent: ${spentCosts.imageIterations} frames (${formatCost(spentCosts.imageCost)}) + ${spentCosts.videoIterations} videos (${formatCost(spentCosts.videoCost)})`
+                      : `Estimate: ${selectedChain.segments.length * 2} frames + ${selectedChain.segments.length} videos`
                   }
                   side="bottom"
                 >
                   <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5">
-                    <span className={clsx(
-                      'text-[10px] uppercase',
-                      hasIterations ? 'text-cyan-400' : 'text-gray-500'
-                    )}>
+                    <span
+                      className={clsx(
+                        'text-[10px] uppercase',
+                        hasIterations ? 'text-cyan-400' : 'text-gray-500'
+                      )}
+                    >
                       {hasIterations ? 'Spent' : 'Est.'}
                     </span>
                     <span className="text-xs text-amber-400">{formatCost(totalImageCost)}</span>
@@ -883,7 +905,7 @@ export default function StoryboardPage() {
                     'flex items-center gap-2 rounded-lg px-4 py-2 font-medium transition-all',
                     generatingShots.size > 0
                       ? 'cursor-wait bg-amber-500/20 text-amber-400'
-                      : 'bg-violet-600 text-white hover:bg-violet-500 shadow-[0_0_20px_rgba(139,92,246,0.35)] hover:shadow-[0_0_30px_rgba(139,92,246,0.5)]'
+                      : 'bg-violet-600 text-white shadow-[0_0_20px_rgba(139,92,246,0.35)] hover:bg-violet-500 hover:shadow-[0_0_30px_rgba(139,92,246,0.5)]'
                   )}
                 >
                   {generatingShots.size > 0 ? (
@@ -987,26 +1009,33 @@ export default function StoryboardPage() {
                     </div>
                   ) : (
                     <>
-                      {selectedChain.segments.map((shot, index) => (
-                        <StoryboardShot
-                          key={shot.id}
-                          shot={{ ...shot, orderIndex: index, status: shot.status || 'pending' }}
-                          sceneTitle={selectedChain.name}
-                          sceneDescription={selectedChain.description}
-                          elements={elements}
-                          projectId={projectId}
-                          onUpdate={handleUpdateShot}
-                          onDelete={handleDeleteShot}
-                          onGenerate={handleGenerateShot}
-                          onUploadFrame={handleUploadFrame}
-                          onGenerateFrame={handleGenerateFrame}
-                          onEnhanceFramePrompt={handleEnhanceFramePrompt}
-                          onEnhanceVideoPrompt={handleEnhanceVideoPrompt}
-                          isGenerating={generatingShots.has(shot.id)}
-                          isGeneratingFirstFrame={generatingFirstFrames.has(shot.id)}
-                          isGeneratingLastFrame={generatingLastFrames.has(shot.id)}
-                        />
-                      ))}
+                      {selectedChain.segments.map((shot, index) => {
+                        // Get previous shot's last frame for Quick Look continuity preview
+                        const prevShot = index > 0 ? selectedChain.segments[index - 1] : null;
+                        const prevShotLastFrameUrl = prevShot?.lastFrameUrl || null;
+
+                        return (
+                          <StoryboardShot
+                            key={shot.id}
+                            shot={{ ...shot, orderIndex: index, status: shot.status || 'pending' }}
+                            sceneTitle={selectedChain.name}
+                            sceneDescription={selectedChain.description}
+                            elements={elements}
+                            projectId={projectId}
+                            prevShotLastFrameUrl={prevShotLastFrameUrl}
+                            onUpdate={handleUpdateShot}
+                            onDelete={handleDeleteShot}
+                            onGenerate={handleGenerateShot}
+                            onUploadFrame={handleUploadFrame}
+                            onGenerateFrame={handleGenerateFrame}
+                            onEnhanceFramePrompt={handleEnhanceFramePrompt}
+                            onEnhanceVideoPrompt={handleEnhanceVideoPrompt}
+                            isGenerating={generatingShots.has(shot.id)}
+                            isGeneratingFirstFrame={generatingFirstFrames.has(shot.id)}
+                            isGeneratingLastFrame={generatingLastFrames.has(shot.id)}
+                          />
+                        );
+                      })}
 
                       {/* Add shot button */}
                       <button
@@ -1138,7 +1167,12 @@ export default function StoryboardPage() {
           <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-[#1a1a1a] shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-[#1a1a1a] px-6 py-4">
               <h2 className="text-lg font-semibold text-white">
-                Smart Prompt Builder - {promptBuilderTarget.frameType === 'video' ? 'Video' : promptBuilderTarget.frameType === 'first' ? 'First Frame' : 'Last Frame'}
+                Smart Prompt Builder -{' '}
+                {promptBuilderTarget.frameType === 'video'
+                  ? 'Video'
+                  : promptBuilderTarget.frameType === 'first'
+                    ? 'First Frame'
+                    : 'Last Frame'}
               </h2>
               <button
                 onClick={() => {
@@ -1153,9 +1187,10 @@ export default function StoryboardPage() {
 
             <PromptBuilder
               initialPrompt={getPromptBuilderInitialPrompt()}
-              modelId={promptBuilderTarget.frameType === 'video'
-                ? (promptBuilderTarget.videoModelId || 'fal-ai/kling-video/v2.1/master/image-to-video')
-                : (promptBuilderTarget.imageModelId || frameModel)
+              modelId={
+                promptBuilderTarget.frameType === 'video'
+                  ? promptBuilderTarget.videoModelId || 'runpod/stable-video-infinity'
+                  : promptBuilderTarget.imageModelId || frameModel
               }
               generationType={promptBuilderTarget.frameType === 'video' ? 'video' : 'image'}
               elements={elements.map(e => ({

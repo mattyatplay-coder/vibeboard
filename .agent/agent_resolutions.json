@@ -894,6 +894,85 @@
       ]
     },
     {
+      "id": "RUNPOD-001",
+      "timestamp": "2026-01-03T15:00:00Z",
+      "topic": "RunPod GPU Worker Troubleshooting - Workers Not Scaling",
+      "context": {
+        "symptom": "RunPod serverless workers not scaling - jobs stuck IN_QUEUE with 0 workers initializing",
+        "user_intent": "Troubleshoot and fix GPU worker scaling to enable self-hosted video generation",
+        "constraints": [
+          "3 endpoints configured with different GPU types",
+          "Docker images verified on Docker Hub",
+          "Account has sufficient balance ($148)"
+        ]
+      },
+      "execution_log": [
+        {
+          "step": 1,
+          "action": "Health Check Testing",
+          "description": "Tested all 3 RunPod endpoints for API responsiveness",
+          "finding": "All endpoints return HTTP 200, jobs queue successfully with IN_QUEUE status"
+        },
+        {
+          "step": 2,
+          "action": "GPU Availability Check",
+          "description": "Queried RunPod GraphQL for GPU pricing/availability",
+          "finding": "L40 has no spot capacity (lowestPrice: null), A40 at $0.24/hr, RTX 4090 at $0.20/hr available"
+        },
+        {
+          "step": 3,
+          "action": "GPU Type Updates",
+          "description": "Changed endpoint 2sziwt3f5gzsob from A40 to RTX 4090",
+          "finding": "Workers still not scaling after 2 minutes with available GPU type"
+        },
+        {
+          "step": 4,
+          "action": "Queue Purge and Fresh Test",
+          "description": "Purged all queues and submitted fresh jobs with correct payload format",
+          "finding": "After 60+ seconds, workers.initializing still at 0"
+        },
+        {
+          "step": 5,
+          "action": "Template Verification",
+          "description": "Verified templates via GraphQL query",
+          "finding": "Templates correctly point to mattydc/vibeboard-gpu-worker:latest and :v2-async-fix"
+        },
+        {
+          "step": 6,
+          "action": "Account Check",
+          "description": "Verified account balance and workers quota",
+          "finding": "Balance $148, workers quota 5/5 configured (0 running), no restrictions visible"
+        }
+      ],
+      "outcome": {
+        "status": "BLOCKED",
+        "summary": "Workers not scaling across all GPU types and all 3 endpoints. Likely Docker container startup crash or account-level issue."
+      },
+      "recommended_actions": [
+        "Check RunPod Dashboard Serverless Logs for container errors",
+        "Test Docker image locally: docker run -it mattydc/vibeboard-gpu-worker:latest",
+        "Contact RunPod support if issue persists",
+        "Use FAL AI as fallback for video generation"
+      ],
+      "endpoint_config": {
+        "6rg1i2nzxxugti": {
+          "name": "vibeboard-gpu-v2",
+          "gpu": "NVIDIA L40",
+          "template": "ejuyp43ar5"
+        },
+        "8tqucjc03o2duo": {
+          "name": "vibeboard-gpu-worker-prod",
+          "gpu": "NVIDIA L40",
+          "template": "ejuyp43ar5"
+        },
+        "2sziwt3f5gzsob": {
+          "name": "vibeboard-gpu-l40",
+          "gpu": "NVIDIA A40",
+          "template": "sej9xaf8h4"
+        }
+      }
+    },
+    {
       "id": "INFRA-001",
       "timestamp": "2026-01-01T12:00:00Z",
       "topic": "Cloudflare Tunnel Setup for api.vibeboard.studio",

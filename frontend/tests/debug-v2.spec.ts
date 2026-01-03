@@ -460,17 +460,17 @@ test.describe('VibeBoard Debug V2.0 - State Persistence & Fragile States', () =>
 
         const results: { name: string; loaded: boolean; time: number }[] = [];
 
-        for (const module of modules) {
+        for (const pageModule of modules) {
             const startTime = Date.now();
 
-            await page.goto(`${BASE_URL}/projects/${testProjectId}/${module.path}`);
+            await page.goto(`${BASE_URL}/projects/${testProjectId}/${pageModule.path}`);
             await page.waitForLoadState('networkidle');
 
             const loaded = await page.locator('#main-content').isVisible({ timeout: 10000 }).catch(() => false);
             const loadTime = Date.now() - startTime;
 
-            results.push({ name: module.name, loaded, time: loadTime });
-            console.log(`${module.name}: ${loaded ? '✅' : '❌'} (${loadTime}ms)`);
+            results.push({ name: pageModule.name, loaded, time: loadTime });
+            console.log(`${pageModule.name}: ${loaded ? '✅' : '❌'} (${loadTime}ms)`);
         }
 
         // Summary

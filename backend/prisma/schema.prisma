@@ -495,6 +495,9 @@ model SceneChain {
   name            String
   description     String?
 
+  // Position in project (for ordering scenes from script lab)
+  orderIndex      Int?     // Order within the project's storyboard
+
   // Chain configuration
   targetDuration  Int?     // Total target duration in seconds
   transitionStyle String   @default("smooth") // 'smooth', 'cut', 'fade', 'morph'
@@ -503,6 +506,11 @@ model SceneChain {
   styleGuideId    String?
   colorGrading    String?  // Color grading preset
   aspectRatio     String   @default("16:9")
+
+  // DUAL-ENGINE ARCHITECTURE: Master Style Context
+  // This is the "big prompt" from Script Lab that defines the overall aesthetic
+  // (lighting, lens, color, mood) for the ENTIRE chain. Inherited by all segments.
+  masterStyleContext String?  // e.g., "cinematic lighting, REDWideGamutRGB, dreamy haze, anamorphic lens flares..."
 
   // Model preferences
   preferredModel  String?  // Preferred generation model
@@ -532,11 +540,18 @@ model SceneChainSegment {
   prompt          String
   duration        Int      @default(5)  // seconds
 
+  // DUAL-ENGINE PROMPT ARCHITECTURE:
+  // - styleContext: Master Style Context from Script Lab (lighting, lens, aesthetic)
+  //   Injected into EVERY generation for visual consistency across all shots
+  // - prompt: Surgical Instruction (what to do/change in this specific shot)
+  styleContext    String?  // P0: Master style context (e.g., "cinematic lighting, REDWideGamutRGB, dreamy haze...")
+
   // Reference frames for generation guidance
   firstFrameUrl     String?  // Reference image for the first frame
   lastFrameUrl      String?  // Reference image for the last frame (for continuity)
   firstFramePrompt  String?  // Image generation prompt for first frame
   lastFramePrompt   String?  // Image generation prompt for last frame
+  negativePrompt    String?  // Negative prompt for surgical removal of unwanted elements (e.g., "(two figures on sidewalk:1.5)")
 
   // Source (if extending from existing video/generation)
   sourceType      String?  // 'generation', 'upload', 'none'
@@ -663,6 +678,11 @@ model RenderPass {
   reviewedAt      DateTime?
   reviewedBy      String?  // Future: user ID
   reviewNotes     String?
+
+  // Archival (Asset Hygiene)
+  archived        Boolean  @default(false) // True when superseded by master pass
+  archivedAt      DateTime? // When the pass was archived
+  archivedReason  String?   // 'master_approved', 'manual', 'auto_cleanup'
 
   // Cost
   cost            Float    @default(0)

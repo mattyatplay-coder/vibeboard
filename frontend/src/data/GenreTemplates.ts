@@ -444,7 +444,8 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
     id: 'youtuber',
     name: 'YouTuber / Creator',
     icon: '📹',
-    description: 'Content creator workflows: vlogs, tech reviews, tutorials, shorts. Optimized for retention and algorithms.',
+    description:
+      'Content creator workflows: vlogs, tech reviews, tutorials, shorts. Optimized for retention and algorithms.',
     type: 'content',
     recommendedTags: [
       'handheld',
@@ -462,7 +463,8 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
       'authentic',
     ],
     avoidedTags: ['low_key', 'noir', 'horror', 'slow_motion', 'melancholic'],
-    defaultStyle: 'YouTube creator style, high energy, direct address, jump cuts, retention-focused editing',
+    defaultStyle:
+      'YouTube creator style, high energy, direct address, jump cuts, retention-focused editing',
     colorPalette: ['#FF0000', '#FFFFFF', '#282828', '#00C853'],
     cameraPreferences: ['Handheld', 'Static', 'Whip Pan', 'Crash Zoom'],
     styleNotes: [
@@ -477,7 +479,8 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
     id: 'onlyfans',
     name: 'OnlyFans / Exclusive',
     icon: '🔒',
-    description: 'Exclusive creator content for subscription platforms. Intimate, personal connection with audience.',
+    description:
+      'Exclusive creator content for subscription platforms. Intimate, personal connection with audience.',
     type: 'content',
     restricted: true,
     recommendedTags: [
@@ -498,7 +501,8 @@ export const GENRE_TEMPLATES: Record<Genre, GenreTemplate> = {
       'seductive',
     ],
     avoidedTags: ['documentary', 'horror', 'aggressive', 'cold_steel', 'dutch_angle'],
-    defaultStyle: 'intimate creator content, personal connection, teaser aesthetic, subscription-worthy quality',
+    defaultStyle:
+      'intimate creator content, personal connection, teaser aesthetic, subscription-worthy quality',
     colorPalette: ['#FF4081', '#E91E63', '#F8BBD0', '#880E4F'],
     cameraPreferences: ['POV', 'Close Up', 'Arc Shot', 'Glam Shot'],
     styleNotes: [

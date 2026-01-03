@@ -63,11 +63,7 @@ export function useUndoRedo<T>(
   initialState: T,
   options: UseUndoRedoOptions = {}
 ): UseUndoRedoReturn<T> {
-  const {
-    maxHistory = 50,
-    enableKeyboardShortcuts = true,
-    debounceMs = 0,
-  } = options;
+  const { maxHistory = 50, enableKeyboardShortcuts = true, debounceMs = 0 } = options;
 
   // History stacks
   const [past, setPast] = useState<T[]>([]);
@@ -79,37 +75,39 @@ export function useUndoRedo<T>(
   const lastUpdateRef = useRef<number>(0);
 
   // Set state with history tracking
-  const setState = useCallback((newState: T | ((prev: T) => T)) => {
-    const resolvedState = typeof newState === 'function'
-      ? (newState as (prev: T) => T)(present)
-      : newState;
+  const setState = useCallback(
+    (newState: T | ((prev: T) => T)) => {
+      const resolvedState =
+        typeof newState === 'function' ? (newState as (prev: T) => T)(present) : newState;
 
-    // Skip if state hasn't changed
-    if (resolvedState === present) return;
+      // Skip if state hasn't changed
+      if (resolvedState === present) return;
 
-    const now = Date.now();
-    const timeSinceLastUpdate = now - lastUpdateRef.current;
+      const now = Date.now();
+      const timeSinceLastUpdate = now - lastUpdateRef.current;
 
-    // If debouncing and within debounce window, just update present without adding to history
-    if (debounceMs > 0 && timeSinceLastUpdate < debounceMs) {
-      setPresent(resolvedState);
-      lastUpdateRef.current = now;
-      return;
-    }
-
-    // Normal update: push current state to past, set new present, clear future
-    setPast(prev => {
-      const newPast = [...prev, present];
-      // Trim history if exceeds max
-      if (newPast.length > maxHistory) {
-        return newPast.slice(newPast.length - maxHistory);
+      // If debouncing and within debounce window, just update present without adding to history
+      if (debounceMs > 0 && timeSinceLastUpdate < debounceMs) {
+        setPresent(resolvedState);
+        lastUpdateRef.current = now;
+        return;
       }
-      return newPast;
-    });
-    setPresent(resolvedState);
-    setFuture([]);
-    lastUpdateRef.current = now;
-  }, [present, maxHistory, debounceMs]);
+
+      // Normal update: push current state to past, set new present, clear future
+      setPast(prev => {
+        const newPast = [...prev, present];
+        // Trim history if exceeds max
+        if (newPast.length > maxHistory) {
+          return newPast.slice(newPast.length - maxHistory);
+        }
+        return newPast;
+      });
+      setPresent(resolvedState);
+      setFuture([]);
+      lastUpdateRef.current = now;
+    },
+    [present, maxHistory, debounceMs]
+  );
 
   // Replace state without adding to history
   const replaceState = useCallback((newState: T) => {
@@ -216,17 +214,18 @@ export interface UndoRedoState<T> {
  * Create undo/redo wrapper for Zustand store state
  * Use this to add undo/redo to specific slices of your store
  */
-export function createUndoRedoSlice<T>(
-  initialState: T,
-  maxHistory: number = 50
-) {
+export function createUndoRedoSlice<T>(initialState: T, maxHistory: number = 50) {
   return {
     past: [] as T[],
     present: initialState,
     future: [] as T[],
 
     // Call this when updating the tracked state
-    pushState: (newState: T, get: () => { past: T[]; present: T; future: T[] }, set: (partial: Partial<{ past: T[]; present: T; future: T[] }>) => void) => {
+    pushState: (
+      newState: T,
+      get: () => { past: T[]; present: T; future: T[] },
+      set: (partial: Partial<{ past: T[]; present: T; future: T[] }>) => void
+    ) => {
       const { past, present } = get();
       const newPast = [...past, present].slice(-maxHistory);
       set({
@@ -236,7 +235,10 @@ export function createUndoRedoSlice<T>(
       });
     },
 
-    undo: (get: () => { past: T[]; present: T; future: T[] }, set: (partial: Partial<{ past: T[]; present: T; future: T[] }>) => void) => {
+    undo: (
+      get: () => { past: T[]; present: T; future: T[] },
+      set: (partial: Partial<{ past: T[]; present: T; future: T[] }>) => void
+    ) => {
       const { past, present, future } = get();
       if (past.length === 0) return;
 
@@ -248,7 +250,10 @@ export function createUndoRedoSlice<T>(
       });
     },
 
-    redo: (get: () => { past: T[]; present: T; future: T[] }, set: (partial: Partial<{ past: T[]; present: T; future: T[] }>) => void) => {
+    redo: (
+      get: () => { past: T[]; present: T; future: T[] },
+      set: (partial: Partial<{ past: T[]; present: T; future: T[] }>) => void
+    ) => {
       const { past, present, future } = get();
       if (future.length === 0) return;
 

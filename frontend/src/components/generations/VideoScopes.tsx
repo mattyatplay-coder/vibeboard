@@ -39,33 +39,36 @@ export function VideoScopes({
   const LUMA_G = 0.7152;
   const LUMA_B = 0.0722;
 
-  const analyzeFrame = useCallback((sourceCanvas: HTMLCanvasElement) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  const analyzeFrame = useCallback(
+    (sourceCanvas: HTMLCanvasElement) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
-    const width = canvas.width;
-    const height = canvas.height;
+      const width = canvas.width;
+      const height = canvas.height;
 
-    // Get source image data
-    const sourceCtx = sourceCanvas.getContext('2d');
-    if (!sourceCtx) return;
+      // Get source image data
+      const sourceCtx = sourceCanvas.getContext('2d');
+      if (!sourceCtx) return;
 
-    const imageData = sourceCtx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
-    const data = imageData.data;
+      const imageData = sourceCtx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+      const data = imageData.data;
 
-    // Clear canvas
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, width, height);
+      // Clear canvas
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, width, height);
 
-    if (scopeType === 'histogram') {
-      drawHistogram(ctx, data, width, height);
-    } else {
-      drawWaveform(ctx, data, sourceCanvas.width, sourceCanvas.height, width, height);
-    }
-  }, [scopeType]);
+      if (scopeType === 'histogram') {
+        drawHistogram(ctx, data, width, height);
+      } else {
+        drawWaveform(ctx, data, sourceCanvas.width, sourceCanvas.height, width, height);
+      }
+    },
+    [scopeType]
+  );
 
   const drawHistogram = (
     ctx: CanvasRenderingContext2D,
@@ -86,11 +89,7 @@ export function VideoScopes({
     }
 
     // Find max value for normalization
-    const maxVal = Math.max(
-      ...rHist.slice(1, 254),
-      ...gHist.slice(1, 254),
-      ...bHist.slice(1, 254)
-    );
+    const maxVal = Math.max(...rHist.slice(1, 254), ...gHist.slice(1, 254), ...bHist.slice(1, 254));
 
     const barWidth = width / 256;
     const padding = 10;
@@ -103,12 +102,7 @@ export function VideoScopes({
 
       for (let i = 0; i < 256; i++) {
         const barHeight = (hist[i] / maxVal) * graphHeight;
-        ctx.fillRect(
-          i * barWidth,
-          height - padding - barHeight,
-          barWidth,
-          barHeight
-        );
+        ctx.fillRect(i * barWidth, height - padding - barHeight, barWidth, barHeight);
       }
     };
 
@@ -190,8 +184,8 @@ export function VideoScopes({
         const luma = LUMA_R * r + LUMA_G * g + LUMA_B * b;
         const ire = luma / 255;
 
-        const x = 30 + ((col / sourceWidth) * (width - 30));
-        const y = height - padding - (ire * graphHeight);
+        const x = 30 + (col / sourceWidth) * (width - 30);
+        const y = height - padding - ire * graphHeight;
 
         // Draw colored dot based on RGB dominance
         if (r > g && r > b) {
@@ -358,36 +352,24 @@ export function VideoScopes({
             Luma Waveform
           </button>
         </div>
-        {isAnalyzing && (
-          <span className="text-xs text-green-400">● Live</span>
-        )}
+        {isAnalyzing && <span className="text-xs text-green-400">● Live</span>}
       </div>
 
       {/* Scope Canvas */}
-      <canvas
-        ref={canvasRef}
-        width={280}
-        height={120}
-        className="w-full rounded bg-black"
-      />
+      <canvas ref={canvasRef} width={280} height={120} className="w-full rounded bg-black" />
 
       {/* Legend */}
       <div className="mt-1 flex justify-center gap-3 text-[10px]">
         <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-red-500" />
-          R
+          <span className="h-2 w-2 rounded-full bg-red-500" />R
         </span>
         <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-green-500" />
-          G
+          <span className="h-2 w-2 rounded-full bg-green-500" />G
         </span>
         <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-blue-500" />
-          B
+          <span className="h-2 w-2 rounded-full bg-blue-500" />B
         </span>
-        {scopeType === 'waveform' && (
-          <span className="text-gray-500">| IRE 0-100</span>
-        )}
+        {scopeType === 'waveform' && <span className="text-gray-500">| IRE 0-100</span>}
       </div>
     </div>
   );

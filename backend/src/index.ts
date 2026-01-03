@@ -65,6 +65,7 @@ import generationRoutes from './routes/generationRoutes';
 import sceneRoutes from './routes/sceneRoutes';
 import sessionRoutes from './routes/sessionRoutes';
 import loraRoutes from './routes/loraRoutes';
+import globalLoraRoutes from './routes/globalLoraRoutes';
 import workflowRoutes from './routes/workflowRoutes';
 import modelParameterRoutes from './routes/modelParameterRoutes';
 import llmRoutes from './routes/llmRoutes';
@@ -180,6 +181,8 @@ app.use('/api/projects/:projectId/scenes', sceneRoutes);
 app.use('/api/projects/:projectId/sessions', sessionRoutes);
 // Nested route for loras: /api/projects/:projectId/loras
 app.use('/api/projects/:projectId/loras', loraRoutes);
+// Global LoRA Library (cross-project asset sharing)
+app.use('/api/global-loras', globalLoraRoutes);
 // Nested route for workflows: /api/projects/:projectId/workflows
 app.use('/api/projects/:projectId/workflows', workflowRoutes);
 // Nested route for parameters: /api/projects/:projectId/parameters

@@ -2,21 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // AI crawler User-Agents that need static HTML (can't execute JavaScript)
 const AI_BOT_USER_AGENTS = [
-    'GPTBot',
-    'ChatGPT-User',
-    'Google-Extended',
-    'Googlebot',
-    'Bingbot',
-    'ClaudeBot',
-    'Claude-Web',
-    'APIs-Google',
-    'Anthropic-AI',
-    'PerplexityBot',
+  'GPTBot',
+  'ChatGPT-User',
+  'Google-Extended',
+  'Googlebot',
+  'Bingbot',
+  'ClaudeBot',
+  'Claude-Web',
+  'APIs-Google',
+  'Anthropic-AI',
+  'PerplexityBot',
 ];
 
 // Generate static HTML for AI crawlers
 function generateStaticHTML(): string {
-    return `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -109,47 +109,47 @@ function generateStaticHTML(): string {
 }
 
 export function middleware(request: NextRequest) {
-    const userAgent = request.headers.get('user-agent') || '';
+  const userAgent = request.headers.get('user-agent') || '';
 
-    // Check if request is from an AI crawler
-    const isAIBot = AI_BOT_USER_AGENTS.some(bot =>
-        userAgent.toLowerCase().includes(bot.toLowerCase())
-    );
+  // Check if request is from an AI crawler
+  const isAIBot = AI_BOT_USER_AGENTS.some(bot =>
+    userAgent.toLowerCase().includes(bot.toLowerCase())
+  );
 
-    // Only intercept for root and main pages, not API routes or static assets
-    const pathname = request.nextUrl.pathname;
-    const shouldIntercept = isAIBot && (
-        pathname === '/' ||
-        pathname === '/projects' ||
-        pathname.startsWith('/projects/') && !pathname.includes('/api/')
-    );
+  // Only intercept for root and main pages, not API routes or static assets
+  const pathname = request.nextUrl.pathname;
+  const shouldIntercept =
+    isAIBot &&
+    (pathname === '/' ||
+      pathname === '/projects' ||
+      (pathname.startsWith('/projects/') && !pathname.includes('/api/')));
 
-    if (shouldIntercept) {
-        // Return static HTML for AI crawlers
-        return new NextResponse(generateStaticHTML(), {
-            status: 200,
-            headers: {
-                'Content-Type': 'text/html; charset=utf-8',
-                'X-Robots-Tag': 'index, follow',
-                'Cache-Control': 'public, max-age=3600',
-            },
-        });
-    }
+  if (shouldIntercept) {
+    // Return static HTML for AI crawlers
+    return new NextResponse(generateStaticHTML(), {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'X-Robots-Tag': 'index, follow',
+        'Cache-Control': 'public, max-age=3600',
+      },
+    });
+  }
 
-    // Let normal requests through
-    return NextResponse.next();
+  // Let normal requests through
+  return NextResponse.next();
 }
 
 // Configure which paths the middleware runs on
 export const config = {
-    matcher: [
-        /*
-         * Match all request paths except:
-         * - _next/static (static files)
-         * - _next/image (image optimization)
-         * - favicon.ico, robots.txt, sitemap.xml
-         * - API routes
-         */
-        '/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|api/).*)',
-    ],
+  matcher: [
+    /*
+     * Match all request paths except:
+     * - _next/static (static files)
+     * - _next/image (image optimization)
+     * - favicon.ico, robots.txt, sitemap.xml
+     * - API routes
+     */
+    '/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|api/).*)',
+  ],
 };

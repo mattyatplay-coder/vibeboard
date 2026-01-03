@@ -2,7 +2,19 @@
 
 import Link from 'next/link';
 import { usePathname, useParams, useRouter } from 'next/navigation';
-import { Wand2, Clapperboard, Settings, FileText, Paintbrush, Film, MessageSquare, Aperture, Users, Layers, Loader2 } from 'lucide-react';
+import {
+  Wand2,
+  Clapperboard,
+  Settings,
+  FileText,
+  Paintbrush,
+  Film,
+  MessageSquare,
+  Aperture,
+  Users,
+  Layers,
+  Loader2,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import { LucideIcon } from 'lucide-react';
@@ -46,7 +58,8 @@ export function Sidebar() {
 
   // Track if story generation is running in the background
   const storyGeneration = useStoryGenerationStore();
-  const isStoryGenerating = storyGeneration.isRunning && storyGeneration.activeProjectId === projectId;
+  const isStoryGenerating =
+    storyGeneration.isRunning && storyGeneration.activeProjectId === projectId;
 
   if (!projectId) return null;
 
@@ -64,17 +77,71 @@ export function Sidebar() {
 
   const STUDIO_SPINE: StudioSpineItem[] = [
     // Group 1: Development
-    { id: 'script-lab', icon: FileText, label: 'Script Lab', href: `/projects/${projectId}/story-editor`, group: 1 },
-    { id: 'storyboard', icon: Clapperboard, label: 'Storyboard', href: `/projects/${projectId}/storyboard`, group: 1 },
-    { id: 'asset-bin', icon: Layers, label: 'Asset Bin', href: `/projects/${projectId}/elements`, group: 1 },
-    { id: 'foundry', icon: Users, label: 'Character Foundry', href: `/projects/${projectId}/train`, group: 1 },
+    {
+      id: 'script-lab',
+      icon: FileText,
+      label: 'Script Lab',
+      href: `/projects/${projectId}/story-editor`,
+      group: 1,
+    },
+    {
+      id: 'storyboard',
+      icon: Clapperboard,
+      label: 'Storyboard',
+      href: `/projects/${projectId}/storyboard`,
+      group: 1,
+    },
+    {
+      id: 'asset-bin',
+      icon: Layers,
+      label: 'Asset Bin',
+      href: `/projects/${projectId}/elements`,
+      group: 1,
+    },
+    {
+      id: 'foundry',
+      icon: Users,
+      label: 'Character Foundry',
+      href: `/projects/${projectId}/train`,
+      group: 1,
+    },
     // Group 2: Production
-    { id: 'optics', icon: Aperture, label: 'Optics Engine', href: `/projects/${projectId}/optics-engine`, group: 2 },
-    { id: 'shot-studio', icon: Wand2, label: 'Shot Studio', href: `/projects/${projectId}/generate`, group: 2 },
+    {
+      id: 'optics',
+      icon: Aperture,
+      label: 'Optics Engine',
+      href: `/projects/${projectId}/optics-engine`,
+      group: 2,
+    },
+    {
+      id: 'shot-studio',
+      icon: Wand2,
+      label: 'Shot Studio',
+      href: `/projects/${projectId}/generate`,
+      group: 2,
+    },
     // Group 3: Post-Production
-    { id: 'vfx-suite', icon: Paintbrush, label: 'VFX Suite', href: `/projects/${projectId}/process`, group: 3 },
-    { id: 'sequencer', icon: Film, label: 'Sequencer', href: `/projects/${projectId}/timeline`, group: 3 },
-    { id: 'dailies', icon: MessageSquare, label: 'Dailies Review', href: `/projects/${projectId}/dailies`, group: 3 },
+    {
+      id: 'vfx-suite',
+      icon: Paintbrush,
+      label: 'VFX Suite',
+      href: `/projects/${projectId}/process`,
+      group: 3,
+    },
+    {
+      id: 'sequencer',
+      icon: Film,
+      label: 'Sequencer',
+      href: `/projects/${projectId}/timeline`,
+      group: 3,
+    },
+    {
+      id: 'dailies',
+      icon: MessageSquare,
+      label: 'Dailies Review',
+      href: `/projects/${projectId}/dailies`,
+      group: 3,
+    },
   ];
 
   const GROUP_LABELS: Record<1 | 2 | 3, string> = {
@@ -92,11 +159,14 @@ export function Sidebar() {
   };
 
   // Group the spine items by their group number
-  const groupedSpine = STUDIO_SPINE.reduce((acc, item) => {
-    if (!acc[item.group]) acc[item.group] = [];
-    acc[item.group].push(item);
-    return acc;
-  }, {} as Record<1 | 2 | 3, StudioSpineItem[]>);
+  const groupedSpine = STUDIO_SPINE.reduce(
+    (acc, item) => {
+      if (!acc[item.group]) acc[item.group] = [];
+      acc[item.group].push(item);
+      return acc;
+    },
+    {} as Record<1 | 2 | 3, StudioSpineItem[]>
+  );
 
   return (
     <aside
@@ -117,8 +187,8 @@ export function Sidebar() {
         )}
       >
         {!isCollapsed && (
-          <Link href="/" className="block overflow-hidden whitespace-nowrap group">
-            <h1 className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-cyan-400 bg-clip-text text-2xl font-bold tracking-tighter text-transparent drop-shadow-[0_0_10px_rgba(139,92,246,0.5)] group-hover:drop-shadow-[0_0_20px_rgba(139,92,246,0.8)] transition-all">
+          <Link href="/" className="group block overflow-hidden whitespace-nowrap">
+            <h1 className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-cyan-400 bg-clip-text text-2xl font-bold tracking-tighter text-transparent drop-shadow-[0_0_10px_rgba(139,92,246,0.5)] transition-all group-hover:drop-shadow-[0_0_20px_rgba(139,92,246,0.8)]">
               VibeBoard
             </h1>
           </Link>
@@ -227,15 +297,11 @@ export function Sidebar() {
             {/* Group separator with label */}
             {!isCollapsed && (
               <div className={clsx('mb-1 flex items-center gap-2 px-2', groupIdx > 0 && 'mt-4')}>
-                <span className="text-label">
-                  {GROUP_LABELS[groupNum]}
-                </span>
+                <span className="text-label">{GROUP_LABELS[groupNum]}</span>
                 <div className="h-px flex-1 bg-zinc-800" />
               </div>
             )}
-            {isCollapsed && groupIdx > 0 && (
-              <div className="my-3 h-px bg-white/10" />
-            )}
+            {isCollapsed && groupIdx > 0 && <div className="my-3 h-px bg-white/10" />}
 
             {/* Group items */}
             <div className="space-y-1" role="menu" aria-label={GROUP_LABELS[groupNum]}>
@@ -251,7 +317,7 @@ export function Sidebar() {
                     href={item.href}
                     role="menuitem"
                     tabIndex={0}
-                    onKeyDown={(e) => {
+                    onKeyDown={e => {
                       // UX-002: Keyboard activation with Enter or Space
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
@@ -269,12 +335,12 @@ export function Sidebar() {
                     {isActive && (
                       <motion.div
                         layoutId="activeNav"
-                        className="absolute inset-0 rounded-xl bg-gradient-to-r from-violet-600/20 to-fuchsia-600/10 border border-violet-500/30 shadow-[0_0_20px_rgba(139,92,246,0.3),inset_0_1px_0_rgba(255,255,255,0.1)]"
+                        className="absolute inset-0 rounded-xl border border-violet-500/30 bg-gradient-to-r from-violet-600/20 to-fuchsia-600/10 shadow-[0_0_20px_rgba(139,92,246,0.3),inset_0_1px_0_rgba(255,255,255,0.1)]"
                         initial={false}
                         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                       >
                         {/* Neon violet glow bar */}
-                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gradient-to-b from-violet-400 to-fuchsia-500 rounded-r shadow-[0_0_15px_rgba(139,92,246,0.8),0_0_30px_rgba(139,92,246,0.4)]" />
+                        <div className="absolute top-1/2 left-0 h-6 w-1 -translate-y-1/2 rounded-r bg-gradient-to-b from-violet-400 to-fuchsia-500 shadow-[0_0_15px_rgba(139,92,246,0.8),0_0_30px_rgba(139,92,246,0.4)]" />
                       </motion.div>
                     )}
                     {/* Show spinner for Script Lab when generating */}
@@ -296,7 +362,11 @@ export function Sidebar() {
 
                 // UX-001: Wrap in Tooltip when sidebar is collapsed
                 return isCollapsed ? (
-                  <Tooltip key={item.id} content={showGeneratingIndicator ? `${item.label} (generating...)` : item.label} side="right">
+                  <Tooltip
+                    key={item.id}
+                    content={showGeneratingIndicator ? `${item.label} (generating...)` : item.label}
+                    side="right"
+                  >
                     {NavLink}
                   </Tooltip>
                 ) : (

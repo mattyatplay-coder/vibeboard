@@ -49,10 +49,10 @@ const CreatorControlsInner = ({
     : null;
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
+    <div className="animate-in fade-in slide-in-from-top-2 space-y-6 duration-300">
       {/* Archetype Grid */}
       <div className="space-y-3">
-        <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-zinc-500">
+        <label className="flex items-center gap-2 text-xs font-bold tracking-wider text-zinc-500 uppercase">
           <Icon className="h-3 w-3" />
           Channel Archetype
         </label>
@@ -77,7 +77,7 @@ const CreatorControlsInner = ({
                 {isSelected && (
                   <div
                     className={clsx(
-                      'absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full',
+                      'absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full',
                       isAdult ? 'bg-red-500' : 'bg-purple-500'
                     )}
                   >
@@ -85,10 +85,8 @@ const CreatorControlsInner = ({
                   </div>
                 )}
 
-                <div className="font-bold text-sm">{data.label}</div>
-                <div className="mt-1 line-clamp-2 text-[10px] opacity-70">
-                  {data.description}
-                </div>
+                <div className="text-sm font-bold">{data.label}</div>
+                <div className="mt-1 line-clamp-2 text-[10px] opacity-70">{data.description}</div>
 
                 {/* Style hint preview on hover */}
                 {key !== 'custom' && (
@@ -99,7 +97,9 @@ const CreatorControlsInner = ({
                     )}
                   >
                     <Zap className="h-2.5 w-2.5" />
-                    <span className="truncate">{data.recommendedLens || data.styleHint.split(',')[0]}</span>
+                    <span className="truncate">
+                      {data.recommendedLens || data.styleHint.split(',')[0]}
+                    </span>
                   </div>
                 )}
               </button>
@@ -112,7 +112,7 @@ const CreatorControlsInner = ({
       <div className="space-y-2">
         <label
           className={clsx(
-            'flex items-center gap-2 text-xs font-bold uppercase tracking-wider',
+            'flex items-center gap-2 text-xs font-bold tracking-wider uppercase',
             isAdult ? 'text-red-400' : 'text-purple-400'
           )}
         >
@@ -122,14 +122,14 @@ const CreatorControlsInner = ({
         <div className="relative">
           <textarea
             value={hook}
-            onChange={(e) => onHookChange(e.target.value)}
+            onChange={e => onHookChange(e.target.value)}
             placeholder={
               isAdult
                 ? "Describe the teaser intro... (e.g., 'Slow reveal from silhouette...')"
                 : "What happens in the first 5 seconds? (e.g., 'I spent $50k on...')"
             }
             className={clsx(
-              'h-24 w-full resize-none rounded-lg border bg-zinc-900 p-3 pr-24 text-white outline-none transition-colors focus:ring-1',
+              'h-24 w-full resize-none rounded-lg border bg-zinc-900 p-3 pr-24 text-white transition-colors outline-none focus:ring-1',
               isAdult
                 ? 'border-red-500/30 focus:border-red-500 focus:ring-red-500'
                 : 'border-purple-500/30 focus:border-purple-500 focus:ring-purple-500'
@@ -137,7 +137,7 @@ const CreatorControlsInner = ({
           />
           <span
             className={clsx(
-              'absolute right-3 top-3 rounded px-2 py-0.5 text-[10px] font-mono uppercase',
+              'absolute top-3 right-3 rounded px-2 py-0.5 font-mono text-[10px] uppercase',
               isAdult ? 'bg-red-500/20 text-red-400' : 'bg-purple-500/20 text-purple-400'
             )}
           >
@@ -179,7 +179,7 @@ const CreatorControlsInner = ({
               {/* Auto-Selected Presets */}
               {currentPresets && (
                 <div className="mt-3 space-y-2">
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-zinc-500">
+                  <div className="text-[9px] font-bold tracking-wider text-zinc-500 uppercase">
                     Auto-Applied Presets
                   </div>
                   <div className="flex flex-wrap gap-2">

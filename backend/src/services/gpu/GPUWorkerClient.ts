@@ -53,6 +53,20 @@ export interface VideoGenerationParams {
   seed?: number;
 }
 
+export interface SVIGenerationParams {
+  prompt: string;
+  imageUrl: string;
+  numFrames?: number;
+  fps?: number;
+  width?: number;
+  height?: number;
+  motionBucketId?: number;
+  noiseAugStrength?: number;
+  numInferenceSteps?: number;
+  seed?: number;
+  decodeChunkSize?: number;
+}
+
 export interface PerformanceParams {
   imageUrl: string; // Character face/portrait
   audioUrl: string; // Voice audio file
@@ -303,6 +317,26 @@ export class GPUWorkerClient {
       guidance_scale: params.guidanceScale ?? 7.5,
       num_inference_steps: params.numInferenceSteps ?? 50,
       seed: params.seed,
+    });
+  }
+
+  /**
+   * Generate video using Stable Video Infinity (SVI)
+   * Premium long-form video generation with temporal coherence
+   */
+  async generateSVI(params: SVIGenerationParams): Promise<ProcessingResult> {
+    return this.executeOperation('svi_generate', {
+      prompt: params.prompt,
+      image_url: params.imageUrl,
+      num_frames: params.numFrames ?? 25,
+      fps: params.fps ?? 24,
+      width: params.width ?? 1024,
+      height: params.height ?? 576,
+      motion_bucket_id: params.motionBucketId ?? 127,
+      noise_aug_strength: params.noiseAugStrength ?? 0.02,
+      num_inference_steps: params.numInferenceSteps ?? 25,
+      seed: params.seed,
+      decode_chunk_size: params.decodeChunkSize ?? 8,
     });
   }
 
