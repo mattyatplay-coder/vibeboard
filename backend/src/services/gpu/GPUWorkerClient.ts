@@ -53,6 +53,131 @@ export interface VideoGenerationParams {
   seed?: number;
 }
 
+/**
+ * SVI (Stable Video Infinity) Generation Parameters
+ *
+ * SVI is the premium long-form video model with built-in continuity.
+ * Replaces the need for StoryMem + Spatia + InfCam.
+ *
+ * Key Features:
+ * - Infinite Continuity: Persistent latent map for 100+ frame coherence
+ * - Self-hosted on RunPod: $0/sec vs $0.15/sec on managed providers
+ */
+export interface SVIGenerationParams {
+  prompt: string; // Motion guidance prompt
+  imageUrl: string; // Required seed image (SVI is image-to-video only)
+  numFrames?: number; // Max 100 for extended continuity (default: 25)
+  fps?: number; // Output frame rate (default: 24)
+  width?: number; // Video width, multiple of 64 (default: 1024)
+  height?: number; // Video height, multiple of 64 (default: 576)
+  motionBucketId?: number; // Motion intensity 1-255 (default: 127)
+  noiseAugStrength?: number; // Noise augmentation 0-0.1 (default: 0.02)
+  numInferenceSteps?: number; // Denoising steps 1-50 (default: 25)
+  seed?: number; // Random seed for reproducibility
+  decodeChunkSize?: number; // Frames to decode at once (default: 8)
+}
+
+/**
+ * FLUX.1 Image Generation Parameters
+ *
+ * Self-hosted FLUX models on RunPod for zero API costs:
+ * - Schnell: Fast (4 steps, ~2-3s), Apache 2.0 license
+ * - Dev: Quality (25+ steps, ~10-15s), non-commercial
+ */
+export interface FluxImageParams {
+  prompt: string; // Text prompt for generation
+  model?: 'schnell' | 'dev'; // Model variant (default: schnell)
+  width?: number; // Image width, multiple of 8 (default: 1024)
+  height?: number; // Image height, multiple of 8 (default: 1024)
+  numInferenceSteps?: number; // Denoising steps (4 for schnell, 25-50 for dev)
+  guidanceScale?: number; // CFG scale 1.0-20.0 (default: 3.5)
+  seed?: number; // Random seed for reproducibility
+  outputFormat?: 'png' | 'jpeg'; // Output format (default: png)
+}
+
+/**
+ * Stable Diffusion 3.5 Large Image Generation Parameters
+ *
+ * Self-hosted on RunPod for reduced API costs:
+ * - 8B parameter model with excellent prompt adherence
+ * - 28 inference steps recommended
+ * - Stability AI Community license
+ */
+export interface SD35ImageParams {
+  prompt: string; // Text prompt for generation
+  negativePrompt?: string; // Negative prompt for unwanted elements
+  width?: number; // Image width, multiple of 8 (default: 1024)
+  height?: number; // Image height, multiple of 8 (default: 1024)
+  numInferenceSteps?: number; // Denoising steps (default: 28)
+  guidanceScale?: number; // CFG scale 1.0-20.0 (default: 7.0)
+  seed?: number; // Random seed for reproducibility
+  outputFormat?: 'png' | 'jpeg'; // Output format (default: png)
+}
+
+/**
+ * LTX Video Generation Parameters
+ *
+ * Self-hosted on RunPod for zero API costs:
+ * - 2B DiT-based model, extremely fast (~2-5 seconds)
+ * - Native 768x512 resolution, up to 121 frames
+ * - Apache 2.0 license (commercial use OK)
+ */
+export interface LTXVideoParams {
+  prompt: string; // Text prompt for video generation
+  negativePrompt?: string; // Negative prompt
+  imageUrl?: string; // Optional source image for I2V mode
+  width?: number; // Video width (default: 768)
+  height?: number; // Video height (default: 512)
+  numFrames?: number; // Number of frames (default: 49)
+  fps?: number; // Output frame rate (default: 24)
+  numInferenceSteps?: number; // Denoising steps (default: 30)
+  guidanceScale?: number; // CFG scale 1.0-20.0 (default: 7.5)
+  seed?: number; // Random seed for reproducibility
+}
+
+/**
+ * Depth Anything V2 Large - Depth Estimation Parameters
+ *
+ * Self-hosted on RunPod for zero API costs:
+ * - 335M parameter ViT-L encoder
+ * - State-of-the-art monocular depth estimation
+ * - Works on any image without fine-tuning
+ * - 8GB+ VRAM required
+ * - Apache 2.0 license
+ */
+export interface DepthAnythingParams {
+  imageUrl: string; // URL of the source image
+  outputFormat?: 'png' | 'jpeg'; // Output format (default: png)
+  colormap?: 'gray' | 'turbo' | 'viridis' | 'plasma'; // Depth visualization colormap (default: gray)
+  normalize?: boolean; // Normalize depth values to 0-255 (default: true)
+}
+
+/**
+ * SAM2 (Segment Anything 2) - Segmentation Parameters
+ *
+ * Self-hosted on RunPod for zero API costs:
+ * - Hiera-Large backbone (224M params)
+ * - State-of-the-art promptable segmentation
+ * - Point, box, or automatic prompts
+ * - 8GB+ VRAM required
+ * - Apache 2.0 license
+ *
+ * Use cases:
+ * - Rotoscoping for VFX
+ * - Object selection for inpainting
+ * - Background removal
+ * - Video object tracking
+ */
+export interface SAM2SegmentParams {
+  imageUrl: string; // URL of the source image
+  pointCoords?: [number, number][]; // Point prompts as [[x1,y1], [x2,y2], ...] normalized 0-1
+  pointLabels?: number[]; // Labels for points: 1=foreground, 0=background
+  box?: [number, number, number, number]; // Box prompt as [x1, y1, x2, y2] normalized 0-1
+  multimaskOutput?: boolean; // Return multiple mask predictions (default: true)
+  returnLogits?: boolean; // Return raw logits instead of binary masks (default: false)
+  outputFormat?: 'png' | 'jpeg'; // Output format (default: png)
+}
+
 export interface PerformanceParams {
   imageUrl: string; // Character face/portrait
   audioUrl: string; // Voice audio file
@@ -155,17 +280,23 @@ export interface GPUWorkerHealth {
 
 type DeploymentMode = 'local' | 'runpod' | 'replicate';
 
+// Endpoint types for different model families
+type EndpointType = 'default' | 'flux';
+
 export class GPUWorkerClient {
   private static instance: GPUWorkerClient;
   private client: AxiosInstance;
+  private fluxClient?: AxiosInstance; // Dedicated FLUX endpoint client
   private mode: DeploymentMode;
   private runpodEndpointId?: string;
+  private runpodFluxEndpointId?: string;
   private runpodApiKey?: string;
 
   private constructor() {
     // Determine deployment mode from environment
     this.mode = (process.env.GPU_WORKER_MODE as DeploymentMode) || 'local';
     this.runpodEndpointId = process.env.RUNPOD_ENDPOINT_ID;
+    this.runpodFluxEndpointId = process.env.RUNPOD_FLUX_ENDPOINT_ID;
     this.runpodApiKey = process.env.RUNPOD_API_KEY;
 
     const baseURL = this.getBaseURL();
@@ -175,6 +306,16 @@ export class GPUWorkerClient {
       timeout: 300000, // 5 minutes for GPU operations
       headers: this.getHeaders(),
     });
+
+    // Create dedicated FLUX client if endpoint is configured
+    if (this.mode === 'runpod' && this.runpodFluxEndpointId) {
+      this.fluxClient = axios.create({
+        baseURL: `https://api.runpod.ai/v2/${this.runpodFluxEndpointId}`,
+        timeout: 300000,
+        headers: this.getHeaders(),
+      });
+      console.log(`[GPUWorkerClient] FLUX endpoint configured: ${this.runpodFluxEndpointId}`);
+    }
 
     console.log(`[GPUWorkerClient] Initialized in ${this.mode} mode, base URL: ${baseURL}`);
   }
@@ -307,6 +448,34 @@ export class GPUWorkerClient {
   }
 
   /**
+   * Generate video using Stable Video Infinity (SVI/SVD-XT)
+   *
+   * SVI is the premium long-form video model with built-in continuity.
+   * Key advantages:
+   * - Replaces StoryMem (memory bank) with integrated Spatial/Temporal Latent Storage
+   * - Replaces Spatia (3D point cloud) with integrated View Synthesis
+   * - Replaces InfCam (trajectory) with integrated Camera Control
+   * - Self-hosted on RunPod: $0/sec vs $0.15/sec on managed providers
+   *
+   * Note: Requires an input image (image-to-video only)
+   */
+  async generateSVI(params: SVIGenerationParams): Promise<ProcessingResult> {
+    return this.executeOperation('svi_generate', {
+      prompt: params.prompt,
+      image_url: params.imageUrl,
+      num_frames: params.numFrames ?? 25,
+      fps: params.fps ?? 24,
+      width: params.width ?? 1024,
+      height: params.height ?? 576,
+      motion_bucket_id: params.motionBucketId ?? 127,
+      noise_aug_strength: params.noiseAugStrength ?? 0.02,
+      num_inference_steps: params.numInferenceSteps ?? 25,
+      seed: params.seed,
+      decode_chunk_size: params.decodeChunkSize ?? 8,
+    });
+  }
+
+  /**
    * Generate talking head video from image + audio (FlashPortrait)
    * Audio-driven lip sync and expression animation
    */
@@ -317,6 +486,141 @@ export class GPUWorkerClient {
       driver_video_url: params.driverVideoUrl,
       enhance_face: params.enhanceFace ?? true,
       lip_sync_strength: params.lipSyncStrength ?? 0.8,
+    });
+  }
+
+  /**
+   * Generate image using FLUX.1 (Schnell or Dev)
+   *
+   * Self-hosted on RunPod for zero API costs:
+   * - FLUX.1 Schnell: Fast (4 steps, ~2-3s), Apache 2.0 license
+   * - FLUX.1 Dev: Quality (25-50 steps, ~10-15s), non-commercial
+   *
+   * Cost savings vs Fal.ai:
+   * - Schnell: $0.003/image -> $0.001/image (~66% savings)
+   * - Dev: $0.025/image -> $0.002/image (~92% savings)
+   */
+  async generateFluxImage(params: FluxImageParams): Promise<ProcessingResult> {
+    // Adjust steps based on model
+    const model = params.model ?? 'schnell';
+    const steps =
+      model === 'schnell'
+        ? Math.min(params.numInferenceSteps ?? 4, 4)
+        : (params.numInferenceSteps ?? 25);
+
+    return this.executeOperation('flux_generate', {
+      prompt: params.prompt,
+      model: model,
+      width: params.width ?? 1024,
+      height: params.height ?? 1024,
+      num_inference_steps: steps,
+      guidance_scale: params.guidanceScale ?? 3.5,
+      seed: params.seed,
+      output_format: params.outputFormat ?? 'png',
+    });
+  }
+
+  /**
+   * Generate image using Stable Diffusion 3.5 Large
+   *
+   * Self-hosted on RunPod for reduced API costs:
+   * - 8B parameter model with excellent prompt adherence
+   * - 28 inference steps recommended
+   *
+   * Cost savings vs Fal.ai:
+   * - SD 3.5: $0.035/megapixel -> ~$0.003/image (~91% savings)
+   */
+  async generateSD35Image(params: SD35ImageParams): Promise<ProcessingResult> {
+    return this.executeOperation('sd35_generate', {
+      prompt: params.prompt,
+      negative_prompt: params.negativePrompt ?? '',
+      width: params.width ?? 1024,
+      height: params.height ?? 1024,
+      num_inference_steps: params.numInferenceSteps ?? 28,
+      guidance_scale: params.guidanceScale ?? 7.0,
+      seed: params.seed,
+      output_format: params.outputFormat ?? 'png',
+    });
+  }
+
+  /**
+   * Generate video using LTX Video
+   *
+   * Self-hosted on RunPod for zero API costs:
+   * - 2B DiT-based model, extremely fast (~2-5 seconds)
+   * - Native 768x512 resolution, up to 121 frames
+   * - Apache 2.0 license (commercial use OK)
+   *
+   * Supports:
+   * - Text-to-Video: Provide prompt only
+   * - Image-to-Video: Provide prompt + imageUrl
+   *
+   * Cost savings vs Fal.ai:
+   * - LTX Video: $0.10/video -> $0.00/video (100% savings)
+   */
+  async generateLTXVideo(params: LTXVideoParams): Promise<ProcessingResult> {
+    return this.executeOperation('ltx_generate', {
+      prompt: params.prompt,
+      negative_prompt: params.negativePrompt ?? '',
+      image_url: params.imageUrl,
+      width: params.width ?? 768,
+      height: params.height ?? 512,
+      num_frames: params.numFrames ?? 49,
+      fps: params.fps ?? 24,
+      num_inference_steps: params.numInferenceSteps ?? 30,
+      guidance_scale: params.guidanceScale ?? 7.5,
+      seed: params.seed,
+    });
+  }
+
+  /**
+   * Generate depth map using Depth Anything V2 Large
+   *
+   * Self-hosted on RunPod for zero API costs:
+   * - 335M parameter ViT-L encoder
+   * - State-of-the-art monocular depth estimation
+   * - Works on any image without fine-tuning
+   * - Apache 2.0 license
+   *
+   * Use cases:
+   * - Rack focus effects (depth-based blur)
+   * - 3D parallax animations
+   * - Occlusion masks for compositing
+   * - Depth-aware inpainting
+   */
+  async estimateDepth(params: DepthAnythingParams): Promise<ProcessingResult> {
+    return this.executeOperation('depth_anything', {
+      image_url: params.imageUrl,
+      output_format: params.outputFormat ?? 'png',
+      colormap: params.colormap ?? 'gray',
+      normalize: params.normalize ?? true,
+    });
+  }
+
+  /**
+   * Generate segmentation mask using SAM2 (Segment Anything 2)
+   *
+   * Self-hosted on RunPod for zero API costs:
+   * - Hiera-Large backbone (224M params)
+   * - State-of-the-art promptable segmentation
+   * - Point, box, or automatic prompts
+   * - Apache 2.0 license
+   *
+   * Use cases:
+   * - Rotoscoping for VFX
+   * - Object selection for inpainting
+   * - Background removal
+   * - Video object tracking
+   */
+  async segmentWithSAM2(params: SAM2SegmentParams): Promise<ProcessingResult> {
+    return this.executeOperation('sam2_segment', {
+      image_url: params.imageUrl,
+      point_coords: params.pointCoords,
+      point_labels: params.pointLabels,
+      box: params.box,
+      multimask_output: params.multimaskOutput ?? true,
+      return_logits: params.returnLogits ?? false,
+      output_format: params.outputFormat ?? 'png',
     });
   }
 
@@ -379,6 +683,15 @@ export class GPUWorkerClient {
   }
 
   /**
+   * Determine which endpoint type to use for an operation
+   * Note: SD35 and LTX use the default endpoint (same GPU worker as other models)
+   */
+  private getEndpointType(operation: string): EndpointType {
+    const fluxOperations = ['flux_generate', 'flux_schnell', 'flux_dev', 'image_flux'];
+    return fluxOperations.includes(operation) ? 'flux' : 'default';
+  }
+
+  /**
    * Execute operation based on deployment mode
    */
   private async executeOperation(
@@ -387,7 +700,8 @@ export class GPUWorkerClient {
   ): Promise<ProcessingResult> {
     try {
       if (this.mode === 'runpod') {
-        return this.executeRunPod(operation, params);
+        const endpointType = this.getEndpointType(operation);
+        return this.executeRunPod(operation, params, endpointType);
       }
 
       // Direct HTTP call for local mode
@@ -418,11 +732,16 @@ export class GPUWorkerClient {
    */
   private async executeRunPod(
     operation: string,
-    params: Record<string, unknown>
+    params: Record<string, unknown>,
+    endpointType: EndpointType = 'default'
   ): Promise<ProcessingResult> {
+    // Select the appropriate client based on endpoint type
+    const client = endpointType === 'flux' && this.fluxClient ? this.fluxClient : this.client;
+    const endpointName = endpointType === 'flux' ? 'FLUX' : 'default';
+
     // Submit job
     // NOTE: Python worker expects 'task' and 'payload' keys, not 'operation' and 'params'
-    const runResponse = await this.client.post('/run', {
+    const runResponse = await client.post('/run', {
       input: {
         task: operation,
         payload: params,
@@ -430,7 +749,7 @@ export class GPUWorkerClient {
     });
 
     const jobId = runResponse.data.id;
-    console.log(`[GPUWorkerClient] RunPod job submitted: ${jobId}`);
+    console.log(`[GPUWorkerClient] RunPod job submitted to ${endpointName} endpoint: ${jobId}`);
 
     // Poll for completion
     const maxAttempts = 120; // 10 minutes at 5 second intervals
@@ -439,7 +758,7 @@ export class GPUWorkerClient {
     while (attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 5000));
 
-      const statusResponse = await this.client.get(`/status/${jobId}`);
+      const statusResponse = await client.get(`/status/${jobId}`);
       const status = statusResponse.data.status;
 
       if (status === 'COMPLETED') {
@@ -584,6 +903,31 @@ export class GPUWorkerClient {
       video_generate: '/video/generate',
       video_t2v: '/video/generate',
       video_i2v: '/video/generate',
+      // SVI - Stable Video Infinity (Premium long-form continuity)
+      svi_generate: '/video/svi-generate',
+      stable_video_infinity: '/video/svi-generate',
+      video_svi: '/video/svi-generate',
+      // FLUX - Self-hosted image generation
+      flux_generate: '/image/flux',
+      flux_schnell: '/image/flux',
+      flux_dev: '/image/flux',
+      image_flux: '/image/flux',
+      // SD 3.5 Large - Self-hosted high-quality image generation
+      sd35_generate: '/image/sd35',
+      sd35_large: '/image/sd35',
+      image_sd35: '/image/sd35',
+      // LTX Video - Self-hosted fast video generation
+      ltx_generate: '/video/ltx',
+      ltx_video: '/video/ltx',
+      video_ltx: '/video/ltx',
+      // Depth Anything V2 Large - Self-hosted depth estimation
+      depth_anything: '/depth/anything-v2',
+      depth_anything_v2: '/depth/anything-v2',
+      depth_estimate: '/depth/anything-v2',
+      // SAM2 - Self-hosted segmentation
+      sam2_segment: '/segment/sam2',
+      sam2: '/segment/sam2',
+      segment: '/segment/sam2',
       flash_portrait: '/performance/flash-portrait',
       // Phase 3: Asset Bin
       scene_deconstruct: '/assets/deconstruct',

@@ -6,7 +6,9 @@ export type ModelCapability =
   | 'text-to-video'
   | 'image-to-video' // Animation
   | 'video-editing'
-  | 'avatar'; // Character/Lipsync
+  | 'avatar' // Character/Lipsync
+  | 'depth-estimation' // Depth map generation
+  | 'segmentation'; // Object segmentation (SAM2)
 
 export interface ModelInfo {
   id: string;
@@ -758,6 +760,19 @@ export const ALL_MODELS: ModelInfo[] = [
     bestFor: 'Quality Motion',
   },
 
+  // === RUNPOD SELF-HOSTED (SVI) ===
+  {
+    id: 'runpod/stable-video-infinity',
+    name: 'Stable Video Infinity',
+    provider: 'runpod',
+    capability: 'image-to-video',
+    type: 'video',
+    tier: 'pro',
+    desc: 'Premium long-form video with infinite continuity. Self-hosted = $0/sec',
+    supportedDurations: ['5s', '10s', '15s', '20s'],
+    bestFor: 'Long-Form Continuity (Premium)',
+  },
+
   // Avatar / Character / Lip Sync
   {
     id: 'fal-ai/one-to-all-animation/14b',
@@ -832,19 +847,84 @@ export const ALL_MODELS: ModelInfo[] = [
     bestFor: 'Video Style Transfer',
   },
 
-  // === HUGGINGFACE ===
-  // { id: 'starsfriday/Qwen-Image-Edit-Remove-Clothes', name: 'Qwen Image Edit', provider: 'huggingface', capability: 'image-editing', type: 'image', desc: 'Remove clothes/objects (Experimental)' },
-
-  // === FAL.AI - Additional Image Editing ===
+  // === QWEN IMAGE MODELS (Alibaba) ===
+  // Text-to-Image
   {
-    id: 'fal-ai/qwen-image/edit-plus',
-    name: 'Qwen Image Edit Plus',
+    id: 'fal-ai/qwen-image',
+    name: 'Qwen Image',
+    provider: 'fal',
+    capability: 'text-to-image',
+    type: 'image',
+    desc: 'Foundation text-to-image model with strong prompt adherence',
+    cost: '$0.02/MP',
+    supportedQuantities: [1, 2, 3, 4],
+    bestFor: 'Foundation Model',
+  },
+  {
+    id: 'fal-ai/qwen-image-2512',
+    name: 'Qwen Image 2512',
+    provider: 'fal',
+    capability: 'text-to-image',
+    type: 'image',
+    desc: 'Latest Qwen with better text rendering, finer textures, and realistic humans',
+    cost: '$0.02/MP',
+    tier: 'quality',
+    supportedQuantities: [1, 2, 3, 4],
+    bestFor: 'Text & Realism',
+  },
+  {
+    id: 'fal-ai/qwen-image/image-to-image',
+    name: 'Qwen Image I2I',
     provider: 'fal',
     capability: 'image-editing',
     type: 'image',
-    desc: 'Advanced object removal and image editing',
+    desc: 'Transform images while maintaining structure and style',
+    cost: '$0.02/MP',
+    bestFor: 'Image Transform',
+  },
+  // Image Editing
+  {
+    id: 'fal-ai/qwen-image-edit',
+    name: 'Qwen Image Edit',
+    provider: 'fal',
+    capability: 'image-editing',
+    type: 'image',
+    desc: 'Instruction-based image editing with inpainting support',
+    cost: '$0.03/MP',
+    bestFor: 'Instruction Edit',
+  },
+  {
+    id: 'fal-ai/qwen-image-edit-2509',
+    name: 'Qwen Image Edit 2509',
+    provider: 'fal',
+    capability: 'image-editing',
+    type: 'image',
+    desc: 'Superior text editing and multi-image support. Great for LoRA base.',
+    cost: '$0.03/MP',
     tier: 'quality',
-    bestFor: 'Object Removal',
+    bestFor: 'LoRA Base Model',
+  },
+  {
+    id: 'fal-ai/qwen-image-edit-2511',
+    name: 'Qwen Image Edit 2511',
+    provider: 'fal',
+    capability: 'image-editing',
+    type: 'image',
+    desc: 'Latest edit model - geometric reasoning, pose/expression fixes, multi-image compositing',
+    cost: '$0.03/MP',
+    tier: 'pro',
+    bestFor: 'AI Reshoot',
+  },
+  {
+    id: 'fal-ai/qwen-image-layered',
+    name: 'Qwen Image Layered',
+    provider: 'fal',
+    capability: 'image-editing',
+    type: 'image',
+    desc: 'Decompose images into RGBA layers for compositing and VFX',
+    cost: '$0.05/image',
+    tier: 'pro',
+    bestFor: 'Layer Extraction',
   },
 
   // === REPLICATE ===
@@ -1399,6 +1479,46 @@ export const ALL_MODELS: ModelInfo[] = [
 
   // === SELF-HOSTED (RunPod) ===
   // Zero marginal cost models running on your own GPU
+
+  // Image Generation - FLUX (Apache 2.0 / Non-commercial)
+  {
+    id: 'runpod/flux-schnell',
+    name: 'FLUX.1 Schnell',
+    provider: 'runpod',
+    capability: 'text-to-image',
+    type: 'image',
+    desc: 'Fast FLUX model (4 steps, ~2-3s). Apache 2.0 license.',
+    cost: '$0',
+    tier: 'fast',
+    supportedQuantities: [1, 2, 4],
+    bestFor: 'Fast Iteration',
+  },
+  {
+    id: 'runpod/flux-dev',
+    name: 'FLUX.1 Dev',
+    provider: 'runpod',
+    capability: 'text-to-image',
+    type: 'image',
+    desc: 'High-quality FLUX model (25-50 steps). Non-commercial.',
+    cost: '$0',
+    tier: 'quality',
+    supportedQuantities: [1, 2, 4],
+    bestFor: 'High Quality',
+  },
+  {
+    id: 'runpod/sd35-large',
+    name: 'SD 3.5 Large',
+    provider: 'runpod',
+    capability: 'text-to-image',
+    type: 'image',
+    desc: '8B parameter model with excellent prompt adherence. Stability AI Community license.',
+    cost: '$0',
+    tier: 'quality',
+    supportedQuantities: [1, 2, 4],
+    bestFor: 'Prompt Adherence',
+  },
+
+  // Video Generation
   {
     id: 'runpod/wan-2.1-t2v-14b',
     name: 'Wan 2.1 (14B) T2V',
@@ -1422,6 +1542,30 @@ export const ALL_MODELS: ModelInfo[] = [
     tier: 'pro',
     supportedDurations: ['5s'],
     bestFor: 'Image Animation',
+  },
+  {
+    id: 'runpod/ltx-video',
+    name: 'LTX Video',
+    provider: 'runpod',
+    capability: 'text-to-video',
+    type: 'video',
+    desc: 'Fast 2B DiT model (~2-5s per video). Apache 2.0 license.',
+    cost: '$0',
+    tier: 'fast',
+    supportedDurations: ['5s'],
+    bestFor: 'Fast Video',
+  },
+  {
+    id: 'runpod/ltx-video-i2v',
+    name: 'LTX Video I2V',
+    provider: 'runpod',
+    capability: 'image-to-video',
+    type: 'video',
+    desc: 'Fast image-to-video animation. Apache 2.0 license.',
+    cost: '$0',
+    tier: 'fast',
+    supportedDurations: ['5s'],
+    bestFor: 'Fast Animation',
   },
   {
     id: 'runpod/infcam',
@@ -1466,6 +1610,54 @@ export const ALL_MODELS: ModelInfo[] = [
     cost: '$0',
     tier: 'pro',
     bestFor: 'Directing Actors',
+  },
+  {
+    id: 'runpod/qwen-2509',
+    name: 'Qwen2.5VL 2509',
+    provider: 'runpod',
+    capability: 'video-editing',
+    type: 'video',
+    desc: 'Qwen 2.5 Vision-Language model for video understanding and editing.',
+    cost: '$0',
+    tier: 'pro',
+    bestFor: 'Video Analysis',
+  },
+  {
+    id: 'runpod/qwen-2511',
+    name: 'Qwen2.5VL 2511',
+    provider: 'runpod',
+    capability: 'video-editing',
+    type: 'video',
+    desc: 'Latest Qwen 2.5 VL model with enhanced video comprehension.',
+    cost: '$0',
+    tier: 'pro',
+    bestFor: 'Video Editing',
+  },
+
+  // Utility Models - Depth Estimation
+  {
+    id: 'runpod/depth-anything-v2',
+    name: 'Depth Anything V2 Large',
+    provider: 'runpod',
+    capability: 'depth-estimation',
+    type: 'image',
+    desc: '335M ViT-L encoder for state-of-the-art monocular depth estimation. Apache 2.0 license.',
+    cost: '$0',
+    tier: 'quality',
+    bestFor: 'Depth Maps',
+  },
+
+  // Utility Models - Segmentation
+  {
+    id: 'runpod/sam2',
+    name: 'SAM2 Hiera-Large',
+    provider: 'runpod',
+    capability: 'segmentation',
+    type: 'image',
+    desc: '224M Hiera-Large for state-of-the-art promptable segmentation. Apache 2.0 license.',
+    cost: '$0',
+    tier: 'quality',
+    bestFor: 'Object Segmentation',
   },
 ];
 
